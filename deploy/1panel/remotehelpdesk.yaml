@@ -1,0 +1,201 @@
+# RemoteHelpDesk production runtime configuration.
+language: zh-CN
+encryptionKey: ""
+
+public:
+  baseUrl: ""
+
+server:
+  port: 8083
+  cors:
+    allowedOrigins:
+      - http://127.0.0.1:8083
+      - http://localhost:8083
+      - https://localhost
+      - capacitor://localhost
+
+db:
+  type: postgres
+  dsn: host=postgres user=cs_ai_agent password=replace-me dbname=cs_ai_agent port=5432 sslmode=disable TimeZone=Asia/Shanghai
+  autoMigrate: true
+  maxIdleConns: 5
+  maxOpenConns: 20
+  connMaxIdleTimeSeconds: 300
+  connMaxLifetimeSeconds: 1800
+
+redis:
+  addr: redis:6379
+  password: ""
+  db: 0
+
+logger:
+  level: info
+  format: text
+  addSource: false
+
+auth:
+  tokenTTLHours: 72
+  maxFailedAttempts: 5
+  credentialLockMinute: 15
+
+customerSession:
+  secret: replace-with-a-random-secret
+  ttlMinutes: 120
+  refreshThresholdMinutes: 30
+
+storage:
+  default: minio
+  maxUploadSizeMB: 20
+  uploadSecurity:
+    enabled: true
+  local:
+    root: /app/data/storage
+    baseUrl: /storage
+  oss:
+    endpoint: ""
+    bucket: ""
+    accessKeyId: ""
+    accessKeySecret: ""
+    baseUrl: ""
+    private: false
+    signedUrlExpireSeconds: 600
+  minio:
+    endpoint: minio:9000
+    publicEndpoint: ""
+    bucket: remotehelpdesk-assets
+    accessKeyId: remotehelpdesk
+    accessKeySecret: replace-me
+    baseUrl: ""
+    region: us-east-1
+    useSsl: false
+    private: true
+    signedUrlExpireSeconds: 600
+
+vectorDB:
+  type: qdrant
+  qdrant:
+    host: qdrant
+    grpcPort: 6334
+    apiKey: ""
+    useTls: false
+  lancedb:
+    path: /app/data/lancedb
+
+rag:
+  enabled: true
+  runtimeEnabled: true
+  ingestionEnabled: true
+  hybridEnabled: true
+  retrievalMode: auto
+  activeCollectionAlias: knowledge_chunks_active
+  collectionPrefix: knowledge_chunks
+  schemaVersion: 2
+  taskBatchSize: 20
+  taskInterval: 5s
+  maxRetries: 5
+  contextMaxTokens: 4000
+  maxContextItems: 5
+  denseTopK: 30
+  lexicalTopK: 12
+  hybridDenseMinHits: 3
+  hybridDenseMinScore: 0.55
+  rrfK: 60
+  rerankTopN: 5
+  rerankMaxCandidates: 12
+  rerankSkipTopScore: 0.82
+
+mcp:
+  enabled: true
+  serverToken: ""
+  servers:
+    system:
+      enabled: true
+      endpoint: http://127.0.0.1:8083/api/mcp
+      timeoutMs: 15000
+      headers: {}
+
+wxWork:
+  enabled: false
+  corpId: ""
+  corpSecret: ""
+  agentId: ""
+  oauthRedirect: ""
+  stateSecret: ""
+  rsaPrivateKey: ""
+  token: ""
+  encodingAESKey: ""
+  notify:
+    enabled: false
+    toUsers: []
+    safe: false
+    enableDuplicateCheck: true
+    duplicateCheckInterval: 1800
+
+oidc:
+  enabled: false
+  issuer: ""
+  clientId: ""
+  clientSecret: ""
+  redirectUrl: ""
+  scopes: []
+  usernameClaim: ""
+  emailClaim: ""
+  displayNameClaim: ""
+
+jitsi:
+  requireAuth: false
+  url: ""
+  appId: ""
+  appSecret: ""
+  webhookSecret: ""
+  jitsiDomain: ""
+  tokenTTLMinutes: 7200
+
+speech:
+  provider: disabled
+  mock:
+    segmentDurationMs: 2000
+  xfyun:
+    appId: ""
+    apiKey: ""
+    endpoint: wss://rtasr.xfyun.cn/v1/ws
+    domain: ""
+    translationEnabled: false
+    translationApiSecret: ""
+    translationEndpoint: https://itrans.xfyun.cn/v2/its
+    translationTargetLanguage: en
+  aliyun:
+    apiKey: ""
+    workspaceId: ""
+    endpoint: wss://dashscope.aliyuncs.com/api-ws/v1/inference
+    model: qwen-audio-3.0-asr-flash-streaming
+  jigasi:
+    enabled: false
+    sharedSecret: ""
+    maxParticipantStreams: 8
+    maxConcurrentStreams: 32
+
+meetingAR:
+  provider: disabled
+  providerOptions:
+    endpoint: ""
+    apiKey: ""
+    healthPath: /health
+
+sub2api:
+  base_url: ""
+  default_key: ""
+  admin_api_key: ""
+  default_model: ""
+
+email:
+  enabled: false
+
+ticketDispatch:
+  acceptDeadlineMinutes: 10
+  ownerReplyTakeoverMinutes: 30
+  unassignedEscalationMinutes: 10
+  maxDispatchAttempts: 3
+  onlineFreshnessMinutes: 2
+  slaWarningLeadMinutes: 30
+  slaWarningRepeatMinutes: 15

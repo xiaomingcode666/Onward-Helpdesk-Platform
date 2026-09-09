@@ -1,0 +1,13 @@
+sub2api:
+  # Sub2API LLM Gateway 服务基础地址
+  # 生产环境需替换为实际 Sub2API 服务地址
+  base_url: "https://sub2api.example.com"
+  # 默认 API Key
+  # 可在运行时通过 X-Api-Key 请求头覆盖，实现产品级别的 API Key 路由
+  default_key: ""
+  # HTTP 请求超时时间
+  timeout: 30s
+  # 失败重试次数（含首次请求），设为 0 或 1 表示不重试
+  max_retries: 3
+  # 重试基础等待间隔，每次重试将倍增（指数退避）
+  retry_backoff: 1s

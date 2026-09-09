@@ -1,0 +1,301 @@
+"use client"
+
+import { useEffect, useRef } from "react"
+import { toast } from "sonner"
+
+import { createAdminWebSocket } from "@/lib/api/admin"
+import { type AgentMessage } from "@/lib/api/agent"
+import { shouldReloadConversationListForRealtimePatch } from "@/lib/agent-conversation-realtime"
+import { readSession } from "@/lib/auth"
+import {
+  normalizeRealtimeMessage,
+  realtimePresenceExpiryDelay,
+  type RealtimeConversationPatch,
+  type RealtimeMessageCreatedPayload,
+  type RealtimePresencePayload,
+  type RealtimePresenceSnapshotPayload,
+  type RealtimeTypingPayload,
+} from "@/lib/im-realtime-state"
+import { createRealtimeConnectionManager } from "@/lib/realtime-connection"
+import { getNotificationBody, showNotification } from "@/lib/services/notification"
+import { useAgentConversationsStore } from "@/lib/stores/agent-conversations"
+import { useI18n } from "@/i18n/provider"
+
+type AgentRealtimeConnection = ReturnType<typeof createRealtimeConnectionManager>
+type AgentRealtimeEnvelope = {
+  eventId?: string
+  type?: string
+  data?: RealtimeMessageCreatedPayload<AgentMessage> &
+    RealtimeConversationPatch & {
+      messageId?: number
+      recalledAt?: string
+      sendStatus?: number
+    } & RealtimePresencePayload & RealtimeTypingPayload
+    & RealtimePresenceSnapshotPayload
+}
+
+const AGENT_TYPING_EVENT = "remotehelpdesk:agent-typing"
+
+function scheduleAgentPresenceExpiry(payload: RealtimePresencePayload) {
+  if (!payload.online || !payload.actorId || payload.conversationId <= 0) return
+  const delay = realtimePresenceExpiryDelay(payload.expiresAt)
+  if (delay === null) return
+  window.setTimeout(() => {
+    useAgentConversationsStore.getState().expireRealtimePresence(
+      payload.conversationId,
+      payload.actorId,
+      payload.expiresAt,
+    )
+  }, delay)
+}
+
+export function sendAgentConversationTyping(conversationId: number, typing: boolean) {
+  if (typeof window === "undefined" || conversationId <= 0) return
+  window.dispatchEvent(new CustomEvent(AGENT_TYPING_EVENT, {
+    detail: { conversationId, typing },
+  }))
+}
+
+export function useAgentConversationRealtime() {
+  const t = useI18n()
+  const selectedConversationId = useAgentConversationsStore(
+    (state) => state.selectedConversationId
+  )
+  const setRealtimeStatus = useAgentConversationsStore(
+    (state) => state.setRealtimeStatus
+  )
+  const clearRealtimeEphemeralState = useAgentConversationsStore(
+    (state) => state.clearRealtimeEphemeralState
+  )
+  const realtimeRef = useRef<AgentRealtimeConnection | null>(null)
+  const subscribedConversationIdRef = useRef<number | null>(null)
+  const selectedConversationIdRef = useRef<number | null>(selectedConversationId)
+  const currentUserIdRef = useRef<number>(readSession()?.user.id ?? 0)
+
+  useEffect(() => {
+    selectedConversationIdRef.current = selectedConversationId
+  }, [selectedConversationId])
+
+  useEffect(() => {
+    const realtime = createRealtimeConnectionManager({
+      createSocket: createAdminWebSocket,
+      onStatusChange: (status) => {
+        setRealtimeStatus(status)
+        if (status !== "connected") {
+          clearRealtimeEphemeralState()
+        }
+      },
+      onOpen: (socket) => {
+        console.info("[agent-realtime] websocket connected", {
+          url: socket.url,
+        })
+
+        const conversationId = selectedConversationIdRef.current
+        if (conversationId) {
+          socket.send(
+            JSON.stringify({
+              type: "subscribe",
+              topics: [`conversation:${conversationId}`],
+            })
+          )
+          subscribedConversationIdRef.current = conversationId
+        } else {
+          subscribedConversationIdRef.current = null
+        }
+
+        const store = useAgentConversationsStore.getState()
+        void store.resyncRealtimeData(conversationId ?? undefined).catch((error) => {
+          toast.error(error instanceof Error ? error.message : t("conversation.syncConversationDataFailed"))
+        })
+      },
+      onMessage: (event, socket) => {
+        try {
+          const envelope = JSON.parse(event.data) as AgentRealtimeEnvelope
+          const eventType = envelope.type ?? ""
+          const payload = envelope.data
+          const conversationId = payload?.conversationId ?? 0
+          const eventId = envelope.eventId?.trim() ?? ""
+
+          if (
+            eventType === "" ||
+            eventType === "connected" ||
+            eventType === "pong" ||
+            eventType === "subscribed" ||
+            eventType === "unsubscribed"
+          ) {
+            return
+          }
+
+          if (eventId && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "ack", eventId }))
+          }
+
+          const store = useAgentConversationsStore.getState()
+          if (eventType === "resyncRequired") {
+            void store.resyncRealtimeData(conversationId).catch((error) => {
+              toast.error(error instanceof Error ? error.message : t("conversation.syncConversationDataFailed"))
+            })
+            return
+          }
+
+          if (eventType === "message.created") {
+            const message = normalizeRealtimeMessage<AgentMessage>(payload)
+            if (!message) {
+              void store.resyncRealtimeData(conversationId).catch((error) => {
+                toast.error(error instanceof Error ? error.message : t("conversation.syncMessagesFailed"))
+              })
+              return
+            }
+            store.applyRealtimeMessageCreated(message)
+
+            const shouldNotify =
+              message.senderType === "customer" &&
+              payload?.status === 2 &&
+              (payload.currentAssigneeId ?? 0) > 0 &&
+              payload.currentAssigneeId === currentUserIdRef.current &&
+              typeof document !== "undefined" &&
+              document.visibilityState !== "visible"
+
+            if (shouldNotify) {
+              showNotification(t("conversation.newMessage"), getNotificationBody(message), () => {
+                void store.selectConversation(message.conversationId)
+              })
+            }
+            return
+          }
+
+          if (eventType === "message.recalled" && payload?.messageId) {
+            store.applyRealtimeMessageRecalled(payload.messageId, {
+              sendStatus: payload.sendStatus,
+              recalledAt: payload.recalledAt,
+            })
+            return
+          }
+
+          if (eventType === "presence.changed" && payload?.actorId && conversationId > 0) {
+            store.applyRealtimePresenceChanged(payload)
+            scheduleAgentPresenceExpiry(payload)
+            return
+          }
+
+          if (eventType === "presence.snapshot" && payload && conversationId > 0) {
+            store.applyRealtimePresenceSnapshot(payload)
+            for (const participant of payload.participants ?? []) {
+              scheduleAgentPresenceExpiry(participant)
+            }
+            return
+          }
+
+          if (eventType === "typing.changed" && payload?.actorId && conversationId > 0) {
+            store.applyRealtimeTypingChanged(payload)
+            if (payload.typing) {
+              const inferredPresence = {
+                ...payload,
+                online: true,
+                changedAt: new Date().toISOString(),
+              }
+              scheduleAgentPresenceExpiry(inferredPresence)
+              window.setTimeout(() => {
+                useAgentConversationsStore.getState().expireRealtimeTyping(
+                  conversationId,
+                  payload.actorId,
+                  payload.expiresAt,
+                )
+              }, 5_200)
+            }
+            return
+          }
+
+          if (eventType.startsWith("conversation.") && payload) {
+            store.applyRealtimeConversationChanged(payload)
+            if (shouldReloadConversationListForRealtimePatch(payload)) {
+              void store.resyncRealtimeData(conversationId).catch((error) => {
+                toast.error(error instanceof Error ? error.message : t("conversation.syncConversationListFailed"))
+              })
+            }
+          }
+        } catch {
+          // ignore invalid ws payload
+        }
+      },
+      onClose: (event, socket) => {
+        console.log("[agent-realtime] websocket closed", {
+          url: socket.url,
+          readyState: socket.readyState,
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+        })
+        subscribedConversationIdRef.current = null
+      },
+      onError: (_event, socket) => {
+        console.log("[agent-realtime] websocket error", {
+          url: socket.url,
+          readyState: socket.readyState,
+        })
+      },
+      onConnectError: (error) => {
+        toast.error(error instanceof Error ? error.message : t("conversation.realtimeConnectFailed"))
+      },
+    })
+
+    realtimeRef.current = realtime
+    realtime.connect()
+
+    return () => {
+      realtimeRef.current = null
+      realtime.disconnect()
+      subscribedConversationIdRef.current = null
+    }
+  }, [clearRealtimeEphemeralState, setRealtimeStatus, t])
+
+  useEffect(() => {
+    const sendTyping = (event: Event) => {
+      const detail = (event as CustomEvent<{ conversationId?: number; typing?: boolean }>).detail
+      const conversationId = Number(detail?.conversationId ?? 0)
+      const socket = realtimeRef.current?.getSocket()
+      if (!socket || socket.readyState !== WebSocket.OPEN || conversationId <= 0) return
+      socket.send(JSON.stringify({
+        type: "typing",
+        conversationId,
+        typing: Boolean(detail?.typing),
+      }))
+    }
+    window.addEventListener(AGENT_TYPING_EVENT, sendTyping)
+    return () => window.removeEventListener(AGENT_TYPING_EVENT, sendTyping)
+  }, [])
+
+  useEffect(() => {
+    const socket = realtimeRef.current?.getSocket()
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return
+    }
+
+    const previousConversationId = subscribedConversationIdRef.current
+    const nextConversationId = selectedConversationId ?? null
+
+    if (previousConversationId && previousConversationId !== nextConversationId) {
+      socket.send(
+        JSON.stringify({
+          type: "unsubscribe",
+          topics: [`conversation:${previousConversationId}`],
+        })
+      )
+    }
+
+    if (nextConversationId && nextConversationId !== previousConversationId) {
+      socket.send(
+        JSON.stringify({
+          type: "subscribe",
+          topics: [`conversation:${nextConversationId}`],
+        })
+      )
+      subscribedConversationIdRef.current = nextConversationId
+      return
+    }
+
+    if (!nextConversationId) {
+      subscribedConversationIdRef.current = null
+    }
+  }, [selectedConversationId])
+}

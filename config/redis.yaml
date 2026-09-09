@@ -1,0 +1,9 @@
+redis:
+  addr: "localhost:6379"
+  password: "remotehelpdesk_redis"
+  db: 0
+  pool_size: 20
+  min_idle_conns: 5
+  dial_timeout: 5s
+  read_timeout: 3s
+  write_timeout: 3s

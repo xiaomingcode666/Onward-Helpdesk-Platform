@@ -1,0 +1,26 @@
+# Air config — Go backend hot-reload for local dev
+# Run with: air (from repo root). Builds with the `dev` tag (no LanceDB / no embedded SPA).
+
+root = "."
+tmp_dir = "tmp"
+env_files = [".env", ".env.local", ".local/jitsi/remotehelpdesk.env"]
+
+[build]
+  cmd = "bash ./scripts/dev-go-build.sh"
+  bin = "./tmp/main"
+  full_bin = "bash -lc 'if [ -z \"${RHD_REDIS_PASSWORD:-}\" ] && [ -n \"${REDIS_PASSWORD:-}\" ]; then export RHD_REDIS_PASSWORD=\"$REDIS_PASSWORD\"; fi; exec ./tmp/main -config config/config.yaml'"
+  delay = 1000
+  exclude_dir = ["web", "tmp", "data", "qdrant", "screenshots", ".git", "node_modules", "aftersales-saas-demo"]
+  exclude_regex = ["_test\\.go"]
+  include_ext = ["go", "yaml", "yml"]
+  include_file = [".env", ".env.local", ".local/jitsi/remotehelpdesk.env"]
+  stop_on_error = true
+
+[log]
+  time = false
+
+[color]
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"

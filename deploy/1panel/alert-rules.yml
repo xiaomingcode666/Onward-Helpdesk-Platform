@@ -1,0 +1,65 @@
+groups:
+  - name: remotehelpdesk-runtime
+    rules:
+      - alert: RemoteHelpDeskTargetDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RemoteHelpDesk monitoring target is down"
+          description: "{{ $labels.job }} / {{ $labels.instance }} has been unreachable for two minutes."
+
+      - alert: RemoteHelpDeskHighErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(http_requests_total[5m])), 0.001) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RemoteHelpDesk API has a high 5xx rate"
+          description: "The API 5xx ratio has exceeded 5% for five minutes."
+
+      - alert: RemoteHelpDeskDependencyDown
+        expr: application_dependency_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RemoteHelpDesk dependency is unavailable"
+          description: "Dependency {{ $labels.dependency }} has failed readiness checks for two minutes."
+
+      - alert: RemoteHelpDeskDatabaseBackupStale
+        expr: absent(remotehelpdesk_database_backup_last_success_unixtime) or time() - remotehelpdesk_database_backup_last_success_unixtime > 90000
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RemoteHelpDesk database backup is stale"
+          description: "No successful database backup has been recorded in the last 25 hours."
+
+      - alert: RemoteHelpDeskRestoreDrillStale
+        expr: absent(remotehelpdesk_restore_drill_last_success_unixtime) or time() - remotehelpdesk_restore_drill_last_success_unixtime > 691200
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RemoteHelpDesk restore drill is stale"
+          description: "No successful isolated restore drill has been recorded in the last eight days."
+
+      - alert: RemoteHelpDeskDiskSpaceLow
+        expr: node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} < 0.15
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RemoteHelpDesk host disk space is low"
+          description: "Filesystem {{ $labels.mountpoint }} has less than 15% free space."
+
+      - alert: RemoteHelpDeskDiskSpaceCritical
+        expr: node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} < 0.08
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RemoteHelpDesk host disk space is critical"
+          description: "Filesystem {{ $labels.mountpoint }} has less than 8% free space."

@@ -1,0 +1,555 @@
+# =============================================================================
+# RemoteHelpDesk — Production Docker Compose Configuration
+# =============================================================================
+# IMPORTANT: Before deploying, copy this file and replace ALL placeholder values:
+#   1. ${POSTGRES_PASSWORD}      — strong random password
+#   2. ${REDIS_PASSWORD}          — strong random password
+#   3. ${JWT_SECRET}              — strong random secret (32+ chars)
+#   4. ${ENCRYPTION_KEY}          — 32-byte hex key for data encryption
+#   5. ${DOMAIN}                  — your production domain (e.g., app.remotehelpdesk.com)
+#   6. ${SSL_CERT_PATH}           — path to TLS certificate
+#   7. ${SSL_KEY_PATH}            — path to TLS key
+#   8. ${LOG_LEVEL}               — "info" or "warn" for production
+#   9. ${SENTRY_DSN}              — Sentry DSN for error tracking (optional)
+#  10. Prometheus/alertmanager configs — review and adjust thresholds
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d
+#   docker compose -f docker-compose.prod.yml logs -f
+#
+# Reference template — adapt to your infrastructure.
+# =============================================================================
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-restart-policy: &restart-policy
+  restart: unless-stopped
+
+services:
+  # ============================================================================
+  # PostgreSQL — Primary Database
+  # ============================================================================
+  postgres:
+    image: postgres:16
+    <<: *restart-policy
+    logging: *default-logging
+    environment:
+      POSTGRES_DB: cs_ai_agent
+      POSTGRES_USER: cs_ai_agent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      TZ: UTC
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cs_ai_agent -d cs_ai_agent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ============================================================================
+  # Qdrant — Vector Database
+  # ============================================================================
+  qdrant:
+    image: qdrant/qdrant:latest
+    <<: *restart-policy
+    logging: *default-logging
+    volumes:
+      - qdrant-data:/qdrant/storage
+    ports:
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:6333/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================================================
+  # Redis — Cache & Session Store
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    <<: *restart-policy
+    logging: *default-logging
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    volumes:
+      - redis-data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+        reservations:
+          cpus: "0.2"
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # MinIO — Private chat media and knowledge document storage
+  # ============================================================================
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    <<: *restart-policy
+    logging: *default-logging
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      MINIO_SERVER_URL: ${MINIO_PUBLIC_ENDPOINT:?MINIO_PUBLIC_ENDPOINT is required}
+      TZ: UTC
+    volumes:
+      - minio-data:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+        reservations:
+          cpus: "0.2"
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/ready >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    restart: "no"
+    logging: *default-logging
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      MINIO_BUCKET: ${MINIO_BUCKET:-remotehelpdesk-assets}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set storage http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing "storage/$$MINIO_BUCKET"
+        mc version enable "storage/$$MINIO_BUCKET"
+
+  # ============================================================================
+  # RemoteHelpDesk Go Backend Application
+  # ============================================================================
+  # Compatibility service key retained for existing Compose projects.
+  agent-desk:
+    image: ${IMAGE_NAME:-remotehelpdesk}:${IMAGE_TAG:-latest}
+    <<: *restart-policy
+    logging: *default-logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8083:8083"
+    volumes:
+      - agent-desk-data:/app/data
+      - ./docker/remotehelpdesk.yaml:/app/config/config.yaml:ro
+    environment:
+      TZ: UTC
+      RHD_REDIS_ADDR: redis:6379
+      RHD_REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      RHD_REDIS_DB: 0
+      RHD_BOOTSTRAP_ADMIN_PASSWORD: ${RHD_BOOTSTRAP_ADMIN_PASSWORD:-}
+      RHD_DB_DSN: "host=postgres user=cs_ai_agent password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required} dbname=cs_ai_agent port=5432 sslmode=disable TimeZone=UTC"
+      RHD_CUSTOMERSESSION_SECRET: ${CUSTOMER_SESSION_SECRET:?CUSTOMER_SESSION_SECRET is required}
+      RHD_MCP_SERVERTOKEN: ${MCP_SERVER_TOKEN:?MCP_SERVER_TOKEN is required}
+      RHD_STORAGE_DEFAULT: minio
+      RHD_STORAGE_MINIO_ENDPOINT: minio:9000
+      RHD_STORAGE_MINIO_PUBLICENDPOINT: ${MINIO_PUBLIC_ENDPOINT:?MINIO_PUBLIC_ENDPOINT is required}
+      RHD_STORAGE_MINIO_BUCKET: ${MINIO_BUCKET:-remotehelpdesk-assets}
+      RHD_STORAGE_MINIO_ACCESSKEYID: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      RHD_STORAGE_MINIO_ACCESSKEYSECRET: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      RHD_STORAGE_MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      RHD_STORAGE_MINIO_USESSL: "false"
+      RHD_STORAGE_MINIO_PRIVATE: "true"
+      RHD_STORAGE_MINIO_SIGNEDURLEXPIRESECONDS: ${MINIO_SIGNED_URL_EXPIRE_SECONDS:-600}
+      RHD_RAG_ENABLED: "true"
+      RHD_RAG_RUNTIMEENABLED: "true"
+      RHD_RAG_INGESTIONENABLED: "true"
+      RHD_RAG_HYBRIDENABLED: "true"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      JITSI_URL: ${JITSI_URL:?JITSI_URL is required}
+      JITSI_APP_ID: ${JITSI_APP_ID:?JITSI_APP_ID is required}
+      JITSI_APP_SECRET: ${JITSI_APP_SECRET:?JITSI_APP_SECRET is required}
+      JITSI_WEBHOOK_SECRET: ${JITSI_WEBHOOK_SECRET:?JITSI_WEBHOOK_SECRET is required}
+      JITSI_DOMAIN: ${JITSI_DOMAIN:-}
+      JITSI_REQUIRE_AUTH: "true"
+      JITSI_TOKEN_TTL_MINUTES: ${JITSI_TOKEN_TTL_MINUTES:-15}
+      SPEECH_PROVIDER: ${SPEECH_PROVIDER:-disabled}
+      XFYUN_RTASR_APP_ID: ${XFYUN_RTASR_APP_ID:-}
+      XFYUN_RTASR_API_KEY: ${XFYUN_RTASR_API_KEY:-}
+      XFYUN_RTASR_ENDPOINT: ${XFYUN_RTASR_ENDPOINT:-wss://rtasr.xfyun.cn/v1/ws}
+      XFYUN_RTASR_DOMAIN: ${XFYUN_RTASR_DOMAIN:-tech}
+      RHD_ALIYUN_ASR_API_KEY: ${ALIYUN_ASR_API_KEY:-}
+      RHD_ALIYUN_ASR_WORKSPACE_ID: ${ALIYUN_ASR_WORKSPACE_ID:-}
+      RHD_ALIYUN_ASR_ENDPOINT: ${ALIYUN_ASR_ENDPOINT:-}
+      RHD_ALIYUN_ASR_MODEL: ${ALIYUN_ASR_MODEL:-}
+      XFYUN_TRANSLATION_ENABLED: ${XFYUN_TRANSLATION_ENABLED:-false}
+      XFYUN_TRANSLATION_API_SECRET: ${XFYUN_TRANSLATION_API_SECRET:-}
+      XFYUN_TRANSLATION_ENDPOINT: ${XFYUN_TRANSLATION_ENDPOINT:-https://itrans.xfyun.cn/v2/its}
+      XFYUN_TRANSLATION_TARGET_LANGUAGE: ${XFYUN_TRANSLATION_TARGET_LANGUAGE:-en}
+      SPEECH_JIGASI_ENABLED: ${SPEECH_JIGASI_ENABLED:-false}
+      SPEECH_JIGASI_SHARED_SECRET: ${SPEECH_JIGASI_SHARED_SECRET:-}
+      SPEECH_JIGASI_MAX_PARTICIPANT_STREAMS: ${SPEECH_JIGASI_MAX_PARTICIPANT_STREAMS:-8}
+      SPEECH_JIGASI_MAX_CONCURRENT_STREAMS: ${SPEECH_JIGASI_MAX_CONCURRENT_STREAMS:-32}
+      MEETING_AR_PROVIDER: ${MEETING_AR_PROVIDER:-disabled}
+      MEETING_AR_ENDPOINT: ${MEETING_AR_ENDPOINT:-}
+      MEETING_AR_API_KEY: ${MEETING_AR_API_KEY:-}
+      MEETING_AR_HEALTH_PATH: ${MEETING_AR_HEALTH_PATH:-/health}
+      LLM_SOURCE: ${LLM_SOURCE:-auto}
+      EMBEDDING_SOURCE: ${EMBEDDING_SOURCE:-auto}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+      EMBEDDING_DIM: ${EMBEDDING_DIM:-}
+      SUB2API_BASE_URL: ${SUB2API_BASE_URL:-}
+      SUB2API_ADMIN_API_KEY: ${SUB2API_ADMIN_API_KEY:-}
+      SUB2API_DEFAULT_KEY: ${SUB2API_DEFAULT_KEY:-}
+      SUB2API_DEFAULT_MODEL: ${SUB2API_DEFAULT_MODEL:-}
+      SUB2API_LLM_MODEL: ${SUB2API_LLM_MODEL:-}
+      LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-}
+      LLM_FALLBACK_TIMEOUT: ${LLM_FALLBACK_TIMEOUT:-30s}
+      LLM_FAILOVER_ATTEMPT_TIMEOUT: ${LLM_FAILOVER_ATTEMPT_TIMEOUT:-15s}
+      LLM_FAILOVER_CIRCUIT_COOLDOWN: ${LLM_FAILOVER_CIRCUIT_COOLDOWN:-60s}
+      SUB2API_EMBEDDING_MODEL: ${SUB2API_EMBEDDING_MODEL:-}
+      SUB2API_EMBEDDING_DIM: ${SUB2API_EMBEDDING_DIM:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      GIN_MODE: release
+    deploy:
+      # Realtime events, presence probes, and typing indicators fan out through Redis.
+      # Increase replicas only with Redis configured and monitored.
+      replicas: 1
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        delay: 10s
+        order: stop-first
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/api/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ============================================================================
+  # Next.js Frontend
+  # ============================================================================
+  nextjs:
+    image: ${IMAGE_NAME:-remotehelpdesk}:${IMAGE_TAG:-latest}
+    <<: *restart-policy
+    logging: *default-logging
+    entrypoint: ["node", "server.js"]
+    depends_on:
+      - agent-desk
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      TZ: UTC
+      NEXT_PUBLIC_API_BASE_URL: https://${DOMAIN}/api
+      NODE_ENV: production
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.2"
+          memory: 128M
+
+  # ============================================================================
+  # Nginx — Reverse Proxy (TLS Termination, Static Asset Caching)
+  # ============================================================================
+  nginx:
+    image: nginx:1.27-alpine
+    <<: *restart-policy
+    logging: *default-logging
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${SSL_CERT_PATH:-./deploy/certs/fullchain.pem}:/etc/nginx/certs/fullchain.pem:ro
+      - ${SSL_KEY_PATH:-./deploy/certs/privkey.pem}:/etc/nginx/certs/privkey.pem:ro
+      - nginx-cache:/var/cache/nginx
+    depends_on:
+      - agent-desk
+      - nextjs
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ============================================================================
+  # PostgreSQL Exporter — Prometheus Metrics for Postgres
+  # ============================================================================
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    <<: *restart-policy
+    logging: *default-logging
+    environment:
+      DATA_SOURCE_NAME: "postgresql://cs_ai_agent:${POSTGRES_PASSWORD}@postgres:5432/cs_ai_agent?sslmode=disable"
+    ports:
+      - "127.0.0.1:9187:9187"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+
+  # ============================================================================
+  # Redis Exporter — Prometheus Metrics for Redis
+  # ============================================================================
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    <<: *restart-policy
+    logging: *default-logging
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    ports:
+      - "127.0.0.1:9121:9121"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64M
+
+  # ============================================================================
+  # Node Exporter — Host-Level Metrics
+  # ============================================================================
+  node-exporter:
+    image: prom/node-exporter:latest
+    <<: *restart-policy
+    logging: *default-logging
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/host/root'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.textfile.directory=/var/lib/node_exporter/textfile'
+    pid: host
+    network_mode: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
+      - /data/remotehelpdesk/metrics:/var/lib/node_exporter/textfile:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+
+  # ============================================================================
+  # Prometheus — Metrics Collection & Alerting
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    <<: *restart-policy
+    logging: *default-logging
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - postgres-exporter
+      - redis-exporter
+      - node-exporter
+      - alertmanager
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+        reservations:
+          cpus: "0.2"
+          memory: 256M
+
+  # ============================================================================
+  # Alertmanager — Routes firing alerts to the configured on-call webhook
+  # ============================================================================
+  alertmanager:
+    image: quay.io/prometheus/alertmanager:v0.28.1
+    <<: *restart-policy
+    logging: *default-logging
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - "127.0.0.1:9093:9093"
+    volumes:
+      - ./deploy/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    secrets:
+      - alert_webhook_url
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+
+  # ============================================================================
+  # Grafana — Visualization Dashboard
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:latest
+    <<: *restart-policy
+    logging: *default-logging
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+volumes:
+  postgres-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /data/remotehelpdesk/postgres
+      o: bind
+  qdrant-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /data/remotehelpdesk/qdrant
+      o: bind
+  redis-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /data/remotehelpdesk/redis
+      o: bind
+  minio-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /data/remotehelpdesk/minio
+      o: bind
+  agent-desk-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /data/remotehelpdesk/agent-desk
+      o: bind
+  nginx-cache:
+  prometheus-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /data/remotehelpdesk/prometheus
+      o: bind
+  grafana-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /data/remotehelpdesk/grafana
+      o: bind
+  alertmanager-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /data/remotehelpdesk/alertmanager
+      o: bind
+
+secrets:
+  alert_webhook_url:
+    file: ${ALERT_WEBHOOK_URL_FILE:?ALERT_WEBHOOK_URL_FILE is required}
+
+networks:
+  default:
+    name: remotehelpdesk_prod

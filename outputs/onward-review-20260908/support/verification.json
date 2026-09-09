@@ -1,0 +1,1419 @@
+{
+  "counts": {
+    "已完成": 0,
+    "部分完成": 47,
+    "待完成": 28,
+    "待验证": 3,
+    "待复验": 12
+  },
+  "sourceCount": 147,
+  "expected": {
+    "FUN-008": {
+      "row": 2,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "TKT-001",
+        "TKT-002",
+        "§2.3",
+        "§9.1"
+      ],
+      "evidenceKind": "静态代码核查",
+      "name": "电话接待人工建单与来源保留",
+      "previous": "待验证"
+    },
+    "FUN-031": {
+      "row": 3,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "REG-004",
+        "§8.5",
+        "§9.2"
+      ],
+      "evidenceKind": "静态代码核查",
+      "name": "专家交接与接收确认",
+      "previous": "待验证"
+    },
+    "FUN-037": {
+      "row": 4,
+      "status": "部分完成",
+      "nature": "原文目标与系统接单扩展混合",
+      "refs": [
+        "SLA-005"
+      ],
+      "evidenceKind": "静态代码核查",
+      "name": "首响、解决目标及现有接单计时",
+      "previous": "待验证"
+    },
+    "FUN-083": {
+      "row": 5,
+      "status": "待验证",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "TKT-007",
+        "SEC-003"
+      ],
+      "evidenceKind": "静态代码核查",
+      "name": "上传文件类型和大小限制",
+      "previous": "待验证"
+    },
+    "FUN-004": {
+      "row": 6,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "IAM-001",
+        "§8.2"
+      ],
+      "evidenceKind": "静态代码核查",
+      "name": "统一身份登录及可信代理链路",
+      "previous": "待验证"
+    },
+    "FUN-021": {
+      "row": 7,
+      "status": "待验证",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "TKT-004",
+        "§7.3",
+        "§9.1"
+      ],
+      "evidenceKind": "静态代码核查",
+      "name": "到期自动关闭",
+      "previous": "待验证"
+    },
+    "FUN-025": {
+      "row": 8,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "TKT-010"
+      ],
+      "evidenceKind": "限定范围静态检索",
+      "name": "重复工单合并与关系保留",
+      "previous": "待验证"
+    },
+    "FUN-028": {
+      "row": 9,
+      "status": "待验证",
+      "nature": "系统适配（产品支持组织）",
+      "refs": [
+        "REG-001"
+      ],
+      "evidenceKind": "代码/测试入口定位",
+      "name": "产品支持组及工程师配置",
+      "previous": "待验证"
+    },
+    "FUN-054": {
+      "row": 10,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "DCH-004"
+      ],
+      "evidenceKind": "静态代码核查",
+      "name": "机器人内容与流程审批回滚",
+      "previous": "待验证"
+    },
+    "FUN-003": {
+      "row": 11,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "IAM-003"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "按企业与角色限制访问",
+      "previous": "部分完成"
+    },
+    "FUN-005": {
+      "row": 12,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "IAM-002"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "多因素登录验证",
+      "previous": "待完成"
+    },
+    "FUN-013": {
+      "row": 13,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "TKT-001",
+        "EVT-002",
+        "§8.6"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "外部API或Webhook受理",
+      "previous": "部分完成"
+    },
+    "FUN-014": {
+      "row": 14,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "TKT-002"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "缺少必要信息时标记和补充",
+      "previous": "部分完成"
+    },
+    "FUN-038": {
+      "row": 15,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "SLA-002"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "标准/增强/关键服务目标套餐",
+      "previous": "部分完成"
+    },
+    "FUN-006": {
+      "row": 16,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "IAM-004",
+        "IAM-007"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "人员入职、调岗、离职撤权",
+      "previous": "部分完成"
+    },
+    "FUN-010": {
+      "row": 17,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "TKT-001",
+        "§8.3"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "邮件收信自动建单",
+      "previous": "待完成"
+    },
+    "FUN-063": {
+      "row": 18,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "TKT-009",
+        "§8.3"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "邮件提醒及投递失败处理",
+      "previous": "部分完成"
+    },
+    "FUN-090": {
+      "row": 19,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "IAM-006"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "外部系统独立服务账号与短期凭据",
+      "previous": "部分完成"
+    },
+    "FUN-011": {
+      "row": 20,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "TKT-008",
+        "§8.3"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "回复邮件匹配原工单",
+      "previous": "待完成"
+    },
+    "FUN-022": {
+      "row": 21,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "TKT-003",
+        "TKT-004",
+        "§7.3"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "标准工单类型及状态",
+      "previous": "部分完成"
+    },
+    "FUN-012": {
+      "row": 22,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "§8.3"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "自动回复、退信防循环",
+      "previous": "待完成"
+    },
+    "FUN-023": {
+      "row": 23,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "TKT-005"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "P1-P4优先级判定与复核",
+      "previous": "部分完成"
+    },
+    "FUN-024": {
+      "row": 24,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "TKT-006"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "持续保留行政负责人",
+      "previous": "部分完成"
+    },
+    "FUN-007": {
+      "row": 25,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "IAM-005"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "应急管理员使用审批",
+      "previous": "待完成"
+    },
+    "FUN-085": {
+      "row": 26,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "SEC-004"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "操作记录和审计查询",
+      "previous": "部分完成"
+    },
+    "FUN-026": {
+      "row": 27,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "TKT-011",
+        "TKT-003"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "多个用户问题关联同一事件",
+      "previous": "待完成"
+    },
+    "FUN-039": {
+      "row": 28,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "SLA-003"
+      ],
+      "evidenceKind": "静态代码核查",
+      "name": "营业时间、节假日及时区",
+      "previous": "部分完成"
+    },
+    "FUN-027": {
+      "row": 29,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "TKT-003",
+        "§9.3"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "重大故障协调与沟通审批",
+      "previous": "待完成"
+    },
+    "FUN-040": {
+      "row": 30,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "SLA-001"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "端到端与己方责任双时钟",
+      "previous": "待完成"
+    },
+    "FUN-041": {
+      "row": 31,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "SLA-004"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "受控暂停与恢复",
+      "previous": "部分完成"
+    },
+    "FUN-042": {
+      "row": 32,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "SLA-006"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "普通等待不暂停，批准暂停留证据",
+      "previous": "部分完成"
+    },
+    "FUN-043": {
+      "row": 33,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "SLA-005"
+      ],
+      "evidenceKind": "静态代码核查",
+      "name": "补齐 SLA 六类目标与联合验收",
+      "previous": "部分完成"
+    },
+    "FUN-044": {
+      "row": 34,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "SLA-007"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "P1/P2即将违约自动升级",
+      "previous": "部分完成"
+    },
+    "FUN-048": {
+      "row": 35,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "KB-002",
+        "KB-003"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "知识审批、有效期、撤回限制",
+      "previous": "部分完成"
+    },
+    "FUN-049": {
+      "row": 36,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "KB-002"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "知识版本与工单使用效果",
+      "previous": "部分完成"
+    },
+    "FUN-045": {
+      "row": 37,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "SLA-008"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "调整服务目标前模拟影响",
+      "previous": "待完成"
+    },
+    "FUN-050": {
+      "row": 38,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "KB-004"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "已知错误与临时解决办法",
+      "previous": "待完成"
+    },
+    "FUN-052": {
+      "row": 39,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "DCH-003"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "意图分流与结构化信息采集",
+      "previous": "部分完成"
+    },
+    "FUN-053": {
+      "row": 40,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "DCH-004"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "低置信度、连续失败强制转人工",
+      "previous": "部分完成"
+    },
+    "FUN-055": {
+      "row": 41,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "DCH-007"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "明确机器人身份及退出自动回复",
+      "previous": "部分完成"
+    },
+    "FUN-051": {
+      "row": 42,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "KB-005"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "从工单产生知识改进候选",
+      "previous": "部分完成"
+    },
+    "FUN-029": {
+      "row": 43,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "REG-001"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "服务与组件支持目录",
+      "previous": "部分完成"
+    },
+    "FUN-030": {
+      "row": 44,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "REG-002"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "外部专家、合同及OLA配置",
+      "previous": "部分完成"
+    },
+    "FUN-056": {
+      "row": 45,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "DCH-003",
+        "DCH-004"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "阻止退款、账户等高风险自动动作",
+      "previous": "部分完成"
+    },
+    "FUN-034": {
+      "row": 46,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "REG-003"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "目录生效版本与历史引用",
+      "previous": "待完成"
+    },
+    "FUN-061": {
+      "row": 47,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "§11.5",
+        "TKT-009",
+        "DCH-003"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "英文界面及英文自动欢迎",
+      "previous": "部分完成"
+    },
+    "FUN-032": {
+      "row": 48,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "REG-004",
+        "§9.2"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "专家回交条件检查",
+      "previous": "部分完成"
+    },
+    "FUN-033": {
+      "row": 49,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "REG-002",
+        "SLA-007",
+        "§8.5",
+        "§9.2"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "专家等待、催办与升级",
+      "previous": "部分完成"
+    },
+    "FUN-035": {
+      "row": 50,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "REG-005"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "资源不足时限制服务",
+      "previous": "待完成"
+    },
+    "FUN-036": {
+      "row": 51,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "REG-006"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "目录变更触发就绪复查",
+      "previous": "待完成"
+    },
+    "FUN-062": {
+      "row": 52,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "DCH-003",
+        "§11.5"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "阿拉伯语、RTL及语言选择",
+      "previous": "待完成"
+    },
+    "FUN-057": {
+      "row": 53,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "DCH-001",
+        "TKT-001"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "WhatsApp客户接待",
+      "previous": "待完成"
+    },
+    "FUN-058": {
+      "row": 54,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "DCH-005",
+        "DCH-006"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "WhatsApp转人工和工单关联",
+      "previous": "部分完成"
+    },
+    "FUN-059": {
+      "row": 55,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "DCH-002",
+        "DCH-008"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "投递状态、重复消息与失败重试",
+      "previous": "部分完成"
+    },
+    "FUN-060": {
+      "row": 56,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "DCH-001",
+        "DCH-008",
+        "C-10"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "按企业开关数字渠道和Bot",
+      "previous": "部分完成"
+    },
+    "FUN-064": {
+      "row": 57,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "MON-002"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "检查服务可用性",
+      "previous": "部分完成"
+    },
+    "FUN-065": {
+      "row": 58,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "MON-004"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "告警创建或关联故障事件",
+      "previous": "待完成"
+    },
+    "FUN-067": {
+      "row": 59,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "MON-006"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "告警恢复不直接关闭客户工单",
+      "previous": "待完成"
+    },
+    "FUN-066": {
+      "row": 60,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "MON-003",
+        "MON-007"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "告警归并、静默和维护窗口",
+      "previous": "部分完成"
+    },
+    "FUN-069": {
+      "row": 61,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "QA-001"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "按规则抽取工单",
+      "previous": "待完成"
+    },
+    "FUN-078": {
+      "row": 62,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "RPT-004",
+        "RPT-005"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "服务量及超量依据",
+      "previous": "部分完成"
+    },
+    "FUN-079": {
+      "row": 63,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "RPT-001",
+        "RPT-007",
+        "EVT-003",
+        "EVT-007"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "统计数字追溯与重新计算",
+      "previous": "部分完成"
+    },
+    "FUN-068": {
+      "row": 64,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "MON-005"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "监控覆盖缺口显示",
+      "previous": "待完成"
+    },
+    "FUN-070": {
+      "row": 65,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "QA-002"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "版本化评分卡",
+      "previous": "待完成"
+    },
+    "FUN-071": {
+      "row": 66,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "QA-003"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "评分、缺陷与证据评审",
+      "previous": "待完成"
+    },
+    "FUN-072": {
+      "row": 67,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "QA-003"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "争议、辅导和整改跟踪",
+      "previous": "待完成"
+    },
+    "FUN-073": {
+      "row": 68,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "QA-004"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "企业、团队、人员等质量分析",
+      "previous": "待完成"
+    },
+    "FUN-074": {
+      "row": 69,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "QA-006"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "严重安全缺陷转调查",
+      "previous": "待完成"
+    },
+    "FUN-076": {
+      "row": 70,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "RPT-002",
+        "§9.5",
+        "§附录B"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "完整月度服务报告",
+      "previous": "部分完成"
+    },
+    "FUN-077": {
+      "row": 71,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "RPT-003"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "PDF、Excel、CSV报告导出",
+      "previous": "部分完成"
+    },
+    "FUN-084": {
+      "row": 72,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "TKT-007",
+        "SEC-003"
+      ],
+      "evidenceKind": "静态代码核查",
+      "name": "病毒扫描与隔离区",
+      "previous": "部分完成"
+    },
+    "FUN-080": {
+      "row": 73,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "RPT-006"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "报告截止时间、版本及更正记录",
+      "previous": "待完成"
+    },
+    "FUN-081": {
+      "row": 74,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "§9.5",
+        "RPT-006"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "月报审核、交付和历史归档",
+      "previous": "待完成"
+    },
+    "FUN-082": {
+      "row": 75,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "RPT-008"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "按权限临时导出指定字段",
+      "previous": "部分完成"
+    },
+    "FUN-086": {
+      "row": 76,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "DAT-001",
+        "DAT-003"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "数据到期清理",
+      "previous": "部分完成"
+    },
+    "FUN-087": {
+      "row": 77,
+      "status": "待完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "DAT-002"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "法律保留与暂停删除",
+      "previous": "待完成"
+    },
+    "FUN-089": {
+      "row": 78,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "DAT-004",
+        "§18.6",
+        "§附录C"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "完整退出交接包",
+      "previous": "部分完成"
+    },
+    "FUN-088": {
+      "row": 79,
+      "status": "部分完成",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "DAT-006"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "客户数据请求与限定导出",
+      "previous": "部分完成"
+    },
+    "FUN-001": {
+      "row": 80,
+      "status": "待复验",
+      "nature": "系统适配（非独立原文要求）",
+      "refs": [
+        "IAM-003"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "企业及管理员账号管理",
+      "previous": "已完成"
+    },
+    "FUN-002": {
+      "row": 81,
+      "status": "待复验",
+      "nature": "系统扩展与原文要求混合",
+      "refs": [
+        "IAM-003",
+        "BR-004"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "工程师和客户账号管理",
+      "previous": "已完成"
+    },
+    "FUN-009": {
+      "row": 82,
+      "status": "待复验",
+      "nature": "系统适配（事实源待决策）",
+      "refs": [
+        "TKT-001",
+        "DCH-005",
+        "DCH-006"
+      ],
+      "evidenceKind": "代码/测试入口定位",
+      "name": "现有会话转工单与交接适配",
+      "previous": "已完成"
+    },
+    "FUN-015": {
+      "row": 83,
+      "status": "待复验",
+      "nature": "系统适配（工程师派单）",
+      "refs": [
+        "TKT-004",
+        "TKT-006",
+        "§9.1"
+      ],
+      "evidenceKind": "代码/测试入口定位",
+      "name": "工单分配给工程师",
+      "previous": "已完成"
+    },
+    "FUN-016": {
+      "row": 84,
+      "status": "待复验",
+      "nature": "系统适配（工程师接单）",
+      "refs": [
+        "TKT-004",
+        "BR-004",
+        "§7.3"
+      ],
+      "evidenceKind": "代码/测试入口定位",
+      "name": "工程师接单与处理",
+      "previous": "已完成"
+    },
+    "FUN-017": {
+      "row": 85,
+      "status": "待复验",
+      "nature": "系统扩展与原文要求混合",
+      "refs": [
+        "TKT-009",
+        "BR-004",
+        "§2.4"
+      ],
+      "evidenceKind": "代码/测试入口定位",
+      "name": "用户进度通知（客户门户为扩展）",
+      "previous": "已完成"
+    },
+    "FUN-018": {
+      "row": 86,
+      "status": "待复验",
+      "nature": "系统适配（维修记录）",
+      "refs": [
+        "TKT-004",
+        "§7.3",
+        "§9.1"
+      ],
+      "evidenceKind": "代码/测试入口定位",
+      "name": "解决记录与验证结果",
+      "previous": "已完成"
+    },
+    "FUN-019": {
+      "row": 87,
+      "status": "待复验",
+      "nature": "原文要求与评价扩展混合",
+      "refs": [
+        "TKT-004",
+        "§9.1"
+      ],
+      "evidenceKind": "代码/测试入口定位",
+      "name": "客户确认关闭（评价为扩展）",
+      "previous": "已完成"
+    },
+    "FUN-020": {
+      "row": 88,
+      "status": "待复验",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "§7.3",
+        "BR-004"
+      ],
+      "evidenceKind": "代码/测试入口定位",
+      "name": "关闭后重新打开",
+      "previous": "已完成"
+    },
+    "FUN-046": {
+      "row": 89,
+      "status": "待复验",
+      "nature": "系统适配（知识事实源不同）",
+      "refs": [
+        "KB-001",
+        "DCH-003"
+      ],
+      "evidenceKind": "代码/测试入口定位",
+      "name": "产品资料上传和检索",
+      "previous": "已完成"
+    },
+    "FUN-047": {
+      "row": 90,
+      "status": "待复验",
+      "nature": "原文要求（功能拆分）",
+      "refs": [
+        "DCH-003",
+        "KB-003"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "基于已审批资料回答客户问题",
+      "previous": "已完成"
+    },
+    "FUN-075": {
+      "row": 91,
+      "status": "待复验",
+      "nature": "原文报告的基础子集",
+      "refs": [
+        "RPT-002"
+      ],
+      "evidenceKind": "原表陈述，未复核",
+      "name": "工单数量、状态和基础趋势",
+      "previous": "已完成"
+    }
+  },
+  "changes": [
+    {
+      "id": "FUN-008",
+      "previous": "待验证",
+      "status": "部分完成",
+      "reason": "原文为 Manual Phone，不是来电自动建单。Asterisk CTI 属于 V1 后可选能力；源记录 ID 不必等同于电话平台通话编号。"
+    },
+    {
+      "id": "FUN-031",
+      "previous": "待验证",
+      "status": "部分完成",
+      "reason": "原验收遗漏时间线；外部编号和接收确认来自第 8.5 节，不能只引用 REG-004。供应商协作只作为可复用基础。"
+    },
+    {
+      "id": "FUN-037",
+      "previous": "待验证",
+      "status": "部分完成",
+      "reason": "SLA-005 是接收确认、首响、周期更新、升级、恢复、解决六类；原表“分配”与当前 AcceptedAt 语义均不准确。"
+    },
+    {
+      "id": "FUN-083",
+      "previous": "待验证",
+      "status": "待验证",
+      "reason": "公共上传检查不代表全部入口；TKT-007/SEC-003 还要求隔离，不能仅以拒绝文件判整条通过。"
+    },
+    {
+      "id": "FUN-004",
+      "previous": "待验证",
+      "status": "部分完成",
+      "reason": "从泛化的统一登录改为原文明确的身份源与代理链路；仅配置 OIDC 不能直接通过。"
+    },
+    {
+      "id": "FUN-021",
+      "previous": "待验证",
+      "status": "待验证",
+      "reason": "自动关闭窗口在设计章节有依据；“关闭前提醒”不是所引 TKT-004 的明示独立要求。"
+    },
+    {
+      "id": "FUN-025",
+      "previous": "待验证",
+      "status": "待完成",
+      "reason": "不能继续按已有实现仅待验证计 3 人日；静态检索未发现不等于运行验收失败。"
+    },
+    {
+      "id": "FUN-028",
+      "previous": "待验证",
+      "status": "待验证",
+      "reason": "产品组和工程师配置是 REG-001 的部分适配；活动服务/组件、日历、升级路线、有效期在 FUN-029 等项继续验收。"
+    },
+    {
+      "id": "FUN-054",
+      "previous": "待验证",
+      "status": "部分完成",
+      "reason": "审批/回滚接口存在不等于 DCH-004 全部配置治理闭环完成。"
+    },
+    {
+      "id": "FUN-005",
+      "previous": "待完成",
+      "status": "待完成",
+      "reason": "恢复和绑定流程是实施细化，原文明示重点是所有用户 MFA 及因素策略。"
+    },
+    {
+      "id": "FUN-013",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "补充接口原则和 EVT-002，避免仅以不重复建单代替安全与幂等完整验收。"
+    },
+    {
+      "id": "FUN-014",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "保留原文 Context Incomplete 状态与不得伪造数据约束。"
+    },
+    {
+      "id": "FUN-010",
+      "previous": "待完成",
+      "status": "待完成",
+      "reason": "新邮件建单映射到 TKT-001 和邮件集成章节；TKT-008 专指回复线程匹配。"
+    },
+    {
+      "id": "FUN-063",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "移除可能已经过期的 SMTP 状态，补发件失败重试与告警的第 8.3 节依据。"
+    },
+    {
+      "id": "FUN-090",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "原文允许短生命周期 Token 或受控 Client Credential，不应把新建换 Token 接口写成唯一强制实现。"
+    },
+    {
+      "id": "FUN-011",
+      "previous": "待完成",
+      "status": "待完成",
+      "reason": "补充 Message-ID、In-Reply-To、References 等原文字段依据。"
+    },
+    {
+      "id": "FUN-022",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "补回对象关系与完整状态约束，避免只验证六类名称。"
+    },
+    {
+      "id": "FUN-012",
+      "previous": "待完成",
+      "status": "待完成",
+      "reason": "DES-002 不是原文编号，改为第 8.3 节 Auto Reply、Loop、Bounce、Out-of-office 防循环要求。"
+    },
+    {
+      "id": "FUN-007",
+      "previous": "待完成",
+      "status": "待完成",
+      "reason": "原验收只检查批准人与复核，补回 IAM-005 的凭据、保管与 MFA 约束。"
+    },
+    {
+      "id": "FUN-039",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "有日历函数不等于实际计时链路已使用，必须验真实扫描结果。"
+    },
+    {
+      "id": "FUN-027",
+      "previous": "待完成",
+      "status": "待完成",
+      "reason": "以第 9.3 节替换虚构编号 DES-003，包含重大故障沟通审批和复盘职责。"
+    },
+    {
+      "id": "FUN-043",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "将 FUN-037 与 FUN-043 明确组成 SLA-005 的完整验收，防止拆分后重复计算或遗漏。"
+    },
+    {
+      "id": "FUN-029",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "产品/模块模型可复用，但不自动等同于原文服务/组件 Registry。"
+    },
+    {
+      "id": "FUN-056",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "原文是禁止 Bot 自主执行高风险业务，不能弱化为添加人工审批后即可自动执行。"
+    },
+    {
+      "id": "FUN-061",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "DES-005 不存在，替换为第 11.5 节；英文自动欢迎是通知实施细化，不是原文独立功能。"
+    },
+    {
+      "id": "FUN-032",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "第 9.2 节要求回交不完整保持依赖打开并记录缺口，满足后再恢复己方责任。"
+    },
+    {
+      "id": "FUN-033",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "补独立依赖、OLA、跟进和升级依据，邀请超时并不等于完整专家等待计时。"
+    },
+    {
+      "id": "FUN-062",
+      "previous": "待完成",
+      "status": "待完成",
+      "reason": "DES-005 替换为第 11.5 节，保留阿语 RTL、表格、通知与导出验收。"
+    },
+    {
+      "id": "FUN-057",
+      "previous": "待完成",
+      "status": "待完成",
+      "reason": "补回原文指定的组件、每项目独立部署与启用批准，不能只验官方 API 收发。"
+    },
+    {
+      "id": "FUN-059",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "补回 DCH-002/008 的安全、死信和降级约束。"
+    },
+    {
+      "id": "FUN-060",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "开关不是全部要求，需同时验证启用前置门禁。"
+    },
+    {
+      "id": "FUN-066",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "原验收偏重维护期静默，补回 MON-003 完整行为。"
+    },
+    {
+      "id": "FUN-078",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "补回 RPT-005 明确禁止计费逻辑的范围边界。"
+    },
+    {
+      "id": "FUN-079",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "补事件重建和对账差异处理依据，但不代表全部 EVT 需求已覆盖。"
+    },
+    {
+      "id": "FUN-074",
+      "previous": "待完成",
+      "status": "待完成",
+      "reason": "QA-006 原文级别为 SHOULD，不因本表排期优先级改写为 MUST。"
+    },
+    {
+      "id": "FUN-076",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "DES-012 替换为第 9.5 节和附录 B；月报内容、流程和原文编号分开记录。"
+    },
+    {
+      "id": "FUN-077",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "功能格式相同不代表满足原文组件选型，补技术路线待确认项。"
+    },
+    {
+      "id": "FUN-084",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "原文要求的隔离场景不只危险文件；可选扫描不能视为强制扫描已实现。"
+    },
+    {
+      "id": "FUN-081",
+      "previous": "待完成",
+      "status": "待完成",
+      "reason": "DES-012 替换为第 9.5 节，保留批准、交付证据和更正不覆盖历史。"
+    },
+    {
+      "id": "FUN-086",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "补回 DAT-001/003 的全数据类别与副本处理，不能仅验业务表删除。"
+    },
+    {
+      "id": "FUN-087",
+      "previous": "待完成",
+      "status": "待完成",
+      "reason": "DAT-002 明示自动删除拦截；对人工删除的扩展控制需要单独确认，不伪装原文逐字要求。"
+    },
+    {
+      "id": "FUN-089",
+      "previous": "部分完成",
+      "status": "部分完成",
+      "reason": "DES-013 替换为第 18.6 节及附录 C，并补交接包知识产权排除边界。"
+    },
+    {
+      "id": "FUN-001",
+      "previous": "已完成",
+      "status": "待复验",
+      "reason": "删除错误的 FND-001 映射。企业管理员管理只是权限能力的一部分，不能证明项目自动部署或完整角色矩阵。"
+    },
+    {
+      "id": "FUN-002",
+      "previous": "已完成",
+      "status": "待复验",
+      "reason": "工程师为当前系统角色，客户账号不属于原文 Agent 角色矩阵；须分别判断，不以三类账号登录代替 IAM 验收。"
+    },
+    {
+      "id": "FUN-009",
+      "previous": "已完成",
+      "status": "待复验",
+      "reason": "自研会话转单只是可复用基础，不等于原文 WhatsApp/Chatbot 到 GLPI 的完整交接。"
+    },
+    {
+      "id": "FUN-015",
+      "previous": "已完成",
+      "status": "待复验",
+      "reason": "工程师派单是当前实现方式；原文重点为责任组、状态和行政负责人持续存在。"
+    },
+    {
+      "id": "FUN-016",
+      "previous": "已完成",
+      "status": "待复验",
+      "reason": "工程师 AcceptedAt 与原文面向受理的 Acknowledged 不能未经确认直接等同。"
+    },
+    {
+      "id": "FUN-017",
+      "previous": "已完成",
+      "status": "待复验",
+      "reason": "用户更新是原文要求，但面向客户的 Self-service Portal 被列为 V1 不包含。"
+    },
+    {
+      "id": "FUN-018",
+      "previous": "已完成",
+      "status": "待复验",
+      "reason": "恢复/解决证据是原文要求；设备故障、根因、维修方案等具体表单是现有售后系统适配。"
+    },
+    {
+      "id": "FUN-019",
+      "previous": "已完成",
+      "status": "待复验",
+      "reason": "关闭确认来自第 9.1 节，客户评分不是 TKT-004 明示要求。"
+    },
+    {
+      "id": "FUN-020",
+      "previous": "已完成",
+      "status": "待复验",
+      "reason": "补上第 7.3 节明确要求，不能只验证状态回到处理中。"
+    },
+    {
+      "id": "FUN-046",
+      "previous": "已完成",
+      "status": "待复验",
+      "reason": "不能以产品文档向量检索已经演示，证明 GLPI 原生知识库要求已完成。"
+    },
+    {
+      "id": "FUN-047",
+      "previous": "已完成",
+      "status": "待复验",
+      "reason": "有基于入库资料的回答不等于已审批问答；原文的批准与有效性前置不能省略。"
+    },
+    {
+      "id": "FUN-075",
+      "previous": "已完成",
+      "status": "待复验",
+      "reason": "工单数量和状态统计只是 RPT-002 月报内容的一部分，不能单独证明完整月报验收通过。"
+    }
+  ],
+  "overview": [
+    [
+      "A5",
+      90
+    ],
+    [
+      "C5",
+      0
+    ],
+    [
+      "E5",
+      47
+    ],
+    [
+      "G5",
+      15
+    ],
+    [
+      "A7",
+      28
+    ],
+    [
+      "C7",
+      21
+    ],
+    [
+      "G7",
+      889
+    ]
+  ],
+  "output": "D:\\work\\helpdesk\\outputs\\onward-review-20260908\\Onward_业务功能对照与实施排期_修订讨论稿_20260908.xlsx"
+}

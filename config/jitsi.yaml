@@ -1,0 +1,20 @@
+# Jitsi Meet 服务配置
+# Jitsi 由其他团队自建部署，本项目只通过 REST API 调用
+jitsi:
+  requireAuth: false
+  # Jitsi 服务地址，由运维团队提供
+  url: "https://jitsi.example.com"
+  # 匿名本地演示保持 appId/appSecret 为空；生产环境通过 JITSI_* 环境变量注入。
+  appId: ""
+  # Jitsi JWT 签名密钥（HS256），由 Jitsi 运维团队提供
+  appSecret: ""
+  # Jitsi 前端域，用于前端嵌入 iframe 时指定 domain（可选，默认与 url 相同）
+  jitsiDomain: ""
+  # Webhook 签名密钥，用于验证 Jitsi 回调请求的合法性
+  webhookSecret: ""
+  # JWT token 有效期（分钟）
+  tokenTTLMinutes: 15
+  # HTTP 请求超时时间
+  timeout: 10s
+  # HTTP 请求最大重试次数
+  maxRetries: 3

@@ -1,0 +1,123 @@
+language: zh-CN
+encryptionKey: remotehelpdesk-e2e-encryption-key-2026
+
+server:
+  port: 8083
+  cors:
+    allowedOrigins:
+      - http://127.0.0.1:3000
+      - http://localhost:3000
+      - http://127.0.0.1:13000
+
+db:
+  type: postgres
+  dsn: host=127.0.0.1 user=cs_ai_agent password=cs_ai_agent_password dbname=cs_ai_agent port=5432 sslmode=disable TimeZone=UTC
+  autoMigrate: true
+  maxIdleConns: 5
+  maxOpenConns: 20
+
+ticketDispatch:
+  acceptDeadlineMinutes: 30
+  ownerReplyTakeoverMinutes: 30
+  unassignedEscalationMinutes: 30
+  maxDispatchAttempts: 3
+  onlineFreshnessMinutes: 2
+  slaWarningLeadMinutes: 30
+  slaWarningRepeatMinutes: 15
+
+redis:
+  addr: 127.0.0.1:6379
+  password: ""
+  db: 0
+
+logger:
+  level: info
+  format: text
+  addSource: false
+
+auth:
+  tokenTTLHours: 72
+  maxFailedAttempts: 0
+  credentialLockMinute: 15
+
+customerSession:
+  secret: remotehelpdesk-e2e-customer-session-secret
+  ttlMinutes: 120
+  refreshThresholdMinutes: 30
+
+storage:
+  default: local
+  maxUploadSizeMB: 20
+  uploadSecurity:
+    enabled: true
+    blockedExtensions: []
+    blockedMimeTypes: []
+    clamav:
+      enabled: false
+  local:
+    root: .tmp/e2e-storage
+    baseUrl: /storage
+
+vectorDB:
+  type: qdrant
+  qdrant:
+    host: 127.0.0.1
+    grpcPort: 6334
+    apiKey: ""
+    useTls: false
+
+rag:
+  enabled: true
+  runtimeEnabled: true
+  ingestionEnabled: true
+  hybridEnabled: true
+  retrievalMode: auto
+  activeCollectionAlias: knowledge_chunks_active
+  collectionPrefix: knowledge_chunks
+  schemaVersion: 2
+  taskBatchSize: 20
+  taskInterval: 1s
+  maxRetries: 5
+  contextMaxTokens: 4000
+  maxContextItems: 5
+  denseTopK: 30
+  lexicalTopK: 12
+  hybridDenseMinHits: 1
+  hybridDenseMinScore: 0
+  rrfK: 60
+  rerankTopN: 5
+  rerankMaxCandidates: 12
+  rerankSkipTopScore: 0.82
+
+mcp:
+  enabled: true
+  servers:
+    system:
+      enabled: true
+      endpoint: "http://127.0.0.1:8083/api/mcp"
+      timeoutMs: 15000
+      headers: {}
+
+jitsi:
+  requireAuth: false
+  url: https://meet.jit.si
+  appId: ""
+  appSecret: ""
+  webhookSecret: ""
+  jitsiDomain: meet.jit.si
+  tokenTTLMinutes: 60
+  timeout: 5s
+  maxRetries: 0
+
+speech:
+  provider: mock
+  mock:
+    segmentDurationMs: 500
+  jigasi:
+    enabled: false
+
+wxWork:
+  enabled: false
+
+oidc:
+  enabled: false

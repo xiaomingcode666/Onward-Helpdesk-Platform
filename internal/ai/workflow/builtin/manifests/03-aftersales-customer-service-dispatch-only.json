@@ -1,0 +1,512 @@
+{
+  "manifestVersion": 1,
+  "code": "aftersales_customer_service_dispatch_only",
+  "name": "平台 功能派发闭环流程",
+  "description": "不做 AI 问诊，优先识别客户是否要转人工或创建工单；无明确动作时给出服务菜单。",
+  "initialChange": "平台功能派发流程初始稳定版本",
+  "upgradeChange": "规则识别客户意图，明确转人工、建单确认和服务菜单兜底",
+  "definition": {
+    "schemaVersion": 1,
+    "entryNodeId": "start_1",
+    "runtimeVariables": [
+      {
+        "key": "context.tenantId",
+        "type": "int64",
+        "source": "conversation.tenantId",
+        "required": true,
+        "description": "当前会话所属租户"
+      },
+      {
+        "key": "context.productId",
+        "type": "int64",
+        "source": "conversation.productId",
+        "required": true,
+        "description": "当前会话所属产品"
+      },
+      {
+        "key": "context.deviceId",
+        "type": "int64",
+        "source": "conversation.deviceId",
+        "description": "当前会话关联设备"
+      },
+      {
+        "key": "context.serviceCodeId",
+        "type": "int64",
+        "source": "conversation.serviceCodeId",
+        "description": "客户入口服务码"
+      },
+      {
+        "key": "context.conversationId",
+        "type": "int64",
+        "source": "conversation.id",
+        "required": true,
+        "description": "当前会话"
+      },
+      {
+        "key": "context.userMessage",
+        "type": "string",
+        "source": "conversation.lastMessage",
+        "description": "当前客户消息"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "start_1",
+        "type": "start",
+        "name": "客户发起会话",
+        "position": {
+          "x": 0,
+          "y": 560
+        },
+        "config": null
+      },
+      {
+        "id": "entry_context_1",
+        "type": "entry_context",
+        "name": "入口与设备识别",
+        "position": {
+          "x": 320,
+          "y": 560
+        },
+        "config": {
+          "unboundMode": "product_context"
+        },
+        "inputs": {
+          "customerEntrySessionId": {
+            "nodeId": "start_1",
+            "field": "customerEntrySessionId"
+          },
+          "deviceId": {
+            "nodeId": "start_1",
+            "field": "deviceId"
+          },
+          "productId": {
+            "nodeId": "start_1",
+            "field": "productId"
+          },
+          "productModelId": {
+            "nodeId": "start_1",
+            "field": "productModelId"
+          },
+          "serviceCodeId": {
+            "nodeId": "start_1",
+            "field": "serviceCodeId"
+          }
+        },
+        "errorTargetNodeId": "dispatch_fallback_reply_1"
+      },
+      {
+        "id": "analysis_1",
+        "type": "analyze_conversation",
+        "name": "识别服务动作",
+        "position": {
+          "x": 640,
+          "y": 560
+        },
+        "config": {},
+        "inputs": {
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "dispatch_fallback_reply_1"
+      },
+      {
+        "id": "analysis_route_1",
+        "type": "condition",
+        "name": "派发动作分流",
+        "position": {
+          "x": 960,
+          "y": 560
+        },
+        "config": {
+          "branches": [
+            {
+              "id": "prepare_ticket",
+              "name": "创建工单",
+              "targetNodeId": "ticket_draft_1",
+              "condition": {
+                "left": {
+                  "nodeId": "analysis_1",
+                  "field": "needTicket"
+                },
+                "operator": "is_true"
+              }
+            },
+            {
+              "id": "handoff_to_human",
+              "name": "转人工接入",
+              "targetNodeId": "handoff_1",
+              "condition": {
+                "left": {
+                  "nodeId": "analysis_1",
+                  "field": "needHumanHandoff"
+                },
+                "operator": "is_true"
+              }
+            },
+            {
+              "id": "default",
+              "name": "静态派发回复",
+              "targetNodeId": "dispatch_fallback_reply_1",
+              "default": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "ticket_draft_1",
+        "type": "prepare_ticket_draft",
+        "name": "整理工单草稿",
+        "position": {
+          "x": 1280,
+          "y": 240
+        },
+        "config": {},
+        "inputs": {
+          "issue": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "dispatch_fallback_reply_1"
+      },
+      {
+        "id": "ticket_confirm_prompt_1",
+        "type": "llm_reply",
+        "name": "工单确认提示",
+        "position": {
+          "x": 1600,
+          "y": 240
+        },
+        "config": {
+          "staticReply": "我已整理好工单草稿。请回复“确认创建工单”提交给售后团队；如果信息不对，回复“取消”。"
+        },
+        "inputs": {
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        }
+      },
+      {
+        "id": "ticket_confirm_1",
+        "type": "human_confirm",
+        "name": "确认工单",
+        "position": {
+          "x": 1920,
+          "y": 240
+        },
+        "config": {},
+        "inputs": {
+          "prompt": {
+            "nodeId": "ticket_confirm_prompt_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "ticket_confirm_route_1",
+        "type": "condition",
+        "name": "工单确认分流",
+        "position": {
+          "x": 2240,
+          "y": 240
+        },
+        "config": {
+          "branches": [
+            {
+              "id": "confirmed",
+              "name": "确认创建",
+              "targetNodeId": "create_ticket_1",
+              "condition": {
+                "left": {
+                  "nodeId": "ticket_confirm_1",
+                  "field": "confirmed"
+                },
+                "operator": "is_true"
+              }
+            },
+            {
+              "id": "cancelled",
+              "name": "取消创建",
+              "targetNodeId": "ticket_cancel_reply_1",
+              "default": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "create_ticket_1",
+        "type": "create_ticket",
+        "name": "创建工单",
+        "position": {
+          "x": 2560,
+          "y": 240
+        },
+        "config": {},
+        "inputs": {
+          "ticketDraft": {
+            "nodeId": "ticket_draft_1",
+            "field": "ticketDraft"
+          },
+          "confirmed": {
+            "nodeId": "ticket_confirm_1",
+            "field": "confirmed"
+          }
+        },
+        "errorTargetNodeId": "dispatch_fallback_reply_1"
+      },
+      {
+        "id": "ticket_success_send_1",
+        "type": "send_reply",
+        "name": "发送工单结果",
+        "position": {
+          "x": 2880,
+          "y": 240
+        },
+        "config": {},
+        "inputs": {
+          "replyText": {
+            "nodeId": "create_ticket_1",
+            "field": "message"
+          }
+        }
+      },
+      {
+        "id": "ticket_cancel_reply_1",
+        "type": "llm_reply",
+        "name": "工单取消提示",
+        "position": {
+          "x": 2560,
+          "y": 520
+        },
+        "config": {
+          "staticReply": "已取消创建工单。你可以回复“转人工”接入工程师，或补充故障现象后重新创建工单。"
+        },
+        "inputs": {
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        }
+      },
+      {
+        "id": "ticket_cancel_send_1",
+        "type": "send_reply",
+        "name": "发送取消结果",
+        "position": {
+          "x": 2880,
+          "y": 520
+        },
+        "config": {},
+        "inputs": {
+          "replyText": {
+            "nodeId": "ticket_cancel_reply_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "handoff_1",
+        "type": "handoff_to_human",
+        "name": "转人工",
+        "position": {
+          "x": 1280,
+          "y": 760
+        },
+        "config": {},
+        "inputs": {
+          "reason": {
+            "nodeId": "analysis_1",
+            "field": "intent"
+          }
+        },
+        "errorTargetNodeId": "dispatch_fallback_reply_1"
+      },
+      {
+        "id": "handoff_send_1",
+        "type": "send_reply",
+        "name": "发送转人工结果",
+        "position": {
+          "x": 1600,
+          "y": 760
+        },
+        "config": {},
+        "inputs": {
+          "replyText": {
+            "nodeId": "handoff_1",
+            "field": "message"
+          }
+        }
+      },
+      {
+        "id": "dispatch_fallback_reply_1",
+        "type": "llm_reply",
+        "name": "静态派发提示",
+        "position": {
+          "x": 1280,
+          "y": 1040
+        },
+        "config": {
+          "staticReply": "当前流程不做 AI 问诊。你可以直接回复：1. 转人工 2. 创建工单。也可以补充设备型号、故障现象和故障码，我会整理后派发给售后团队。"
+        },
+        "inputs": {
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        }
+      },
+      {
+        "id": "dispatch_fallback_send_1",
+        "type": "send_reply",
+        "name": "发送静态提示",
+        "position": {
+          "x": 1600,
+          "y": 1040
+        },
+        "config": {},
+        "inputs": {
+          "replyText": {
+            "nodeId": "dispatch_fallback_reply_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "end_1",
+        "type": "end",
+        "name": "结束",
+        "position": {
+          "x": 3200,
+          "y": 560
+        },
+        "config": {}
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge_start_entry_context",
+        "source": "start_1",
+        "target": "entry_context_1"
+      },
+      {
+        "id": "edge_entry_context_analysis",
+        "source": "entry_context_1",
+        "target": "analysis_1"
+      },
+      {
+        "id": "edge_analysis_route",
+        "source": "analysis_1",
+        "target": "analysis_route_1"
+      },
+      {
+        "id": "edge_route_ticket",
+        "source": "analysis_route_1",
+        "target": "ticket_draft_1"
+      },
+      {
+        "id": "edge_route_handoff",
+        "source": "analysis_route_1",
+        "target": "handoff_1"
+      },
+      {
+        "id": "edge_route_fallback",
+        "source": "analysis_route_1",
+        "target": "dispatch_fallback_reply_1"
+      },
+      {
+        "id": "edge_entry_context_fallback",
+        "source": "entry_context_1",
+        "target": "dispatch_fallback_reply_1"
+      },
+      {
+        "id": "edge_analysis_fallback",
+        "source": "analysis_1",
+        "target": "dispatch_fallback_reply_1"
+      },
+      {
+        "id": "edge_ticket_draft_fallback",
+        "source": "ticket_draft_1",
+        "target": "dispatch_fallback_reply_1"
+      },
+      {
+        "id": "edge_create_ticket_fallback",
+        "source": "create_ticket_1",
+        "target": "dispatch_fallback_reply_1"
+      },
+      {
+        "id": "edge_handoff_fallback",
+        "source": "handoff_1",
+        "target": "dispatch_fallback_reply_1"
+      },
+      {
+        "id": "edge_ticket_draft_prompt",
+        "source": "ticket_draft_1",
+        "target": "ticket_confirm_prompt_1"
+      },
+      {
+        "id": "edge_ticket_prompt_confirm",
+        "source": "ticket_confirm_prompt_1",
+        "target": "ticket_confirm_1"
+      },
+      {
+        "id": "edge_ticket_confirm_route",
+        "source": "ticket_confirm_1",
+        "target": "ticket_confirm_route_1"
+      },
+      {
+        "id": "edge_ticket_confirm_create",
+        "source": "ticket_confirm_route_1",
+        "target": "create_ticket_1"
+      },
+      {
+        "id": "edge_ticket_confirm_cancel",
+        "source": "ticket_confirm_route_1",
+        "target": "ticket_cancel_reply_1"
+      },
+      {
+        "id": "edge_create_ticket_result",
+        "source": "create_ticket_1",
+        "target": "ticket_success_send_1"
+      },
+      {
+        "id": "edge_ticket_success_end",
+        "source": "ticket_success_send_1",
+        "target": "end_1"
+      },
+      {
+        "id": "edge_ticket_cancel_send",
+        "source": "ticket_cancel_reply_1",
+        "target": "ticket_cancel_send_1"
+      },
+      {
+        "id": "edge_ticket_cancel_end",
+        "source": "ticket_cancel_send_1",
+        "target": "end_1"
+      },
+      {
+        "id": "edge_handoff_send",
+        "source": "handoff_1",
+        "target": "handoff_send_1"
+      },
+      {
+        "id": "edge_handoff_end",
+        "source": "handoff_send_1",
+        "target": "end_1"
+      },
+      {
+        "id": "edge_fallback_send",
+        "source": "dispatch_fallback_reply_1",
+        "target": "dispatch_fallback_send_1"
+      },
+      {
+        "id": "edge_fallback_end",
+        "source": "dispatch_fallback_send_1",
+        "target": "end_1"
+      }
+    ]
+  }
+}

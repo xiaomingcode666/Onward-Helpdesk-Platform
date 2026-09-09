@@ -1,0 +1,393 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- Native portal: common -->
+    <string name="common_cancel">Cancelar</string>
+    <string name="common_retry">Reintentar</string>
+    <string name="common_clear_search">Borrar busqueda</string>
+    <string name="common_load_more">Cargar mas</string>
+    <string name="common_loading_more">Cargando...</string>
+    <string name="common_no_device">Sin dispositivo vinculado</string>
+
+    <!-- Native portal: chrome -->
+    <string name="portal_loading_data">Cargando datos</string>
+    <string name="portal_back_to_list">Volver a la lista</string>
+    <string name="portal_refresh">Actualizar</string>
+    <string name="portal_tab_conversations">Charlas</string>
+    <string name="portal_tab_tickets">Tickets</string>
+    <string name="portal_tab_meetings">Video</string>
+    <string name="portal_tab_devices">Dispositivos</string>
+    <string name="portal_tab_profile">Mi cuenta</string>
+    <string name="portal_detail_conversation_title">Charla #%1$d</string>
+    <string name="portal_detail_ticket_title">Detalle del ticket</string>
+    <string name="portal_detail_meeting_title">Sesion de video</string>
+    <string name="portal_detail_device_title">Ficha del dispositivo</string>
+
+    <!-- Native portal: status labels -->
+    <string name="status_active">En curso</string>
+    <string name="status_accepted">Aceptado</string>
+    <string name="status_action_required">Requiere atencion</string>
+    <string name="status_ai_serving">Atendiendo por IA</string>
+    <string name="status_assigned">Asignado</string>
+    <string name="status_cancelled">Cancelado</string>
+    <string name="status_closed">Cerrado</string>
+    <string name="status_completed">Completado</string>
+    <string name="status_done">Completado</string>
+    <string name="status_ended">Finalizado</string>
+    <string name="status_failed">Error</string>
+    <string name="status_finished">Completado</string>
+    <string name="status_human_serving">Atendiendo personal</string>
+    <string name="status_idle">En espera</string>
+    <string name="status_in_progress">En proceso</string>
+    <string name="status_joined">Se unio</string>
+    <string name="status_maintenance">En mantenimiento</string>
+    <string name="status_offline">Desconectado</string>
+    <string name="status_online">En linea</string>
+    <string name="status_open">Pendiente</string>
+    <string name="status_pending">Pendiente</string>
+    <string name="status_pending_acceptance">Pendiente de aceptacion</string>
+    <string name="status_pending_assignee_accept">Esperando al ingeniero</string>
+    <string name="status_pending_confirmation">Pendiente de confirmacion</string>
+    <string name="status_pending_dispatch">Pendiente de asignacion</string>
+    <string name="status_processing">En proceso</string>
+    <string name="status_queued">En espera de atencion humana</string>
+    <string name="status_reopened">Reabierto</string>
+    <string name="status_resolved">Resuelto</string>
+    <string name="status_reviewing">En revision</string>
+    <string name="status_scheduled">Programado</string>
+    <string name="status_submitted">Enviado</string>
+    <string name="status_waiting">Pendiente de inicio</string>
+    <string name="status_waiting_customer">Esperando respuesta</string>
+    <string name="status_unknown">Desconocido</string>
+
+    <!-- Native portal: priority & duration -->
+    <string name="priority_low">Baja</string>
+    <string name="priority_medium">Media</string>
+    <string name="priority_high">Alta</string>
+    <string name="priority_urgent">Urgente</string>
+    <string name="duration_minutes_seconds">%1$d min %2$d s</string>
+    <string name="duration_seconds">%1$d s</string>
+
+    <!-- Native portal: conversations -->
+    <string name="conversation_search_placeholder">Buscar dispositivos, tickets o mensajes</string>
+    <string name="conversation_filter_all">Todos</string>
+    <string name="conversation_filter_active">En curso</string>
+    <string name="conversation_filter_closed">Finalizadas</string>
+    <string name="conversation_empty_title">No hay charlas coincidentes</string>
+    <string name="conversation_empty_detail">Seleccione un dispositivo en la pestana Dispositivos para iniciar una nueva consulta de posventa</string>
+    <string name="conversation_default_title">Soporte de posventa</string>
+    <string name="conversation_support_default">Diagnostico por IA y soporte de posventa</string>
+    <string name="conversation_id_label">Charla #%1$d</string>
+    <string name="conversation_no_messages">Sin mensajes, toque para abrir</string>
+    <string name="conversation_ticket_label">Ticket %1$s</string>
+    <string name="conversation_assignee_label">Agente %1$s</string>
+    <string name="conversation_ai_service">Servicio de IA</string>
+    <string name="conversation_realtime_connected">Conectado</string>
+    <string name="conversation_realtime_reconnecting">Reconectando</string>
+    <string name="conversation_request_human">Solicitar atencion humana</string>
+    <string name="conversation_load_older">Cargar mensajes anteriores</string>
+    <string name="conversation_empty_created_title">Charla creada</string>
+    <string name="conversation_empty_created_detail">Envie su problema del dispositivo y nuestro personal continuara aqui</string>
+    <string name="conversation_closed_hint">Esta charla ha finalizado. Puede iniciar una nueva desde la pestana Dispositivos</string>
+    <string name="conversation_take_photo">Tomar foto</string>
+    <string name="conversation_pick_image">Seleccionar imagen de la galeria</string>
+    <string name="conversation_pick_attachment">Seleccionar archivo adjunto</string>
+    <string name="conversation_busy">Procesando</string>
+    <string name="conversation_sending">Enviando mensaje...</string>
+    <string name="conversation_send_failed">No se pudo enviar el mensaje, reintente</string>
+    <string name="conversation_input_placeholder">Escriba un mensaje</string>
+    <string name="conversation_send">Enviar mensaje</string>
+    <string name="conversation_media_image_label">Imagen</string>
+    <string name="conversation_media_attachment_label">Adjunto</string>
+    <string name="conversation_cancel_pick">Cancelar seleccion</string>
+    <string name="conversation_send_button">Enviar</string>
+    <string name="conversation_me_label">Yo</string>
+    <string name="conversation_staff_label">Agente</string>
+    <string name="conversation_image_message">Mensaje de imagen</string>
+    <string name="conversation_attachment_message">Adjunto</string>
+    <string name="conversation_video_message">Mensaje de video</string>
+    <string name="conversation_other_message">Mensaje de %1$s</string>
+    <string name="conversation_content_unavailable">Contenido del mensaje no disponible</string>
+    <string name="conversation_view_image">Ver imagen</string>
+    <string name="conversation_open_attachment">Abrir adjunto</string>
+
+    <!-- Native portal: tickets -->
+    <string name="ticket_search_placeholder">Buscar numero de ticket, problema o dispositivo</string>
+    <string name="ticket_filter_all">Todos</string>
+    <string name="ticket_filter_open">En proceso</string>
+    <string name="ticket_filter_closed">Finalizados</string>
+    <string name="ticket_empty_title">No hay tickets coincidentes</string>
+    <string name="ticket_empty_detail">Cuando una charla se escale a atencion humana, los tickets relacionados apareceran aqui</string>
+    <string name="ticket_id_label">Ticket #%1$d</string>
+    <string name="ticket_open_detail">Abrir detalle del ticket</string>
+    <string name="ticket_product">Producto</string>
+    <string name="ticket_assignee">Responsable</string>
+    <string name="ticket_assignee_pending">Sin asignar</string>
+    <string name="ticket_priority">Prioridad</string>
+    <string name="ticket_updated_at">Actualizado</string>
+    <string name="ticket_repair_summary">Resultado</string>
+    <string name="ticket_progress">Progreso</string>
+    <string name="ticket_no_progress">Sin registros de progreso</string>
+    <string name="ticket_confirm_done">Confirmar finalizacion</string>
+    <string name="ticket_reopen">El problema no esta resuelto</string>
+    <string name="ticket_rate_service">Valorar este servicio</string>
+    <string name="ticket_rating_submitted">Valoracion de servicio enviada: %1$d estrellas</string>
+    <string name="ticket_reopen_dialog_title">Reabrir ticket</string>
+    <string name="ticket_reopen_dialog_hint">Indique por que el problema no esta resuelto.</string>
+    <string name="ticket_reopen_placeholder">Problema no resuelto</string>
+    <string name="ticket_submit">Enviar</string>
+    <string name="ticket_feedback_dialog_title">Valoracion del servicio</string>
+    <string name="ticket_feedback_dialog_hint">Elija de 1 a 5 estrellas y agregue comentarios si lo desea.</string>
+    <string name="ticket_star_rating">%1$d estrellas</string>
+    <string name="ticket_feedback_label">Comentarios adicionales (opcional)</string>
+    <string name="ticket_submit_rating">Enviar valoracion</string>
+    <string name="ticket_summary_default">Ticket de servicio de posventa</string>
+
+    <!-- Native portal: meetings -->
+    <string name="meeting_filter_upcoming">Por participar</string>
+    <string name="meeting_filter_history">Historial</string>
+    <string name="meeting_empty_upcoming_title">No hay sesiones por participar</string>
+    <string name="meeting_empty_history_title">No hay sesiones anteriores</string>
+    <string name="meeting_empty_detail">Las sesiones de video creadas con el ingeniero de servicio apareceran aqui</string>
+    <string name="meeting_open_detail">Abrir detalle de la sesion</string>
+    <string name="meeting_scheduled_at">Hora programada</string>
+    <string name="meeting_participants">Participantes</string>
+    <string name="meeting_participant_count">%1$d personas</string>
+    <string name="meeting_duration">Duracion</string>
+    <string name="meeting_transcripts">Transcripciones</string>
+    <string name="meeting_annotations">Anotaciones AR</string>
+    <string name="meeting_count_unit">%1$d elementos</string>
+    <string name="meeting_join">Unirse a la sesion de video</string>
+    <string name="meeting_archived">Esta sesion ha sido archivada</string>
+    <string name="meeting_join_busy">Obteniendo credenciales seguras de la sala Jitsi</string>
+    <string name="meeting_summary_default">Sesion de video de posventa</string>
+    <string name="meeting_reference_no_ticket">Registro de sesion #%1$s</string>
+    <string name="meeting_reference_with_ticket">%1$s - Registro #%2$s</string>
+
+    <!-- Native portal: devices -->
+    <string name="device_search_placeholder">Buscar dispositivo o numero de serie</string>
+    <string name="device_bind">Vincular dispositivo</string>
+    <string name="device_empty_title">No se encontraron dispositivos</string>
+    <string name="device_empty_detail">Ingrese el codigo de servicio del dispositivo para vincularlo, sin escanear QR</string>
+    <string name="device_default_name">Dispositivo</string>
+    <string name="device_no_confirm">Numero de dispositivo pendiente</string>
+    <string name="device_default_detail">Ficha del dispositivo</string>
+    <string name="device_open_detail">Abrir detalle del dispositivo</string>
+    <string name="device_bind_hint">Ingrese el codigo de servicio de la placa del dispositivo o de la documentacion de entrega.</string>
+    <string name="device_service_code_label">Codigo de servicio del dispositivo</string>
+    <string name="device_service_code_placeholder">por ejemplo, P15-SVC-000001</string>
+    <string name="device_bind_confirm">Confirmar vinculacion</string>
+    <string name="device_model">Modelo</string>
+    <string name="device_serial">Numero de serie</string>
+    <string name="device_product_code">Codigo de producto</string>
+    <string name="device_region">Region</string>
+    <string name="device_warranty_until">Fin de garantia</string>
+    <string name="device_profile_incomplete">La ficha del dispositivo esta incompleta; el personal puede pedirle que confirme los datos en la charla.</string>
+    <string name="device_metric_open_tickets">Tickets en curso</string>
+    <string name="device_metric_conversations">Consultas</string>
+    <string name="device_metric_repairs">Reparaciones</string>
+    <string name="device_consult">Consultar este dispositivo</string>
+    <string name="device_resources">Recursos del dispositivo</string>
+    <string name="device_manuals_count_hint">%1$d documentos vinculados, ninguno abrible ahora mismo</string>
+    <string name="device_no_manuals">No hay documentacion del dispositivo disponible</string>
+    <string name="device_manual_fallback">Documento del dispositivo</string>
+    <string name="device_document_fallback">Documento</string>
+
+    <!-- Native portal: profile -->
+    <string name="profile_load_failed_title">No se pudo cargar la informacion de la cuenta</string>
+    <string name="profile_load_failed_detail">Actualice para reintentar. Si su sesion expira, volvera a la pagina de inicio de sesion automaticamente</string>
+    <string name="profile_avatar_fallback">U</string>
+    <string name="profile_customer_account">Cuenta de cliente</string>
+    <string name="profile_metric_devices">Dispositivos</string>
+    <string name="profile_metric_conversations">Charlas</string>
+    <string name="profile_metric_tickets">Tickets</string>
+    <string name="profile_metric_meetings">Reuniones</string>
+    <string name="profile_basic_info">Informacion basica</string>
+    <string name="profile_name">Nombre</string>
+    <string name="profile_email">Correo</string>
+    <string name="profile_mobile">Telefono</string>
+    <string name="profile_save">Guardar</string>
+    <string name="profile_glasses_section">Dispositivos de colaboracion en sitio</string>
+    <string name="profile_connect_glasses">Conectar gafas AR</string>
+    <string name="profile_logout">Cerrar sesion</string>
+    <string name="profile_delete_account">Eliminar cuenta</string>
+    <string name="profile_delete_dialog_title">Eliminar cuenta permanentemente</string>
+    <string name="profile_delete_dialog_hint">Eliminar la cuenta revoca el inicio de sesion y procesa su cuenta, los vinculos de dispositivos y los datos de servicio conforme a la politica de privacidad. Esta accion no se puede deshacer en la aplicacion.</string>
+    <string name="profile_current_password">Contrasena actual</string>
+    <string name="profile_delete_confirm_label">Escriba DELETE para confirmar</string>
+    <string name="profile_delete_acknowledged">Entiendo el impacto de eliminar mi cuenta</string>
+    <string name="profile_delete_confirm">Eliminar permanentemente</string>
+
+    <!-- Native portal: gateway -->
+    <string name="gateway_header_tagline">Servicio remoto de dispositivos</string>
+    <string name="gateway_header_subtitle">Conectese de forma segura a su espacio de trabajo de servicio de dispositivos</string>
+    <string name="gateway_mode_login">Iniciar sesion</string>
+    <string name="gateway_mode_register">Registrarse</string>
+    <string name="gateway_welcome">Bienvenido de nuevo</string>
+    <string name="gateway_login_subtitle">Acceda con su cuenta de cliente</string>
+    <string name="gateway_username_label">Cuenta</string>
+    <string name="gateway_username_placeholder">Ingrese su cuenta de cliente</string>
+    <string name="gateway_password_label">Contrasena</string>
+    <string name="gateway_password_placeholder">Ingrese su contrasena</string>
+    <string name="gateway_logging_in">Iniciando sesion</string>
+    <string name="gateway_login">Iniciar sesion</string>
+    <string name="gateway_register_title">Crear cuenta de servicio</string>
+    <string name="gateway_register_subtitle">Confirme la autorizacion para comenzar a gestionar los servicios de dispositivos</string>
+    <string name="gateway_invite_code_label">Codigo de invitacion</string>
+    <string name="gateway_invite_code_placeholder">Ingrese su codigo de invitacion</string>
+    <string name="gateway_service_code_label">Codigo de servicio del dispositivo</string>
+    <string name="gateway_service_code_placeholder">por ejemplo, P15-SVC-000001</string>
+    <string name="gateway_verifying">Verificando</string>
+    <string name="gateway_verify_continue">Verificar y continuar</string>
+    <string name="gateway_username_login_label">Cuenta de inicio de sesion</string>
+    <string name="gateway_username_login_placeholder">Establezca una cuenta de inicio de sesion</string>
+    <string name="gateway_email_label">Correo</string>
+    <string name="gateway_email_placeholder">Para recibir notificaciones del servicio</string>
+    <string name="gateway_password_hint">Al menos 8 caracteres</string>
+    <string name="gateway_confirm_password_label">Confirmar contrasena</string>
+    <string name="gateway_confirm_password_placeholder">Ingrese la contrasena nuevamente</string>
+    <string name="gateway_back">Volver</string>
+    <string name="gateway_registering">Registrando</string>
+    <string name="gateway_register_enter">Registrarse y continuar</string>
+    <string name="gateway_method_invite">Codigo de invitacion</string>
+    <string name="gateway_method_bind">Vincular dispositivo</string>
+    <string name="gateway_auth_confirmed">Autorizacion confirmada</string>
+    <string name="gateway_context_tenant">Empresa</string>
+    <string name="gateway_context_org">Organizacion del cliente</string>
+    <string name="gateway_context_product">Producto</string>
+    <string name="gateway_context_device">Dispositivo</string>
+    <string name="gateway_show_password">Mostrar contrasena</string>
+    <string name="gateway_hide_password">Ocultar contrasena</string>
+    <string name="gateway_security_title">Proteccion de cuenta de nivel empresarial</string>
+    <string name="gateway_security_note">La informacion de inicio de sesion solo se usa para conectar su servicio de dispositivos</string>
+
+    <!-- Native portal: gateway errors -->
+    <string name="gateway_error_credentials_required">Ingrese su cuenta y contrasena</string>
+    <string name="gateway_error_invite_code_required">Ingrese su codigo de invitacion</string>
+    <string name="gateway_error_service_code_required">Ingrese el codigo de servicio del dispositivo</string>
+    <string name="gateway_error_verify_failed">No se pudo verificar la autorizacion</string>
+    <string name="gateway_error_verify_first">Verifique la autorizacion primero</string>
+    <string name="gateway_error_username_required">Ingrese una cuenta</string>
+    <string name="gateway_error_email_invalid">Ingrese un correo valido</string>
+    <string name="gateway_error_password_short">La contrasena debe tener al menos 8 caracteres</string>
+    <string name="gateway_error_password_mismatch">Las contrasenas no coinciden</string>
+    <string name="gateway_error_request_failed">Solicitud fallida, intente mas tarde</string>
+
+    <!-- Native portal: view model notices & errors -->
+    <string name="notice_reading_file">Leyendo archivo</string>
+    <string name="error_file_read_failed">No se pudo leer el archivo</string>
+    <string name="error_image_too_large">Las imagenes no pueden superar 20 MB</string>
+    <string name="notice_image_sent">Imagen enviada</string>
+    <string name="notice_attachment_sent">Adjunto enviado</string>
+    <string name="error_no_attachment">Este mensaje no tiene adjuntos para abrir</string>
+    <string name="notice_downloading_attachment">Descargando adjunto</string>
+    <string name="conversation_attachment_fallback">Adjunto de la charla</string>
+    <string name="error_no_viewer_app">No hay una aplicacion en este telefono que pueda abrir este adjunto</string>
+    <string name="error_attachment_open_failed">No se pudo abrir el adjunto</string>
+    <string name="notice_human_support_submitted">Solicitud de atencion humana enviada</string>
+    <string name="notice_ticket_confirmed">Ticket confirmado como finalizado</string>
+    <string name="notice_ticket_reopened">Ticket reabierto</string>
+    <string name="notice_feedback_submitted">Valoracion del servicio enviada</string>
+    <string name="notice_meeting_config_ready">Configuracion de la sala Jitsi lista</string>
+    <string name="notice_device_bound">Dispositivo vinculado correctamente</string>
+    <string name="notice_profile_saved">Datos guardados</string>
+    <string name="error_request_failed">Solicitud fallida</string>
+    <string name="error_login_expired">Sesion expirada</string>
+    <string name="error_pick_image">Seleccione un archivo de imagen</string>
+    <string name="error_file_too_large">Los archivos no pueden superar 20 MB</string>
+    <string name="error_cannot_read_file">No se puede leer el archivo seleccionado</string>
+    <string name="error_empty_file">No se puede enviar un archivo vacio</string>
+    <string name="media_camera_filename">foto.jpg</string>
+    <string name="media_attachment_filename">adjunto</string>
+
+    <!-- Native portal: api errors -->
+    <string name="api_error_file_unavailable">El archivo pendiente ya no esta disponible, seleccionelo nuevamente</string>
+    <string name="api_error_upload_no_asset">La carga se realizo correctamente pero el servidor no devolvio informacion del archivo</string>
+    <string name="api_error_invalid_asset_id">El servidor no devolvio un identificador de archivo valido</string>
+    <string name="api_error_invalid_attachment_id">Identificador de adjunto no valido</string>
+    <string name="api_error_download_failed">No se pudo descargar el adjunto</string>
+    <string name="api_error_attachment_too_large">El adjunto supera 50 MB y no se puede abrir en la aplicacion</string>
+    <string name="api_error_empty_attachment">El servidor devolvio un adjunto vacio</string>
+    <string name="api_error_unparsable">El servidor devolvio datos no procesables</string>
+    <string name="api_error_request_failed">Solicitud fallida</string>
+
+    <!-- Native portal: auth errors -->
+    <string name="auth_error_not_customer">Esta cuenta no es de cliente. Inicie sesion con una cuenta de cliente</string>
+    <string name="auth_error_no_credentials">El servidor no devolvio credenciales de inicio de sesion validas</string>
+    <string name="auth_error_request_failed">Solicitud fallida, intente mas tarde</string>
+    <string name="auth_error_empty_data">El servidor devolvio datos vacios</string>
+    <string name="auth_display_name_default">Cliente</string>
+
+    <!-- Native portal: notifications -->
+    <string name="notification_channel_name">Mensajes de charla</string>
+    <string name="notification_channel_description">Consultas de dispositivos, atencion en linea y respuestas de ingenieros</string>
+    <string name="notification_fallback_body">Tiene un nuevo mensaje de servicio de dispositivos</string>
+
+    <!-- Native glasses: common -->
+    <string name="glasses_checking_capabilities">Comprobando capacidades de conexion del telefono</string>
+    <string name="glasses_connection_title">Conexion de gafas AR</string>
+    <string name="glasses_workbench_subtitle">Estacion de trabajo nativa de RemoteHelpDesk</string>
+    <string name="glasses_back">Volver</string>
+    <string name="glasses_connection_method">Metodo de conexion</string>
+    <string name="glasses_bluetooth">Bluetooth</string>
+    <string name="glasses_transport_wifi_direct">Wi-Fi Direct</string>
+    <string name="glasses_searching">Buscando</string>
+    <string name="glasses_search_nearby_devices">Buscar dispositivos cercanos</string>
+    <string name="glasses_nearby_devices_title">Dispositivos cercanos</string>
+    <string name="glasses_device_count">%1$d dispositivos</string>
+    <string name="glasses_signal_strength_dbm">%1$d dBm</string>
+    <string name="glasses_endpoint_label">Punto final %1$s</string>
+    <string name="glasses_connect_device">Conectar %1$s</string>
+    <string name="glasses_waiting_vendor_protocol">Esperando protocolo Bluetooth del fabricante</string>
+    <string name="glasses_waiting_for_devices">Esperando respuesta de los dispositivos</string>
+    <string name="glasses_no_devices_found">Aun no se encontraron dispositivos cercanos</string>
+    <string name="glasses_paired">Vinculado</string>
+    <string name="glasses_selected">Seleccionado</string>
+
+    <!-- Native glasses: capabilities -->
+    <string name="glasses_capability_unsupported">No compatible</string>
+    <string name="glasses_capability_disabled">Desactivado</string>
+    <string name="glasses_capability_pending_auth">Permiso pendiente</string>
+    <string name="glasses_capability_ready">Listo</string>
+    <string name="glasses_capability_enabled">Activado</string>
+
+    <!-- Native glasses: bluetooth discovery & status -->
+    <string name="glasses_bt_searching">Buscando dispositivos Bluetooth cercanos</string>
+    <string name="glasses_bt_no_devices_found">No se encontraron dispositivos Bluetooth cercanos</string>
+    <string name="glasses_bt_scan_complete">Escaneo Bluetooth completado</string>
+    <string name="glasses_bt_scan_failed">Fallo el escaneo Bluetooth (codigo de error %1$d)</string>
+    <string name="glasses_bt_unsupported">Este dispositivo no admite Bluetooth de bajo consumo</string>
+    <string name="glasses_bt_phone_unsupported">Este telefono no admite Bluetooth de bajo consumo</string>
+    <string name="glasses_bt_enable_required">Active el Bluetooth del telefono</string>
+    <string name="glasses_bt_scanner_unavailable">El escaner Bluetooth no esta disponible</string>
+    <string name="glasses_bt_paired_device_fallback">Dispositivo Bluetooth vinculado</string>
+    <string name="glasses_bt_unnamed_device">Dispositivo Bluetooth sin nombre</string>
+    <string name="glasses_bt_permission_required">Se requiere permiso de dispositivos Bluetooth cercanos</string>
+    <string name="glasses_bt_permission_required_search">Se requiere permiso de dispositivos Bluetooth cercanos para buscar gafas</string>
+    <string name="glasses_bt_ready">Bluetooth listo</string>
+    <string name="glasses_bt_vendor_not_configured">El GATT Bluetooth o SDK de Android de este fabricante de gafas aun no esta configurado</string>
+    <string name="glasses_err_bluetooth_needs_vendor_protocol">Este dispositivo Bluetooth requiere el protocolo GATT o SDK del fabricante de las gafas</string>
+
+    <!-- Native glasses: Wi-Fi Direct discovery & status -->
+    <string name="glasses_wifi_direct_searching">Buscando dispositivos Wi-Fi Direct cercanos</string>
+    <string name="glasses_wifi_direct_unsupported">Este dispositivo no admite Wi-Fi Direct</string>
+    <string name="glasses_wifi_direct_phone_unsupported">Este telefono no admite Wi-Fi Direct</string>
+    <string name="glasses_wifi_direct_unavailable">Wi-Fi Direct no esta disponible actualmente</string>
+    <string name="glasses_wifi_direct_scan_failed">Fallo la busqueda de Wi-Fi Direct (codigo de error %1$d)</string>
+    <string name="glasses_wifi_direct_connect_failed">Fallo la conexion Wi-Fi Direct (codigo de error %1$d)</string>
+    <string name="glasses_wifi_direct_permission_missing">Falta el permiso de dispositivos Wi-Fi cercanos</string>
+    <string name="glasses_wifi_direct_permission_required_search">Se requiere permiso de dispositivos Wi-Fi cercanos para buscar gafas</string>
+    <string name="glasses_wifi_direct_connecting">Solicitando conexion con %1$s</string>
+    <string name="glasses_wifi_direct_request_sent">Solicitud de conexion enviada, esperando confirmacion del dispositivo</string>
+    <string name="glasses_wifi_direct_unnamed_device">Dispositivo Wi-Fi sin nombre</string>
+    <string name="glasses_wifi_direct_devices_found">Se encontraron %1$d dispositivos Wi-Fi Direct</string>
+    <string name="glasses_wifi_direct_connected">Conexion Wi-Fi Direct establecida</string>
+    <string name="glasses_wifi_direct_ready">Wi-Fi Direct listo</string>
+    <string name="glasses_wifi_enable_required">Active el Wi-Fi del telefono</string>
+    <string name="glasses_wifi_permission_required">Se requiere permiso de dispositivos Wi-Fi cercanos</string>
+
+    <!-- Native glasses: selection & connection -->
+    <string name="glasses_device_selected_wifi">%1$s seleccionado, puede solicitar una conexion Wi-Fi Direct</string>
+    <string name="glasses_device_recognized_vendor">%1$s reconocido con protocolo de conexion del fabricante</string>
+    <string name="glasses_device_discovered_bt_limited">%1$s descubierto; el control Bluetooth requiere el protocolo del fabricante</string>
+    <string name="glasses_connecting_device">Conectando con %1$s</string>
+</resources>

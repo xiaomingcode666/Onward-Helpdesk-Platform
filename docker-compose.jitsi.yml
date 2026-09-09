@@ -1,0 +1,108 @@
+# =============================================================================
+# Jitsi Meet 参考配置
+# =============================================================================
+# 注意：Jitsi 由 Jitsi 运维团队管理，本项目只通过 API 调用。
+# 此文件仅供架构参考，不在此项目中实际运行。
+# =============================================================================
+#
+# 完整部署文档：https://github.com/jitsi/docker-jitsi-meet
+# JWT 鉴权模式确保只有本系统的 API 可以创建/加入会议
+#
+# 环境变量：
+#   JITSI_JWT_SECRET - JWT 签名密钥，必须与本项目 .env 中的 JITSI_APP_SECRET 一致
+#   JITSI_DOMAIN     - Jitsi 部署域名，如 meet.example.com
+#   TZ               - 时区
+
+services:
+  # ===== Jitsi Web 服务 =====
+  # 由 Jitsi 运维团队管理，本项目只通过 API 调用
+  jitsi-web:
+    image: jitsi/web:stable
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - ENABLE_AUTH=1
+      - ENABLE_GUESTS=0
+      - AUTH_TYPE=jwt
+      - JWT_APP_ID=remotehelpdesk
+      - JWT_APP_SECRET=${JITSI_JWT_SECRET}
+      - XMPP_DOMAIN=${JITSI_DOMAIN}
+      - JVB_ADVERTISE_IPS=jitsi-jvb
+      - TZ=${TZ:-Asia/Shanghai}
+    volumes:
+      - jitsi-web-config:/config
+    depends_on:
+      - jitsi-prosody
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:80 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ===== Jitsi Prosody (XMPP 信令服务) =====
+  # 由 Jitsi 运维团队管理，本项目只通过 API 调用
+  jitsi-prosody:
+    image: jitsi/prosody:stable
+    restart: unless-stopped
+    environment:
+      - AUTH_TYPE=jwt
+      - JWT_APP_ID=remotehelpdesk
+      - JWT_APP_SECRET=${JITSI_JWT_SECRET}
+      - XMPP_DOMAIN=${JITSI_DOMAIN}
+      - TZ=${TZ:-Asia/Shanghai}
+    volumes:
+      - jitsi-prosody-config:/config
+    healthcheck:
+      test: ["CMD-SHELL", "prosodyctl status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===== Jitsi JVB (视频桥接服务) =====
+  # 由 Jitsi 运维团队管理，本项目只通过 API 调用
+  jitsi-jvb:
+    image: jitsi/jvb:stable
+    restart: unless-stopped
+    ports:
+      - "10000:10000/udp"
+    environment:
+      - XMPP_DOMAIN=${JITSI_DOMAIN}
+      - XMPP_AUTH_DOMAIN=auth.meet.${JITSI_DOMAIN}
+      - JVB_ADVERTISE_IPS=jitsi-jvb
+      - TZ=${TZ:-Asia/Shanghai}
+    depends_on:
+      - jitsi-prosody
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/colibri/stats || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===== Jitsi Jicofo (会议聚焦服务) =====
+  # 由 Jitsi 运维团队管理，本项目只通过 API 调用
+  jitsi-jicofo:
+    image: jitsi/jicofo:stable
+    restart: unless-stopped
+    environment:
+      - XMPP_DOMAIN=${JITSI_DOMAIN}
+      - XMPP_AUTH_DOMAIN=auth.meet.${JITSI_DOMAIN}
+      - JWT_APP_ID=remotehelpdesk
+      - JWT_APP_SECRET=${JITSI_JWT_SECRET}
+      - TZ=${TZ:-Asia/Shanghai}
+    depends_on:
+      - jitsi-prosody
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8888/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  jitsi-web-config:
+  jitsi-prosody-config:

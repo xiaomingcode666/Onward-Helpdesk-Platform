@@ -1,0 +1,284 @@
+name: remotehelpdesk
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:16}
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cs_ai_agent}
+      POSTGRES_USER: ${POSTGRES_USER:-cs_ai_agent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - ${RHD_DATA_DIR:-./volumes}/postgres:/var/lib/postgresql/data
+    ports:
+      - ${POSTGRES_BIND_IP:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432
+    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: ${REDIS_IMAGE:-redis:7-alpine}
+    restart: unless-stopped
+    logging: *default-logging
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - ${RHD_DATA_DIR:-./volumes}/redis:/data
+    ports:
+      - ${REDIS_BIND_IP:-127.0.0.1}:${REDIS_PORT:-6379}:6379
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: ${QDRANT_IMAGE:-qdrant/qdrant:latest}
+    restart: unless-stopped
+    logging: *default-logging
+    volumes:
+      - ${RHD_DATA_DIR:-./volumes}/qdrant:/qdrant/storage
+    ports:
+      - ${QDRANT_BIND_IP:-127.0.0.1}:${QDRANT_HTTP_PORT:-6333}:6333
+      - ${QDRANT_BIND_IP:-127.0.0.1}:${QDRANT_GRPC_PORT:-6334}:6334
+    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 5 bash -c '</dev/tcp/127.0.0.1/6333'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  minio:
+    image: ${MINIO_IMAGE:-minio/minio:latest}
+    restart: unless-stopped
+    logging: *default-logging
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      MINIO_SERVER_URL: ${MINIO_PUBLIC_ENDPOINT:?MINIO_PUBLIC_ENDPOINT is required}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - ${RHD_DATA_DIR:-./volumes}/minio:/data
+    ports:
+      - ${MINIO_BIND_IP:-0.0.0.0}:${MINIO_PORT:-9000}:9000
+      - ${MINIO_CONSOLE_BIND_IP:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001
+    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/ready >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  minio-init:
+    image: ${MINIO_CLIENT_IMAGE:-minio/mc:latest}
+    restart: "no"
+    logging: *default-logging
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      MINIO_BUCKET: ${MINIO_BUCKET:-remotehelpdesk-assets}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set storage http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing "storage/$$MINIO_BUCKET"
+        mc version enable "storage/$$MINIO_BUCKET"
+
+  api:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.prod
+      target: api
+      args:
+        PNPM_REGISTRY: ${PNPM_REGISTRY:-https://registry.npmjs.org}
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
+        VERSION: ${IMAGE_TAG:-1panel}
+        COMMIT: ${GIT_COMMIT:-local}
+        BUILDTIME: ${BUILD_TIME:-}
+    image: ${IMAGE_NAME:-remotehelpdesk}-api:${IMAGE_TAG:-1panel}
+    restart: unless-stopped
+    stop_grace_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    expose:
+      - "8083"
+    volumes:
+      - ${RHD_CONFIG_FILE:-./remotehelpdesk.yaml}:/app/config/config.yaml:ro
+      - ${RHD_DATA_DIR:-./volumes}/agent-desk:/app/data
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      GIN_MODE: release
+      RHD_DB_TYPE: postgres
+      RHD_DB_DSN: host=postgres user=${POSTGRES_USER:-cs_ai_agent} password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required} dbname=${POSTGRES_DB:-cs_ai_agent} port=5432 sslmode=disable TimeZone=Asia/Shanghai
+      RHD_REDIS_ADDR: redis:6379
+      RHD_REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      RHD_REDIS_DB: 0
+      RHD_BOOTSTRAP_ADMIN_PASSWORD: ${RHD_BOOTSTRAP_ADMIN_PASSWORD:-}
+      RHD_CUSTOMERSESSION_SECRET: ${CUSTOMER_SESSION_SECRET:?CUSTOMER_SESSION_SECRET is required}
+      RHD_PUBLIC_BASEURL: ${RHD_PUBLIC_URL:-${SERVER_PUBLIC_URL:-http://127.0.0.1:8083}}
+      RHD_MCP_SERVERTOKEN: ${MCP_SERVER_TOKEN:?MCP_SERVER_TOKEN is required}
+      RHD_ENCRYPTIONKEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      RHD_ENCRYPTIONKEY_FALLBACKS: ${ENCRYPTION_KEY_FALLBACKS:-}
+      RHD_STORAGE_DEFAULT: minio
+      RHD_STORAGE_MINIO_ENDPOINT: minio:9000
+      RHD_STORAGE_MINIO_PUBLICENDPOINT: ${MINIO_PUBLIC_ENDPOINT:?MINIO_PUBLIC_ENDPOINT is required}
+      RHD_STORAGE_MINIO_BUCKET: ${MINIO_BUCKET:-remotehelpdesk-assets}
+      RHD_STORAGE_MINIO_ACCESSKEYID: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      RHD_STORAGE_MINIO_ACCESSKEYSECRET: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      RHD_STORAGE_MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      RHD_STORAGE_MINIO_USESSL: "false"
+      RHD_STORAGE_MINIO_PRIVATE: "true"
+      RHD_STORAGE_MINIO_SIGNEDURLEXPIRESECONDS: ${MINIO_SIGNED_URL_EXPIRE_SECONDS:-600}
+      RHD_RAG_ENABLED: "true"
+      RHD_RAG_RUNTIMEENABLED: "true"
+      RHD_RAG_INGESTIONENABLED: "true"
+      RHD_RAG_HYBRIDENABLED: "true"
+      RHD_JITSI_URL: ${JITSI_URL:-}
+      RHD_JITSI_APP_ID: ${JITSI_APP_ID:-}
+      RHD_JITSI_APP_SECRET: ${JITSI_APP_SECRET:-}
+      RHD_JITSI_WEBHOOK_SECRET: ${JITSI_WEBHOOK_SECRET:-}
+      RHD_JITSI_DOMAIN: ${JITSI_DOMAIN:-}
+      RHD_JITSI_REQUIRE_AUTH: ${JITSI_REQUIRE_AUTH:-false}
+      RHD_JITSI_TOKEN_TTL_MINUTES: ${JITSI_TOKEN_TTL_MINUTES:-7200}
+      SPEECH_PROVIDER: ${SPEECH_PROVIDER:-disabled}
+      SPEECH_MOCK_SEGMENT_DURATION_MS: ${SPEECH_MOCK_SEGMENT_DURATION_MS:-2000}
+      XFYUN_RTASR_APP_ID: ${XFYUN_RTASR_APP_ID:-}
+      XFYUN_RTASR_API_KEY: ${XFYUN_RTASR_API_KEY:-}
+      XFYUN_RTASR_ENDPOINT: ${XFYUN_RTASR_ENDPOINT:-wss://rtasr.xfyun.cn/v1/ws}
+      XFYUN_RTASR_DOMAIN: ${XFYUN_RTASR_DOMAIN:-}
+      RHD_ALIYUN_ASR_API_KEY: ${ALIYUN_ASR_API_KEY:-}
+      RHD_ALIYUN_ASR_WORKSPACE_ID: ${ALIYUN_ASR_WORKSPACE_ID:-}
+      RHD_ALIYUN_ASR_ENDPOINT: ${ALIYUN_ASR_ENDPOINT:-}
+      RHD_ALIYUN_ASR_MODEL: ${ALIYUN_ASR_MODEL:-}
+      XFYUN_TRANSLATION_ENABLED: ${XFYUN_TRANSLATION_ENABLED:-false}
+      XFYUN_TRANSLATION_API_SECRET: ${XFYUN_TRANSLATION_API_SECRET:-}
+      XFYUN_TRANSLATION_ENDPOINT: ${XFYUN_TRANSLATION_ENDPOINT:-https://itrans.xfyun.cn/v2/its}
+      XFYUN_TRANSLATION_TARGET_LANGUAGE: ${XFYUN_TRANSLATION_TARGET_LANGUAGE:-en}
+      SPEECH_JIGASI_ENABLED: ${SPEECH_JIGASI_ENABLED:-false}
+      SPEECH_JIGASI_SHARED_SECRET: ${SPEECH_JIGASI_SHARED_SECRET:-}
+      SPEECH_JIGASI_MAX_PARTICIPANT_STREAMS: ${SPEECH_JIGASI_MAX_PARTICIPANT_STREAMS:-8}
+      SPEECH_JIGASI_MAX_CONCURRENT_STREAMS: ${SPEECH_JIGASI_MAX_CONCURRENT_STREAMS:-32}
+      MEETING_AR_PROVIDER: ${MEETING_AR_PROVIDER:-disabled}
+      MEETING_AR_ENDPOINT: ${MEETING_AR_ENDPOINT:-}
+      MEETING_AR_API_KEY: ${MEETING_AR_API_KEY:-}
+      MEETING_AR_HEALTH_PATH: ${MEETING_AR_HEALTH_PATH:-/health}
+      LLM_SOURCE: ${LLM_SOURCE:-auto}
+      EMBEDDING_SOURCE: ${EMBEDDING_SOURCE:-auto}
+      SUB2API_BASE_URL: ${RHD_SUB2API_BASE_URL:-${SUB2API_BASE_URL:-}}
+      SUB2API_ADMIN_API_KEY: ${RHD_SUB2API_ADMIN_API_KEY:-${SUB2API_ADMIN_API_KEY:-${RHD_SUB2API_DEFAULT_KEY:-${SUB2API_DEFAULT_KEY:-}}}}
+      SUB2API_DEFAULT_KEY: ${RHD_SUB2API_DEFAULT_KEY:-${SUB2API_DEFAULT_KEY:-}}
+      SUB2API_DEFAULT_MODEL: ${RHD_SUB2API_DEFAULT_MODEL:-${SUB2API_DEFAULT_MODEL:-}}
+      SUB2API_LLM_MODEL: ${RHD_SUB2API_LLM_MODEL:-${SUB2API_LLM_MODEL:-}}
+      SUB2API_EMBEDDING_MODEL: ${RHD_SUB2API_EMBEDDING_MODEL:-${SUB2API_EMBEDDING_MODEL:-}}
+      SUB2API_EMBEDDING_DIM: ${RHD_SUB2API_EMBEDDING_DIM:-${SUB2API_EMBEDDING_DIM:-}}
+      OPENAI_API_KEY: ${RHD_OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${RHD_OPENAI_BASE_URL:-}
+      LLM_MODEL: ${RHD_LLM_MODEL:-${LLM_MODEL:-}}
+      EMBEDDING_MODEL: ${RHD_EMBEDDING_MODEL:-text-embedding-v3}
+      EMBEDDING_DIM: ${RHD_EMBEDDING_DIM:-1024}
+      LLM_FALLBACK_MODEL: ${RHD_LLM_FALLBACK_MODEL:-}
+      LLM_FALLBACK_TIMEOUT: ${LLM_FALLBACK_TIMEOUT:-30s}
+      LLM_FAILOVER_ATTEMPT_TIMEOUT: ${LLM_FAILOVER_ATTEMPT_TIMEOUT:-15s}
+      LLM_FAILOVER_CIRCUIT_COOLDOWN: ${LLM_FAILOVER_CIRCUIT_COOLDOWN:-60s}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/api/health/ready >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  web:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.prod
+      target: web
+      args:
+        PNPM_REGISTRY: ${PNPM_REGISTRY:-https://registry.npmjs.org}
+        NEXT_PUBLIC_LOCAL_LOGIN_PLATFORM_PASSWORD: ${NEXT_PUBLIC_LOCAL_LOGIN_PLATFORM_PASSWORD:-}
+        NEXT_PUBLIC_LOCAL_LOGIN_ENTERPRISE_PASSWORD: ${NEXT_PUBLIC_LOCAL_LOGIN_ENTERPRISE_PASSWORD:-}
+        NEXT_PUBLIC_LOCAL_LOGIN_PARTNER_PASSWORD: ${NEXT_PUBLIC_LOCAL_LOGIN_PARTNER_PASSWORD:-}
+        NEXT_PUBLIC_LOCAL_LOGIN_CUSTOMER_PASSWORD: ${NEXT_PUBLIC_LOCAL_LOGIN_CUSTOMER_PASSWORD:-}
+    image: ${IMAGE_NAME:-remotehelpdesk}-web:${IMAGE_TAG:-1panel}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - ${APP_BIND_IP:-0.0.0.0}:${APP_PORT:-8083}:80
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  restore-db:
+    image: ${POSTGRES_IMAGE:-postgres:16}
+    profiles: ["tools"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cs_ai_agent}
+      POSTGRES_USER: ${POSTGRES_USER:-cs_ai_agent}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      DB_DUMP_FILE: ${DB_DUMP_FILE:-cs_ai_agent_20260807T153109Z.dump}
+    volumes:
+      - ${RHD_RESTORE_DATA_DIR:-./data}:/backup:ro
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        cd /backup
+        sha256sum -c "$$DB_DUMP_FILE.sha256"
+        psql -h postgres -U "$$POSTGRES_USER" -d postgres -v ON_ERROR_STOP=1 -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='$$POSTGRES_DB' AND pid <> pg_backend_pid();"
+        dropdb -h postgres -U "$$POSTGRES_USER" --if-exists "$$POSTGRES_DB"
+        createdb -h postgres -U "$$POSTGRES_USER" "$$POSTGRES_DB"
+        pg_restore -h postgres -U "$$POSTGRES_USER" --no-owner --no-privileges -d "$$POSTGRES_DB" "$$DB_DUMP_FILE"
+        echo "Restore completed: $$POSTGRES_DB from $$DB_DUMP_FILE"
+
+networks:
+  default:
+    name: remotehelpdesk_1panel

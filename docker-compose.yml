@@ -1,0 +1,219 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: cs_ai_agent
+      POSTGRES_USER: cs_ai_agent
+      POSTGRES_PASSWORD: cs_ai_agent_password
+      TZ: Asia/Shanghai
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cs_ai_agent -d cs_ai_agent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    volumes:
+      - qdrant-data:/qdrant/storage
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo >/dev/tcp/localhost/6333' 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-remotehelpdesk_redis}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-remotehelpdesk_redis}
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD:-remotehelpdesk_redis}\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-remotehelpdesk}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-remotehelpdesk123}
+      TZ: Asia/Shanghai
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # Compatibility service key retained for existing Compose projects.
+  agent-desk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_LOCAL_LOGIN_PLATFORM_PASSWORD: ${NEXT_PUBLIC_LOCAL_LOGIN_PLATFORM_PASSWORD:-}
+        NEXT_PUBLIC_LOCAL_LOGIN_ENTERPRISE_PASSWORD: ${NEXT_PUBLIC_LOCAL_LOGIN_ENTERPRISE_PASSWORD:-}
+        NEXT_PUBLIC_LOCAL_LOGIN_PARTNER_PASSWORD: ${NEXT_PUBLIC_LOCAL_LOGIN_PARTNER_PASSWORD:-}
+        NEXT_PUBLIC_LOCAL_LOGIN_CUSTOMER_PASSWORD: ${NEXT_PUBLIC_LOCAL_LOGIN_CUSTOMER_PASSWORD:-}
+    image: remotehelpdesk:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    volumes:
+      - agent-desk-data:/app/data
+      - ./docker/remotehelpdesk.yaml:/app/config/config.yaml:ro
+    environment:
+      TZ: Asia/Shanghai
+      RHD_REDIS_ADDR: redis:6379
+      RHD_REDIS_PASSWORD: ${REDIS_PASSWORD:-remotehelpdesk_redis}
+      RHD_REDIS_DB: 0
+      RHD_BOOTSTRAP_ADMIN_PASSWORD: ${RHD_BOOTSTRAP_ADMIN_PASSWORD:-}
+      LLM_SOURCE: ${LLM_SOURCE:-auto}
+      EMBEDDING_SOURCE: ${EMBEDDING_SOURCE:-auto}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+      EMBEDDING_DIM: ${EMBEDDING_DIM:-}
+      SUB2API_BASE_URL: ${SUB2API_BASE_URL:-}
+      SUB2API_ADMIN_API_KEY: ${SUB2API_ADMIN_API_KEY:-}
+      SUB2API_DEFAULT_KEY: ${SUB2API_DEFAULT_KEY:-}
+      SUB2API_DEFAULT_MODEL: ${SUB2API_DEFAULT_MODEL:-}
+      SUB2API_LLM_MODEL: ${SUB2API_LLM_MODEL:-}
+      JITSI_URL: ${JITSI_URL:-}
+      JITSI_APP_ID: ${JITSI_APP_ID:-}
+      JITSI_APP_SECRET: ${JITSI_APP_SECRET:-}
+      JITSI_WEBHOOK_SECRET: ${JITSI_WEBHOOK_SECRET:-}
+      JITSI_DOMAIN: ${JITSI_DOMAIN:-}
+      JITSI_REQUIRE_AUTH: ${JITSI_REQUIRE_AUTH:-false}
+      JITSI_TOKEN_TTL_MINUTES: ${JITSI_TOKEN_TTL_MINUTES:-15}
+      SPEECH_PROVIDER: ${SPEECH_PROVIDER:-disabled}
+      SPEECH_MOCK_SEGMENT_DURATION_MS: ${SPEECH_MOCK_SEGMENT_DURATION_MS:-2000}
+      XFYUN_RTASR_APP_ID: ${XFYUN_RTASR_APP_ID:-}
+      XFYUN_RTASR_API_KEY: ${XFYUN_RTASR_API_KEY:-}
+      XFYUN_RTASR_ENDPOINT: ${XFYUN_RTASR_ENDPOINT:-wss://rtasr.xfyun.cn/v1/ws}
+      XFYUN_RTASR_DOMAIN: ${XFYUN_RTASR_DOMAIN:-}
+      RHD_ALIYUN_ASR_API_KEY: ${ALIYUN_ASR_API_KEY:-}
+      RHD_ALIYUN_ASR_WORKSPACE_ID: ${ALIYUN_ASR_WORKSPACE_ID:-}
+      RHD_ALIYUN_ASR_ENDPOINT: ${ALIYUN_ASR_ENDPOINT:-}
+      RHD_ALIYUN_ASR_MODEL: ${ALIYUN_ASR_MODEL:-}
+      XFYUN_TRANSLATION_ENABLED: ${XFYUN_TRANSLATION_ENABLED:-false}
+      XFYUN_TRANSLATION_API_SECRET: ${XFYUN_TRANSLATION_API_SECRET:-}
+      XFYUN_TRANSLATION_ENDPOINT: ${XFYUN_TRANSLATION_ENDPOINT:-https://itrans.xfyun.cn/v2/its}
+      XFYUN_TRANSLATION_TARGET_LANGUAGE: ${XFYUN_TRANSLATION_TARGET_LANGUAGE:-en}
+      SPEECH_JIGASI_ENABLED: ${SPEECH_JIGASI_ENABLED:-false}
+      SPEECH_JIGASI_SHARED_SECRET: ${SPEECH_JIGASI_SHARED_SECRET:-}
+      SPEECH_JIGASI_MAX_PARTICIPANT_STREAMS: ${SPEECH_JIGASI_MAX_PARTICIPANT_STREAMS:-8}
+      SPEECH_JIGASI_MAX_CONCURRENT_STREAMS: ${SPEECH_JIGASI_MAX_CONCURRENT_STREAMS:-32}
+      MEETING_AR_PROVIDER: ${MEETING_AR_PROVIDER:-disabled}
+      MEETING_AR_ENDPOINT: ${MEETING_AR_ENDPOINT:-}
+      MEETING_AR_API_KEY: ${MEETING_AR_API_KEY:-}
+      MEETING_AR_HEALTH_PATH: ${MEETING_AR_HEALTH_PATH:-/health}
+      LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-}
+      LLM_FALLBACK_TIMEOUT: ${LLM_FALLBACK_TIMEOUT:-30s}
+      LLM_FAILOVER_ATTEMPT_TIMEOUT: ${LLM_FAILOVER_ATTEMPT_TIMEOUT:-15s}
+      LLM_FAILOVER_CIRCUIT_COOLDOWN: ${LLM_FAILOVER_CIRCUIT_COOLDOWN:-60s}
+      SUB2API_EMBEDDING_MODEL: ${SUB2API_EMBEDDING_MODEL:-}
+      SUB2API_EMBEDDING_DIM: ${SUB2API_EMBEDDING_DIM:-}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/api/health/ready >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ===== Jitsi Meet (自建视频会议，P0/P1) =====
+  # 完整 Jitsi 部署建议使用 docker-jitsi-meet 项目
+  # https://github.com/jitsi/docker-jitsi-meet
+  #
+  # 最小部署需要以下服务：
+  # jitsi-web:
+  #   image: jitsi/web:stable
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   environment:
+  #     - ENABLE_AUTH=1
+  #     - ENABLE_GUESTS=0
+  #     - AUTH_TYPE=jwt
+  #     - JWT_APP_ID=remotehelpdesk
+  #     - JWT_APP_SECRET=${JITSI_APP_SECRET:-change-me-in-production}
+  #     - XMPP_DOMAIN=meet.example.com
+  #     - JVB_ADVERTISE_IPS=jitsi-jvb
+  #   volumes:
+  #     - jitsi-web-config:/config
+  #   depends_on:
+  #     - jitsi-prosody
+  #   restart: unless-stopped
+  #
+  # jitsi-prosody:
+  #   image: jitsi/prosody:stable
+  #   environment:
+  #     - AUTH_TYPE=jwt
+  #     - JWT_APP_ID=remotehelpdesk
+  #     - JWT_APP_SECRET=${JITSI_APP_SECRET:-change-me-in-production}
+  #     - XMPP_DOMAIN=meet.example.com
+  #   volumes:
+  #     - jitsi-prosody-config:/config
+  #   restart: unless-stopped
+  #
+  # jitsi-jvb:
+  #   image: jitsi/jvb:stable
+  #   environment:
+  #     - XMPP_DOMAIN=meet.example.com
+  #     - XMPP_AUTH_DOMAIN=auth.meet.example.com
+  #     - JVB_ADVERTISE_IPS=jitsi-jvb
+  #   ports:
+  #     - "10000:10000/udp"
+  #   restart: unless-stopped
+  #
+  # jitsi-jicofo:
+  #   image: jitsi/jicofo:stable
+  #   environment:
+  #     - XMPP_DOMAIN=meet.example.com
+  #     - XMPP_AUTH_DOMAIN=auth.meet.example.com
+  #     - JWT_APP_ID=remotehelpdesk
+  #     - JWT_APP_SECRET=${JITSI_APP_SECRET:-change-me-in-production}
+  #   depends_on:
+  #     - jitsi-prosody
+  #   restart: unless-stopped
+
+volumes:
+  postgres-data:
+  qdrant-data:
+  agent-desk-data:
+  redis-data:
+  minio-data:
+  # jitsi-web-config:
+  # jitsi-prosody-config:

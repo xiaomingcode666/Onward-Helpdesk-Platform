@@ -1,0 +1,12 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Environment variable name, not a credential"
+regexTarget = "match"
+regexes = ['''SUB2API_DEFAULT_KEY''']
+
+[[allowlists]]
+description = "Fixed fingerprints used by secret-masking unit tests"
+regexTarget = "match"
+regexes = ['''1234567890abcdef''', '''abcdef1234567890''']

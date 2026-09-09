@@ -1,0 +1,527 @@
+{
+  "manifestVersion": 1,
+  "code": "aftersales_device_diagnosis_ai_only",
+  "name": "平台 AI 智能问诊客服流程",
+  "description": "有设备时提供完整 AI 诊断，无设备时提供基础产品服务；不创建工单、不转人工",
+  "initialChange": "平台 AI 智能问诊流程初始稳定版本",
+  "upgradeChange": "统一有设备诊断与无设备基础服务，强化失败时的确定性安全降级",
+  "definition": {
+    "schemaVersion": 1,
+    "entryNodeId": "start_1",
+    "modelPolicy": {
+      "credentialChain": [
+        "product",
+        "tenant_default"
+      ]
+    },
+    "runtimeVariables": [
+      {
+        "key": "context.tenantId",
+        "type": "int64",
+        "source": "conversation.tenantId",
+        "required": true,
+        "description": "当前会话所属租户"
+      },
+      {
+        "key": "context.productId",
+        "type": "int64",
+        "source": "conversation.productId",
+        "required": true,
+        "description": "当前会话所属产品"
+      },
+      {
+        "key": "context.deviceId",
+        "type": "int64",
+        "source": "conversation.deviceId",
+        "description": "当前会话关联设备"
+      },
+      {
+        "key": "context.serviceCodeId",
+        "type": "int64",
+        "source": "conversation.serviceCodeId",
+        "description": "客户入口服务码"
+      },
+      {
+        "key": "context.conversationId",
+        "type": "int64",
+        "source": "conversation.id",
+        "required": true,
+        "description": "当前会话"
+      },
+      {
+        "key": "agent.rag.knowledgeBaseIds",
+        "type": "array\u003cint64\u003e",
+        "source": "agentRelease.knowledgeScope.bindings[].knowledgeBaseId",
+        "required": true,
+        "description": "机器人发布版本注入的 RAG 知识库 ID 白名单"
+      },
+      {
+        "key": "agent.rag.revisionIds",
+        "type": "array\u003cint64\u003e",
+        "source": "agentRelease.knowledgeScope.revisions[].revisionId",
+        "required": true,
+        "description": "机器人发布版本固定的已发布知识修订"
+      },
+      {
+        "key": "agent.model.llm",
+        "type": "string",
+        "source": "agentRelease.agentConfig.llmModelName",
+        "required": true,
+        "description": "机器人发布版本固定的对话模型"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "start_1",
+        "type": "start",
+        "name": "客户发起会话",
+        "position": {
+          "x": 0,
+          "y": 480
+        },
+        "config": null
+      },
+      {
+        "id": "entry_context_1",
+        "type": "entry_context",
+        "name": "入口与设备识别",
+        "position": {
+          "x": 320,
+          "y": 480
+        },
+        "config": {
+          "unboundMode": "quick_ai"
+        },
+        "inputs": {
+          "customerEntrySessionId": {
+            "nodeId": "start_1",
+            "field": "customerEntrySessionId"
+          },
+          "deviceId": {
+            "nodeId": "start_1",
+            "field": "deviceId"
+          },
+          "productId": {
+            "nodeId": "start_1",
+            "field": "productId"
+          },
+          "productModelId": {
+            "nodeId": "start_1",
+            "field": "productModelId"
+          },
+          "serviceCodeId": {
+            "nodeId": "start_1",
+            "field": "serviceCodeId"
+          }
+        },
+        "errorTargetNodeId": "quick_safe_reply_1"
+      },
+      {
+        "id": "context_route_1",
+        "type": "condition",
+        "name": "设备上下文分流",
+        "position": {
+          "x": 640,
+          "y": 480
+        },
+        "config": {
+          "branches": [
+            {
+              "id": "device",
+              "name": "完整设备诊断",
+              "targetNodeId": "device_retrieve_1",
+              "condition": {
+                "left": {
+                  "nodeId": "entry_context_1",
+                  "field": "deviceBound"
+                },
+                "operator": "is_true"
+              }
+            },
+            {
+              "id": "default",
+              "name": "基础产品问答",
+              "targetNodeId": "quick_retrieve_1",
+              "default": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "quick_retrieve_1",
+        "type": "knowledge_retrieve",
+        "name": "通用产品知识",
+        "position": {
+          "x": 960,
+          "y": 0
+        },
+        "config": {
+          "bindingMethod": "product_context",
+          "audience": "conversation",
+          "topK": 6,
+          "scoreThreshold": 0.3
+        },
+        "inputs": {
+          "query": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "quick_safe_reply_1"
+      },
+      {
+        "id": "quick_reply_1",
+        "type": "llm_reply",
+        "name": "基础 AI 回答",
+        "position": {
+          "x": 1280,
+          "y": 0
+        },
+        "config": {
+          "allowEmptyKnowledge": true,
+          "prompt": "你是智能问诊客服。仅依据当前机器人已发布的知识范围回答；尚未识别设备时先提供基础服务，并收集产品名称、设备型号、故障现象和故障码；已识别设备时再依据可用产品知识回答。不得承诺转人工、创建工单或已执行任何线下动作。"
+        },
+        "inputs": {
+          "knowledgeItems": {
+            "nodeId": "quick_retrieve_1",
+            "field": "items"
+          },
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "quick_safe_reply_1"
+      },
+      {
+        "id": "quick_send_1",
+        "type": "send_reply",
+        "name": "发送基础回答",
+        "position": {
+          "x": 1600,
+          "y": 0
+        },
+        "config": null,
+        "inputs": {
+          "replyText": {
+            "nodeId": "quick_reply_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "quick_safe_reply_1",
+        "type": "llm_reply",
+        "name": "AI 自助安全提示",
+        "position": {
+          "x": 1280,
+          "y": -320
+        },
+        "config": {
+          "staticReply": "暂时无法读取当前可用知识或生成可靠回答。请补充产品名称、设备型号、故障现象和故障码，或稍后再试；当前不会创建工单或转接人工。"
+        },
+        "inputs": {
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        }
+      },
+      {
+        "id": "quick_safe_send_1",
+        "type": "send_reply",
+        "name": "发送安全提示",
+        "position": {
+          "x": 1600,
+          "y": -320
+        },
+        "config": null,
+        "inputs": {
+          "replyText": {
+            "nodeId": "quick_safe_reply_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "device_retrieve_1",
+        "type": "knowledge_retrieve",
+        "name": "设备知识检索",
+        "position": {
+          "x": 960,
+          "y": 640
+        },
+        "config": {
+          "bindingMethod": "public_product",
+          "audience": "conversation",
+          "topK": 8,
+          "scoreThreshold": 0.3
+        },
+        "inputs": {
+          "query": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "diagnostic_safe_reply_1"
+      },
+      {
+        "id": "answerability_1",
+        "type": "answerability_gate",
+        "name": "诊断依据判断",
+        "position": {
+          "x": 1280,
+          "y": 640
+        },
+        "config": {
+          "minScore": 0.35,
+          "strongScore": 0.72,
+          "minMatchedTerms": 1
+        },
+        "inputs": {
+          "knowledgeItems": {
+            "nodeId": "device_retrieve_1",
+            "field": "items"
+          },
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "diagnostic_safe_reply_1"
+      },
+      {
+        "id": "answerability_route_1",
+        "type": "condition",
+        "name": "诊断结果分流",
+        "position": {
+          "x": 1600,
+          "y": 640
+        },
+        "config": {
+          "branches": [
+            {
+              "id": "answerable",
+              "name": "生成设备诊断",
+              "targetNodeId": "device_reply_1",
+              "condition": {
+                "left": {
+                  "nodeId": "answerability_1",
+                  "field": "answerability"
+                },
+                "operator": "eq",
+                "right": "answerable"
+              }
+            },
+            {
+              "id": "default",
+              "name": "安全收口",
+              "targetNodeId": "diagnostic_safe_reply_1",
+              "default": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "device_reply_1",
+        "type": "llm_reply",
+        "name": "AI 设备诊断",
+        "position": {
+          "x": 1920,
+          "y": 560
+        },
+        "config": {
+          "prompt": "你是设备产品 AI 诊断客服。严格依据检索到的设备知识给出检查步骤和风险提示；不得编造参数，不得承诺转人工、创建工单或已执行任何线下动作。"
+        },
+        "inputs": {
+          "knowledgeItems": {
+            "nodeId": "device_retrieve_1",
+            "field": "items"
+          },
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "diagnostic_safe_reply_1"
+      },
+      {
+        "id": "device_send_1",
+        "type": "send_reply",
+        "name": "发送设备诊断",
+        "position": {
+          "x": 2240,
+          "y": 560
+        },
+        "config": null,
+        "inputs": {
+          "replyText": {
+            "nodeId": "device_reply_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "diagnostic_safe_reply_1",
+        "type": "llm_reply",
+        "name": "诊断不足安全提示",
+        "position": {
+          "x": 1920,
+          "y": 880
+        },
+        "config": {
+          "staticReply": "现有产品知识不足以给出可靠的设备诊断。请补充产品型号、故障码、现场现象和已尝试步骤；当前流程仅提供 AI 服务，不会转接人工或创建工单。"
+        },
+        "inputs": {
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        }
+      },
+      {
+        "id": "diagnostic_safe_send_1",
+        "type": "send_reply",
+        "name": "发送诊断提示",
+        "position": {
+          "x": 2240,
+          "y": 880
+        },
+        "config": null,
+        "inputs": {
+          "replyText": {
+            "nodeId": "diagnostic_safe_reply_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "end_1",
+        "type": "end",
+        "name": "AI 服务完成",
+        "position": {
+          "x": 2560,
+          "y": 480
+        },
+        "config": null
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge_start_context",
+        "source": "start_1",
+        "target": "entry_context_1"
+      },
+      {
+        "id": "edge_context_failure",
+        "source": "entry_context_1",
+        "target": "quick_safe_reply_1"
+      },
+      {
+        "id": "edge_context_route",
+        "source": "entry_context_1",
+        "target": "context_route_1"
+      },
+      {
+        "id": "edge_route_quick",
+        "source": "context_route_1",
+        "target": "quick_retrieve_1"
+      },
+      {
+        "id": "edge_route_device",
+        "source": "context_route_1",
+        "target": "device_retrieve_1"
+      },
+      {
+        "id": "edge_quick_retrieve_reply",
+        "source": "quick_retrieve_1",
+        "target": "quick_reply_1"
+      },
+      {
+        "id": "edge_quick_retrieve_safe",
+        "source": "quick_retrieve_1",
+        "target": "quick_safe_reply_1"
+      },
+      {
+        "id": "edge_quick_reply_send",
+        "source": "quick_reply_1",
+        "target": "quick_send_1"
+      },
+      {
+        "id": "edge_quick_reply_safe",
+        "source": "quick_reply_1",
+        "target": "quick_safe_reply_1"
+      },
+      {
+        "id": "edge_quick_send_end",
+        "source": "quick_send_1",
+        "target": "end_1"
+      },
+      {
+        "id": "edge_quick_safe_send",
+        "source": "quick_safe_reply_1",
+        "target": "quick_safe_send_1"
+      },
+      {
+        "id": "edge_quick_safe_end",
+        "source": "quick_safe_send_1",
+        "target": "end_1"
+      },
+      {
+        "id": "edge_device_retrieve_answerability",
+        "source": "device_retrieve_1",
+        "target": "answerability_1"
+      },
+      {
+        "id": "edge_device_retrieve_safe",
+        "source": "device_retrieve_1",
+        "target": "diagnostic_safe_reply_1"
+      },
+      {
+        "id": "edge_answerability_route",
+        "source": "answerability_1",
+        "target": "answerability_route_1"
+      },
+      {
+        "id": "edge_answerability_safe_failure",
+        "source": "answerability_1",
+        "target": "diagnostic_safe_reply_1"
+      },
+      {
+        "id": "edge_answerability_reply",
+        "source": "answerability_route_1",
+        "target": "device_reply_1"
+      },
+      {
+        "id": "edge_answerability_safe",
+        "source": "answerability_route_1",
+        "target": "diagnostic_safe_reply_1"
+      },
+      {
+        "id": "edge_device_reply_send",
+        "source": "device_reply_1",
+        "target": "device_send_1"
+      },
+      {
+        "id": "edge_device_reply_safe",
+        "source": "device_reply_1",
+        "target": "diagnostic_safe_reply_1"
+      },
+      {
+        "id": "edge_device_send_end",
+        "source": "device_send_1",
+        "target": "end_1"
+      },
+      {
+        "id": "edge_diagnostic_safe_send",
+        "source": "diagnostic_safe_reply_1",
+        "target": "diagnostic_safe_send_1"
+      },
+      {
+        "id": "edge_diagnostic_safe_end",
+        "source": "diagnostic_safe_send_1",
+        "target": "end_1"
+      }
+    ]
+  }
+}

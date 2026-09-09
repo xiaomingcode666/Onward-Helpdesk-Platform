@@ -1,0 +1,31 @@
+package migration
+
+import (
+	"remotehelpdesk/internal/models"
+	"remotehelpdesk/internal/services"
+
+	"github.com/mlogclub/simple/sqls"
+)
+
+func init() {
+	register(25, "sync multidomain IAM permissions and default roles", func() error {
+		return sqls.WithTransaction(func(ctx *sqls.TxContext) error {
+			if _, err := ensurePermissions(ctx.Tx); err != nil {
+				return err
+			}
+			if err := services.EnsurePlatformDefaultIAMRolesDB(ctx.Tx, nil); err != nil {
+				return err
+			}
+			var tenants []models.Tenant
+			if err := ctx.Tx.Find(&tenants).Error; err != nil {
+				return err
+			}
+			for _, tenant := range tenants {
+				if err := services.EnsureTenantDefaultIAMRolesDB(ctx.Tx, tenant.ID, nil); err != nil {
+					return err
+				}
+			}
+			return services.EnsureBootstrapPlatformAdministratorDB(ctx.Tx, nil)
+		})
+	})
+}

@@ -1,0 +1,1170 @@
+{
+  "manifestVersion": 1,
+  "code": "aftersales_customer_service_default",
+  "name": "平台 AI 优先人工协同售后流程",
+  "description": "通用咨询先查企业知识并支持自然对话、工单与人工接管；关联设备后进入完整 AI 诊断与人工协同",
+  "initialChange": "平台默认售后流程初始稳定版本",
+  "upgradeChange": "通用咨询接入意图识别、企业知识、自然对话、工单与人工协同",
+  "definition": {
+    "schemaVersion": 1,
+    "entryNodeId": "start_1",
+    "modelPolicy": {
+      "credentialChain": [
+        "product",
+        "tenant_default"
+      ]
+    },
+    "runtimeVariables": [
+      {
+        "key": "context.tenantId",
+        "type": "int64",
+        "source": "conversation.tenantId",
+        "required": true,
+        "description": "当前会话所属租户"
+      },
+      {
+        "key": "context.productId",
+        "type": "int64",
+        "source": "conversation.productId",
+        "required": true,
+        "description": "当前会话所属产品"
+      },
+      {
+        "key": "context.deviceId",
+        "type": "int64",
+        "source": "conversation.deviceId",
+        "description": "当前会话关联设备"
+      },
+      {
+        "key": "context.serviceCodeId",
+        "type": "int64",
+        "source": "conversation.serviceCodeId",
+        "description": "客户入口服务码"
+      },
+      {
+        "key": "context.conversationId",
+        "type": "int64",
+        "source": "conversation.id",
+        "required": true,
+        "description": "当前会话"
+      },
+      {
+        "key": "agent.rag.knowledgeBaseIds",
+        "type": "array\u003cint64\u003e",
+        "source": "agentRelease.knowledgeScope.bindings[].knowledgeBaseId",
+        "required": true,
+        "description": "机器人发布版本注入的 RAG 知识库 ID 白名单"
+      },
+      {
+        "key": "agent.rag.revisionIds",
+        "type": "array\u003cint64\u003e",
+        "source": "agentRelease.knowledgeScope.revisions[].revisionId",
+        "required": true,
+        "description": "机器人发布版本固定的已发布知识修订"
+      },
+      {
+        "key": "agent.model.llm",
+        "type": "string",
+        "source": "agentRelease.agentConfig.llmModelName",
+        "required": true,
+        "description": "机器人发布版本固定的对话模型"
+      },
+      {
+        "key": "agent.skill.ids",
+        "type": "array\u003cint64\u003e",
+        "source": "agentRelease.agentConfig.skillIds",
+        "description": "机器人发布版本允许使用的技能"
+      },
+      {
+        "key": "agent.tool.codes",
+        "type": "array\u003cstring\u003e",
+        "source": "agentRelease.agentConfig.allowedTools",
+        "description": "机器人发布版本允许使用的 MCP 和内置流程工具"
+      },
+      {
+        "key": "agent.handoff.teamIds",
+        "type": "array\u003cint64\u003e",
+        "source": "agentRelease.agentConfig.teamIds",
+        "description": "机器人发布版本配置的转人工维修组"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "start_1",
+        "type": "start",
+        "name": "客户发起会话",
+        "position": {
+          "x": 0,
+          "y": 680
+        },
+        "config": null
+      },
+      {
+        "id": "entry_context_1",
+        "type": "entry_context",
+        "name": "入口与设备识别",
+        "position": {
+          "x": 320,
+          "y": 680
+        },
+        "config": {
+          "unboundMode": "quick_ai"
+        },
+        "inputs": {
+          "customerEntrySessionId": {
+            "nodeId": "start_1",
+            "field": "customerEntrySessionId"
+          },
+          "deviceId": {
+            "nodeId": "start_1",
+            "field": "deviceId"
+          },
+          "productId": {
+            "nodeId": "start_1",
+            "field": "productId"
+          },
+          "productModelId": {
+            "nodeId": "start_1",
+            "field": "productModelId"
+          },
+          "serviceCodeId": {
+            "nodeId": "start_1",
+            "field": "serviceCodeId"
+          }
+        },
+        "errorTargetNodeId": "quick_fallback_reply_1"
+      },
+      {
+        "id": "service_access_1",
+        "type": "service_access_policy",
+        "name": "企业服务策略",
+        "position": {
+          "x": 640,
+          "y": 680
+        },
+        "config": {
+          "humanHandoffMode": "always",
+          "ticketAccessMode": "always"
+        },
+        "inputs": {
+          "contextLevel": {
+            "nodeId": "entry_context_1",
+            "field": "contextLevel"
+          },
+          "conversationServiceMode": {
+            "nodeId": "start_1",
+            "field": "conversationServiceMode"
+          },
+          "deviceBound": {
+            "nodeId": "entry_context_1",
+            "field": "deviceBound"
+          }
+        },
+        "errorTargetNodeId": "quick_fallback_reply_1"
+      },
+      {
+        "id": "service_access_route_1",
+        "type": "condition",
+        "name": "服务路径分流",
+        "position": {
+          "x": 960,
+          "y": 680
+        },
+        "config": {
+          "branches": [
+            {
+              "id": "human_only",
+              "name": "仅人工接待",
+              "targetNodeId": "handoff_1",
+              "condition": {
+                "left": {
+                  "nodeId": "service_access_1",
+                  "field": "serviceMode"
+                },
+                "operator": "eq",
+                "right": "human_only"
+              }
+            },
+            {
+              "id": "device_service",
+              "name": "完整设备诊断",
+              "targetNodeId": "understanding_1",
+              "condition": {
+                "left": {
+                  "nodeId": "entry_context_1",
+                  "field": "deviceBound"
+                },
+                "operator": "is_true"
+              }
+            },
+            {
+              "id": "default",
+              "name": "通用咨询理解",
+              "targetNodeId": "understanding_1",
+              "default": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "knowledge_context_route_1",
+        "type": "condition",
+        "name": "知识场景分流",
+        "position": {
+          "x": 1920,
+          "y": 1120
+        },
+        "config": {
+          "branches": [
+            {
+              "id": "device",
+              "name": "设备诊断知识",
+              "targetNodeId": "retrieve_1",
+              "condition": {
+                "left": {
+                  "nodeId": "entry_context_1",
+                  "field": "deviceBound"
+                },
+                "operator": "is_true"
+              }
+            },
+            {
+              "id": "default",
+              "name": "企业通用知识",
+              "targetNodeId": "quick_retrieve_1",
+              "default": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "quick_retrieve_1",
+        "type": "knowledge_retrieve",
+        "name": "企业通用知识检索",
+        "position": {
+          "x": 1280,
+          "y": 0
+        },
+        "config": {
+          "bindingMethod": "agent_default",
+          "audience": "conversation",
+          "topK": 6,
+          "scoreThreshold": 0.3
+        },
+        "inputs": {
+          "query": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "quick_fallback_reply_1"
+      },
+      {
+        "id": "quick_reply_1",
+        "type": "llm_reply",
+        "name": "AI 自助回答",
+        "position": {
+          "x": 1600,
+          "y": 0
+        },
+        "config": {
+          "allowEmptyKnowledge": true,
+          "prompt": "你是企业通用服务助手。优先使用企业通用知识回答；没有匹配知识时，仍应自然理解并回应一般问候、服务咨询和信息收集，但不得编造具体产品事实。仅在确实需要设备上下文时再询问产品、型号、故障现象或故障码。用户可使用页面快捷操作转人工或创建工单；不得声称尚未实际执行的服务动作。"
+        },
+        "inputs": {
+          "knowledgeItems": {
+            "nodeId": "quick_retrieve_1",
+            "field": "items"
+          },
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "quick_fallback_reply_1"
+      },
+      {
+        "id": "quick_send_1",
+        "type": "send_reply",
+        "name": "发送 AI 回答",
+        "position": {
+          "x": 1920,
+          "y": 0
+        },
+        "config": null,
+        "inputs": {
+          "replyText": {
+            "nodeId": "quick_reply_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "quick_end_1",
+        "type": "end",
+        "name": "AI 问答完成",
+        "position": {
+          "x": 2240,
+          "y": 0
+        },
+        "config": null
+      },
+      {
+        "id": "quick_fallback_reply_1",
+        "type": "llm_reply",
+        "name": "AI 自助安全提示",
+        "position": {
+          "x": 1600,
+          "y": -360
+        },
+        "config": {
+          "staticReply": "我暂时无法完成这次回答。你可以换一种方式描述问题，也可以直接请求人工支持或创建工单；如果问题与设备有关，再补充产品、型号或故障现象即可。"
+        },
+        "inputs": {
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        }
+      },
+      {
+        "id": "quick_fallback_send_1",
+        "type": "send_reply",
+        "name": "发送降级回答",
+        "position": {
+          "x": 1920,
+          "y": -360
+        },
+        "config": null,
+        "inputs": {
+          "replyText": {
+            "nodeId": "quick_fallback_reply_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "understanding_1",
+        "type": "conversation_understanding",
+        "name": "会话理解",
+        "position": {
+          "x": 1280,
+          "y": 680
+        },
+        "config": null,
+        "inputs": {
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "diagnosis_failure_route_1"
+      },
+      {
+        "id": "policy_1",
+        "type": "reply_policy",
+        "name": "回复策略",
+        "position": {
+          "x": 1600,
+          "y": 680
+        },
+        "config": null,
+        "inputs": {
+          "allowHumanHandoff": {
+            "nodeId": "service_access_1",
+            "field": "allowHumanHandoff"
+          },
+          "allowTicketCreation": {
+            "nodeId": "service_access_1",
+            "field": "allowTicketCreation"
+          },
+          "answerScope": {
+            "nodeId": "understanding_1",
+            "field": "answerScope"
+          },
+          "messageIntent": {
+            "nodeId": "understanding_1",
+            "field": "messageIntent"
+          },
+          "riskSignals": {
+            "nodeId": "understanding_1",
+            "field": "riskSignals"
+          },
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "diagnosis_failure_route_1"
+      },
+      {
+        "id": "policy_route_1",
+        "type": "condition",
+        "name": "策略分流",
+        "position": {
+          "x": 1920,
+          "y": 680
+        },
+        "config": {
+          "branches": [
+            {
+              "id": "direct",
+              "name": "直接回复",
+              "targetNodeId": "policy_reply_1",
+              "condition": {
+                "left": {
+                  "nodeId": "policy_1",
+                  "field": "action"
+                },
+                "operator": "eq",
+                "right": "direct_reply"
+              }
+            },
+            {
+              "id": "clarify",
+              "name": "追问澄清",
+              "targetNodeId": "policy_reply_1",
+              "condition": {
+                "left": {
+                  "nodeId": "policy_1",
+                  "field": "action"
+                },
+                "operator": "eq",
+                "right": "clarify"
+              }
+            },
+            {
+              "id": "end_conversation",
+              "name": "结束语",
+              "targetNodeId": "policy_reply_1",
+              "condition": {
+                "left": {
+                  "nodeId": "policy_1",
+                  "field": "action"
+                },
+                "operator": "eq",
+                "right": "end_conversation"
+              }
+            },
+            {
+              "id": "handoff",
+              "name": "转人工",
+              "targetNodeId": "handoff_1",
+              "condition": {
+                "left": {
+                  "nodeId": "policy_1",
+                  "field": "action"
+                },
+                "operator": "eq",
+                "right": "handoff_to_human"
+              }
+            },
+            {
+              "id": "ticket",
+              "name": "创建工单",
+              "targetNodeId": "draft_ticket_1",
+              "condition": {
+                "left": {
+                  "nodeId": "policy_1",
+                  "field": "action"
+                },
+                "operator": "eq",
+                "right": "prepare_ticket"
+              }
+            },
+            {
+              "id": "knowledge",
+              "name": "知识库回复",
+              "targetNodeId": "knowledge_context_route_1",
+              "condition": {
+                "left": {
+                  "nodeId": "policy_1",
+                  "field": "action"
+                },
+                "operator": "eq",
+                "right": "retrieve_knowledge"
+              }
+            },
+            {
+              "id": "default",
+              "name": "默认澄清",
+              "targetNodeId": "policy_reply_1",
+              "default": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "policy_reply_1",
+        "type": "send_reply",
+        "name": "发送策略回复",
+        "position": {
+          "x": 2240,
+          "y": 240
+        },
+        "config": null,
+        "inputs": {
+          "replyText": {
+            "nodeId": "policy_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "handoff_1",
+        "type": "handoff_to_human",
+        "name": "转人工",
+        "position": {
+          "x": 3840,
+          "y": 1200
+        },
+        "config": null,
+        "inputs": {
+          "reason": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "service_failure_reply_1"
+      },
+      {
+        "id": "handoff_end_1",
+        "type": "end",
+        "name": "人工接待中",
+        "position": {
+          "x": 4160,
+          "y": 1200
+        },
+        "config": null
+      },
+      {
+        "id": "draft_ticket_1",
+        "type": "prepare_ticket_draft",
+        "name": "整理工单草稿",
+        "position": {
+          "x": 2240,
+          "y": 560
+        },
+        "config": null,
+        "inputs": {
+          "issue": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "service_failure_reply_1"
+      },
+      {
+        "id": "ticket_confirm_prompt_1",
+        "type": "llm_reply",
+        "name": "建单确认文案",
+        "position": {
+          "x": 2560,
+          "y": 560
+        },
+        "config": {
+          "staticReply": "我已整理工单草稿。请回复“确认”创建工单，或回复“取消”放弃。"
+        },
+        "inputs": {
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        }
+      },
+      {
+        "id": "ticket_confirm_1",
+        "type": "human_confirm",
+        "name": "确认建单",
+        "position": {
+          "x": 2880,
+          "y": 560
+        },
+        "config": null,
+        "inputs": {
+          "prompt": {
+            "nodeId": "ticket_confirm_prompt_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "ticket_confirm_route_1",
+        "type": "condition",
+        "name": "建单确认分流",
+        "position": {
+          "x": 3200,
+          "y": 560
+        },
+        "config": {
+          "branches": [
+            {
+              "id": "confirmed",
+              "name": "已确认",
+              "targetNodeId": "create_ticket_1",
+              "condition": {
+                "left": {
+                  "nodeId": "ticket_confirm_1",
+                  "field": "confirmed"
+                },
+                "operator": "is_true"
+              }
+            },
+            {
+              "id": "default",
+              "name": "取消或未确认",
+              "targetNodeId": "ticket_cancel_reply_1",
+              "default": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "create_ticket_1",
+        "type": "create_ticket",
+        "name": "创建工单",
+        "position": {
+          "x": 3520,
+          "y": 440
+        },
+        "config": null,
+        "inputs": {
+          "confirmed": {
+            "nodeId": "ticket_confirm_1",
+            "field": "confirmed"
+          },
+          "ticketDraft": {
+            "nodeId": "draft_ticket_1",
+            "field": "ticketDraft"
+          }
+        },
+        "errorTargetNodeId": "service_failure_reply_1"
+      },
+      {
+        "id": "ticket_result_reply_1",
+        "type": "send_reply",
+        "name": "发送建单结果",
+        "position": {
+          "x": 3840,
+          "y": 440
+        },
+        "config": null,
+        "inputs": {
+          "replyText": {
+            "nodeId": "create_ticket_1",
+            "field": "message"
+          }
+        }
+      },
+      {
+        "id": "ticket_cancel_reply_1",
+        "type": "llm_reply",
+        "name": "取消建单提示",
+        "position": {
+          "x": 3520,
+          "y": 680
+        },
+        "config": {
+          "staticReply": "已取消创建工单。你可以继续补充问题，我会继续帮你处理。"
+        },
+        "inputs": {
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        }
+      },
+      {
+        "id": "send_ticket_cancel_1",
+        "type": "send_reply",
+        "name": "发送取消提示",
+        "position": {
+          "x": 3840,
+          "y": 680
+        },
+        "config": null,
+        "inputs": {
+          "replyText": {
+            "nodeId": "ticket_cancel_reply_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "retrieve_1",
+        "type": "knowledge_retrieve",
+        "name": "设备知识检索",
+        "position": {
+          "x": 2240,
+          "y": 920
+        },
+        "config": {
+          "bindingMethod": "public_product",
+          "audience": "conversation",
+          "topK": 8,
+          "scoreThreshold": 0.3
+        },
+        "inputs": {
+          "query": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "diagnosis_failure_route_1"
+      },
+      {
+        "id": "answerability_1",
+        "type": "answerability_gate",
+        "name": "可回答判断",
+        "position": {
+          "x": 2560,
+          "y": 920
+        },
+        "config": {
+          "minScore": 0.35,
+          "strongScore": 0.72,
+          "minMatchedTerms": 1
+        },
+        "inputs": {
+          "knowledgeItems": {
+            "nodeId": "retrieve_1",
+            "field": "items"
+          },
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "diagnosis_failure_route_1"
+      },
+      {
+        "id": "answerability_route_1",
+        "type": "condition",
+        "name": "可回答分流",
+        "position": {
+          "x": 2880,
+          "y": 920
+        },
+        "config": {
+          "branches": [
+            {
+              "id": "answerable",
+              "name": "可以回答",
+              "targetNodeId": "reply_1",
+              "condition": {
+                "left": {
+                  "nodeId": "answerability_1",
+                  "field": "answerability"
+                },
+                "operator": "eq",
+                "right": "answerable"
+              }
+            },
+            {
+              "id": "default",
+              "name": "AI 安全收口",
+              "targetNodeId": "diagnostic_safe_reply_1",
+              "default": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "reply_1",
+        "type": "llm_reply",
+        "name": "AI 设备诊断",
+        "position": {
+          "x": 3200,
+          "y": 840
+        },
+        "config": null,
+        "inputs": {
+          "knowledgeItems": {
+            "nodeId": "retrieve_1",
+            "field": "items"
+          },
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "diagnosis_failure_route_1"
+      },
+      {
+        "id": "send_1",
+        "type": "send_reply",
+        "name": "发送诊断结果",
+        "position": {
+          "x": 3520,
+          "y": 840
+        },
+        "config": null,
+        "inputs": {
+          "replyText": {
+            "nodeId": "reply_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "diagnosis_failure_route_1",
+        "type": "condition",
+        "name": "诊断失败处理",
+        "position": {
+          "x": 3520,
+          "y": 1080
+        },
+        "config": {
+          "branches": [
+            {
+              "id": "default",
+              "name": "AI 安全收口",
+              "targetNodeId": "diagnostic_safe_reply_1",
+              "default": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "diagnostic_safe_reply_1",
+        "type": "llm_reply",
+        "name": "诊断不足安全提示",
+        "position": {
+          "x": 3840,
+          "y": 960
+        },
+        "config": {
+          "staticReply": "AI 暂时无法可靠完成本次诊断。请保持设备停机和安全隔离，并点击会话中的“转人工”按钮，由技术工程师继续处理；系统不会自动转人工或创建工单。"
+        },
+        "inputs": {
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        }
+      },
+      {
+        "id": "diagnostic_safe_send_1",
+        "type": "send_reply",
+        "name": "发送安全提示",
+        "position": {
+          "x": 4160,
+          "y": 960
+        },
+        "config": null,
+        "inputs": {
+          "replyText": {
+            "nodeId": "diagnostic_safe_reply_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "service_failure_reply_1",
+        "type": "llm_reply",
+        "name": "服务动作失败提示",
+        "position": {
+          "x": 3840,
+          "y": 1440
+        },
+        "config": {
+          "staticReply": "本次暂时无法完成转人工或创建工单。请核对服务码与设备信息后重试；你也可以继续描述问题，我会继续提供 AI 协助。"
+        },
+        "inputs": {
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        }
+      },
+      {
+        "id": "service_failure_send_1",
+        "type": "send_reply",
+        "name": "发送服务失败提示",
+        "position": {
+          "x": 4160,
+          "y": 1440
+        },
+        "config": null,
+        "inputs": {
+          "replyText": {
+            "nodeId": "service_failure_reply_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "end_1",
+        "type": "end",
+        "name": "问题解决或关闭",
+        "position": {
+          "x": 4480,
+          "y": 840
+        },
+        "config": null
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge_start_entry_context",
+        "source": "start_1",
+        "target": "entry_context_1"
+      },
+      {
+        "id": "edge_entry_context_service_access",
+        "source": "entry_context_1",
+        "target": "service_access_1"
+      },
+      {
+        "id": "edge_entry_context_fallback",
+        "source": "entry_context_1",
+        "target": "quick_fallback_reply_1"
+      },
+      {
+        "id": "edge_service_access_route",
+        "source": "service_access_1",
+        "target": "service_access_route_1"
+      },
+      {
+        "id": "edge_service_access_fallback",
+        "source": "service_access_1",
+        "target": "quick_fallback_reply_1"
+      },
+      {
+        "id": "edge_service_route_handoff",
+        "source": "service_access_route_1",
+        "target": "handoff_1"
+      },
+      {
+        "id": "edge_service_route_assisted",
+        "source": "service_access_route_1",
+        "target": "understanding_1"
+      },
+      {
+        "id": "edge_quick_retrieve_reply",
+        "source": "quick_retrieve_1",
+        "target": "quick_reply_1"
+      },
+      {
+        "id": "edge_quick_retrieve_fallback",
+        "source": "quick_retrieve_1",
+        "target": "quick_fallback_reply_1"
+      },
+      {
+        "id": "edge_quick_reply_send",
+        "source": "quick_reply_1",
+        "target": "quick_send_1"
+      },
+      {
+        "id": "edge_quick_reply_fallback",
+        "source": "quick_reply_1",
+        "target": "quick_fallback_reply_1"
+      },
+      {
+        "id": "edge_quick_send_end",
+        "source": "quick_send_1",
+        "target": "quick_end_1"
+      },
+      {
+        "id": "edge_quick_fallback_reply_send",
+        "source": "quick_fallback_reply_1",
+        "target": "quick_fallback_send_1"
+      },
+      {
+        "id": "edge_quick_fallback_send_end",
+        "source": "quick_fallback_send_1",
+        "target": "quick_end_1"
+      },
+      {
+        "id": "edge_understanding_policy",
+        "source": "understanding_1",
+        "target": "policy_1"
+      },
+      {
+        "id": "edge_understanding_failure",
+        "source": "understanding_1",
+        "target": "diagnosis_failure_route_1"
+      },
+      {
+        "id": "edge_policy_route",
+        "source": "policy_1",
+        "target": "policy_route_1"
+      },
+      {
+        "id": "edge_policy_failure",
+        "source": "policy_1",
+        "target": "diagnosis_failure_route_1"
+      },
+      {
+        "id": "edge_policy_reply",
+        "source": "policy_route_1",
+        "target": "policy_reply_1"
+      },
+      {
+        "id": "edge_policy_handoff",
+        "source": "policy_route_1",
+        "target": "handoff_1"
+      },
+      {
+        "id": "edge_policy_ticket",
+        "source": "policy_route_1",
+        "target": "draft_ticket_1"
+      },
+      {
+        "id": "edge_policy_knowledge",
+        "source": "policy_route_1",
+        "target": "knowledge_context_route_1"
+      },
+      {
+        "id": "edge_knowledge_context_device",
+        "source": "knowledge_context_route_1",
+        "target": "retrieve_1"
+      },
+      {
+        "id": "edge_knowledge_context_general",
+        "source": "knowledge_context_route_1",
+        "target": "quick_retrieve_1"
+      },
+      {
+        "id": "edge_policy_reply_end",
+        "source": "policy_reply_1",
+        "target": "end_1"
+      },
+      {
+        "id": "edge_handoff_end",
+        "source": "handoff_1",
+        "target": "handoff_end_1"
+      },
+      {
+        "id": "edge_handoff_failure",
+        "source": "handoff_1",
+        "target": "service_failure_reply_1"
+      },
+      {
+        "id": "edge_draft_ticket_confirm_prompt",
+        "source": "draft_ticket_1",
+        "target": "ticket_confirm_prompt_1"
+      },
+      {
+        "id": "edge_draft_ticket_failure",
+        "source": "draft_ticket_1",
+        "target": "service_failure_reply_1"
+      },
+      {
+        "id": "edge_ticket_prompt_confirm",
+        "source": "ticket_confirm_prompt_1",
+        "target": "ticket_confirm_1"
+      },
+      {
+        "id": "edge_ticket_confirm_route",
+        "source": "ticket_confirm_1",
+        "target": "ticket_confirm_route_1"
+      },
+      {
+        "id": "edge_ticket_confirm_create",
+        "source": "ticket_confirm_route_1",
+        "target": "create_ticket_1"
+      },
+      {
+        "id": "edge_ticket_confirm_cancel",
+        "source": "ticket_confirm_route_1",
+        "target": "ticket_cancel_reply_1"
+      },
+      {
+        "id": "edge_create_ticket_result",
+        "source": "create_ticket_1",
+        "target": "ticket_result_reply_1"
+      },
+      {
+        "id": "edge_create_ticket_failure",
+        "source": "create_ticket_1",
+        "target": "service_failure_reply_1"
+      },
+      {
+        "id": "edge_ticket_result_end",
+        "source": "ticket_result_reply_1",
+        "target": "end_1"
+      },
+      {
+        "id": "edge_ticket_cancel_send",
+        "source": "ticket_cancel_reply_1",
+        "target": "send_ticket_cancel_1"
+      },
+      {
+        "id": "edge_ticket_cancel_end",
+        "source": "send_ticket_cancel_1",
+        "target": "end_1"
+      },
+      {
+        "id": "edge_retrieve_answerability",
+        "source": "retrieve_1",
+        "target": "answerability_1"
+      },
+      {
+        "id": "edge_retrieve_error_route",
+        "source": "retrieve_1",
+        "target": "diagnosis_failure_route_1"
+      },
+      {
+        "id": "edge_answerability_route",
+        "source": "answerability_1",
+        "target": "answerability_route_1"
+      },
+      {
+        "id": "edge_answerability_failure",
+        "source": "answerability_1",
+        "target": "diagnosis_failure_route_1"
+      },
+      {
+        "id": "edge_answerability_reply",
+        "source": "answerability_route_1",
+        "target": "reply_1"
+      },
+      {
+        "id": "edge_answerability_safe",
+        "source": "answerability_route_1",
+        "target": "diagnostic_safe_reply_1"
+      },
+      {
+        "id": "edge_reply_send",
+        "source": "reply_1",
+        "target": "send_1"
+      },
+      {
+        "id": "edge_reply_error_route",
+        "source": "reply_1",
+        "target": "diagnosis_failure_route_1"
+      },
+      {
+        "id": "edge_diagnosis_failure_safe",
+        "source": "diagnosis_failure_route_1",
+        "target": "diagnostic_safe_reply_1"
+      },
+      {
+        "id": "edge_diagnostic_safe_send",
+        "source": "diagnostic_safe_reply_1",
+        "target": "diagnostic_safe_send_1"
+      },
+      {
+        "id": "edge_diagnostic_safe_end",
+        "source": "diagnostic_safe_send_1",
+        "target": "end_1"
+      },
+      {
+        "id": "edge_service_failure_send",
+        "source": "service_failure_reply_1",
+        "target": "service_failure_send_1"
+      },
+      {
+        "id": "edge_service_failure_end",
+        "source": "service_failure_send_1",
+        "target": "end_1"
+      },
+      {
+        "id": "edge_send_end",
+        "source": "send_1",
+        "target": "end_1"
+      }
+    ]
+  }
+}

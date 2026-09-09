@@ -1,0 +1,393 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- Native portal: common -->
+    <string name="common_cancel">Cancel</string>
+    <string name="common_retry">Retry</string>
+    <string name="common_clear_search">Clear search</string>
+    <string name="common_load_more">Load more</string>
+    <string name="common_loading_more">Loading…</string>
+    <string name="common_no_device">No linked device</string>
+
+    <!-- Native portal: chrome -->
+    <string name="portal_loading_data">Loading data</string>
+    <string name="portal_back_to_list">Back to list</string>
+    <string name="portal_refresh">Refresh</string>
+    <string name="portal_tab_conversations">Chats</string>
+    <string name="portal_tab_tickets">Tickets</string>
+    <string name="portal_tab_meetings">Video</string>
+    <string name="portal_tab_devices">Devices</string>
+    <string name="portal_tab_profile">Me</string>
+    <string name="portal_detail_conversation_title">Chat #%1$d</string>
+    <string name="portal_detail_ticket_title">Ticket details</string>
+    <string name="portal_detail_meeting_title">Video session</string>
+    <string name="portal_detail_device_title">Device profile</string>
+
+    <!-- Native portal: status labels -->
+    <string name="status_active">In progress</string>
+    <string name="status_accepted">Accepted</string>
+    <string name="status_action_required">Action needed</string>
+    <string name="status_ai_serving">AI support online</string>
+    <string name="status_assigned">Assigned</string>
+    <string name="status_cancelled">Cancelled</string>
+    <string name="status_closed">Closed</string>
+    <string name="status_completed">Completed</string>
+    <string name="status_done">Completed</string>
+    <string name="status_ended">Ended</string>
+    <string name="status_failed">Failed</string>
+    <string name="status_finished">Completed</string>
+    <string name="status_human_serving">Human support online</string>
+    <string name="status_idle">Idle</string>
+    <string name="status_in_progress">In progress</string>
+    <string name="status_joined">Joined</string>
+    <string name="status_maintenance">Under maintenance</string>
+    <string name="status_offline">Offline</string>
+    <string name="status_online">Online</string>
+    <string name="status_open">Open</string>
+    <string name="status_pending">Pending</string>
+    <string name="status_pending_acceptance">Pending acceptance</string>
+    <string name="status_pending_assignee_accept">Waiting for engineer</string>
+    <string name="status_pending_confirmation">Pending confirmation</string>
+    <string name="status_pending_dispatch">Pending dispatch</string>
+    <string name="status_processing">Processing</string>
+    <string name="status_queued">Queued for human</string>
+    <string name="status_reopened">Reopened</string>
+    <string name="status_resolved">Resolved</string>
+    <string name="status_reviewing">Under review</string>
+    <string name="status_scheduled">Scheduled</string>
+    <string name="status_submitted">Submitted</string>
+    <string name="status_waiting">Not started</string>
+    <string name="status_waiting_customer">Waiting for reply</string>
+    <string name="status_unknown">Unknown</string>
+
+    <!-- Native portal: priority & duration -->
+    <string name="priority_low">Low</string>
+    <string name="priority_medium">Medium</string>
+    <string name="priority_high">High</string>
+    <string name="priority_urgent">Urgent</string>
+    <string name="duration_minutes_seconds">%1$d min %2$d s</string>
+    <string name="duration_seconds">%1$d s</string>
+
+    <!-- Native portal: conversations -->
+    <string name="conversation_search_placeholder">Search devices, tickets, or messages</string>
+    <string name="conversation_filter_all">All</string>
+    <string name="conversation_filter_active">In progress</string>
+    <string name="conversation_filter_closed">Ended</string>
+    <string name="conversation_empty_title">No matching chats</string>
+    <string name="conversation_empty_detail">Pick a device from the Devices tab to start a new after-sales chat</string>
+    <string name="conversation_default_title">After-sales support</string>
+    <string name="conversation_support_default">AI diagnosis and after-sales support</string>
+    <string name="conversation_id_label">Chat #%1$d</string>
+    <string name="conversation_no_messages">No messages yet, tap to open</string>
+    <string name="conversation_ticket_label">Ticket %1$s</string>
+    <string name="conversation_assignee_label">Agent %1$s</string>
+    <string name="conversation_ai_service">AI service</string>
+    <string name="conversation_realtime_connected">Connected</string>
+    <string name="conversation_realtime_reconnecting">Reconnecting</string>
+    <string name="conversation_request_human">Request human support</string>
+    <string name="conversation_load_older">Load older messages</string>
+    <string name="conversation_empty_created_title">Chat created</string>
+    <string name="conversation_empty_created_detail">Send your device issue and our agents will continue here</string>
+    <string name="conversation_closed_hint">This chat has ended. Start a new chat from the Devices tab</string>
+    <string name="conversation_take_photo">Take a photo</string>
+    <string name="conversation_pick_image">Pick an image from gallery</string>
+    <string name="conversation_pick_attachment">Pick an attachment</string>
+    <string name="conversation_busy">Processing</string>
+    <string name="conversation_sending">Sending message…</string>
+    <string name="conversation_send_failed">Message failed to send, retry</string>
+    <string name="conversation_input_placeholder">Type a message</string>
+    <string name="conversation_send">Send message</string>
+    <string name="conversation_media_image_label">Image</string>
+    <string name="conversation_media_attachment_label">Attachment</string>
+    <string name="conversation_cancel_pick">Cancel selection</string>
+    <string name="conversation_send_button">Send</string>
+    <string name="conversation_me_label">Me</string>
+    <string name="conversation_staff_label">Agent</string>
+    <string name="conversation_image_message">Image message</string>
+    <string name="conversation_attachment_message">Attachment</string>
+    <string name="conversation_video_message">Video message</string>
+    <string name="conversation_other_message">%1$s message</string>
+    <string name="conversation_content_unavailable">Message content unavailable</string>
+    <string name="conversation_view_image">View image</string>
+    <string name="conversation_open_attachment">Open attachment</string>
+
+    <!-- Native portal: tickets -->
+    <string name="ticket_search_placeholder">Search ticket number, issue, or device</string>
+    <string name="ticket_filter_all">All</string>
+    <string name="ticket_filter_open">In progress</string>
+    <string name="ticket_filter_closed">Ended</string>
+    <string name="ticket_empty_title">No matching tickets</string>
+    <string name="ticket_empty_detail">After a chat is escalated to human service, related tickets appear here</string>
+    <string name="ticket_id_label">Ticket #%1$d</string>
+    <string name="ticket_open_detail">Open ticket details</string>
+    <string name="ticket_product">Product</string>
+    <string name="ticket_assignee">Assignee</string>
+    <string name="ticket_assignee_pending">Not assigned</string>
+    <string name="ticket_priority">Priority</string>
+    <string name="ticket_updated_at">Updated</string>
+    <string name="ticket_repair_summary">Resolution</string>
+    <string name="ticket_progress">Progress</string>
+    <string name="ticket_no_progress">No progress records</string>
+    <string name="ticket_confirm_done">Confirm completed</string>
+    <string name="ticket_reopen">Issue not resolved</string>
+    <string name="ticket_rate_service">Rate this service</string>
+    <string name="ticket_rating_submitted">Submitted a %1$d-star service rating</string>
+    <string name="ticket_reopen_dialog_title">Reopen ticket</string>
+    <string name="ticket_reopen_dialog_hint">Tell us why the issue is not resolved.</string>
+    <string name="ticket_reopen_placeholder">Unresolved issue</string>
+    <string name="ticket_submit">Submit</string>
+    <string name="ticket_feedback_dialog_title">Service rating</string>
+    <string name="ticket_feedback_dialog_hint">Choose 1 to 5 stars and add comments if you like.</string>
+    <string name="ticket_star_rating">%1$d star</string>
+    <string name="ticket_feedback_label">Additional comments (optional)</string>
+    <string name="ticket_submit_rating">Submit rating</string>
+    <string name="ticket_summary_default">After-sales service ticket</string>
+
+    <!-- Native portal: meetings -->
+    <string name="meeting_filter_upcoming">Upcoming</string>
+    <string name="meeting_filter_history">History</string>
+    <string name="meeting_empty_upcoming_title">No upcoming sessions</string>
+    <string name="meeting_empty_history_title">No past sessions</string>
+    <string name="meeting_empty_detail">Video sessions set up with service engineers appear here</string>
+    <string name="meeting_open_detail">Open session details</string>
+    <string name="meeting_scheduled_at">Scheduled</string>
+    <string name="meeting_participants">Participants</string>
+    <string name="meeting_participant_count">%1$d people</string>
+    <string name="meeting_duration">Duration</string>
+    <string name="meeting_transcripts">Transcripts</string>
+    <string name="meeting_annotations">AR annotations</string>
+    <string name="meeting_count_unit">%1$d items</string>
+    <string name="meeting_join">Join video session</string>
+    <string name="meeting_archived">This session has been archived</string>
+    <string name="meeting_join_busy">Securely fetching Jitsi room credentials</string>
+    <string name="meeting_summary_default">After-sales video session</string>
+    <string name="meeting_reference_no_ticket">Session record #%1$s</string>
+    <string name="meeting_reference_with_ticket">%1$s · Record #%2$s</string>
+
+    <!-- Native portal: devices -->
+    <string name="device_search_placeholder">Search device or serial number</string>
+    <string name="device_bind">Bind device</string>
+    <string name="device_empty_title">No devices found</string>
+    <string name="device_empty_detail">Enter a device service code to bind, no QR scan needed</string>
+    <string name="device_default_name">Device</string>
+    <string name="device_no_confirm">Device number pending</string>
+    <string name="device_default_detail">Device profile</string>
+    <string name="device_open_detail">Open device details</string>
+    <string name="device_bind_hint">Enter the service code from the device nameplate or delivery documents.</string>
+    <string name="device_service_code_label">Device service code</string>
+    <string name="device_service_code_placeholder">e.g. P15-SVC-000001</string>
+    <string name="device_bind_confirm">Confirm binding</string>
+    <string name="device_model">Model</string>
+    <string name="device_serial">Serial number</string>
+    <string name="device_product_code">Product code</string>
+    <string name="device_region">Region</string>
+    <string name="device_warranty_until">Warranty ends</string>
+    <string name="device_profile_incomplete">The device profile is incomplete; an agent may ask you to confirm details in the chat.</string>
+    <string name="device_metric_open_tickets">Open tickets</string>
+    <string name="device_metric_conversations">Chats</string>
+    <string name="device_metric_repairs">Repairs</string>
+    <string name="device_consult">Consult about this device</string>
+    <string name="device_resources">Device resources</string>
+    <string name="device_manuals_count_hint">%1$d files linked, none currently openable</string>
+    <string name="device_no_manuals">No device documents available</string>
+    <string name="device_manual_fallback">Device document</string>
+    <string name="device_document_fallback">Document</string>
+
+    <!-- Native portal: profile -->
+    <string name="profile_load_failed_title">Unable to load account info</string>
+    <string name="profile_load_failed_detail">Refresh to retry. If your login expires, you will return to the login page automatically</string>
+    <string name="profile_avatar_fallback">G</string>
+    <string name="profile_customer_account">Customer account</string>
+    <string name="profile_metric_devices">Devices</string>
+    <string name="profile_metric_conversations">Chats</string>
+    <string name="profile_metric_tickets">Tickets</string>
+    <string name="profile_metric_meetings">Meetings</string>
+    <string name="profile_basic_info">Basic info</string>
+    <string name="profile_name">Name</string>
+    <string name="profile_email">Email</string>
+    <string name="profile_mobile">Mobile</string>
+    <string name="profile_save">Save</string>
+    <string name="profile_glasses_section">On-site collaboration devices</string>
+    <string name="profile_connect_glasses">Connect AR glasses</string>
+    <string name="profile_logout">Log out</string>
+    <string name="profile_delete_account">Delete account</string>
+    <string name="profile_delete_dialog_title">Permanently delete account</string>
+    <string name="profile_delete_dialog_hint">Deleting your account revokes your login and processes your account, device bindings, and service data in line with the privacy policy. This action cannot be undone in the app.</string>
+    <string name="profile_current_password">Current password</string>
+    <string name="profile_delete_confirm_label">Type DELETE to confirm</string>
+    <string name="profile_delete_acknowledged">I understand the impact of deleting my account</string>
+    <string name="profile_delete_confirm">Delete permanently</string>
+
+    <!-- Native portal: gateway -->
+    <string name="gateway_header_tagline">Remote device service</string>
+    <string name="gateway_header_subtitle">Securely connect to your device service workspace</string>
+    <string name="gateway_mode_login">Log in</string>
+    <string name="gateway_mode_register">Sign up</string>
+    <string name="gateway_welcome">Welcome back</string>
+    <string name="gateway_login_subtitle">Sign in with your customer account</string>
+    <string name="gateway_username_label">Account</string>
+    <string name="gateway_username_placeholder">Enter your customer account</string>
+    <string name="gateway_password_label">Password</string>
+    <string name="gateway_password_placeholder">Enter your password</string>
+    <string name="gateway_logging_in">Logging in</string>
+    <string name="gateway_login">Log in</string>
+    <string name="gateway_register_title">Create a service account</string>
+    <string name="gateway_register_subtitle">Verify your authorization to start managing device services</string>
+    <string name="gateway_invite_code_label">Invite code</string>
+    <string name="gateway_invite_code_placeholder">Enter your invite code</string>
+    <string name="gateway_service_code_label">Device service code</string>
+    <string name="gateway_service_code_placeholder">e.g. P15-SVC-000001</string>
+    <string name="gateway_verifying">Verifying</string>
+    <string name="gateway_verify_continue">Verify and continue</string>
+    <string name="gateway_username_login_label">Login account</string>
+    <string name="gateway_username_login_placeholder">Set a login account</string>
+    <string name="gateway_email_label">Email</string>
+    <string name="gateway_email_placeholder">For service notifications</string>
+    <string name="gateway_password_hint">At least 8 characters</string>
+    <string name="gateway_confirm_password_label">Confirm password</string>
+    <string name="gateway_confirm_password_placeholder">Enter the password again</string>
+    <string name="gateway_back">Back</string>
+    <string name="gateway_registering">Registering</string>
+    <string name="gateway_register_enter">Register and continue</string>
+    <string name="gateway_method_invite">Invite code</string>
+    <string name="gateway_method_bind">Bind device</string>
+    <string name="gateway_auth_confirmed">Authorization confirmed</string>
+    <string name="gateway_context_tenant">Company</string>
+    <string name="gateway_context_org">Customer org</string>
+    <string name="gateway_context_product">Product</string>
+    <string name="gateway_context_device">Device</string>
+    <string name="gateway_show_password">Show password</string>
+    <string name="gateway_hide_password">Hide password</string>
+    <string name="gateway_security_title">Enterprise-grade account protection</string>
+    <string name="gateway_security_note">Login info is only used to connect your device service</string>
+
+    <!-- Native portal: gateway errors -->
+    <string name="gateway_error_credentials_required">Enter your account and password</string>
+    <string name="gateway_error_invite_code_required">Enter your invite code</string>
+    <string name="gateway_error_service_code_required">Enter the device service code</string>
+    <string name="gateway_error_verify_failed">Failed to verify authorization</string>
+    <string name="gateway_error_verify_first">Verify your authorization first</string>
+    <string name="gateway_error_username_required">Enter an account</string>
+    <string name="gateway_error_email_invalid">Enter a valid email</string>
+    <string name="gateway_error_password_short">Password must be at least 8 characters</string>
+    <string name="gateway_error_password_mismatch">Passwords do not match</string>
+    <string name="gateway_error_request_failed">Request failed, try again later</string>
+
+    <!-- Native portal: view model notices & errors -->
+    <string name="notice_reading_file">Reading file</string>
+    <string name="error_file_read_failed">Failed to read file</string>
+    <string name="error_image_too_large">Images cannot exceed 20 MB</string>
+    <string name="notice_image_sent">Image sent</string>
+    <string name="notice_attachment_sent">Attachment sent</string>
+    <string name="error_no_attachment">This message has no attachment to open</string>
+    <string name="notice_downloading_attachment">Downloading attachment</string>
+    <string name="conversation_attachment_fallback">Chat attachment</string>
+    <string name="error_no_viewer_app">No app on this phone can open this attachment</string>
+    <string name="error_attachment_open_failed">Failed to open attachment</string>
+    <string name="notice_human_support_submitted">Human support request submitted</string>
+    <string name="notice_ticket_confirmed">Ticket confirmed as completed</string>
+    <string name="notice_ticket_reopened">Ticket reopened</string>
+    <string name="notice_feedback_submitted">Service rating submitted</string>
+    <string name="notice_meeting_config_ready">Jitsi room configuration ready</string>
+    <string name="notice_device_bound">Device bound successfully</string>
+    <string name="notice_profile_saved">Profile saved</string>
+    <string name="error_request_failed">Request failed</string>
+    <string name="error_login_expired">Login expired</string>
+    <string name="error_pick_image">Please choose an image file</string>
+    <string name="error_file_too_large">Files cannot exceed 20 MB</string>
+    <string name="error_cannot_read_file">Cannot read the selected file</string>
+    <string name="error_empty_file">Cannot send an empty file</string>
+    <string name="media_camera_filename">photo.jpg</string>
+    <string name="media_attachment_filename">attachment</string>
+
+    <!-- Native portal: api errors -->
+    <string name="api_error_file_unavailable">The pending file is no longer available, please choose again</string>
+    <string name="api_error_upload_no_asset">Upload succeeded but the server returned no file info</string>
+    <string name="api_error_invalid_asset_id">The server returned no valid file identifier</string>
+    <string name="api_error_invalid_attachment_id">Invalid attachment identifier</string>
+    <string name="api_error_download_failed">Failed to download attachment</string>
+    <string name="api_error_attachment_too_large">Attachment exceeds 50 MB and cannot be opened in the app</string>
+    <string name="api_error_empty_attachment">The server returned an empty attachment</string>
+    <string name="api_error_unparsable">The server returned unparsable data</string>
+    <string name="api_error_request_failed">Request failed</string>
+
+    <!-- Native portal: auth errors -->
+    <string name="auth_error_not_customer">This account is not a customer account. Please sign in with a customer account</string>
+    <string name="auth_error_no_credentials">The server returned no valid login credentials</string>
+    <string name="auth_error_request_failed">Request failed, try again later</string>
+    <string name="auth_error_empty_data">The server returned empty data</string>
+    <string name="auth_display_name_default">Customer</string>
+
+    <!-- Native portal: notifications -->
+    <string name="notification_channel_name">Chat messages</string>
+    <string name="notification_channel_description">Device inquiries, online reception, and engineer replies</string>
+    <string name="notification_fallback_body">You have a new device service message</string>
+
+    <!-- Native glasses: common -->
+    <string name="glasses_checking_capabilities">Checking device connection capabilities</string>
+    <string name="glasses_connection_title">AR Glasses Connection</string>
+    <string name="glasses_workbench_subtitle">RemoteHelpDesk native device workbench</string>
+    <string name="glasses_back">Back</string>
+    <string name="glasses_connection_method">Connection method</string>
+    <string name="glasses_bluetooth">Bluetooth</string>
+    <string name="glasses_transport_wifi_direct">Wi-Fi Direct</string>
+    <string name="glasses_searching">Searching</string>
+    <string name="glasses_search_nearby_devices">Search nearby devices</string>
+    <string name="glasses_nearby_devices_title">Nearby devices</string>
+    <string name="glasses_device_count">%1$d devices</string>
+    <string name="glasses_signal_strength_dbm">%1$d dBm</string>
+    <string name="glasses_endpoint_label">Endpoint %1$s</string>
+    <string name="glasses_connect_device">Connect %1$s</string>
+    <string name="glasses_waiting_vendor_protocol">Waiting for vendor Bluetooth protocol</string>
+    <string name="glasses_waiting_for_devices">Waiting for devices to respond</string>
+    <string name="glasses_no_devices_found">No nearby devices found yet</string>
+    <string name="glasses_paired">Paired</string>
+    <string name="glasses_selected">Selected</string>
+
+    <!-- Native glasses: capabilities -->
+    <string name="glasses_capability_unsupported">Not supported</string>
+    <string name="glasses_capability_disabled">Off</string>
+    <string name="glasses_capability_pending_auth">Pending permission</string>
+    <string name="glasses_capability_ready">Ready</string>
+    <string name="glasses_capability_enabled">On</string>
+
+    <!-- Native glasses: bluetooth discovery & status -->
+    <string name="glasses_bt_searching">Searching for nearby Bluetooth devices</string>
+    <string name="glasses_bt_no_devices_found">No nearby Bluetooth devices found</string>
+    <string name="glasses_bt_scan_complete">Bluetooth scan complete</string>
+    <string name="glasses_bt_scan_failed">Bluetooth scan failed (error code %1$d)</string>
+    <string name="glasses_bt_unsupported">This device does not support Bluetooth Low Energy</string>
+    <string name="glasses_bt_phone_unsupported">This phone does not support Bluetooth Low Energy</string>
+    <string name="glasses_bt_enable_required">Please turn on Bluetooth</string>
+    <string name="glasses_bt_scanner_unavailable">Bluetooth scanner unavailable</string>
+    <string name="glasses_bt_paired_device_fallback">Paired Bluetooth device</string>
+    <string name="glasses_bt_unnamed_device">Unnamed Bluetooth device</string>
+    <string name="glasses_bt_permission_required">Nearby Bluetooth device permission is required</string>
+    <string name="glasses_bt_permission_required_search">Nearby Bluetooth device permission is required to search for glasses</string>
+    <string name="glasses_bt_ready">Bluetooth ready</string>
+    <string name="glasses_bt_vendor_not_configured">The Bluetooth GATT or Android SDK for this glasses vendor is not configured yet</string>
+    <string name="glasses_err_bluetooth_needs_vendor_protocol">This Bluetooth device requires the vendor\'s GATT or SDK protocol</string>
+
+    <!-- Native glasses: Wi-Fi Direct discovery & status -->
+    <string name="glasses_wifi_direct_searching">Searching for nearby Wi-Fi Direct devices</string>
+    <string name="glasses_wifi_direct_unsupported">This device does not support Wi-Fi Direct</string>
+    <string name="glasses_wifi_direct_phone_unsupported">This phone does not support Wi-Fi Direct</string>
+    <string name="glasses_wifi_direct_unavailable">Wi-Fi Direct is currently unavailable</string>
+    <string name="glasses_wifi_direct_scan_failed">Wi-Fi Direct search failed (error code %1$d)</string>
+    <string name="glasses_wifi_direct_connect_failed">Wi-Fi Direct connection failed (error code %1$d)</string>
+    <string name="glasses_wifi_direct_permission_missing">Missing nearby Wi-Fi device permission</string>
+    <string name="glasses_wifi_direct_permission_required_search">Nearby Wi-Fi device permission is required to search for glasses</string>
+    <string name="glasses_wifi_direct_connecting">Requesting connection to %1$s</string>
+    <string name="glasses_wifi_direct_request_sent">Connection request sent, waiting for the device to confirm</string>
+    <string name="glasses_wifi_direct_unnamed_device">Unnamed Wi-Fi device</string>
+    <string name="glasses_wifi_direct_devices_found">Found %1$d Wi-Fi Direct devices</string>
+    <string name="glasses_wifi_direct_connected">Wi-Fi Direct connection established</string>
+    <string name="glasses_wifi_direct_ready">Wi-Fi Direct ready</string>
+    <string name="glasses_wifi_enable_required">Please turn on Wi-Fi</string>
+    <string name="glasses_wifi_permission_required">Nearby Wi-Fi device permission is required</string>
+
+    <!-- Native glasses: selection & connection -->
+    <string name="glasses_device_selected_wifi">%1$s selected, you can request a Wi-Fi Direct connection</string>
+    <string name="glasses_device_recognized_vendor">%1$s recognized with vendor connection protocol</string>
+    <string name="glasses_device_discovered_bt_limited">%1$s discovered; Bluetooth control requires the vendor\'s protocol</string>
+    <string name="glasses_connecting_device">Connecting to %1$s</string>
+</resources>

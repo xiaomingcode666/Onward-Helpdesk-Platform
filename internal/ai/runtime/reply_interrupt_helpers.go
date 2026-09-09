@@ -1,0 +1,89 @@
+package runtime
+
+import (
+	"encoding/json"
+	"strings"
+	"time"
+
+	applicationruntime "remotehelpdesk/internal/ai/application/runtime"
+	"remotehelpdesk/internal/models"
+	"remotehelpdesk/internal/pkg/i18nx"
+	svc "remotehelpdesk/internal/services"
+)
+
+type interruptMessagePreview struct {
+	Message string `json:"message"`
+}
+
+func buildConversationInterrupt(conversation models.Conversation, message models.Message, aiAgent models.AIAgent, summary *applicationruntime.Summary) *models.ConversationInterrupt {
+	if summary == nil {
+		return nil
+	}
+	now := time.Now()
+	item := svc.ConversationInterruptService.GetByCheckPointID(summary.CheckPointID)
+	if item == nil {
+		item = &models.ConversationInterrupt{
+			CheckPointID: summary.CheckPointID,
+			CreatedAt:    now,
+		}
+	}
+	item.ConversationID = conversation.ID
+	item.AIAgentID = aiAgent.ID
+	item.SourceMessageID = message.ID
+	item.InterruptID = firstInterruptID(summary)
+	item.InterruptType = firstInterruptType(summary)
+	item.WorkflowRunID = summary.WorkflowRunID
+	item.WorkflowNodeID = firstInterruptID(summary)
+	item.Status = "pending"
+	item.PromptText = resolveInterruptPrompt(summary)
+	item.RequestData = strings.TrimSpace(summary.CheckPointData)
+	item.UpdatedAt = now
+	return item
+}
+
+func resolveInterruptPrompt(summary *applicationruntime.Summary) string {
+	if summary == nil || len(summary.Interrupts) == 0 {
+		return i18nx.Get("conversation.interrupt.defaultPrompt")
+	}
+	if prompt := extractInterruptMessage(summary.Interrupts[0].InfoPreview); prompt != "" {
+		return prompt
+	}
+	if prompt := strings.TrimSpace(summary.Interrupts[0].InfoPreview); prompt != "" {
+		return prompt
+	}
+	return i18nx.Get("conversation.interrupt.defaultPrompt")
+}
+
+func extractInterruptMessage(infoPreview string) string {
+	infoPreview = strings.TrimSpace(infoPreview)
+	if infoPreview == "" {
+		return ""
+	}
+	var payload interruptMessagePreview
+	if err := json.Unmarshal([]byte(infoPreview), &payload); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(payload.Message)
+}
+
+func firstInterruptID(summary *applicationruntime.Summary) string {
+	if summary == nil || len(summary.Interrupts) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(summary.Interrupts[0].ID)
+}
+
+func firstInterruptType(summary *applicationruntime.Summary) string {
+	if summary == nil || len(summary.Interrupts) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(summary.Interrupts[0].Type)
+}
+
+func isCheckpointMissingError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(strings.TrimSpace(err.Error()))
+	return strings.Contains(message, "failed to load from checkpoint") && strings.Contains(message, "not exist")
+}

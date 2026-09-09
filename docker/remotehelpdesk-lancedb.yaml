@@ -1,0 +1,68 @@
+# RemoteHelpDesk LanceDB container configuration.
+language: zh-CN
+
+server:
+  port: 8083
+  cors:
+    allowedOrigins:
+      - http://localhost:8083
+      - http://127.0.0.1:8083
+
+db:
+  type: postgres
+  dsn: host=postgres user=cs_ai_agent password=cs_ai_agent_password dbname=cs_ai_agent port=5432 sslmode=disable TimeZone=Asia/Shanghai
+
+logger:
+  level: info
+  format: text
+  addSource: false
+
+auth:
+  tokenTTLHours: 72
+  maxFailedAttempts: 5
+  credentialLockMinute: 30
+
+storage:
+  default: local
+  maxUploadSizeMB: 5
+  local:
+    root: /app/data/storage
+    baseUrl: /storage
+  oss:
+    endpoint: ""
+    bucket: ""
+    accessKeyId: ""
+    accessKeySecret: ""
+    baseUrl: ""
+    private: false
+    signedUrlExpireSeconds: 600
+
+vectorDB:
+  type: lancedb
+  qdrant:
+    host: qdrant
+    grpcPort: 6334
+    apiKey: ""
+    useTls: false
+  lancedb:
+    path: /app/data/lancedb
+
+mcp:
+  enabled: true
+  servers:
+    system:
+      enabled: true
+      endpoint: http://127.0.0.1:8083/api/mcp
+      timeoutMs: 60000
+      headers: {}
+
+wxWork:
+  enabled: false
+
+oidc:
+  enabled: false
+
+customerSession:
+  secret: change-me
+  ttlMinutes: 120
+  refreshThresholdMinutes: 30

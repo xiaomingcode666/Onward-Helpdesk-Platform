@@ -1,0 +1,343 @@
+language: zh-CN
+
+public:
+  # Public application origin used for email invitation links.
+  # Override with RHD_PUBLIC_URL per environment, for example:
+  # https://remotehelpdesk.digintelspace.com:8443
+  baseUrl: ""
+
+server:
+  port: 8083
+  cors:
+    # Browser CORS allowlist. In production, replace this with the actual frontend or embedded-site domains, such as https://support.example.com.
+    # Leave it empty to reject cross-origin browser requests. Same-origin and non-browser calls are still supported.
+    allowedOrigins:
+      - http://127.0.0.1:8083
+      - http://localhost:8083
+      # Capacitor local WebView origins for Android and iOS native bundles.
+      - https://localhost
+      - capacitor://localhost
+
+db:
+  # Database driver. Supported values: sqlite, postgres.
+  # RemoteHelpDesk enterprise deployments should use postgres from day one.
+  type: sqlite
+  # Database connection string.
+  # SQLite example: file:./data/app.db?_busy_timeout=5000
+  # PostgreSQL example: host=127.0.0.1 user=remote_helpdesk password=secret dbname=remote_helpdesk port=5432 sslmode=disable TimeZone=UTC
+  dsn: file:./data/app.db?_busy_timeout=5000
+  # Development schema sync. Keep true while fields/tables are changing frequently, similar to Sequelize alter=true.
+  # Set to false in production when schema is managed by reviewed SQL migrations.
+  autoMigrate: true
+  # Maximum number of idle connections kept in the pool. Values <= 0 use the database/sql default.
+  maxIdleConns: 5
+  # Maximum number of open connections. Values <= 0 mean no explicit limit.
+  maxOpenConns: 20
+  # Maximum time an idle connection may stay in the pool, in seconds. Values <= 0 leave it unset.
+  connMaxIdleTimeSeconds: 300
+  # Maximum lifetime of a connection, in seconds. Values <= 0 leave it unset.
+  connMaxLifetimeSeconds: 1800
+
+ticketDispatch:
+  # 工程师接到工单后必须在此时间内确认接单，超时自动回收重派。
+  acceptDeadlineMinutes: 30
+  # 已受理工单的最新客户消息超过此时间仍无工程师回复时，允许同产品组值班成员接管。
+  ownerReplyTakeoverMinutes: 30
+  # 工单持续无人可派达到此时间后，自动交由组长或服务经理兜底。
+  unassignedEscalationMinutes: 30
+  # 连续接单超时达到此次数后，自动升级给组长或服务经理。
+  maxDispatchAttempts: 3
+  # 多实例部署用最近在线时间补足本机 WebSocket 状态。
+  onlineFreshnessMinutes: 2
+  # SLA 截止前进入持续预警窗口的时间。
+  slaWarningLeadMinutes: 30
+  # 预警窗口内向负责人和主管重复提醒的间隔。
+  slaWarningRepeatMinutes: 15
+
+logger:
+  level: info
+  format: text
+  addSource: false
+
+auth:
+  # Login access token lifetime, in hours. Values <= 0 fall back to 72 hours.
+  # Applies to password login, OIDC login, and WeCom login sessions.
+  tokenTTLHours: 72
+  # Maximum failed password attempts allowed within the lock window.
+  # Values <= 0 disable credential lockout.
+  maxFailedAttempts: 5
+  # Failed-login lock window, in minutes. When maxFailedAttempts is reached within this window, login is temporarily blocked.
+  # Values <= 0 fall back to 15 minutes when lockout is enabled.
+  credentialLockMinute: 15
+
+customerSession:
+  # Signing secret for customer service session tokens. Use a separate, high-entropy random string; do not reuse the channel userTokenSecret.
+  secret: ""
+  # Default lifetime for customer service session tokens, in minutes.
+  ttlMinutes: 120
+  # Automatically refresh the token when its remaining lifetime falls below this value, in minutes.
+  refreshThresholdMinutes: 30
+
+mobilePush:
+  # Enable after APNs/FCM credentials are supplied through environment variables.
+  enabled: false
+  fcm:
+    projectId: "" # FCM_PROJECT_ID
+    credentialsJson: "" # FCM_CREDENTIALS_JSON: raw or base64 service-account JSON
+  apns:
+    teamId: "" # APNS_TEAM_ID
+    keyId: "" # APNS_KEY_ID
+    privateKey: "" # APNS_PRIVATE_KEY: raw/escaped PEM or base64 .p8 content
+    bundleId: "com.digintelspace.remotehelpdesk" # APNS_BUNDLE_ID
+    production: true # APNS_PRODUCTION=false for development provisioning profiles
+
+jitsi:
+  # Enable in production to reject anonymous rooms and unsigned webhooks.
+  requireAuth: false
+  url: "https://meet.jit.si"
+  appId: ""
+  appSecret: ""
+  webhookSecret: ""
+  jitsiDomain: ""
+  tokenTTLMinutes: 15
+  timeout: 10s
+  maxRetries: 3
+
+speech:
+  # Use mock for demos and pre-verification development. Switching to xfyun
+  # exercises the same Jigasi and transcript persistence pipeline.
+  provider: mock
+  # Compiled-in providers may read additional settings from this map.
+  providerOptions: {}
+  mock:
+    segmentDurationMs: 2000
+  xfyun:
+    appId: ""
+    apiKey: ""
+    endpoint: "wss://rtasr.xfyun.cn/v1/ws"
+    # Optional iFlytek vertical-domain code. Empty uses the general model.
+    domain: ""
+    translationEnabled: false
+    translationApiSecret: ""
+    translationEndpoint: "https://itrans.xfyun.cn/v2/its"
+    translationTargetLanguage: "en"
+  aliyun:
+    apiKey: ""
+    workspaceId: ""
+    endpoint: "wss://dashscope.aliyuncs.com/api-ws/v1/inference"
+    model: "qwen-audio-3.0-asr-flash-streaming"
+  jigasi:
+    # Jigasi uses its built-in Whisper websocket client to send server-side
+    # participant audio to this application's provider-neutral gateway.
+    enabled: false
+    sharedSecret: ""
+    maxParticipantStreams: 8
+    maxConcurrentStreams: 32
+
+meetingAR:
+  # Register the selected provider in internal/pkg/providers before enabling it.
+  provider: disabled
+  providerOptions:
+    endpoint: ""
+    apiKey: "" # Prefer MEETING_AR_API_KEY.
+    healthPath: /health
+
+sub2api:
+  base_url: ""
+  default_key: "" # Legacy fallback; prefer SUB2API_ADMIN_API_KEY.
+  admin_api_key: ""
+  default_model: ""
+  timeout: 30s
+  max_retries: 3
+  retry_backoff: 1s
+
+email:
+  # Platform SMTP sender used by internal notifications. Prefer environment variables in production.
+  smtpHost: "" # SMTP_HOST, e.g. smtp.qq.com, smtp.exmail.qq.com, smtp.qiye.aliyun.com, smtp.gmail.com
+  smtpPort: 465 # SMTP_PORT
+  username: "" # SMTP_USERNAME
+  password: "" # SMTP_PASSWORD, use a mailbox app authorization code
+  fromAddress: "" # SMTP_FROM_ADDRESS
+  fromName: "RemoteHelpDesk"
+  useTls: true # SMTP_USE_TLS
+
+marketing:
+  # Recipient for public "Request a demo" enquiries. Set with DEMO_REQUEST_RECIPIENT in production.
+  demoRequestRecipient: ""
+
+storage:
+  # Default file storage provider used for uploads. Supported values: local, oss, minio.
+  # Empty value is treated as local by the backend.
+  default: local
+  # Maximum size of a single uploaded file, in MB. Values <= 0 fall back to the backend default.
+  maxUploadSizeMB: 20
+  uploadSecurity:
+    # Built-in validation blocks executable/script payloads, unsafe browser-active content,
+    # suspicious file signatures, and the EICAR antivirus test signature.
+    enabled: true
+    # These values extend the built-in deny lists.
+    blockedExtensions: []
+    blockedMimeTypes: []
+    # ZIP/Office archive safety limits. Values <= 0 use 1000 entries,
+    # 100 MB expanded size, and a 100:1 per-entry compression ratio.
+    maxArchiveEntries: 1000
+    maxArchiveExpandedSizeMB: 100
+    maxArchiveCompressionRatio: 100
+    clamav:
+      # Enable for production deployments that provide a ClamAV clamd service.
+      enabled: false
+      address: 127.0.0.1:3310
+      timeoutSeconds: 10
+      # When ClamAV is enabled, reject uploads if the scanner is unavailable.
+      failClosed: true
+  local:
+    # Files are written under this directory, relative to the process working directory unless an absolute path is used.
+    root: data/storage
+    # Public URL prefix used when returning local file URLs. The server must expose this path as static files.
+    # Example: storage key "images/a.png" becomes "/storage/images/a.png".
+    baseUrl: /storage
+  oss:
+    # Aliyun OSS endpoint. Both "oss-cn-hangzhou.aliyuncs.com" and "https://oss-cn-hangzhou.aliyuncs.com" are accepted.
+    endpoint: ""
+    # OSS bucket name.
+    bucket: ""
+    # OSS access credentials. Keep the secret out of committed environment-specific config.
+    accessKeyId: ""
+    accessKeySecret: ""
+    # Optional public CDN/custom domain prefix for object URLs, for example https://files.example.com.
+    # If empty, public buckets use the default bucket endpoint URL; private buckets use signed URLs.
+    baseUrl: ""
+    # Set to true for private buckets. Private buckets return temporary signed URLs for reads.
+    private: false
+    # Expiration for generated OSS signed GET URLs, in seconds. Values <= 0 fall back to 600.
+    signedUrlExpireSeconds: 600
+  minio:
+    # Internal endpoint used by the backend for upload, read and health checks.
+    endpoint: "127.0.0.1:9000"
+    # Optional browser-reachable endpoint used only to generate signed read URLs.
+    # Production example: https://files.example.com. Leave empty in local development.
+    publicEndpoint: ""
+    bucket: "remotehelpdesk-assets"
+    accessKeyId: ""
+    accessKeySecret: ""
+    baseUrl: "http://127.0.0.1:9000/remotehelpdesk-assets"
+    region: "us-east-1"
+    useSsl: false
+    # Customer chat media should use a private bucket and short-lived signed URLs.
+    private: true
+    signedUrlExpireSeconds: 600
+
+vectorDB:
+  type: qdrant # qdrant, lancedb
+  qdrant:
+    host: 127.0.0.1
+    grpcPort: 6334
+    apiKey: ""
+    useTls: false
+  # LanceDB requires building the backend with -tags lancedb and LanceDB native libraries.
+  lancedb:
+    path: data/lancedb
+
+rag:
+  enabled: false
+  runtimeEnabled: false
+  ingestionEnabled: false
+  hybridEnabled: false
+  retrievalMode: auto
+  activeCollectionAlias: knowledge_chunks_active
+  collectionPrefix: knowledge_chunks
+  schemaVersion: 2
+  taskBatchSize: 20
+  taskInterval: 5s
+  maxRetries: 5
+  contextMaxTokens: 4000
+  maxContextItems: 5
+  denseTopK: 30
+  lexicalTopK: 12
+  hybridDenseMinHits: 3
+  hybridDenseMinScore: 0.55
+  rrfK: 60
+  rerankTopN: 5
+  rerankMaxCandidates: 12
+  rerankSkipTopScore: 0.82
+
+mcp:
+  # Global switch for MCP tool integration.
+  # When false, MCP tool catalog, debug endpoints, and runtime tool calls are disabled.
+  enabled: true
+  # Optional bearer token for the built-in /api/mcp endpoint. When empty, the
+  # endpoint only accepts loopback connections. Set a high-entropy value in production.
+  serverToken: ""
+  # MCP server registry. Each map key is the serverCode used by toolCode values like "system/tool_name".
+  servers:
+    system:
+      # Whether this MCP server is available for catalog listing, debug calls, and agent runtime calls.
+      enabled: true
+      # Streamable HTTP MCP endpoint. The built-in system server is exposed by this backend at /api/mcp.
+      endpoint: "http://127.0.0.1:8083/api/mcp"
+      # Connection and request timeout in milliseconds. Values <= 0 fall back to 15000.
+      timeoutMs: 15000
+      # Extra HTTP headers sent to this MCP server on every request. The built-in
+      # system server automatically receives serverToken as a Bearer token.
+      headers: {}
+
+oidc:
+  # Whether to enable OIDC login. This system acts as the OIDC client.
+  enabled: false
+  # OIDC provider issuer, for example https://idp.example.com/realms/demo.
+  issuer: ""
+  clientId: ""
+  clientSecret: ""
+  # Must exactly match the redirect_uri registered with the OIDC provider.
+  redirectUrl: "http://127.0.0.1:8083/api/auth/oidc_callback"
+  # Signing secret for the OIDC login state. If left empty, clientSecret is used as the fallback.
+  stateSecret: ""
+  scopes:
+    - openid
+    - profile
+    - email
+
+wxWork:
+  # Whether to enable WeCom features.
+  # When set to false, the WeCom SDK is not initialized, and login, customer service callbacks, and app notifications are unavailable.
+  enabled: false
+  # WeCom corporate ID.
+  # Example: wwxxxxxxxxxxxxxxxx, from the WeCom admin console.
+  corpId: 
+  # WeCom app secret.
+  # Used by the backend to obtain access tokens and user identities. Keep it confidential.
+  corpSecret: ""
+  # AgentID of the WeCom custom app.
+  # Used for web authorization when scope=snsapi_privateinfo.
+  agentId: 
+  # WeCom web authorization callback URL.
+  # Must be a full URL pointing to the backend endpoint:
+  # Example: http://127.0.0.1:8083/api/auth/wxwork_callback
+  # In production, use an official domain that WeCom can access, and make sure the domain is configured in the WeCom admin console.
+  oauthRedirect: ""
+  # Signing secret for the WeCom login state.
+  # Used for tamper protection and replay protection. A separate random string is recommended.
+  # If left empty, the code falls back to corpSecret, but this is not recommended.
+  stateSecret: ""
+  # Private key for decrypting WeCom callbacks.
+  # Not used by the current login flow. Reserved for message callbacks and similar scenarios.
+  rsaPrivateKey: ""
+  # WeCom callback token.
+  # Not used by the current login flow. Reserved for message callbacks and similar scenarios.
+  token: ""
+  # WeCom message encryption/decryption EncodingAESKey.
+  # Not used by the current login flow. Reserved for message callbacks and similar scenarios.
+  encodingAESKey: ""
+
+  notify:
+    # Whether to enable WeCom app message notifications.
+    enabled: false
+    # Default list of system user IDs to receive notifications. If the target business user has a bound WeCom identity, that user is preferred.
+    # System user IDs are mapped to WeCom member IDs through identity bindings before messages are sent.
+    toUsers: []
+    # Whether to send confidential messages.
+    safe: false
+    # Whether to enable duplicate message checks.
+    enableDuplicateCheck: true
+    # Duplicate message check window, in seconds.
+    duplicateCheckInterval: 1800

@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cs_ai_agent
+      POSTGRES_USER: cs_ai_agent
+      POSTGRES_PASSWORD: cs_ai_agent_password
+      TZ: Asia/Shanghai
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cs_ai_agent -d cs_ai_agent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Compatibility service key retained for existing Compose projects.
+  agent-desk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app-lancedb
+      args:
+        LANCEDB_VERSION: v0.1.2
+    image: remotehelpdesk:latest-lancedb
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    volumes:
+      - agent-desk-data:/app/data
+      - ./docker/remotehelpdesk-lancedb.yaml:/app/config/config.yaml:ro
+    environment:
+      TZ: Asia/Shanghai
+
+volumes:
+  postgres-data:
+  agent-desk-data:

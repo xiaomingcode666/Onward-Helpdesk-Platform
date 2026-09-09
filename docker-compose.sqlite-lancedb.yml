@@ -1,0 +1,12 @@
+services:
+  # Compatibility service key retained for existing Compose projects.
+  agent-desk:
+    image: remotehelpdesk:latest-lancedb
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./docker/remotehelpdesk-sqlite-lancedb.yaml:/app/config/config.yaml:ro
+      - ./data:/app/data
+    environment:
+      TZ: Asia/Shanghai

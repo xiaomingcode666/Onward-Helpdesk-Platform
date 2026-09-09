@@ -1,0 +1,6 @@
+services:
+  transcriber:
+    # Docker Desktop defines this name automatically. host-gateway keeps the
+    # same local setup working on Linux Docker Engine.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

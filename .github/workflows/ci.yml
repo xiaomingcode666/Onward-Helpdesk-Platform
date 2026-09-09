@@ -1,0 +1,275 @@
+name: CI
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: '1.26'
+  NODE_VERSION: '22'
+  PNPM_VERSION: '10.30.2'
+
+jobs:
+  backend-test:
+    name: Backend Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: cs_ai_agent
+          POSTGRES_USER: cs_ai_agent
+          POSTGRES_PASSWORD: cs_ai_agent_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+
+      - name: Run tests
+        run: go test ./... -v -race -coverprofile=coverage.out -covermode=atomic
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: cs_ai_agent
+          POSTGRES_USER: cs_ai_agent
+          POSTGRES_PASSWORD: cs_ai_agent_password
+          REDIS_ADDR: localhost:6379
+          REDIS_PASSWORD: ""
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-out
+          path: coverage.out
+
+  frontend-test:
+    name: Frontend Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        run: echo "store=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.store }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build:sdk && pnpm build
+
+  p0-closed-loop:
+    name: P0 Closed Loop
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: cs_ai_agent
+          POSTGRES_USER: cs_ai_agent
+          POSTGRES_PASSWORD: cs_ai_agent_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      qdrant:
+        image: qdrant/qdrant:v1.18.3
+        ports:
+          - 6333:6333
+          - 6334:6334
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        working-directory: web
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Wait for Qdrant readiness
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:6333/healthz >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker ps --all
+          exit 1
+
+      - name: Start deterministic AI provider
+        run: |
+          mkdir -p .tmp
+          node scripts/e2e/fake-openai.mjs > .tmp/fake-openai.log 2>&1 &
+          echo $! > .tmp/fake-openai.pid
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18099/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat .tmp/fake-openai.log
+          exit 1
+
+      - name: Seed acceptance fixture
+        env:
+          RHD_E2E_ALLOW_SEED: "1"
+        run: |
+          go run ./cmd/e2e-fixture -config config/config.e2e.yaml -tenant-name "Default Tenant" -env-out .tmp/e2e.env
+          cat .tmp/e2e.env >> "$GITHUB_ENV"
+
+      - name: Start application
+        run: |
+          go run ./cmd/server -config config/config.e2e.yaml > .tmp/backend.log 2>&1 &
+          echo $! > .tmp/backend.pid
+          pnpm --dir web dev --hostname 127.0.0.1 > .tmp/frontend.log 2>&1 &
+          echo $! > .tmp/frontend.pid
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:8083/api/health/ready >/dev/null && curl --fail --silent http://127.0.0.1:3000/dashboard/login >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Run P0 production routing and closed-loop acceptance
+        working-directory: web
+        env:
+          CI: "true"
+          E2E_BASE_URL: http://127.0.0.1:3000
+        run: pnpm test:e2e:p0
+
+      - name: Upload P0 diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p0-production-routing-diagnostics
+          if-no-files-found: ignore
+          path: |
+            .tmp/*.log
+            web/test-results
+            web/playwright-report
+
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect committed secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

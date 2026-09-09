@@ -1,0 +1,114 @@
+apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+
+def applicationIdValue = System.getenv('RHD_ANDROID_APPLICATION_ID')?.trim() ?: 'com.digintelspace.remotehelpdesk'
+def versionCodeValue = (System.getenv('RHD_ANDROID_VERSION_CODE')?.trim() ?: '1') as Integer
+def versionNameValue = System.getenv('RHD_ANDROID_VERSION_NAME')?.trim() ?: '1.0.0'
+def releaseKeystorePath = System.getenv('RHD_ANDROID_KEYSTORE_FILE')?.trim()
+def releaseKeystorePassword = System.getenv('RHD_ANDROID_KEYSTORE_PASSWORD')
+def releaseKeyAlias = System.getenv('RHD_ANDROID_KEY_ALIAS')?.trim()
+def releaseKeyPassword = System.getenv('RHD_ANDROID_KEY_PASSWORD')
+def releaseSigningValues = [releaseKeystorePath, releaseKeystorePassword, releaseKeyAlias, releaseKeyPassword]
+def releaseSigningConfigured = releaseSigningValues.every { it != null && !it.isEmpty() }
+def releaseBuildRequested = gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }
+def firebaseConfigured = file('google-services.json').exists()
+def apiBaseUrlValue = System.getenv('RHD_ANDROID_API_BASE_URL')?.trim() ?:
+    System.getenv('MOBILE_API_BASE_URL')?.trim() ?:
+    'https://remotehelpdesk.digintelspace.com:8443'
+
+if (releaseBuildRequested && !releaseSigningConfigured) {
+    throw new GradleException('Release builds require RHD_ANDROID_KEYSTORE_FILE, RHD_ANDROID_KEYSTORE_PASSWORD, RHD_ANDROID_KEY_ALIAS, and RHD_ANDROID_KEY_PASSWORD')
+}
+if (releaseBuildRequested && !apiBaseUrlValue.toLowerCase().startsWith('https://')) {
+    throw new GradleException('Release builds require an HTTPS RHD_ANDROID_API_BASE_URL')
+}
+
+android {
+    namespace = "com.digintelspace.remotehelpdesk"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId applicationIdValue
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode versionCodeValue
+        versionName versionNameValue
+        buildConfigField 'String', 'RHD_API_BASE_URL', '"' + apiBaseUrlValue.replace('"', '\\"') + '"'
+        buildConfigField 'boolean', 'RHD_PUSH_CONFIGURED', firebaseConfigured.toString()
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            if (releaseSigningConfigured) {
+                storeFile file(releaseKeystorePath)
+                storePassword releaseKeystorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    buildFeatures {
+        compose true
+        buildConfig true
+    }
+    sourceSets {
+        main {
+            // Android is fully native; generated Capacitor/H5 assets are not packaged.
+            assets.srcDirs = []
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+    kotlinOptions {
+        jvmTarget = '21'
+    }
+}
+
+dependencies {
+    def composeBom = platform('androidx.compose:compose-bom:2026.06.00')
+
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.activity:activity-compose:$androidxActivityVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation composeBom
+    androidTestImplementation composeBom
+    implementation 'androidx.compose.foundation:foundation'
+    implementation 'androidx.compose.material:material-icons-extended'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation('org.jitsi.react:jitsi-meet-sdk:13.1.1') { transitive = true }
+    implementation platform('com.squareup.okhttp3:okhttp-bom:5.3.0')
+    implementation 'com.squareup.okhttp3:okhttp'
+    implementation platform('com.google.firebase:firebase-bom:34.16.0')
+    implementation 'com.google.firebase:firebase-messaging'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+    testImplementation "junit:junit:$junitVersion"
+    testImplementation 'org.json:json:20250517'
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+}
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

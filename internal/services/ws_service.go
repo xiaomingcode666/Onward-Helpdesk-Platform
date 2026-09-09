@@ -1,0 +1,1153 @@
+package services
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"remotehelpdesk/internal/models"
+	"remotehelpdesk/internal/pkg/config"
+	"remotehelpdesk/internal/pkg/dto"
+	"remotehelpdesk/internal/pkg/dto/response"
+	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/errorsx"
+	"remotehelpdesk/internal/pkg/i18nx"
+	"remotehelpdesk/internal/pkg/observability"
+	"remotehelpdesk/internal/pkg/openidentity"
+	"remotehelpdesk/internal/pkg/utils"
+	"remotehelpdesk/internal/repositories"
+	"strconv"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
+	"github.com/mlogclub/simple/sqls"
+	"github.com/mlogclub/simple/web"
+)
+
+var WsService = newWsService()
+
+type wsService struct {
+	upgrader websocket.Upgrader
+	seq      atomic.Uint64
+	manager  *WsConnectionManager
+	broker   *wsRealtimeBroker
+}
+
+func newWsService() *wsService {
+	return &wsService{
+		upgrader: websocket.Upgrader{
+			CheckOrigin: websocketOriginAllowed,
+		},
+		manager: newWsConnectionManager(),
+		broker:  newWSRealtimeBroker(),
+	}
+}
+
+func (s *wsService) StartBroker(ctx context.Context) {
+	s.startBrokerWithConfig(ctx, config.CurrentOrDefault().Redis)
+}
+
+func (s *wsService) startBrokerWithConfig(ctx context.Context, redisConfig config.RedisConfig) {
+	if s == nil || s.broker == nil {
+		return
+	}
+	s.broker.Start(ctx, redisConfig, s.handleBrokerEnvelope)
+}
+
+func (s *wsService) HandleDashboardWS(ctx *gin.Context) {
+	principal := AuthService.GetAuthPrincipal(ctx)
+	if principal == nil {
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, web.JsonErrorCode(errorsx.CodeAuthUnauthorized, i18nx.T(ctx, "error.auth.expired")))
+		return
+	}
+	if err := s.upgradeConnection(ctx, principal, nil, realtimeRoleAdmin); err != nil {
+		slog.Error("upgrade admin websocket failed", "error", err, "path", ctx.Request.URL.Path)
+		ctx.Abort()
+		return
+	}
+}
+
+func (s *wsService) HandleDashboardNotificationWS(ctx *gin.Context) {
+	principal := AuthService.GetAuthPrincipal(ctx)
+	if principal == nil {
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, web.JsonErrorCode(errorsx.CodeAuthUnauthorized, i18nx.T(ctx, "error.auth.expired")))
+		return
+	}
+	if err := s.upgradeConnection(ctx, principal, nil, realtimeRoleNotification); err != nil {
+		slog.Error("upgrade dashboard notification websocket failed", "error", err, "path", ctx.Request.URL.Path)
+		ctx.Abort()
+		return
+	}
+}
+
+func (s *wsService) HandleOpenWS(ctx *gin.Context) {
+	channel := ChannelService.GetEnabledChannel(ctx)
+	var (
+		principal           = AuthService.GetAuthPrincipal(ctx)
+		external            *openidentity.ExternalUser
+		customerSessionInfo *CustomerSessionVerifyResult
+	)
+	if principal == nil && (strings.TrimSpace(ctx.Query("accessToken")) != "" ||
+		webSocketProtocolCredential(ctx, webSocketAccessTokenProtocolPrefix) != "") {
+		authenticated, err := AuthService.Authenticate(ctx)
+		if err != nil {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, web.JsonError(err))
+			return
+		}
+		if authenticated == nil || !authenticated.IsCustomer() {
+			ctx.AbortWithStatusJSON(http.StatusForbidden, web.JsonError(errorsx.Forbidden("customer identity is required")))
+			return
+		}
+		principal = authenticated
+	}
+	if principal == nil {
+		result, err := CustomerSessionService.VerifyRequest(ctx, channel)
+		if err != nil {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, web.JsonError(err))
+			return
+		}
+		external = result.ExternalUser
+		customerSessionInfo = result
+	}
+	if err := s.upgradeConnection(ctx, principal, external, realtimeRoleUser, customerSessionInfo); err != nil {
+		var channelCode string
+		var channelID int64
+		if channel != nil {
+			channelCode = channel.ChannelID
+			channelID = channel.ID
+		}
+		slog.Error("upgrade open im websocket failed", "error", err, "path", ctx.Request.URL.Path, "channelId", channelCode, "channel_id", channelID)
+		ctx.Abort()
+		return
+	}
+}
+
+func (s *wsService) upgradeConnection(ctx *gin.Context, principal *dto.AuthPrincipal, external *openidentity.ExternalUser, role string, customerSessionInfo ...*CustomerSessionVerifyResult) error {
+	var responseHeader http.Header
+	if protocol := webSocketNegotiatedProtocol(ctx); protocol != "" {
+		responseHeader = http.Header{"Sec-WebSocket-Protocol": []string{protocol}}
+	}
+	conn, err := s.upgrader.Upgrade(ctx.Writer, ctx.Request, responseHeader)
+	if err != nil {
+		return err
+	}
+
+	session := &ClientSession{
+		ID:           s.nextID("conn"),
+		Conn:         conn,
+		Principal:    principal,
+		External:     external,
+		Role:         role,
+		TerminalType: s.resolveTerminalType(ctx, role),
+		Topics:       make(map[string]struct{}),
+		Send:         make(chan []byte, realtimeSendBufferSize),
+	}
+	session.touch()
+
+	conn.SetReadLimit(realtimeMaxMessageSize)
+	_ = conn.SetReadDeadline(time.Now().Add(realtimePongWait))
+	conn.SetPongHandler(func(string) error {
+		session.touch()
+		return conn.SetReadDeadline(time.Now().Add(realtimePongWait))
+	})
+
+	var logUserID int64
+	var logExternalID string
+	if principal != nil {
+		logUserID = principal.UserID
+	}
+	if external != nil {
+		logExternalID = strings.TrimSpace(external.ExternalID)
+	}
+
+	sessionCount := s.manager.Register(session, s.defaultTopics(session))
+	observability.RealtimeConnections.WithLabelValues(role).Inc()
+	s.touchAgentOnline(session)
+	slog.Info("realtime client connected",
+		"connId", session.ID,
+		"role", session.Role,
+		"userId", logUserID,
+		"externalId", logExternalID,
+		"terminalType", session.TerminalType,
+		"topicCount", len(session.Topics),
+		"sessionCount", sessionCount,
+	)
+
+	go s.writePump(session)
+	go s.readPump(session)
+
+	session.enqueueEvent(s.newEvent("", RealtimeConnectedEvent{
+		Payload: RealtimeConnectedPayload{
+			ConnID:       session.ID,
+			UserID:       logUserID,
+			GuestID:      logExternalID,
+			Role:         role,
+			TerminalType: session.TerminalType,
+			Topics:       session.topicList(),
+		},
+	}))
+	if len(customerSessionInfo) > 0 && customerSessionInfo[0] != nil && customerSessionInfo[0].Refreshed {
+		session.enqueueEvent(s.newEvent("", RealtimeCustomerSessionRefreshEvent{
+			Payload: RealtimeCustomerSessionRefreshPayload{
+				CustomerSessionToken: customerSessionInfo[0].Token,
+				ExpiresAt:            customerSessionInfo[0].ExpiresAt.Format(time.DateTime),
+			},
+		}))
+	}
+	return nil
+}
+
+func (s *wsService) readPump(session *ClientSession) {
+	defer s.closeSession(session)
+
+	for {
+		_, body, err := session.Conn.ReadMessage()
+		if err != nil {
+			return
+		}
+		session.touch()
+
+		input := realtimeClientMessage{}
+		if err := json.Unmarshal(body, &input); err != nil {
+			session.enqueueEvent(s.newEvent("", RealtimeResyncRequiredEvent{
+				Payload: RealtimeResyncRequiredPayload{
+					Reason: enums.IMRealtimeResyncReasonInvalidPayload,
+				},
+			}))
+			continue
+		}
+
+		switch strings.TrimSpace(input.Type) {
+		case enums.IMRealtimeClientTypePing:
+			session.enqueueEvent(s.newEvent("", RealtimePongEvent{}))
+		case enums.IMRealtimeClientTypeSubscribe:
+			topics := s.subscribeTopics(session, input.Topics)
+			if len(topics) > 0 {
+				session.enqueueEvent(s.newEvent("", RealtimeSubscribedEvent{
+					Payload: RealtimeTopicsPayload{Topics: topics},
+				}))
+			}
+		case enums.IMRealtimeClientTypeUnsubscribe:
+			topics := s.unsubscribeTopics(session, input.Topics)
+			if len(topics) > 0 {
+				session.enqueueEvent(s.newEvent("", RealtimeUnsubscribedEvent{
+					Payload: RealtimeTopicsPayload{Topics: topics},
+				}))
+			}
+		case enums.IMRealtimeClientTypeAck:
+			slog.Debug("realtime event ack",
+				"connId", session.ID,
+				"eventId", strings.TrimSpace(input.EventID),
+			)
+		case enums.IMRealtimeClientTypeTyping:
+			s.publishTyping(session, input.ConversationID, input.Typing)
+		default:
+			session.enqueueEvent(s.newEvent("", RealtimeResyncRequiredEvent{
+				Payload: RealtimeResyncRequiredPayload{
+					Reason: enums.IMRealtimeResyncReasonUnsupportedMessageType,
+				},
+			}))
+		}
+	}
+}
+
+func (s *wsService) writePump(session *ClientSession) {
+	ticker := time.NewTicker(realtimePingPeriod)
+	defer func() {
+		ticker.Stop()
+		s.closeSession(session)
+	}()
+
+	for {
+		select {
+		case payload, ok := <-session.Send:
+			_ = session.Conn.SetWriteDeadline(time.Now().Add(realtimeWriteWait))
+			if !ok {
+				_ = session.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+			if err := session.Conn.WriteMessage(websocket.TextMessage, payload); err != nil {
+				return
+			}
+		case <-ticker.C:
+			s.touchAgentOnline(session)
+			s.refreshSessionPresence(session)
+			_ = session.Conn.SetWriteDeadline(time.Now().Add(realtimeWriteWait))
+			if err := session.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		}
+	}
+}
+
+func (s *wsService) closeSession(session *ClientSession) {
+	if session == nil {
+		return
+	}
+	session.closeOnce.Do(func() {
+		session.Closed.Store(true)
+		observability.RealtimeConnections.WithLabelValues(session.Role).Dec()
+		conversationIDs := realtimeConversationIDs(session.topicList())
+		remaining := s.manager.Unregister(session)
+		for _, conversationID := range conversationIDs {
+			s.publishSessionPresence(session, conversationID, false)
+		}
+
+		close(session.Send)
+		if session.Conn != nil {
+			_ = session.Conn.Close()
+		}
+
+		var discUserID int64
+		var discExternalID string
+		if session.Principal != nil {
+			discUserID = session.Principal.UserID
+		}
+		if session.External != nil {
+			discExternalID = strings.TrimSpace(session.External.ExternalID)
+		}
+		slog.Info("realtime client disconnected",
+			"connId", session.ID,
+			"role", session.Role,
+			"userId", discUserID,
+			"externalId", discExternalID,
+			"terminalType", session.TerminalType,
+			"sessionCount", remaining,
+		)
+	})
+}
+
+func (s *wsService) subscribeTopics(session *ClientSession, topics []string) []string {
+	allowed := s.filterAllowedTopics(session, topics)
+	if len(allowed) == 0 {
+		return nil
+	}
+	subscribed := s.manager.Subscribe(session, allowed)
+	subscribedSet := sliceToSet(subscribed)
+	for _, topic := range allowed {
+		conversationID, ok := parseConversationTopic(topic)
+		if !ok {
+			continue
+		}
+		s.enqueuePresenceSnapshot(session, conversationID)
+		if _, newlySubscribed := subscribedSet[topic]; newlySubscribed {
+			s.publishSessionPresence(session, conversationID, true)
+		}
+	}
+	return subscribed
+}
+
+func (s *wsService) unsubscribeTopics(session *ClientSession, topics []string) []string {
+	allowed := s.filterAllowedTopics(session, topics)
+	if len(allowed) == 0 {
+		return nil
+	}
+	unsubscribed := s.manager.Unsubscribe(session, allowed, sliceToSet(s.defaultTopics(session)))
+	for _, topic := range unsubscribed {
+		conversationID, ok := parseConversationTopic(topic)
+		if !ok {
+			continue
+		}
+		s.publishTyping(session, conversationID, false)
+		s.publishSessionPresence(session, conversationID, false)
+	}
+	return unsubscribed
+}
+
+func (s *wsService) PublishMessageCreated(conversation *models.Conversation, message *models.Message) {
+	if conversation == nil || message == nil {
+		return
+	}
+	content, payload := utils.BuildRenderableMessage(message)
+
+	event := s.newEvent(s.conversationTopic(conversation.ID), RealtimeMessageCreatedEvent{
+		Payload: RealtimeMessageCreatedPayload{
+			ConversationID:    conversation.ID,
+			MessageID:         message.ID,
+			RequestID:         message.RequestID,
+			Message:           s.buildRealtimeMessage(message),
+			Status:            conversation.Status,
+			CurrentAssigneeID: conversation.CurrentAssigneeID,
+			SenderType:        message.SenderType,
+			SenderID:          message.SenderID,
+			MessageType:       message.MessageType,
+			Content:           content,
+			Payload:           payload,
+			SendStatus:        message.SendStatus,
+			SentAt:            formatWsTime(message.SentAt),
+		},
+	})
+	s.PublishToTopics(s.routeConversationTopics(conversation), event)
+}
+
+func (s *wsService) buildRealtimeMessage(item *models.Message) response.MessageResponse {
+	if item == nil {
+		return response.MessageResponse{}
+	}
+	agentReadState, customerReadState := ConversationReadStateService.GetConversationReadStates(item.ConversationID)
+	content, payload := utils.BuildRenderableMessage(item)
+	ret := response.MessageResponse{
+		ID:              item.ID,
+		ConversationID:  item.ConversationID,
+		RequestID:       item.RequestID,
+		ClientMsgID:     item.ClientMsgID,
+		SenderType:      item.SenderType,
+		SenderID:        item.SenderID,
+		MessageType:     item.MessageType,
+		Content:         content,
+		Payload:         payload,
+		SendStatus:      item.SendStatus,
+		SentAt:          utils.FormatTimePtr(item.SentAt),
+		DeliveredAt:     utils.FormatTimePtr(item.DeliveredAt),
+		ReadAt:          utils.FormatTimePtr(item.ReadAt),
+		CustomerRead:    isRealtimeMessageRead(item, customerReadState),
+		CustomerReadAt:  realtimeReadMessageAt(item, customerReadState),
+		AgentRead:       isRealtimeMessageRead(item, agentReadState),
+		AgentReadAt:     realtimeReadMessageAt(item, agentReadState),
+		RecalledAt:      utils.FormatTimePtr(item.RecalledAt),
+		QuotedMessageID: item.QuotedMessageID,
+	}
+	s.fillRealtimeMessageSender(&ret, item)
+	return ret
+}
+
+func (s *wsService) fillRealtimeMessageSender(ret *response.MessageResponse, item *models.Message) {
+	if ret == nil || item == nil || item.SenderID <= 0 {
+		return
+	}
+	switch item.SenderType {
+	case enums.IMSenderTypeAI:
+		if aiAgent := AIAgentService.Get(item.SenderID); aiAgent != nil {
+			ret.SenderName = aiAgent.Name
+		}
+	case enums.IMSenderTypeAgent:
+		if profile := AgentProfileService.GetByUserID(item.SenderID); profile != nil {
+			if displayName := strings.TrimSpace(profile.DisplayName); displayName != "" {
+				ret.SenderName = displayName
+			}
+			if avatar := strings.TrimSpace(profile.Avatar); avatar != "" {
+				ret.SenderAvatar = avatar
+			}
+		}
+		if ret.SenderName == "" {
+			s.fillRealtimeMessageUserName(ret, item.SenderID)
+		}
+	default:
+		s.fillRealtimeMessageUserName(ret, item.SenderID)
+	}
+}
+
+func (s *wsService) fillRealtimeMessageUserName(ret *response.MessageResponse, userID int64) {
+	if ret == nil || userID <= 0 {
+		return
+	}
+	if user := UserService.Get(userID); user != nil {
+		ret.SenderName = user.Nickname
+		if ret.SenderName == "" {
+			ret.SenderName = user.Username
+		}
+	}
+}
+
+func isRealtimeMessageRead(item *models.Message, state *models.ConversationReadState) bool {
+	return item != nil && state != nil && state.LastReadMessageID >= item.ID
+}
+
+func realtimeReadMessageAt(item *models.Message, state *models.ConversationReadState) string {
+	if !isRealtimeMessageRead(item, state) {
+		return ""
+	}
+	return utils.FormatTimePtr(state.LastReadAt)
+}
+
+func (s *wsService) PublishMessageRecalled(conversation *models.Conversation, message *models.Message) {
+	if conversation == nil || message == nil {
+		return
+	}
+
+	event := s.newEvent(s.conversationTopic(conversation.ID), RealtimeMessageRecalledEvent{
+		Payload: RealtimeMessageRecalledPayload{
+			ConversationID: conversation.ID,
+			MessageID:      message.ID,
+			SenderType:     message.SenderType,
+			SenderID:       message.SenderID,
+			SendStatus:     message.SendStatus,
+			RecalledAt:     formatWsTime(message.RecalledAt),
+		},
+	})
+	s.PublishToTopics(s.routeConversationTopics(conversation), event)
+}
+
+func (s *wsService) PublishConversationChanged(conversation *models.Conversation, eventType string) {
+	if conversation == nil {
+		return
+	}
+	agentReadState, customerReadState := ConversationReadStateService.GetConversationReadStates(conversation.ID)
+
+	event := s.newEvent(s.conversationTopic(conversation.ID), RealtimeConversationChangedEvent{
+		Type: eventType,
+		Payload: RealtimeConversationChangedPayload{
+			ConversationID:            conversation.ID,
+			Status:                    conversation.Status,
+			ServiceMode:               conversation.ServiceMode,
+			CurrentAssigneeID:         conversation.CurrentAssigneeID,
+			CurrentTeamID:             conversation.CurrentTeamID,
+			LastMessageID:             conversation.LastMessageID,
+			LastMessageAt:             formatWsTime(&conversation.LastMessageAt),
+			LastActiveAt:              formatWsTime(&conversation.LastActiveAt),
+			LastMessageSummary:        conversation.LastMessageSummary,
+			CustomerUnreadCount:       conversation.CustomerUnreadCount,
+			AgentUnreadCount:          conversation.AgentUnreadCount,
+			CustomerLastReadMessageID: readStateMessageID(customerReadState),
+			CustomerLastReadAt:        readStateAt(customerReadState),
+			AgentLastReadMessageID:    readStateMessageID(agentReadState),
+			AgentLastReadAt:           readStateAt(agentReadState),
+		},
+	})
+	s.PublishToTopics(s.routeConversationTopics(conversation), event)
+}
+
+func (s *wsService) PublishNotificationCreated(userID int64, notification response.NotificationResponse) {
+	if userID <= 0 || notification.ID <= 0 {
+		return
+	}
+	topic := s.notificationTopic(userID)
+	event := s.newEvent(topic, RealtimeNotificationCreatedEvent{
+		Payload: RealtimeNotificationCreatedPayload{
+			Notification: notification,
+		},
+	})
+	s.PublishToTopic(topic, event)
+}
+
+func (s *wsService) PublishNotificationResyncRequired(userID int64, reason string) {
+	if s == nil || userID <= 0 {
+		return
+	}
+	s.PublishResyncRequired([]string{s.notificationTopic(userID)}, reason)
+}
+
+func (s *wsService) PublishResyncRequired(topics []string, reason string) {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = enums.IMRealtimeResyncReasonManual
+	}
+	s.PublishToTopics(topics, s.newEvent("", RealtimeResyncRequiredEvent{
+		Payload: RealtimeResyncRequiredPayload{Reason: reason},
+	}))
+}
+
+func readStateMessageID(state *models.ConversationReadState) int64 {
+	if state == nil {
+		return 0
+	}
+	return state.LastReadMessageID
+}
+
+func readStateAt(state *models.ConversationReadState) string {
+	if state == nil {
+		return ""
+	}
+	return utils.FormatTimePtr(state.LastReadAt)
+}
+
+func (s *wsService) Publish(event RealtimeEvent) {
+	if strings.TrimSpace(event.Topic) == "" {
+		return
+	}
+	s.PublishToTopic(event.Topic, event)
+}
+
+func (s *wsService) PublishToTopic(topic string, event RealtimeEvent) {
+	topic = strings.TrimSpace(topic)
+	if topic == "" {
+		return
+	}
+	if event.Topic == "" {
+		event.Topic = topic
+	}
+	s.PublishToTopics([]string{topic}, event)
+}
+
+func (s *wsService) PublishToTopics(topics []string, event RealtimeEvent) {
+	normalized := normalizeRealtimeTopics(topics)
+	if len(normalized) == 0 {
+		return
+	}
+
+	payload, err := json.Marshal(event)
+	if err != nil {
+		slog.Error("marshal realtime event failed", "error", err, "type", event.Type)
+		return
+	}
+
+	s.publishRawToLocalTopics(normalized, payload, "")
+	s.broker.PublishEvent(normalized, payload, "")
+}
+
+func (s *wsService) publishRawToLocalTopics(topics []string, payload []byte, excludedConnID string) {
+	for _, session := range s.manager.FindByTopics(topics) {
+		if session == nil || (excludedConnID != "" && session.ID == excludedConnID) {
+			continue
+		}
+		if session.enqueue(s.payloadForSession(payload, session)) {
+			continue
+		}
+		slog.Warn("drop slow realtime client",
+			"connId", session.ID,
+			"role", session.Role,
+			"excludedConnId", excludedConnID,
+		)
+		go s.closeSession(session)
+	}
+}
+
+func (s *wsService) payloadForSession(payload []byte, session *ClientSession) []byte {
+	if session == nil || session.Role != realtimeRoleUser || len(payload) == 0 {
+		return payload
+	}
+	sanitized, ok := sanitizeCustomerRealtimePayload(payload)
+	if !ok {
+		return payload
+	}
+	return sanitized
+}
+
+func sanitizeCustomerRealtimePayload(payload []byte) ([]byte, bool) {
+	var event map[string]any
+	if err := json.Unmarshal(payload, &event); err != nil {
+		return payload, false
+	}
+	eventType, _ := event["type"].(string)
+	data, _ := event["data"].(map[string]any)
+	if data == nil {
+		return payload, false
+	}
+	changed := false
+	switch eventType {
+	case enums.IMRealtimeEventMessageCreated:
+		changed = deleteRealtimePayloadKeys(data, "requestId", "currentAssigneeId", "senderId") || changed
+		if message, ok := data["message"].(map[string]any); ok {
+			changed = deleteRealtimePayloadKeys(message, "requestId", "workflowRunId", "senderId", "agentRead", "agentReadAt") || changed
+		}
+	case enums.IMRealtimeEventMessageRecalled:
+		changed = deleteRealtimePayloadKeys(data, "senderId") || changed
+	default:
+		if strings.HasPrefix(eventType, "conversation.") {
+			changed = deleteRealtimePayloadKeys(data,
+				"currentAssigneeId",
+				"currentTeamId",
+				"agentUnreadCount",
+				"agentLastReadMessageId",
+				"agentLastReadAt",
+			) || changed
+		}
+	}
+	if !changed {
+		return payload, false
+	}
+	ret, err := json.Marshal(event)
+	if err != nil {
+		return payload, false
+	}
+	return ret, true
+}
+
+func deleteRealtimePayloadKeys(payload map[string]any, keys ...string) bool {
+	changed := false
+	for _, key := range keys {
+		if _, exists := payload[key]; exists {
+			delete(payload, key)
+			changed = true
+		}
+	}
+	return changed
+}
+
+func (s *wsService) handleBrokerEnvelope(envelope realtimeBrokerEnvelope) {
+	switch envelope.Kind {
+	case realtimeBrokerKindEvent:
+		s.publishRawToLocalTopics(normalizeRealtimeTopics(envelope.Topics), envelope.Payload, "")
+	case realtimeBrokerKindProbe:
+		s.publishLocalPresenceToBroker(envelope.ConversationID, envelope.Source)
+	}
+}
+
+func (s *wsService) IsGuestOnline(guestID string) bool {
+	guestID = strings.TrimSpace(guestID)
+	if guestID == "" {
+		return false
+	}
+	return s.manager.HasTopic(s.guestTopic(guestID))
+}
+
+func (s *wsService) IsUserOnline(userID int64) bool {
+	return userID > 0 && s.manager.HasTopic(s.adminTopic(userID))
+}
+
+func (s *wsService) touchAgentOnline(session *ClientSession) {
+	if session == nil || session.Principal == nil || session.Principal.UserID <= 0 || !session.Principal.IsEnterprise() {
+		return
+	}
+	profile := repositories.AgentProfileRepository.FindOne(sqls.DB(), sqls.NewCnd().
+		Eq("tenant_id", session.Principal.EffectiveTenantID()).
+		Eq("user_id", session.Principal.UserID).
+		Eq("status", enums.StatusOk))
+	if profile == nil {
+		return
+	}
+	_ = repositories.AgentProfileRepository.Updates(sqls.DB(), profile.ID, map[string]any{
+		"last_online_at": time.Now(),
+	})
+}
+
+func (s *wsService) enqueuePresenceSnapshot(session *ClientSession, conversationID int64) {
+	if session == nil || conversationID <= 0 {
+		return
+	}
+	topic := s.conversationTopic(conversationID)
+	seen := make(map[string]struct{})
+	participants := make([]RealtimePresenceChangedPayload, 0)
+	for _, onlineSession := range s.manager.FindByTopics([]string{topic}) {
+		payload, ok := realtimePresencePayload(onlineSession, conversationID, true)
+		if !ok {
+			continue
+		}
+		if _, exists := seen[payload.ActorID]; exists {
+			continue
+		}
+		seen[payload.ActorID] = struct{}{}
+		participants = append(participants, payload)
+	}
+	session.enqueueEvent(s.newEvent(topic, RealtimePresenceSnapshotEvent{Payload: RealtimePresenceSnapshotPayload{
+		ConversationID: conversationID,
+		Participants:   participants,
+	}}))
+	s.broker.ProbePresence(conversationID)
+}
+
+func (s *wsService) publishLocalPresenceToBroker(conversationID int64, targetInstance string) {
+	if conversationID <= 0 || strings.TrimSpace(targetInstance) == "" {
+		return
+	}
+	topic := s.conversationTopic(conversationID)
+	seen := make(map[string]struct{})
+	for _, session := range s.manager.FindByTopics([]string{topic}) {
+		presence, ok := realtimePresencePayload(session, conversationID, true)
+		if !ok {
+			continue
+		}
+		if _, exists := seen[presence.ActorID]; exists {
+			continue
+		}
+		seen[presence.ActorID] = struct{}{}
+		payload, err := json.Marshal(s.newEvent(topic, RealtimePresenceChangedEvent{Payload: presence}))
+		if err == nil {
+			s.broker.PublishEvent([]string{topic}, payload, targetInstance)
+		}
+	}
+}
+
+func (s *wsService) publishSessionPresence(session *ClientSession, conversationID int64, online bool) {
+	payload, ok := realtimePresencePayload(session, conversationID, online)
+	if !ok {
+		return
+	}
+	topic := s.conversationTopic(conversationID)
+	if online {
+		s.broker.UpsertPresence(conversationID, payload.ActorID, session.ID)
+		s.PublishToTopic(topic, s.newEvent(topic, RealtimePresenceChangedEvent{Payload: payload}))
+		return
+	}
+	remotePresence, distributedCheck := s.broker.RemovePresence(conversationID, payload.ActorID, session.ID)
+	if !online {
+		for _, other := range s.manager.FindByTopics([]string{topic}) {
+			otherPayload, exists := realtimePresencePayload(other, conversationID, true)
+			if exists && otherPayload.ActorID == payload.ActorID {
+				return
+			}
+		}
+	}
+	if distributedCheck && remotePresence {
+		return
+	}
+	s.PublishToTopic(topic, s.newEvent(topic, RealtimePresenceChangedEvent{Payload: payload}))
+}
+
+func (s *wsService) refreshSessionPresence(session *ClientSession) {
+	if session == nil {
+		return
+	}
+	for _, conversationID := range realtimeConversationIDs(session.topicList()) {
+		s.publishSessionPresence(session, conversationID, true)
+	}
+}
+
+func (s *wsService) publishTyping(session *ClientSession, conversationID int64, typing bool) {
+	if session == nil || conversationID <= 0 || !s.canSubscribeConversation(session, conversationID) {
+		return
+	}
+	topic := s.conversationTopic(conversationID)
+	if typing && !s.manager.SessionHasTopic(session, topic) {
+		return
+	}
+	presence, ok := realtimePresencePayload(session, conversationID, true)
+	if !ok {
+		return
+	}
+	payload := RealtimeTypingChangedPayload{
+		ConversationID:  conversationID,
+		ActorID:         presence.ActorID,
+		ParticipantType: presence.ParticipantType,
+		ParticipantID:   presence.ParticipantID,
+		DisplayName:     presence.DisplayName,
+		Typing:          typing,
+	}
+	if typing {
+		payload.ExpiresAt = time.Now().Add(5 * time.Second).Format(time.RFC3339)
+	}
+	s.publishToTopicExcept(topic, s.newEvent(topic, RealtimeTypingChangedEvent{Payload: payload}), session.ID)
+}
+
+func (s *wsService) publishToTopicExcept(topic string, event RealtimeEvent, excludedConnID string) {
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return
+	}
+	s.publishRawToLocalTopics([]string{topic}, payload, excludedConnID)
+	s.broker.PublishEvent([]string{topic}, payload, "")
+}
+
+func realtimePresencePayload(session *ClientSession, conversationID int64, online bool) (RealtimePresenceChangedPayload, bool) {
+	if session == nil || conversationID <= 0 {
+		return RealtimePresenceChangedPayload{}, false
+	}
+	payload := RealtimePresenceChangedPayload{
+		ConversationID: conversationID,
+		Online:         online,
+		ChangedAt:      time.Now().Format(time.RFC3339),
+	}
+	if online {
+		payload.ExpiresAt = time.Now().Add(realtimePresenceTTL).Format(time.RFC3339)
+	}
+	if session.External != nil && strings.TrimSpace(session.External.ExternalID) != "" {
+		payload.ActorID = "guest:" + CustomerParticipantExternalID(*session.External)
+		payload.ParticipantType = string(enums.IMParticipantTypeCustomer)
+		payload.DisplayName = strings.TrimSpace(session.External.ExternalName)
+		return payload, true
+	}
+	if session.Principal == nil || session.Principal.UserID <= 0 {
+		return RealtimePresenceChangedPayload{}, false
+	}
+	payload.ActorID = "user:" + strconv.FormatInt(session.Principal.UserID, 10)
+	payload.ParticipantID = session.Principal.UserID
+	payload.DisplayName = strings.TrimSpace(session.Principal.Nickname)
+	if payload.DisplayName == "" {
+		payload.DisplayName = strings.TrimSpace(session.Principal.Username)
+	}
+	switch {
+	case session.Principal.IsPartner():
+		payload.ParticipantType = string(enums.IMParticipantTypePartner)
+	case session.Principal.IsCustomer():
+		payload.ParticipantType = string(enums.IMParticipantTypeCustomer)
+	default:
+		payload.ParticipantType = string(enums.IMParticipantTypeAgent)
+	}
+	return payload, true
+}
+
+func realtimeConversationIDs(topics []string) []int64 {
+	ret := make([]int64, 0, len(topics))
+	seen := make(map[int64]struct{})
+	for _, topic := range topics {
+		conversationID, ok := parseConversationTopic(topic)
+		if !ok {
+			continue
+		}
+		if _, exists := seen[conversationID]; exists {
+			continue
+		}
+		seen[conversationID] = struct{}{}
+		ret = append(ret, conversationID)
+	}
+	return ret
+}
+
+func (s *wsService) routeConversationTopics(conversation *models.Conversation) []string {
+	if conversation == nil {
+		return nil
+	}
+
+	topics := []string{s.conversationTopic(conversation.ID)}
+	if identity := ConversationService.GetConversationExternalIdentity(conversation); identity != nil && strings.TrimSpace(identity.ExternalID) != "" {
+		topics = append(topics, s.guestTopic(identity.ExternalID))
+	}
+	if conversation.TenantID > 0 {
+		topics = append(topics, s.adminTenantTopic(conversation.TenantID))
+	} else {
+		topics = append(topics, realtimeTopicAdminAll)
+	}
+	if conversation.CurrentTeamID > 0 {
+		topics = append(topics, s.adminTeamTopic(conversation.CurrentTeamID))
+	}
+	if conversation.CurrentAssigneeID > 0 {
+		topics = append(topics, s.adminTopic(conversation.CurrentAssigneeID))
+	}
+	return normalizeRealtimeTopics(topics)
+}
+
+func (s *wsService) defaultTopics(session *ClientSession) []string {
+	if session == nil {
+		return nil
+	}
+
+	switch session.Role {
+	case realtimeRoleNotification:
+		if session.Principal == nil || session.Principal.UserID <= 0 {
+			return nil
+		}
+		return []string{s.notificationTopic(session.Principal.UserID)}
+	case realtimeRoleAdmin:
+		if session.Principal == nil || session.Principal.UserID <= 0 {
+			return nil
+		}
+		topics := []string{s.adminTopic(session.Principal.UserID)}
+		principal := session.Principal
+		if principal.IsPartner() {
+			return topics
+		}
+		tenantID := principal.EffectiveTenantID()
+		if principal.IsPlatform() && tenantID <= 0 {
+			return append(topics, realtimeTopicAdminAll)
+		}
+		if tenantID <= 0 {
+			return topics
+		}
+		restricted, _, teamIDs := enterpriseTicketViewerScope(tenantID, principal)
+		if !restricted {
+			return append(topics, s.adminTenantTopic(tenantID))
+		}
+		for _, teamID := range teamIDs {
+			if teamID > 0 {
+				topics = append(topics, s.adminTeamTopic(teamID))
+			}
+		}
+		return normalizeRealtimeTopics(topics)
+	default:
+		// 开放 IM：仅 External、无 AuthPrincipal 的访客连接必须仍能订阅 guest:{externalId}，否则收不到推送。
+		if session.External != nil && strings.TrimSpace(session.External.ExternalID) != "" {
+			return []string{s.guestTopic(session.External.ExternalID)}
+		}
+		if session.Principal != nil && session.Principal.UserID > 0 {
+			return []string{s.userTopic(session.Principal.UserID)}
+		}
+		return nil
+	}
+}
+
+func (s *wsService) filterAllowedTopics(session *ClientSession, topics []string) []string {
+	normalized := normalizeRealtimeTopics(topics)
+	if len(normalized) == 0 || session == nil {
+		return nil
+	}
+	switch session.Role {
+	case realtimeRoleNotification:
+		if session.Principal == nil {
+			return nil
+		}
+	case realtimeRoleAdmin:
+		if session.Principal == nil {
+			return nil
+		}
+	default:
+		hasUser := session.Principal != nil && session.Principal.UserID > 0
+		hasExternal := session.External != nil && strings.TrimSpace(session.External.ExternalID) != ""
+		if !hasUser && !hasExternal {
+			return nil
+		}
+	}
+
+	defaultTopics := sliceToSet(s.defaultTopics(session))
+	ret := make([]string, 0, len(normalized))
+	for _, topic := range normalized {
+		if _, ok := defaultTopics[topic]; ok {
+			ret = append(ret, topic)
+			continue
+		}
+		if conversationID, ok := parseConversationTopic(topic); ok && s.canSubscribeConversation(session, conversationID) {
+			ret = append(ret, topic)
+		}
+	}
+	return ret
+}
+
+func (s *wsService) canSubscribeConversation(session *ClientSession, conversationID int64) bool {
+	if session == nil || conversationID <= 0 {
+		return false
+	}
+	if session.Role == realtimeRoleAdmin {
+		if session.Principal == nil {
+			return false
+		}
+		conversation := ConversationService.Get(conversationID)
+		if conversation == nil || !ConversationService.CanAccessConversation(conversation, session.Principal) {
+			return false
+		}
+		if session.Principal.IsPartner() {
+			participant := repositories.ConversationParticipantRepository.FindOne(sqls.DB(), sqls.NewCnd().
+				Eq("conversation_id", conversationID).
+				Eq("participant_type", enums.IMParticipantTypePartner).
+				Eq("participant_id", session.Principal.UserID).
+				Eq("status", enums.StatusOk))
+			return participant != nil
+		}
+		tenantID := session.Principal.EffectiveTenantID()
+		restricted, viewerUserID, teamIDs := enterpriseTicketViewerScope(tenantID, session.Principal)
+		if !restricted {
+			return true
+		}
+		if conversation.CurrentAssigneeID == viewerUserID {
+			return true
+		}
+		for _, teamID := range teamIDs {
+			if teamID > 0 && teamID == conversation.CurrentTeamID {
+				return true
+			}
+		}
+		return false
+	}
+	conversation := ConversationService.Get(conversationID)
+	if conversation == nil {
+		return false
+	}
+	if session.Principal != nil && session.Principal.IsCustomer() {
+		if session.Principal.UserID <= 0 || session.Principal.EffectiveTenantID() != conversation.TenantID {
+			return false
+		}
+		external := openidentity.ExternalUser{
+			ExternalSource: enums.ExternalSourceUser,
+			ExternalID:     strconv.FormatInt(session.Principal.UserID, 10),
+			ExternalName:   strings.TrimSpace(session.Principal.Nickname),
+		}
+		return ConversationService.IsCustomerConversationOwner(conversation, external)
+	}
+	if session.External != nil {
+		return ConversationService.IsCustomerConversationOwner(conversation, *session.External)
+	}
+	return false
+}
+
+func (s *wsService) resolveTerminalType(ctx *gin.Context, role string) string {
+	if ctx == nil {
+		return "web"
+	}
+	terminalType := strings.TrimSpace(ctx.Query("terminalType"))
+	if terminalType != "" {
+		return terminalType
+	}
+	if role == realtimeRoleAdmin {
+		return "dashboard_web"
+	}
+	return "web"
+}
+
+func (s *wsService) newEvent(topic string, event RealtimeDomainEvent) RealtimeEvent {
+	if event == nil {
+		return RealtimeEvent{
+			EventID: s.nextID("evt"),
+			Topic:   topic,
+			At:      time.Now().Format(time.DateTime),
+		}
+	}
+	return RealtimeEvent{
+		EventID: s.nextID("evt"),
+		Type:    event.EventType(),
+		Topic:   topic,
+		Data:    event.EventPayload(),
+		At:      time.Now().Format(time.DateTime),
+	}
+}
+
+func (s *wsService) nextID(prefix string) string {
+	seq := s.seq.Add(1)
+	return fmt.Sprintf("%s_%d_%d", prefix, time.Now().UnixNano(), seq)
+}
+
+func (s *wsService) userTopic(userID int64) string {
+	return realtimeTopicUserPrefix + strconv.FormatInt(userID, 10)
+}
+
+func (s *wsService) guestTopic(guestID string) string {
+	return realtimeTopicGuestPrefix + strings.TrimSpace(guestID)
+}
+
+func (s *wsService) adminTopic(userID int64) string {
+	return realtimeTopicAdminPrefix + strconv.FormatInt(userID, 10)
+}
+
+func (s *wsService) adminTenantTopic(tenantID int64) string {
+	return "admin:tenant:" + strconv.FormatInt(tenantID, 10)
+}
+
+func (s *wsService) adminTeamTopic(teamID int64) string {
+	return "admin:team:" + strconv.FormatInt(teamID, 10)
+}
+
+func (s *wsService) notificationTopic(userID int64) string {
+	return realtimeTopicNotificationPrefix + strconv.FormatInt(userID, 10)
+}
+
+func (s *wsService) conversationTopic(conversationID int64) string {
+	return realtimeTopicConversationPrefix + strconv.FormatInt(conversationID, 10)
+}
+
+func normalizeRealtimeTopics(topics []string) []string {
+	if len(topics) == 0 {
+		return nil
+	}
+	ret := make([]string, 0, len(topics))
+	seen := make(map[string]struct{}, len(topics))
+	for _, topic := range topics {
+		item := strings.TrimSpace(topic)
+		if item == "" {
+			continue
+		}
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		ret = append(ret, item)
+	}
+	return ret
+}
+
+func parseConversationTopic(topic string) (int64, bool) {
+	if !strings.HasPrefix(topic, realtimeTopicConversationPrefix) {
+		return 0, false
+	}
+	value := strings.TrimPrefix(topic, realtimeTopicConversationPrefix)
+	id, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || id <= 0 {
+		return 0, false
+	}
+	return id, true
+}
+
+func sliceToSet(items []string) map[string]struct{} {
+	ret := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		ret[item] = struct{}{}
+	}
+	return ret
+}
+
+func formatWsTime(t *time.Time) string {
+	if t == nil || t.IsZero() {
+		return ""
+	}
+	return t.Format(time.DateTime)
+}

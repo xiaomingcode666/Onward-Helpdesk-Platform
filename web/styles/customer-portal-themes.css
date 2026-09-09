@@ -1,0 +1,665 @@
+.rhd-customer-theme-odt {
+  --odt-canvas: #f2f6f7;
+  --odt-panel: #ffffff;
+  --odt-panel-strong: #edf3f4;
+  --odt-border: #d5e1e3;
+  --odt-text: #263a40;
+  --odt-muted: #71858a;
+  --odt-accent: #4f9298;
+  --odt-success: #548b75;
+  --railops-primary: #4f9298;
+  --railops-primary-hover: #417f85;
+  --railops-primary-active: #356d73;
+  --railops-primary-bg: #e7f0f1;
+  --railops-primary-soft: #d7e7e9;
+  --railops-success: #548b75;
+  --railops-success-bg: #eaf3ee;
+  --railops-warning: #b1814d;
+  --railops-warning-bg: #faf2e8;
+  --railops-error: #b96368;
+  --railops-error-bg: #f9ecec;
+  --railops-text: #263a40;
+  --railops-text-secondary: #60767c;
+  --railops-text-tertiary: #84969a;
+  --railops-border: #d5e1e3;
+  --railops-border-light: #e5edef;
+  --railops-border-strong: #b8cacc;
+  --railops-surface: #ffffff;
+  --railops-surface-muted: #edf3f4;
+  --railops-surface-hover: #e8f0f1;
+  --railops-layout-background: #f2f6f7;
+  --railops-card-shadow: 0 1px 3px rgb(48 72 78 / 8%);
+  --railops-header-shadow: 0 2px 10px rgb(48 72 78 / 9%);
+  --railops-float-shadow: 0 10px 28px rgb(48 72 78 / 13%);
+  background: var(--odt-canvas);
+  color: var(--odt-text);
+}
+
+.rhd-customer-theme-clinical {
+  --customer-canvas: #edf7f4;
+  --customer-panel: #ffffff;
+  --customer-panel-strong: #f3faf8;
+  --customer-border: #cde3dd;
+  --customer-text: #173b36;
+  --customer-muted: #607a75;
+  --customer-accent: #0f8f83;
+  --customer-success: #2f9e72;
+  --railops-primary: #0f8f83;
+  --railops-primary-hover: #0b746b;
+  --railops-primary-active: #075f58;
+  --railops-primary-bg: #e4f5f1;
+  --railops-primary-soft: #ccebe4;
+  --railops-success: #2f9e72;
+  --railops-success-bg: #e9f7f0;
+  --railops-warning: #d27a44;
+  --railops-warning-bg: #fff4ec;
+  --railops-error: #d95752;
+  --railops-error-bg: #fff0ef;
+  --railops-text: #173b36;
+  --railops-text-secondary: #607a75;
+  --railops-text-tertiary: #829793;
+  --railops-border: #cde3dd;
+  --railops-border-light: #e2efeb;
+  --railops-border-strong: #a9cbc3;
+  --railops-surface: #ffffff;
+  --railops-surface-muted: #f3faf8;
+  --railops-surface-hover: #e9f5f2;
+  --railops-layout-background: #edf7f4;
+  background: var(--customer-canvas);
+  color: var(--customer-text);
+}
+
+.rhd-customer-theme-coral {
+  --customer-canvas: #f7f6f7;
+  --customer-panel: #ffffff;
+  --customer-panel-strong: #f4f1f2;
+  --customer-border: #e5d9dc;
+  --customer-text: #302b31;
+  --customer-muted: #786d73;
+  --customer-accent: #d94f45;
+  --customer-success: #2f7b73;
+  --railops-primary: #d94f45;
+  --railops-primary-hover: #bb4038;
+  --railops-primary-active: #9c332d;
+  --railops-primary-bg: #fff0ef;
+  --railops-primary-soft: #f9d8d5;
+  --railops-success: #2f7b73;
+  --railops-success-bg: #e9f5f2;
+  --railops-warning: #b87532;
+  --railops-warning-bg: #fff6e9;
+  --railops-error: #c93d48;
+  --railops-error-bg: #fff0f1;
+  --railops-text: #302b31;
+  --railops-text-secondary: #786d73;
+  --railops-text-tertiary: #9b8f95;
+  --railops-border: #e5d9dc;
+  --railops-border-light: #f0e8ea;
+  --railops-border-strong: #cfbcc1;
+  --railops-surface: #ffffff;
+  --railops-surface-muted: #f4f1f2;
+  --railops-surface-hover: #f9eeee;
+  --railops-layout-background: #f7f6f7;
+  background: var(--customer-canvas);
+  color: var(--customer-text);
+}
+
+.rhd-customer-theme-odt .rhd-customer-portal-shell {
+  background: var(--odt-canvas);
+  box-shadow: 0 0 42px rgb(48 72 78 / 12%);
+}
+
+.rhd-customer-theme-odt .rhd-customer-portal-header {
+  height: calc(92px + env(safe-area-inset-top));
+  isolation: isolate;
+  position: relative;
+  background: #edf3f4;
+  border-color: var(--odt-border);
+}
+
+.rhd-customer-theme-odt .rhd-customer-portal-header::before,
+.rhd-customer-theme-odt .rhd-customer-portal-header::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.rhd-customer-theme-odt .rhd-customer-portal-header::before {
+  background-image: url("/images/tenants/odt/onward-ai-scheduled-intelligence-v1.jpg");
+  background-position: 54% 50%;
+  background-size: cover;
+  opacity: 0.2;
+}
+
+.rhd-customer-theme-odt .rhd-customer-portal-header::after {
+  background: linear-gradient(90deg, rgb(247 250 250 / 94%), rgb(237 244 245 / 82%));
+}
+
+.rhd-customer-theme-odt .rhd-customer-portal-logo {
+  max-height: 24px;
+  filter: none;
+}
+
+.rhd-customer-theme-odt .rhd-customer-portal-brand h1 {
+  color: var(--odt-text);
+  font-size: 18px;
+}
+
+.rhd-customer-theme-odt .rhd-customer-portal-avatar {
+  color: #ffffff;
+  background: var(--odt-accent);
+  box-shadow: 0 0 0 1px rgb(79 146 152 / 20%);
+}
+
+.rhd-customer-theme-odt .rhd-customer-portal-nav {
+  background: rgb(255 255 255 / 96%);
+  border-color: var(--odt-border);
+  box-shadow: 0 -8px 24px rgb(48 72 78 / 8%);
+}
+
+.rhd-customer-theme-odt [class~="bg-white"],
+.rhd-customer-theme-odt [class~="bg-white/96"],
+.rhd-customer-theme-odt [class~="bg-white/70"],
+.rhd-customer-theme-odt [class~="bg-[#f8fafc]"],
+.rhd-customer-theme-odt [class~="bg-[#f8fbff]"] {
+  background-color: var(--odt-panel);
+}
+
+.rhd-customer-theme-odt [class~="bg-[#f4f6f8]"],
+.rhd-customer-theme-odt [class~="bg-[#f4f6f8]/96"],
+.rhd-customer-theme-odt [class~="bg-[#f8f9fb]"],
+.rhd-customer-theme-odt [class~="bg-[#e9edf2]"],
+.rhd-customer-theme-odt [class~="bg-[#e8edf3]"],
+.rhd-customer-theme-odt [class~="bg-[#d8dee8]"],
+.rhd-customer-theme-odt [class~="bg-[#dce8fa]"],
+.rhd-customer-theme-odt [class~="bg-[#e8ecf1]"],
+.rhd-customer-theme-odt [class~="bg-[#edf0f4]"],
+.rhd-customer-theme-odt [class~="bg-[#e3e7ec]"],
+.rhd-customer-theme-odt [class~="bg-zinc-50"],
+.rhd-customer-theme-odt [class~="bg-zinc-100"] {
+  background-color: var(--odt-panel-strong);
+}
+
+.rhd-customer-theme-odt [class~="bg-[#172033]"] {
+  background-color: #3f6269;
+}
+
+.rhd-customer-theme-odt [class~="bg-[#1769e0]"],
+.rhd-customer-theme-odt [class~="bg-[#125fcf]"] {
+  background-color: var(--odt-accent);
+}
+
+.rhd-customer-theme-odt [class~="bg-[#edf4ff]"],
+.rhd-customer-theme-odt [class~="bg-[#eef3ff]"],
+.rhd-customer-theme-odt [class~="bg-[#eef5ff]"],
+.rhd-customer-theme-odt [class~="bg-[#e8f1ff]"],
+.rhd-customer-theme-odt [class~="bg-[#e9f2ff]"] {
+  background-color: var(--railops-primary-bg);
+}
+
+.rhd-customer-theme-odt [class~="bg-[#e8f7f2]"],
+.rhd-customer-theme-odt [class~="bg-emerald-50"] {
+  background-color: var(--railops-success-bg);
+}
+
+.rhd-customer-theme-odt [class~="bg-[#fff0f0]"],
+.rhd-customer-theme-odt [class~="bg-[#fff5f5]"],
+.rhd-customer-theme-odt [class~="bg-red-50"] {
+  background-color: var(--railops-error-bg);
+}
+
+.rhd-customer-theme-odt [class~="bg-[#fff4df]"] {
+  background-color: var(--railops-warning-bg);
+}
+
+.rhd-customer-theme-odt [class~="text-[#111827]"],
+.rhd-customer-theme-odt [class~="text-[#172033]"],
+.rhd-customer-theme-odt [class~="text-[#303b4d]"],
+.rhd-customer-theme-odt [class~="text-[#3f4a5d]"],
+.rhd-customer-theme-odt [class~="text-[#465266]"],
+.rhd-customer-theme-odt [class~="text-[#4f5b6d]"] {
+  color: var(--odt-text);
+}
+
+.rhd-customer-theme-odt [class~="text-[#637083]"],
+.rhd-customer-theme-odt [class~="text-[#657084]"],
+.rhd-customer-theme-odt [class~="text-[#687386]"],
+.rhd-customer-theme-odt [class~="text-[#737d8e]"],
+.rhd-customer-theme-odt [class~="text-[#778195]"],
+.rhd-customer-theme-odt [class~="text-[#7b8494]"],
+.rhd-customer-theme-odt [class~="text-[#8290a3]"],
+.rhd-customer-theme-odt [class~="text-[#8390a3]"],
+.rhd-customer-theme-odt [class~="text-[#8b96a8]"],
+.rhd-customer-theme-odt [class~="text-[#939dab]"],
+.rhd-customer-theme-odt [class~="text-[#9aa3b2]"],
+.rhd-customer-theme-odt [class~="text-[#b8c0cc]"],
+.rhd-customer-theme-odt [class~="text-[#bdc5d0]"],
+.rhd-customer-theme-odt [class~="text-[#c4ccd8]"] {
+  color: var(--odt-muted);
+}
+
+.rhd-customer-theme-odt [class~="text-[#1769e0]"],
+.rhd-customer-theme-odt [class~="text-[#3f60d7]"],
+.rhd-customer-theme-odt [class~="text-[#5265c9]"],
+.rhd-customer-theme-odt [class~="text-[#6557d9]"] {
+  color: var(--odt-accent);
+}
+
+.rhd-customer-theme-odt [class~="text-[#087f5b]"],
+.rhd-customer-theme-odt [class~="text-[#0f9f76]"] {
+  color: var(--odt-success);
+}
+
+.rhd-customer-theme-odt [class~="border-[#d6e4f7]"],
+.rhd-customer-theme-odt [class~="border-[#dce2ea]"],
+.rhd-customer-theme-odt [class~="border-[#e2e7ed]"],
+.rhd-customer-theme-odt [class~="border-[#e3e7ed]"],
+.rhd-customer-theme-odt [class~="border-[#e4e9f0]"],
+.rhd-customer-theme-odt [class~="border-[#e5e9ef]"],
+.rhd-customer-theme-odt [class~="border-[#e7ebf0]"],
+.rhd-customer-theme-odt [class~="border-[#e8ecf1]"],
+.rhd-customer-theme-odt [class~="border-[#edf0f4]"],
+.rhd-customer-theme-odt [class~="divide-[#e3e7ed]"],
+.rhd-customer-theme-odt [class~="divide-[#edf0f4]"],
+.rhd-customer-theme-odt [class~="ring-[#e7ebf0]"],
+.rhd-customer-theme-odt [class~="ring-white"] {
+  border-color: var(--odt-border);
+  --tw-divide-opacity: 1;
+  --tw-divide-color: var(--odt-border);
+  --tw-ring-color: var(--odt-border);
+}
+
+.rhd-customer-theme-odt input,
+.rhd-customer-theme-odt textarea,
+.rhd-customer-theme-odt .ant-input,
+.rhd-customer-theme-odt .ant-input-affix-wrapper,
+.rhd-customer-theme-odt .ant-select-selector {
+  background-color: var(--odt-panel-strong) !important;
+  border-color: var(--odt-border) !important;
+  color: var(--odt-text) !important;
+}
+
+.rhd-customer-theme-odt input::placeholder,
+.rhd-customer-theme-odt textarea::placeholder {
+  color: var(--odt-muted);
+}
+
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) .rhd-customer-portal-shell {
+  background: var(--customer-canvas);
+}
+
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) .rhd-customer-portal-header,
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) .rhd-customer-portal-nav {
+  background: var(--customer-panel);
+  border-color: var(--customer-border);
+}
+
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) .rhd-customer-portal-brand h1 {
+  color: var(--customer-text);
+}
+
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) .rhd-customer-portal-avatar {
+  background: var(--customer-accent);
+  color: #ffffff;
+}
+
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-white"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-white/96"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-white/70"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#f8fafc]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#f8fbff]"] {
+  background-color: var(--customer-panel);
+}
+
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#f4f6f8]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#f4f6f8]/96"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#f8f9fb]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#e9edf2]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#e8edf3]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#d8dee8]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#dce8fa]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#e8ecf1]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#edf0f4]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#e3e7ec]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-zinc-50"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-zinc-100"] {
+  background-color: var(--customer-panel-strong);
+}
+
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#1769e0]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#125fcf]"] {
+  background-color: var(--customer-accent);
+}
+
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#edf4ff]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#eef3ff]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#eef5ff]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#e8f1ff]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="bg-[#e9f2ff]"] {
+  background-color: var(--railops-primary-bg);
+}
+
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#111827]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#172033]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#303b4d]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#3f4a5d]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#465266]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#4f5b6d]"] {
+  color: var(--customer-text);
+}
+
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#637083]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#657084]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#687386]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#737d8e]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#778195]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#7b8494]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#8290a3]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#8390a3]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#8b96a8]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#939dab]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#9aa3b2]"] {
+  color: var(--customer-muted);
+}
+
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#1769e0]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#3f60d7]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#5265c9]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="text-[#6557d9]"] {
+  color: var(--customer-accent);
+}
+
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="border-[#d6e4f7]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="border-[#dce2ea]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="border-[#e2e7ed]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="border-[#e3e7ed]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="border-[#e4e9f0]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="border-[#e5e9ef]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="border-[#e7ebf0]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="border-[#e8ecf1]"],
+:is(.rhd-customer-theme-clinical, .rhd-customer-theme-coral) [class~="border-[#edf0f4]"] {
+  border-color: var(--customer-border);
+}
+
+.rhd-tenant-theme-preview {
+  --preview-canvas: #eef3f8;
+  --preview-surface: #ffffff;
+  --preview-muted: #f4f7fa;
+  --preview-border: #d9e2ec;
+  --preview-text: #172033;
+  --preview-subtle: #7b8798;
+  --preview-accent: #1769e0;
+  aspect-ratio: 16 / 7;
+  min-height: 116px;
+  overflow: hidden;
+  border: 1px solid var(--preview-border);
+  border-radius: 6px;
+  background: var(--preview-canvas);
+  color: var(--preview-text);
+}
+
+.rhd-tenant-theme-preview.rhd-tenant-theme-preview-compact {
+  position: relative;
+  width: 42px;
+  height: 30px;
+  min-height: 0;
+  flex: 0 0 42px;
+  aspect-ratio: auto;
+  background: linear-gradient(135deg, var(--preview-surface) 0 56%, var(--preview-canvas) 56% 100%);
+}
+
+.rhd-tenant-theme-preview-compact::before {
+  position: absolute;
+  inset: 5px 6px 9px;
+  border: 1px solid var(--preview-border);
+  border-radius: 2px;
+  background: var(--preview-surface);
+  content: "";
+}
+
+.rhd-tenant-theme-preview-compact::after {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  width: 16px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--preview-accent);
+  content: "";
+}
+
+.rhd-tenant-theme-preview-expanded {
+  min-height: 300px;
+  aspect-ratio: 16 / 8;
+}
+
+.rhd-tenant-theme-preview-expanded .rhd-tenant-theme-preview-header {
+  height: 48px;
+  gap: 8px;
+  padding: 8px 14px;
+}
+
+.rhd-tenant-theme-preview-expanded .rhd-tenant-theme-preview-brand {
+  width: 40px;
+  height: 30px;
+}
+
+.rhd-tenant-theme-preview-expanded .rhd-tenant-theme-preview-workspace {
+  min-height: calc(100% - 48px);
+}
+
+.rhd-tenant-theme-preview-expanded .rhd-tenant-theme-preview-nav {
+  gap: 14px;
+  padding: 24px 16px;
+}
+
+.rhd-tenant-theme-preview-expanded .rhd-tenant-theme-preview-nav span {
+  height: 8px;
+}
+
+.rhd-tenant-theme-preview-expanded .rhd-tenant-theme-preview-content {
+  padding: 24px;
+}
+
+.rhd-tenant-theme-preview-expanded .rhd-tenant-theme-preview-title strong {
+  font-size: 18px;
+}
+
+.rhd-tenant-theme-preview-expanded .rhd-tenant-theme-preview-title em {
+  width: 72px;
+  height: 24px;
+  border-radius: 5px;
+}
+
+.rhd-tenant-theme-preview-expanded .rhd-tenant-theme-preview-panels {
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.rhd-tenant-theme-preview-expanded .rhd-tenant-theme-preview-panels > span {
+  min-height: 120px;
+  gap: 12px;
+  padding: 18px;
+}
+
+.rhd-tenant-theme-preview-expanded .rhd-tenant-theme-preview-panels i {
+  height: 7px;
+}
+
+.rhd-tenant-theme-preview-odt {
+  --preview-canvas: #f2f6f7;
+  --preview-surface: #ffffff;
+  --preview-muted: #edf3f4;
+  --preview-border: #d5e1e3;
+  --preview-text: #263a40;
+  --preview-subtle: #71858a;
+  --preview-accent: #4f9298;
+}
+
+.rhd-tenant-theme-preview-clinical {
+  --preview-canvas: #edf7f4;
+  --preview-surface: #ffffff;
+  --preview-muted: #f3faf8;
+  --preview-border: #cde3dd;
+  --preview-text: #173b36;
+  --preview-subtle: #607a75;
+  --preview-accent: #0f8f83;
+}
+
+.rhd-tenant-theme-preview-coral {
+  --preview-canvas: #f7f6f7;
+  --preview-surface: #ffffff;
+  --preview-muted: #f4f1f2;
+  --preview-border: #e5d9dc;
+  --preview-text: #302b31;
+  --preview-subtle: #786d73;
+  --preview-accent: #d94f45;
+}
+
+.rhd-tenant-theme-preview-header {
+  display: flex;
+  height: 31px;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--preview-border);
+  background: var(--preview-surface);
+}
+
+.rhd-tenant-theme-preview-odt .rhd-tenant-theme-preview-header {
+  background-color: #edf3f4;
+  background-image: url("/images/tenants/odt/onward-ai-scheduled-intelligence-v1.jpg");
+  background-position: center;
+  background-size: cover;
+  box-shadow: inset 0 0 0 999px rgb(244 248 249 / 84%);
+}
+
+.rhd-tenant-theme-preview-brand {
+  display: grid;
+  width: 24px;
+  height: 20px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--preview-accent);
+  color: #ffffff;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.rhd-tenant-theme-preview-brand img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--preview-surface);
+}
+
+.rhd-tenant-theme-preview-odt .rhd-tenant-theme-preview-brand img {
+  filter: none;
+  background: rgb(255 255 255 / 78%);
+}
+
+.rhd-tenant-theme-preview-header > i {
+  display: block;
+  width: 14px;
+  height: 4px;
+  margin-left: auto;
+  border-radius: 2px;
+  background: var(--preview-border);
+}
+
+.rhd-tenant-theme-preview-header > i + i {
+  width: 11px;
+  margin-left: 0;
+}
+
+.rhd-tenant-theme-preview-workspace {
+  display: grid;
+  min-height: calc(100% - 31px);
+  grid-template-columns: 25% minmax(0, 1fr);
+}
+
+.rhd-tenant-theme-preview-nav {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 10px 7px;
+  border-right: 1px solid var(--preview-border);
+  background: var(--preview-surface);
+}
+
+.rhd-tenant-theme-preview-nav span {
+  height: 5px;
+  border-radius: 2px;
+  background: var(--preview-border);
+}
+
+.rhd-tenant-theme-preview-nav span.is-active {
+  background: var(--preview-accent);
+}
+
+.rhd-tenant-theme-preview-content {
+  min-width: 0;
+  padding: 9px;
+}
+
+.rhd-tenant-theme-preview-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.rhd-tenant-theme-preview-title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--preview-text);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rhd-tenant-theme-preview-title em {
+  width: 24px;
+  height: 7px;
+  margin-left: auto;
+  flex: none;
+  border-radius: 3px;
+  background: var(--preview-accent);
+}
+
+.rhd-tenant-theme-preview-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.rhd-tenant-theme-preview-panels > span {
+  display: grid;
+  gap: 6px;
+  min-height: 42px;
+  align-content: start;
+  padding: 8px;
+  border: 1px solid var(--preview-border);
+  border-radius: 5px;
+  background: var(--preview-surface);
+}
+
+.rhd-tenant-theme-preview-panels i {
+  display: block;
+  width: 68%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--preview-text);
+  opacity: 0.78;
+}
+
+.rhd-tenant-theme-preview-panels i + i {
+  width: 92%;
+  background: var(--preview-subtle);
+  opacity: 0.5;
+}

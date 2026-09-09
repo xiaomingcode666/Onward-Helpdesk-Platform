@@ -1,0 +1,57 @@
+{
+  "tester": "Codex automated Playwright",
+  "testedAt": "2026-09-08T10:37:53.281Z",
+  "testMode": "intercepted synthetic API responses",
+  "results": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1080
+      },
+      "policyConfiguration": "passed",
+      "creation": "passed",
+      "completion": "passed",
+      "horizontalOverflow": false,
+      "pageErrors": [],
+      "submitted": {
+        "source": "manual",
+        "channel": "phone",
+        "idempotency_key": "180c14d1-1231-4901-956d-baad299ba2bc",
+        "source_record_id": "",
+        "project_key": "Project Alpha",
+        "ticket_type": "Incident",
+        "caller_name": "Test Caller",
+        "caller_phone": "",
+        "region_code": "",
+        "title": "Phone intake acceptance",
+        "description": "Recorded by customer support",
+        "priority": "medium"
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "policyConfiguration": "passed",
+      "creation": "passed",
+      "completion": "passed",
+      "horizontalOverflow": false,
+      "pageErrors": [],
+      "submitted": {
+        "source": "manual",
+        "channel": "phone",
+        "idempotency_key": "0b8a0def-eb9d-4cd9-8f5d-c01dae60a87f",
+        "source_record_id": "",
+        "project_key": "Project Alpha",
+        "ticket_type": "Incident",
+        "caller_name": "Test Caller",
+        "caller_phone": "",
+        "region_code": "",
+        "title": "Phone intake acceptance",
+        "description": "Recorded by customer support",
+        "priority": "medium"
+      }
+    }
+  ]
+}

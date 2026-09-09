@@ -1,0 +1,399 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">RemoteHelpDesk</string>
+    <string name="title_activity_main">RemoteHelpDesk</string>
+    <string name="package_name">com.digintelspace.remotehelpdesk</string>
+    <string name="custom_url_scheme">com.digintelspace.remotehelpdesk</string>
+    <string name="default_notification_channel_id">conversation_updates</string>
+
+    <!-- Native portal: common -->
+    <string name="common_cancel">取消</string>
+    <string name="common_retry">重试</string>
+    <string name="common_clear_search">清除搜索</string>
+    <string name="common_load_more">加载更多</string>
+    <string name="common_loading_more">正在加载…</string>
+    <string name="common_no_device">未关联设备</string>
+
+    <!-- Native portal: chrome -->
+    <string name="portal_loading_data">正在读取数据</string>
+    <string name="portal_back_to_list">返回列表</string>
+    <string name="portal_refresh">刷新</string>
+    <string name="portal_tab_conversations">会话</string>
+    <string name="portal_tab_tickets">工单</string>
+    <string name="portal_tab_meetings">视频</string>
+    <string name="portal_tab_devices">设备</string>
+    <string name="portal_tab_profile">我的</string>
+    <string name="portal_detail_conversation_title">会话 #%1$d</string>
+    <string name="portal_detail_ticket_title">工单详情</string>
+    <string name="portal_detail_meeting_title">视频协作</string>
+    <string name="portal_detail_device_title">设备档案</string>
+
+    <!-- Native portal: status labels -->
+    <string name="status_active">进行中</string>
+    <string name="status_accepted">已受理</string>
+    <string name="status_action_required">待我处理</string>
+    <string name="status_ai_serving">在线接待中</string>
+    <string name="status_assigned">已分配</string>
+    <string name="status_cancelled">已取消</string>
+    <string name="status_closed">已关闭</string>
+    <string name="status_completed">已完成</string>
+    <string name="status_done">已完成</string>
+    <string name="status_ended">已结束</string>
+    <string name="status_failed">失败</string>
+    <string name="status_finished">已完成</string>
+    <string name="status_human_serving">人工接待中</string>
+    <string name="status_idle">待机</string>
+    <string name="status_in_progress">处理中</string>
+    <string name="status_joined">已加入</string>
+    <string name="status_maintenance">维护中</string>
+    <string name="status_offline">离线</string>
+    <string name="status_online">在线</string>
+    <string name="status_open">待处理</string>
+    <string name="status_pending">待处理</string>
+    <string name="status_pending_acceptance">待受理</string>
+    <string name="status_pending_assignee_accept">待工程师接单</string>
+    <string name="status_pending_confirmation">待确认</string>
+    <string name="status_pending_dispatch">待派单</string>
+    <string name="status_processing">处理中</string>
+    <string name="status_queued">等待人工</string>
+    <string name="status_reopened">已重新打开</string>
+    <string name="status_resolved">已解决</string>
+    <string name="status_reviewing">审核中</string>
+    <string name="status_scheduled">待开始</string>
+    <string name="status_submitted">已提交</string>
+    <string name="status_waiting">待开始</string>
+    <string name="status_waiting_customer">等待回复</string>
+    <string name="status_unknown">未知</string>
+
+    <!-- Native portal: priority & duration -->
+    <string name="priority_low">低</string>
+    <string name="priority_medium">中</string>
+    <string name="priority_high">高</string>
+    <string name="priority_urgent">紧急</string>
+    <string name="duration_minutes_seconds">%1$d分%2$d秒</string>
+    <string name="duration_seconds">%1$d秒</string>
+
+    <!-- Native portal: conversations -->
+    <string name="conversation_search_placeholder">搜索设备、工单或会话内容</string>
+    <string name="conversation_filter_all">全部</string>
+    <string name="conversation_filter_active">进行中</string>
+    <string name="conversation_filter_closed">已结束</string>
+    <string name="conversation_empty_title">没有匹配的会话</string>
+    <string name="conversation_empty_detail">可从设备页选择设备并发起新的售后咨询</string>
+    <string name="conversation_default_title">售后咨询</string>
+    <string name="conversation_support_default">智能诊断与售后支持</string>
+    <string name="conversation_id_label">会话 #%1$d</string>
+    <string name="conversation_no_messages">暂无消息，点击进入会话</string>
+    <string name="conversation_ticket_label">工单 %1$s</string>
+    <string name="conversation_assignee_label">服务人员 %1$s</string>
+    <string name="conversation_ai_service">智能服务</string>
+    <string name="conversation_realtime_connected">实时连接</string>
+    <string name="conversation_realtime_reconnecting">正在重连</string>
+    <string name="conversation_request_human">转人工</string>
+    <string name="conversation_load_older">加载更早消息</string>
+    <string name="conversation_empty_created_title">会话已经建立</string>
+    <string name="conversation_empty_created_detail">发送设备问题，服务人员会在此继续处理</string>
+    <string name="conversation_closed_hint">该会话已结束，可从设备页重新发起咨询</string>
+    <string name="conversation_take_photo">拍摄现场照片</string>
+    <string name="conversation_pick_image">从相册选择图片</string>
+    <string name="conversation_pick_attachment">选择附件</string>
+    <string name="conversation_busy">正在处理</string>
+    <string name="conversation_sending">正在发送消息…</string>
+    <string name="conversation_send_failed">消息发送失败，可重试</string>
+    <string name="conversation_input_placeholder">输入消息</string>
+    <string name="conversation_send">发送消息</string>
+    <string name="conversation_media_image_label">图片</string>
+    <string name="conversation_media_attachment_label">附件</string>
+    <string name="conversation_cancel_pick">取消选择</string>
+    <string name="conversation_send_button">发送</string>
+    <string name="conversation_me_label">我</string>
+    <string name="conversation_staff_label">服务人员</string>
+    <string name="conversation_image_message">图片消息</string>
+    <string name="conversation_attachment_message">附件</string>
+    <string name="conversation_video_message">视频消息</string>
+    <string name="conversation_other_message">%1$s 消息</string>
+    <string name="conversation_content_unavailable">消息内容不可用</string>
+    <string name="conversation_view_image">查看图片</string>
+    <string name="conversation_open_attachment">打开附件</string>
+
+    <!-- Native portal: tickets -->
+    <string name="ticket_search_placeholder">搜索工单号、问题或设备</string>
+    <string name="ticket_filter_all">全部</string>
+    <string name="ticket_filter_open">处理中</string>
+    <string name="ticket_filter_closed">已结束</string>
+    <string name="ticket_empty_title">没有匹配的工单</string>
+    <string name="ticket_empty_detail">会话升级为人工服务后，关联工单会显示在这里</string>
+    <string name="ticket_id_label">工单 #%1$d</string>
+    <string name="ticket_open_detail">打开工单详情</string>
+    <string name="ticket_product">产品</string>
+    <string name="ticket_assignee">负责人</string>
+    <string name="ticket_assignee_pending">待分配</string>
+    <string name="ticket_priority">优先级</string>
+    <string name="ticket_updated_at">更新时间</string>
+    <string name="ticket_repair_summary">处理结果</string>
+    <string name="ticket_progress">处理进度</string>
+    <string name="ticket_no_progress">暂无处理记录</string>
+    <string name="ticket_confirm_done">确认处理完成</string>
+    <string name="ticket_reopen">问题仍未解决</string>
+    <string name="ticket_rate_service">评价本次服务</string>
+    <string name="ticket_rating_submitted">已提交 %1$d 星服务评价</string>
+    <string name="ticket_reopen_dialog_title">重新打开工单</string>
+    <string name="ticket_reopen_dialog_hint">请说明问题仍未解决的原因。</string>
+    <string name="ticket_reopen_placeholder">未解决的问题</string>
+    <string name="ticket_submit">提交</string>
+    <string name="ticket_feedback_dialog_title">服务评价</string>
+    <string name="ticket_feedback_dialog_hint">请选择 1 到 5 星，并可补充服务意见。</string>
+    <string name="ticket_star_rating">%1$d 星</string>
+    <string name="ticket_feedback_label">补充评价（选填）</string>
+    <string name="ticket_submit_rating">提交评价</string>
+    <string name="ticket_summary_default">售后服务工单</string>
+
+    <!-- Native portal: meetings -->
+    <string name="meeting_filter_upcoming">待参加</string>
+    <string name="meeting_filter_history">历史记录</string>
+    <string name="meeting_empty_upcoming_title">暂无待参加协作</string>
+    <string name="meeting_empty_history_title">暂无历史协作</string>
+    <string name="meeting_empty_detail">与服务工程师建立的视频协作会显示在这里</string>
+    <string name="meeting_open_detail">打开协作详情</string>
+    <string name="meeting_scheduled_at">计划时间</string>
+    <string name="meeting_participants">参与人数</string>
+    <string name="meeting_participant_count">%1$d 人</string>
+    <string name="meeting_duration">协作时长</string>
+    <string name="meeting_transcripts">文字记录</string>
+    <string name="meeting_annotations">AR 标注</string>
+    <string name="meeting_count_unit">%1$d 条</string>
+    <string name="meeting_join">加入视频协作</string>
+    <string name="meeting_archived">该次协作已经归档</string>
+    <string name="meeting_join_busy">正在安全获取自建 Jitsi 房间凭据</string>
+    <string name="meeting_summary_default">售后视频协作</string>
+    <string name="meeting_reference_no_ticket">协作记录 #%1$s</string>
+    <string name="meeting_reference_with_ticket">%1$s · 记录 #%2$s</string>
+
+    <!-- Native portal: devices -->
+    <string name="device_search_placeholder">搜索设备或序列号</string>
+    <string name="device_bind">绑定设备</string>
+    <string name="device_empty_title">没有找到设备</string>
+    <string name="device_empty_detail">输入设备服务码即可绑定，无需扫描二维码</string>
+    <string name="device_default_name">设备</string>
+    <string name="device_no_confirm">设备编号待确认</string>
+    <string name="device_default_detail">设备档案</string>
+    <string name="device_open_detail">打开设备详情</string>
+    <string name="device_bind_hint">请输入设备铭牌或交付资料中的服务码。</string>
+    <string name="device_service_code_label">设备服务码</string>
+    <string name="device_service_code_placeholder">例如 P15-SVC-000001</string>
+    <string name="device_bind_confirm">确认绑定</string>
+    <string name="device_model">型号</string>
+    <string name="device_serial">序列号</string>
+    <string name="device_product_code">产品编码</string>
+    <string name="device_region">区域</string>
+    <string name="device_warranty_until">质保截止</string>
+    <string name="device_profile_incomplete">设备档案尚未完善，服务人员可能会在会话中向你补充确认。</string>
+    <string name="device_metric_open_tickets">处理中工单</string>
+    <string name="device_metric_conversations">咨询记录</string>
+    <string name="device_metric_repairs">维修记录</string>
+    <string name="device_consult">咨询此设备</string>
+    <string name="device_resources">设备资源</string>
+    <string name="device_manuals_count_hint">已关联 %1$d 份设备资料，当前没有可打开的文件</string>
+    <string name="device_no_manuals">暂无可查看的设备资料</string>
+    <string name="device_manual_fallback">设备资料</string>
+    <string name="device_document_fallback">文档</string>
+
+    <!-- Native portal: profile -->
+    <string name="profile_load_failed_title">无法读取账号资料</string>
+    <string name="profile_load_failed_detail">请刷新后重试，登录失效时会自动返回登录页</string>
+    <string name="profile_avatar_fallback">客</string>
+    <string name="profile_customer_account">客户账号</string>
+    <string name="profile_metric_devices">设备</string>
+    <string name="profile_metric_conversations">会话</string>
+    <string name="profile_metric_tickets">工单</string>
+    <string name="profile_metric_meetings">会议</string>
+    <string name="profile_basic_info">基本资料</string>
+    <string name="profile_name">姓名</string>
+    <string name="profile_email">邮箱</string>
+    <string name="profile_mobile">手机号</string>
+    <string name="profile_save">保存资料</string>
+    <string name="profile_glasses_section">现场协作设备</string>
+    <string name="profile_connect_glasses">连接 AR 眼镜</string>
+    <string name="profile_logout">退出登录</string>
+    <string name="profile_delete_account">删除账号</string>
+    <string name="profile_delete_dialog_title">永久删除账号</string>
+    <string name="profile_delete_dialog_hint">账号删除会撤销登录，并按隐私政策处理账号、设备绑定和服务数据。该操作不能通过 App 自行恢复。</string>
+    <string name="profile_current_password">当前密码</string>
+    <string name="profile_delete_confirm_label">输入 DELETE 确认</string>
+    <string name="profile_delete_acknowledged">我已了解账号删除的影响</string>
+    <string name="profile_delete_confirm">永久删除</string>
+
+    <!-- Native portal: gateway -->
+    <string name="gateway_header_tagline">设备远程服务</string>
+    <string name="gateway_header_subtitle">安全连接你的设备服务工作台</string>
+    <string name="gateway_mode_login">登录</string>
+    <string name="gateway_mode_register">注册</string>
+    <string name="gateway_welcome">欢迎回来</string>
+    <string name="gateway_login_subtitle">使用客户账号进入服务工作台</string>
+    <string name="gateway_username_label">账号</string>
+    <string name="gateway_username_placeholder">请输入客户账号</string>
+    <string name="gateway_password_label">密码</string>
+    <string name="gateway_password_placeholder">请输入登录密码</string>
+    <string name="gateway_logging_in">正在登录</string>
+    <string name="gateway_login">登录</string>
+    <string name="gateway_register_title">创建服务账号</string>
+    <string name="gateway_register_subtitle">确认授权信息后，即可开始管理设备服务</string>
+    <string name="gateway_invite_code_label">邀请授权码</string>
+    <string name="gateway_invite_code_placeholder">请输入邀请授权码</string>
+    <string name="gateway_service_code_label">设备服务码</string>
+    <string name="gateway_service_code_placeholder">例如 P15-SVC-000001</string>
+    <string name="gateway_verifying">正在验证</string>
+    <string name="gateway_verify_continue">验证并继续</string>
+    <string name="gateway_username_login_label">登录账号</string>
+    <string name="gateway_username_login_placeholder">设置一个登录账号</string>
+    <string name="gateway_email_label">邮箱</string>
+    <string name="gateway_email_placeholder">用于接收服务通知</string>
+    <string name="gateway_password_hint">至少 8 位字符</string>
+    <string name="gateway_confirm_password_label">确认密码</string>
+    <string name="gateway_confirm_password_placeholder">再次输入登录密码</string>
+    <string name="gateway_back">返回</string>
+    <string name="gateway_registering">正在注册</string>
+    <string name="gateway_register_enter">注册并进入</string>
+    <string name="gateway_method_invite">邀请授权</string>
+    <string name="gateway_method_bind">绑定设备</string>
+    <string name="gateway_auth_confirmed">授权信息已确认</string>
+    <string name="gateway_context_tenant">企业</string>
+    <string name="gateway_context_org">客户组织</string>
+    <string name="gateway_context_product">产品</string>
+    <string name="gateway_context_device">设备</string>
+    <string name="gateway_show_password">显示密码</string>
+    <string name="gateway_hide_password">隐藏密码</string>
+    <string name="gateway_security_title">企业级账号保护</string>
+    <string name="gateway_security_note">登录信息仅用于连接你的设备服务</string>
+
+    <!-- Native portal: gateway errors -->
+    <string name="gateway_error_credentials_required">请输入账号和密码</string>
+    <string name="gateway_error_invite_code_required">请输入邀请授权码</string>
+    <string name="gateway_error_service_code_required">请输入设备服务码</string>
+    <string name="gateway_error_verify_failed">授权信息验证失败</string>
+    <string name="gateway_error_verify_first">请先验证授权信息</string>
+    <string name="gateway_error_username_required">请输入账号</string>
+    <string name="gateway_error_email_invalid">请输入有效邮箱</string>
+    <string name="gateway_error_password_short">密码至少需要 8 个字符</string>
+    <string name="gateway_error_password_mismatch">两次输入的密码不一致</string>
+    <string name="gateway_error_request_failed">请求失败，请稍后重试</string>
+
+    <!-- Native portal: view model notices & errors -->
+    <string name="notice_reading_file">正在读取文件</string>
+    <string name="error_file_read_failed">文件读取失败</string>
+    <string name="error_image_too_large">图片不能超过 20 MB</string>
+    <string name="notice_image_sent">图片已发送</string>
+    <string name="notice_attachment_sent">附件已发送</string>
+    <string name="error_no_attachment">这条消息没有可打开的附件</string>
+    <string name="notice_downloading_attachment">正在下载附件</string>
+    <string name="conversation_attachment_fallback">会话附件</string>
+    <string name="error_no_viewer_app">手机上没有可以打开该附件的应用</string>
+    <string name="error_attachment_open_failed">附件打开失败</string>
+    <string name="notice_human_support_submitted">已提交人工支持请求</string>
+    <string name="notice_ticket_confirmed">工单已确认完成</string>
+    <string name="notice_ticket_reopened">工单已重新打开</string>
+    <string name="notice_feedback_submitted">服务评价已提交</string>
+    <string name="notice_meeting_config_ready">已取得自建 Jitsi 房间配置</string>
+    <string name="notice_device_bound">设备绑定成功</string>
+    <string name="notice_profile_saved">资料已保存</string>
+    <string name="error_request_failed">请求失败</string>
+    <string name="error_login_expired">登录已失效</string>
+    <string name="error_pick_image">请选择图片文件</string>
+    <string name="error_file_too_large">文件不能超过 20 MB</string>
+    <string name="error_cannot_read_file">无法读取所选文件</string>
+    <string name="error_empty_file">不能发送空文件</string>
+    <string name="media_camera_filename">现场照片.jpg</string>
+    <string name="media_attachment_filename">设备附件</string>
+
+    <!-- Native portal: api errors -->
+    <string name="api_error_file_unavailable">待发送文件已经不可用，请重新选择</string>
+    <string name="api_error_upload_no_asset">上传成功但服务器没有返回文件信息</string>
+    <string name="api_error_invalid_asset_id">服务器没有返回有效文件标识</string>
+    <string name="api_error_invalid_attachment_id">附件标识无效</string>
+    <string name="api_error_download_failed">附件下载失败</string>
+    <string name="api_error_attachment_too_large">附件超过 50 MB，无法在 App 内打开</string>
+    <string name="api_error_empty_attachment">服务器返回了空附件</string>
+    <string name="api_error_unparsable">服务器返回了无法解析的数据</string>
+    <string name="api_error_request_failed">请求失败</string>
+
+    <!-- Native portal: auth errors -->
+    <string name="auth_error_not_customer">该账号不是用户端账号，请使用用户端账号登录</string>
+    <string name="auth_error_no_credentials">服务器没有返回有效登录凭据</string>
+    <string name="auth_error_request_failed">请求失败，请稍后重试</string>
+    <string name="auth_error_empty_data">服务器返回的数据为空</string>
+    <string name="auth_display_name_default">用户端</string>
+
+    <!-- Native portal: notifications -->
+    <string name="notification_channel_name">会话消息</string>
+    <string name="notification_channel_description">设备咨询、在线接待与工程师回复</string>
+    <string name="notification_fallback_body">您有一条新的设备服务消息</string>
+
+    <!-- Native glasses: common -->
+    <string name="glasses_checking_capabilities">检查手机连接能力中</string>
+    <string name="glasses_connection_title">AR 眼镜连接</string>
+    <string name="glasses_workbench_subtitle">RemoteHelpDesk 原生设备工作台</string>
+    <string name="glasses_back">返回</string>
+    <string name="glasses_connection_method">连接方式</string>
+    <string name="glasses_bluetooth">蓝牙</string>
+    <string name="glasses_transport_wifi_direct">Wi-Fi Direct</string>
+    <string name="glasses_searching">正在搜索</string>
+    <string name="glasses_search_nearby_devices">搜索附近设备</string>
+    <string name="glasses_nearby_devices_title">附近设备</string>
+    <string name="glasses_device_count">%1$d 台</string>
+    <string name="glasses_signal_strength_dbm">%1$d dBm</string>
+    <string name="glasses_endpoint_label">连接端点 %1$s</string>
+    <string name="glasses_connect_device">连接 %1$s</string>
+    <string name="glasses_waiting_vendor_protocol">等待厂商蓝牙协议</string>
+    <string name="glasses_waiting_for_devices">正在等待设备响应</string>
+    <string name="glasses_no_devices_found">尚未发现附近设备</string>
+    <string name="glasses_paired">已配对</string>
+    <string name="glasses_selected">已选择</string>
+
+    <!-- Native glasses: capabilities -->
+    <string name="glasses_capability_unsupported">不支持</string>
+    <string name="glasses_capability_disabled">未开启</string>
+    <string name="glasses_capability_pending_auth">待授权</string>
+    <string name="glasses_capability_ready">已就绪</string>
+    <string name="glasses_capability_enabled">已开启</string>
+
+    <!-- Native glasses: bluetooth discovery & status -->
+    <string name="glasses_bt_searching">正在搜索附近蓝牙设备</string>
+    <string name="glasses_bt_no_devices_found">未发现附近蓝牙设备</string>
+    <string name="glasses_bt_scan_complete">蓝牙扫描完成</string>
+    <string name="glasses_bt_scan_failed">蓝牙扫描失败（错误码 %1$d）</string>
+    <string name="glasses_bt_unsupported">此设备不支持低功耗蓝牙</string>
+    <string name="glasses_bt_phone_unsupported">此手机不支持低功耗蓝牙</string>
+    <string name="glasses_bt_enable_required">请先打开手机蓝牙</string>
+    <string name="glasses_bt_scanner_unavailable">蓝牙扫描器暂不可用</string>
+    <string name="glasses_bt_paired_device_fallback">已配对蓝牙设备</string>
+    <string name="glasses_bt_unnamed_device">未命名蓝牙设备</string>
+    <string name="glasses_bt_permission_required">需要附近蓝牙设备权限</string>
+    <string name="glasses_bt_permission_required_search">需要附近蓝牙设备权限才能搜索眼镜</string>
+    <string name="glasses_bt_ready">蓝牙已就绪</string>
+    <string name="glasses_bt_vendor_not_configured">尚未配置该眼镜厂商的蓝牙 GATT 或 Android SDK</string>
+    <string name="glasses_err_bluetooth_needs_vendor_protocol">该蓝牙设备需要对应眼镜厂商的 GATT 或 SDK 协议</string>
+
+    <!-- Native glasses: Wi-Fi Direct discovery & status -->
+    <string name="glasses_wifi_direct_searching">正在搜索附近 Wi-Fi Direct 设备</string>
+    <string name="glasses_wifi_direct_unsupported">此设备不支持 Wi-Fi Direct</string>
+    <string name="glasses_wifi_direct_phone_unsupported">此手机不支持 Wi-Fi Direct</string>
+    <string name="glasses_wifi_direct_unavailable">Wi-Fi Direct 当前不可用</string>
+    <string name="glasses_wifi_direct_scan_failed">Wi-Fi Direct 搜索失败（错误码 %1$d）</string>
+    <string name="glasses_wifi_direct_connect_failed">Wi-Fi Direct 连接失败（错误码 %1$d）</string>
+    <string name="glasses_wifi_direct_permission_missing">缺少附近 Wi-Fi 设备权限</string>
+    <string name="glasses_wifi_direct_permission_required_search">需要附近 Wi-Fi 设备权限才能搜索眼镜</string>
+    <string name="glasses_wifi_direct_connecting">正在请求连接 %1$s</string>
+    <string name="glasses_wifi_direct_request_sent">连接请求已发送，等待设备确认</string>
+    <string name="glasses_wifi_direct_unnamed_device">未命名 Wi-Fi 设备</string>
+    <string name="glasses_wifi_direct_devices_found">发现 %1$d 台 Wi-Fi Direct 设备</string>
+    <string name="glasses_wifi_direct_connected">Wi-Fi Direct 连接已建立</string>
+    <string name="glasses_wifi_direct_ready">Wi-Fi Direct 已就绪</string>
+    <string name="glasses_wifi_enable_required">请先打开手机 Wi-Fi</string>
+    <string name="glasses_wifi_permission_required">需要附近 Wi-Fi 设备权限</string>
+
+    <!-- Native glasses: selection & connection -->
+    <string name="glasses_device_selected_wifi">已选择 %1$s，可以请求建立 Wi-Fi Direct 连接</string>
+    <string name="glasses_device_recognized_vendor">已识别 %1$s 的厂商连接协议</string>
+    <string name="glasses_device_discovered_bt_limited">已发现 %1$s；蓝牙控制需要对应眼镜厂商协议</string>
+    <string name="glasses_connecting_device">正在连接 %1$s</string>
+</resources>

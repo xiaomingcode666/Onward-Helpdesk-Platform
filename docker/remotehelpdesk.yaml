@@ -1,0 +1,124 @@
+# RemoteHelpDesk local container configuration.
+language: zh-CN
+
+server:
+  port: 8083
+  cors:
+    # 浏览器跨域白名单。生产部署时改为实际前端/嵌入站点域名。
+    allowedOrigins:
+      - http://127.0.0.1:8083
+      - http://localhost:8083
+
+db:
+  type: postgres
+  dsn: host=postgres user=cs_ai_agent password=cs_ai_agent_password dbname=cs_ai_agent port=5432 sslmode=disable TimeZone=Asia/Shanghai
+  maxIdleConns: 5
+  maxOpenConns: 20
+  connMaxIdleTimeSeconds: 300
+  connMaxLifetimeSeconds: 1800
+
+redis:
+  addr: redis:6379
+  password: ""
+  db: 0
+
+logger:
+  level: info
+  format: text
+  addSource: false
+
+auth:
+  tokenTTLHours: 72
+  maxFailedAttempts: 5
+  credentialLockMinute: 15
+
+customerSession:
+  secret: replace-with-a-random-secret
+  ttlMinutes: 120
+  refreshThresholdMinutes: 30
+
+storage:
+  default: minio
+  maxUploadSizeMB: 20
+  local:
+    root: /app/data/storage
+    baseUrl: /storage
+  oss:
+    endpoint: ""
+    bucket: ""
+    accessKeyId: ""
+    accessKeySecret: ""
+    baseUrl: ""
+    private: false
+    signedUrlExpireSeconds: 600
+  minio:
+    endpoint: minio:9000
+    publicEndpoint: ""
+    bucket: remotehelpdesk-assets
+    accessKeyId: remotehelpdesk
+    accessKeySecret: remotehelpdesk123
+    baseUrl: http://localhost:9000/remotehelpdesk-assets
+    region: us-east-1
+    useSsl: false
+    private: false
+    signedUrlExpireSeconds: 600
+
+vectorDB:
+  type: qdrant
+  qdrant:
+    host: qdrant
+    grpcPort: 6334
+    apiKey: ""
+    useTls: false
+  # LanceDB requires building the backend with -tags lancedb and LanceDB native libraries.
+  lancedb:
+    path: /app/data/lancedb
+
+rag:
+  enabled: false
+  runtimeEnabled: false
+  ingestionEnabled: false
+  hybridEnabled: false
+  retrievalMode: auto
+  activeCollectionAlias: knowledge_chunks_active
+  collectionPrefix: knowledge_chunks
+  schemaVersion: 2
+  taskBatchSize: 20
+  taskInterval: 5s
+  maxRetries: 5
+  contextMaxTokens: 4000
+  maxContextItems: 5
+  denseTopK: 30
+  lexicalTopK: 12
+  hybridDenseMinHits: 3
+  hybridDenseMinScore: 0.55
+  rrfK: 60
+  rerankTopN: 5
+  rerankMaxCandidates: 12
+  rerankSkipTopScore: 0.82
+
+mcp:
+  enabled: true
+  servers:
+    system:
+      enabled: true
+      endpoint: "http://127.0.0.1:8083/api/mcp"
+      timeoutMs: 15000
+      headers: {}
+
+wxWork:
+  enabled: false
+  corpId: ""
+  corpSecret: ""
+  agentId: ""
+  oauthRedirect: ""
+  stateSecret: ""
+  rsaPrivateKey: ""
+  token: ""
+  encodingAESKey: ""
+  notify:
+    enabled: false
+    toUsers: []
+    safe: false
+    enableDuplicateCheck: true
+    duplicateCheckInterval: 1800

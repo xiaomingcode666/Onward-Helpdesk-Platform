@@ -1,0 +1,273 @@
+# syntax=docker/dockerfile:1.7
+#
+# =============================================================================
+# RemoteHelpDesk — Production Dockerfile (Multi-stage Build)
+# =============================================================================
+#
+# This Dockerfile produces a minimal production image using multi-stage builds:
+#   Stage 1 (web-builder):     Build Next.js frontend static assets
+#   Stage 2 (server-builder):  Compile API-only Go backend binary
+#   Stage 3 (api):             API-only backend container
+#   Stage 4 (web):             Nginx frontend static container
+#
+# Build:
+#   docker build --target api -t remotehelpdesk-api:latest -f Dockerfile.prod .
+#   docker build --target web -t remotehelpdesk-web:latest -f Dockerfile.prod .
+#   docker build -t remotehelpdesk:latest -f Dockerfile.prod .  # API-only default
+#   docker build --target api-lancedb -t remotehelpdesk-api:lancedb -f Dockerfile.prod .
+#
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Stage 1: Frontend Builder
+# ---------------------------------------------------------------------------
+FROM node:22-alpine AS web-builder
+WORKDIR /src/web
+
+ARG PNPM_REGISTRY=https://registry.npmjs.org
+ARG NEXT_PUBLIC_LOCAL_LOGIN_PLATFORM_PASSWORD=""
+ARG NEXT_PUBLIC_LOCAL_LOGIN_ENTERPRISE_PASSWORD=""
+ARG NEXT_PUBLIC_LOCAL_LOGIN_PARTNER_PASSWORD=""
+ARG NEXT_PUBLIC_LOCAL_LOGIN_CUSTOMER_PASSWORD=""
+ENV NEXT_PUBLIC_LOCAL_LOGIN_PLATFORM_PASSWORD=${NEXT_PUBLIC_LOCAL_LOGIN_PLATFORM_PASSWORD} \
+    NEXT_PUBLIC_LOCAL_LOGIN_ENTERPRISE_PASSWORD=${NEXT_PUBLIC_LOCAL_LOGIN_ENTERPRISE_PASSWORD} \
+    NEXT_PUBLIC_LOCAL_LOGIN_PARTNER_PASSWORD=${NEXT_PUBLIC_LOCAL_LOGIN_PARTNER_PASSWORD} \
+    NEXT_PUBLIC_LOCAL_LOGIN_CUSTOMER_PASSWORD=${NEXT_PUBLIC_LOCAL_LOGIN_CUSTOMER_PASSWORD}
+
+RUN corepack enable \
+    && corepack prepare pnpm@10.30.2 --activate \
+    && pnpm config set registry ${PNPM_REGISTRY}
+
+# Cache dependency layer
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
+
+# Build
+COPY web/ ./
+# Static export used by the frontend Nginx runtime image.
+RUN pnpm build:sdk && pnpm build:static
+
+# ---------------------------------------------------------------------------
+# Stage 2: Go API Builder (standard, no CGO)
+# ---------------------------------------------------------------------------
+FROM golang:1.26-alpine AS server-builder
+WORKDIR /src
+
+RUN apk add --no-cache git ca-certificates tzdata
+
+ARG GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=${GOPROXY}
+
+# Cache Go modules
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+# Build binary with full optimization
+COPY . ./
+
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+ARG VERSION=unknown
+ARG COMMIT=unknown
+ARG BUILDTIME=unknown
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 \
+    GOOS=${TARGETOS} \
+    GOARCH=${TARGETARCH} \
+    go build \
+      -v \
+      -trimpath \
+      -ldflags="-s -w \
+        -X remotehelpdesk/internal/version.Version=${VERSION} \
+        -X remotehelpdesk/internal/version.Commit=${COMMIT} \
+        -X remotehelpdesk/internal/version.BuildTime=${BUILDTIME}" \
+      -o /out/remotehelpdesk \
+      ./cmd/server
+
+# ---------------------------------------------------------------------------
+# Stage 3: Minimal API Runtime Image
+# ---------------------------------------------------------------------------
+FROM alpine:3.22 AS api
+WORKDIR /app
+
+# Runtime environment defaults. Secrets are injected by compose or docker run.
+ENV TZ=UTC \
+    LLM_SOURCE=auto \
+    EMBEDDING_SOURCE=auto \
+    SUB2API_BASE_URL="" \
+    SUB2API_ADMIN_API_KEY="" \
+    SUB2API_DEFAULT_KEY="" \
+    SUB2API_DEFAULT_MODEL="" \
+    SUB2API_LLM_MODEL="" \
+    SUB2API_EMBEDDING_MODEL="" \
+    SUB2API_EMBEDDING_DIM="" \
+    OPENAI_API_KEY="" \
+    OPENAI_BASE_URL="" \
+    LLM_MODEL="" \
+    EMBEDDING_MODEL=text-embedding-v3 \
+    EMBEDDING_DIM=1024
+
+# Create non-root user and directories
+RUN addgroup -S appgroup \
+    && adduser -S appuser -G appgroup \
+    && apk add --no-cache \
+      ca-certificates \
+      tzdata \
+      wget \
+      curl \
+    && mkdir -p /app/config /app/data/storage \
+    && chown -R appuser:appgroup /app
+
+# Copy binary and config
+COPY --from=server-builder /out/remotehelpdesk /app/remotehelpdesk
+COPY --from=server-builder /usr/share/zoneinfo /usr/share/zoneinfo
+COPY config/config.example.yaml /app/config/config.example.yaml
+COPY config/config.example.yaml /app/config/config.yaml
+
+# Security: readonly root filesystem, non-root user
+RUN chmod 755 /app/remotehelpdesk \
+    && chown appuser:appgroup /app/config/config.yaml
+
+USER appuser
+
+EXPOSE 8083
+VOLUME ["/app/data"]
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
+    CMD wget -qO- http://127.0.0.1:8083/api/health >/dev/null || exit 1
+
+CMD ["/app/remotehelpdesk", "-config", "/app/config/config.yaml"]
+
+# ---------------------------------------------------------------------------
+# Stage 4: Frontend Runtime Image
+# ---------------------------------------------------------------------------
+FROM nginx:1.27-alpine AS web
+
+COPY deploy/1panel/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=web-builder /src/web/out /usr/share/nginx/html
+
+EXPOSE 80
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -qO- http://127.0.0.1/health >/dev/null || exit 1
+
+# ---------------------------------------------------------------------------
+# Alternative: LanceDB Runtime Image (CGO required, Debian-based)
+# ---------------------------------------------------------------------------
+FROM golang:1.26-trixie AS server-builder-lancedb
+WORKDIR /src
+
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+ARG LANCEDB_VERSION=v0.1.2
+ARG GOPROXY=https://proxy.golang.org,direct
+ARG VERSION=unknown
+ARG COMMIT=unknown
+ARG BUILDTIME=unknown
+
+ENV GOPROXY=${GOPROXY}
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+      bash binutils build-essential ca-certificates curl file git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+COPY . ./
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    set -eux; \
+    if [ "${TARGETOS}" != "linux" ]; then \
+        echo "LanceDB Docker image supports TARGETOS=linux only, got ${TARGETOS}" >&2; \
+        exit 1; \
+    fi; \
+    arch="${TARGETARCH:-$(go env GOARCH)}"; \
+    case "$arch" in \
+        amd64) ;; \
+        *) echo "LanceDB Docker image currently supports linux/amd64 only, got linux/$arch" >&2; exit 1 ;; \
+    esac; \
+    mkdir -p /out; \
+    curl -fL --retry 3 --retry-delay 2 -o /tmp/lancedb-go-native-binaries.tar.gz \
+        "https://github.com/lancedb/lancedb-go/releases/download/${LANCEDB_VERSION}/lancedb-go-native-binaries.tar.gz"; \
+    tar -xzf /tmp/lancedb-go-native-binaries.tar.gz -C /src; \
+    test -f "/src/include/lancedb.h"; \
+    test -f "/src/lib/linux_$arch/liblancedb_go.so"; \
+    CGO_ENABLED=1 GOOS="${TARGETOS}" GOARCH="$arch" \
+    CGO_CFLAGS="-I/src/include" \
+    CGO_LDFLAGS="-L/src/lib/linux_$arch -llancedb_go -Wl,-rpath,/usr/local/lib -lm -ldl -lpthread" \
+    go build \
+      -tags lancedb \
+      -v \
+      -trimpath \
+      -ldflags="-s -w \
+        -X remotehelpdesk/internal/version.Version=${VERSION} \
+        -X remotehelpdesk/internal/version.Commit=${COMMIT} \
+        -X remotehelpdesk/internal/version.BuildTime=${BUILDTIME}" \
+      -o /out/remotehelpdesk \
+      ./cmd/server; \
+    cp "/src/lib/linux_$arch/liblancedb_go.so" /out/liblancedb_go.so
+
+FROM debian:trixie-slim AS api-lancedb
+WORKDIR /app
+
+ENV TZ=UTC \
+    LLM_SOURCE=auto \
+    EMBEDDING_SOURCE=auto \
+    SUB2API_BASE_URL="" \
+    SUB2API_ADMIN_API_KEY="" \
+    SUB2API_DEFAULT_KEY="" \
+    SUB2API_DEFAULT_MODEL="" \
+    SUB2API_LLM_MODEL="" \
+    SUB2API_EMBEDDING_MODEL="" \
+    SUB2API_EMBEDDING_DIM="" \
+    OPENAI_API_KEY="" \
+    OPENAI_BASE_URL="" \
+    LLM_MODEL="" \
+    EMBEDDING_MODEL=text-embedding-v3 \
+    EMBEDDING_DIM=1024
+ENV LD_LIBRARY_PATH=/usr/local/lib
+
+# Create non-root user
+RUN addgroup --system appgroup \
+    && adduser --system --ingroup appgroup appuser \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      libgcc-s1 \
+      tzdata \
+      wget \
+      curl \
+    && mkdir -p /app/config /app/data/storage /app/data/lancedb \
+    && chown -R appuser:appgroup /app \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=server-builder-lancedb /out/remotehelpdesk /app/remotehelpdesk
+COPY --from=server-builder-lancedb /out/liblancedb_go.so /usr/local/lib/liblancedb_go.so
+COPY config/config.example.yaml /app/config/config.example.yaml
+COPY config/config.example.yaml /app/config/config.yaml
+
+RUN chmod 755 /app/remotehelpdesk \
+    && chown appuser:appgroup /app/config/config.yaml
+
+USER appuser
+
+EXPOSE 8083
+VOLUME ["/app/data"]
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
+    CMD wget -qO- http://127.0.0.1:8083/api/health >/dev/null || exit 1
+
+CMD ["/app/remotehelpdesk", "-config", "/app/config/config.yaml"]
+
+# ---------------------------------------------------------------------------
+# Default Runtime Image
+# ---------------------------------------------------------------------------
+FROM api AS default

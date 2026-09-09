@@ -1,0 +1,42 @@
+{
+  "go.lintTool": "golangci-lint",
+  "go.testFlags": [
+    "-v",
+    "-race"
+  ],
+  "go.testTimeout": "60s",
+  "go.coverOnSave": true,
+  "go.useLanguageServer": true,
+  "[go]": {
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "[go.mod]": {
+    "editor.formatOnSave": true
+  },
+  "go.toolsManagement.autoUpdate": true,
+  "go.vetOnSave": "package",
+  "files.exclude": {
+    "dist/": true,
+    "tmp/": true
+  },
+  "search.exclude": {
+    "dist/": true,
+    "node_modules/": true,
+    "web/.next/": true
+  },
+  "files.watcherExclude": {
+    "dist/": true,
+    "node_modules/": true,
+    "web/.next/": true
+  },
+  "editor.rulers": [
+    120
+  ],
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true
+}

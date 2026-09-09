@@ -1,0 +1,344 @@
+{
+  "manifestVersion": 1,
+  "code": "knowledge_customer_service_default",
+  "name": "平台 AI 知识问答客服流程",
+  "description": "基于租户通用知识库提供 AI 咨询，并支持用户主动转人工",
+  "initialChange": "平台租户级知识问答流程初始稳定版本",
+  "upgradeChange": "完善租户知识问答来源展示与人工协同路径",
+  "definition": {
+    "schemaVersion": 1,
+    "entryNodeId": "start_1",
+    "modelPolicy": {
+      "credentialChain": [
+        "tenant_default"
+      ]
+    },
+    "runtimeVariables": [
+      {
+        "key": "context.tenantId",
+        "type": "int64",
+        "source": "conversation.tenantId",
+        "required": true,
+        "description": "当前会话所属租户"
+      },
+      {
+        "key": "context.conversationId",
+        "type": "int64",
+        "source": "conversation.id",
+        "required": true,
+        "description": "当前会话"
+      },
+      {
+        "key": "agent.rag.knowledgeBaseIds",
+        "type": "array<int64>",
+        "source": "agentRelease.knowledgeScope.bindings[].knowledgeBaseId",
+        "required": true,
+        "description": "机器人发布版本注入的租户知识库 ID 白名单"
+      },
+      {
+        "key": "agent.rag.revisionIds",
+        "type": "array<int64>",
+        "source": "agentRelease.knowledgeScope.revisions[].revisionId",
+        "required": true,
+        "description": "机器人发布版本固定的已发布知识修订"
+      },
+      {
+        "key": "agent.model.llm",
+        "type": "string",
+        "source": "agentRelease.agentConfig.llmModelName",
+        "required": true,
+        "description": "机器人发布版本固定的对话模型"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "start_1",
+        "type": "start",
+        "name": "用户发起咨询",
+        "position": {
+          "x": 0,
+          "y": 320
+        },
+        "config": null
+      },
+      {
+        "id": "analysis_1",
+        "type": "analyze_conversation",
+        "name": "识别人工诉求",
+        "position": {
+          "x": 320,
+          "y": 320
+        },
+        "config": {},
+        "inputs": {
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "safe_reply_1"
+      },
+      {
+        "id": "analysis_route_1",
+        "type": "condition",
+        "name": "服务方式分流",
+        "position": {
+          "x": 640,
+          "y": 320
+        },
+        "config": {
+          "branches": [
+            {
+              "id": "handoff_to_human",
+              "name": "转人工接入",
+              "targetNodeId": "handoff_1",
+              "condition": {
+                "left": {
+                  "nodeId": "analysis_1",
+                  "field": "needHumanHandoff"
+                },
+                "operator": "is_true"
+              }
+            },
+            {
+              "id": "knowledge_answer",
+              "name": "继续知识问答",
+              "targetNodeId": "tenant_retrieve_1",
+              "default": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "tenant_retrieve_1",
+        "type": "knowledge_retrieve",
+        "name": "企业通用知识检索",
+        "position": {
+          "x": 960,
+          "y": 320
+        },
+        "config": {
+          "bindingMethod": "agent_default",
+          "audience": "conversation",
+          "topK": 8,
+          "scoreThreshold": 0.3
+        },
+        "inputs": {
+          "query": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "safe_reply_1"
+      },
+      {
+        "id": "knowledge_reply_1",
+        "type": "llm_reply",
+        "name": "生成知识回答",
+        "position": {
+          "x": 1280,
+          "y": 320
+        },
+        "config": {
+          "allowEmptyKnowledge": true,
+          "prompt": "你是企业知识服务助手。一般问候可以自然简短回应；对于事实性问题，只能依据检索到的企业已发布知识回答。没有足够知识时明确说明暂时无法确认，并询问完成回答所需的最少信息。不得要求用户绑定产品或设备，不得编造制度、流程、费用、时效或服务承诺。用户可以主动请求转人工，但只有工作流动作实际成功后才能声称已经转接；不得声称已经创建工单。"
+        },
+        "inputs": {
+          "knowledgeItems": {
+            "nodeId": "tenant_retrieve_1",
+            "field": "items"
+          },
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "safe_reply_1"
+      },
+      {
+        "id": "send_reply_1",
+        "type": "send_reply",
+        "name": "发送知识回答",
+        "position": {
+          "x": 1600,
+          "y": 320
+        },
+        "config": null,
+        "inputs": {
+          "citations": {
+            "nodeId": "tenant_retrieve_1",
+            "field": "citations"
+          },
+          "replyText": {
+            "nodeId": "knowledge_reply_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "safe_reply_1",
+        "type": "llm_reply",
+        "name": "知识不足提示",
+        "position": {
+          "x": 960,
+          "y": 0
+        },
+        "config": {
+          "staticReply": "当前企业知识库暂时没有足够资料回答这个问题。请补充更具体的主题、场景或你希望确认的内容，我会继续为你查找；你也可以主动选择转人工。"
+        },
+        "inputs": {
+          "userMessage": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        }
+      },
+      {
+        "id": "safe_send_1",
+        "type": "send_reply",
+        "name": "发送知识不足提示",
+        "position": {
+          "x": 1280,
+          "y": 0
+        },
+        "config": null,
+        "inputs": {
+          "replyText": {
+            "nodeId": "safe_reply_1",
+            "field": "replyText"
+          }
+        }
+      },
+      {
+        "id": "handoff_1",
+        "type": "handoff_to_human",
+        "name": "转人工",
+        "position": {
+          "x": 960,
+          "y": 640
+        },
+        "config": {},
+        "inputs": {
+          "reason": {
+            "nodeId": "start_1",
+            "field": "userMessage"
+          }
+        },
+        "errorTargetNodeId": "safe_reply_1"
+      },
+      {
+        "id": "handoff_send_1",
+        "type": "send_reply",
+        "name": "发送转人工结果",
+        "position": {
+          "x": 1280,
+          "y": 640
+        },
+        "config": {},
+        "inputs": {
+          "replyText": {
+            "nodeId": "handoff_1",
+            "field": "message"
+          }
+        }
+      },
+      {
+        "id": "handoff_end_1",
+        "type": "end",
+        "name": "人工接待中",
+        "position": {
+          "x": 1600,
+          "y": 640
+        },
+        "config": null
+      },
+      {
+        "id": "end_1",
+        "type": "end",
+        "name": "知识咨询完成",
+        "position": {
+          "x": 1920,
+          "y": 320
+        },
+        "config": null
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge_start_analysis",
+        "source": "start_1",
+        "target": "analysis_1"
+      },
+      {
+        "id": "edge_analysis_route",
+        "source": "analysis_1",
+        "target": "analysis_route_1"
+      },
+      {
+        "id": "edge_analysis_safe",
+        "source": "analysis_1",
+        "target": "safe_reply_1"
+      },
+      {
+        "id": "edge_route_handoff",
+        "source": "analysis_route_1",
+        "target": "handoff_1"
+      },
+      {
+        "id": "edge_route_retrieve",
+        "source": "analysis_route_1",
+        "target": "tenant_retrieve_1"
+      },
+      {
+        "id": "edge_retrieve_reply",
+        "source": "tenant_retrieve_1",
+        "target": "knowledge_reply_1"
+      },
+      {
+        "id": "edge_retrieve_safe",
+        "source": "tenant_retrieve_1",
+        "target": "safe_reply_1"
+      },
+      {
+        "id": "edge_reply_send",
+        "source": "knowledge_reply_1",
+        "target": "send_reply_1"
+      },
+      {
+        "id": "edge_reply_safe",
+        "source": "knowledge_reply_1",
+        "target": "safe_reply_1"
+      },
+      {
+        "id": "edge_send_end",
+        "source": "send_reply_1",
+        "target": "end_1"
+      },
+      {
+        "id": "edge_safe_reply_send",
+        "source": "safe_reply_1",
+        "target": "safe_send_1"
+      },
+      {
+        "id": "edge_safe_send_end",
+        "source": "safe_send_1",
+        "target": "end_1"
+      },
+      {
+        "id": "edge_handoff_send",
+        "source": "handoff_1",
+        "target": "handoff_send_1"
+      },
+      {
+        "id": "edge_handoff_safe",
+        "source": "handoff_1",
+        "target": "safe_reply_1"
+      },
+      {
+        "id": "edge_handoff_end",
+        "source": "handoff_send_1",
+        "target": "handoff_end_1"
+      }
+    ]
+  }
+}

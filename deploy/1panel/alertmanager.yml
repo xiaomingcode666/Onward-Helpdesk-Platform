@@ -1,0 +1,15 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: local-log-only
+  group_by: [alertname, severity]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+# This default receiver keeps alerts visible in Alertmanager without sending
+# them outside the deployment. Replace this file with a customer-approved
+# webhook, email or chat receiver before operational acceptance.
+receivers:
+  - name: local-log-only

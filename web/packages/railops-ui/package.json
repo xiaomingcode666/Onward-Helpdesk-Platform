@@ -1,0 +1,42 @@
+{
+  "name": "@railops/ui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "files": ["src", "dist"],
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./tokens": {
+      "types": "./src/tokens-entry.ts",
+      "import": "./src/tokens-entry.ts"
+    },
+    "./charts": {
+      "types": "./src/charts.ts",
+      "import": "./src/charts.ts"
+    },
+    "./styles.css": "./src/styles.css"
+  },
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "tokens": "node scripts/gen-tokens-css.mjs"
+  },
+  "peerDependencies": {
+    "@ant-design/icons": ">=5.0.0",
+    "antd": ">=5.0.0",
+    "echarts": ">=5.0.0",
+    "echarts-for-react": ">=3.0.0",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5"
+  }
+}

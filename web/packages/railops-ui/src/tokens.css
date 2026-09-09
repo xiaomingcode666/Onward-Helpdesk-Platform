@@ -1,0 +1,53 @@
+/* AUTO-GENERATED from src/tokens.ts by scripts/gen-tokens-css.mjs — DO NOT EDIT.
+   改设计 token 后执行 npm run tokens 重新生成。 */
+
+:root {
+  --railops-primary: #3B82F6;
+  --railops-primary-hover: #2563EB;
+  --railops-primary-active: #1D4ED8;
+  --railops-primary-bg: #EFF6FF;
+  --railops-primary-soft: #dbeafe;
+  --railops-success: #10B981;
+  --railops-success-bg: #ECFDF5;
+  --railops-warning: #F59E0B;
+  --railops-warning-bg: #FFFBEB;
+  --railops-error: #EF4444;
+  --railops-error-bg: #FEF2F2;
+  --railops-text: #1E293B;
+  --railops-text-secondary: #64748B;
+  --railops-text-tertiary: #94A3B8;
+  --railops-border: #E2E8F0;
+  --railops-border-light: #F1F5F9;
+  --railops-border-strong: #d1d5db;
+  --railops-surface: #FFFFFF;
+  --railops-surface-muted: #F8FAFC;
+  --railops-surface-hover: #f3f4f6;
+  --railops-layout-background: #F5F7FA;
+  --railops-card-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  --railops-header-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  --railops-dropdown-shadow: 0 8px 24px rgba(15, 23, 42, 0.10);
+  --railops-modal-shadow: 0 16px 40px rgba(15, 23, 42, 0.14);
+  --railops-float-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --railops-font-2xs: 10px;
+  --railops-font-xs: 11px;
+  --railops-font-sm: 12px;
+  --railops-font-md: 13px;
+  --railops-font-lg: 14px;
+  --railops-font-xl: 15px;
+  --railops-font-2xl: 16px;
+  --railops-font-3xl: 18px;
+  --railops-font-4xl: 20px;
+  --railops-font-5xl: 24px;
+}
+
+.dark {
+  --railops-text: #e5e7eb;
+  --railops-text-secondary: #9ca3af;
+  --railops-border: #374151;
+  --railops-border-strong: #4b5563;
+  --railops-surface-muted: #111827;
+  --railops-surface-hover: #1f2937;
+  --railops-primary-bg: #1e3a5f;
+  --railops-primary-soft: #1e3a5f;
+  --railops-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}

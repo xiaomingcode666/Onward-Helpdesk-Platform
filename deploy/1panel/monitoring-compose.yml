@@ -1,0 +1,101 @@
+x-monitoring-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  postgres-exporter:
+    profiles: ["monitoring"]
+    image: ${POSTGRES_EXPORTER_IMAGE:-prometheuscommunity/postgres-exporter:latest}
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATA_SOURCE_URI: postgres:5432/${POSTGRES_DB:-cs_ai_agent}?sslmode=disable
+      DATA_SOURCE_USER: ${POSTGRES_USER:-cs_ai_agent}
+      DATA_SOURCE_PASS: ${POSTGRES_PASSWORD}
+    expose:
+      - "9187"
+    security_opt:
+      - no-new-privileges:true
+
+  redis-exporter:
+    profiles: ["monitoring"]
+    image: ${REDIS_EXPORTER_IMAGE:-oliver006/redis_exporter:latest}
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    expose:
+      - "9121"
+    security_opt:
+      - no-new-privileges:true
+
+  node-exporter:
+    profiles: ["monitoring"]
+    image: ${NODE_EXPORTER_IMAGE:-prom/node-exporter:latest}
+    restart: unless-stopped
+    logging: *default-logging
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/host/root
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+      - --collector.textfile.directory=/var/lib/node_exporter/textfile
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
+      - ${RHD_METRICS_DIR:-./metrics}:/var/lib/node_exporter/textfile:ro
+    expose:
+      - "9100"
+    security_opt:
+      - no-new-privileges:true
+
+  alertmanager:
+    profiles: ["monitoring"]
+    image: ${ALERTMANAGER_IMAGE:-quay.io/prometheus/alertmanager:latest}
+    restart: unless-stopped
+    logging: *default-logging
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ${RHD_ALERTMANAGER_CONFIG_FILE:-./alertmanager.yml}:/etc/alertmanager/alertmanager.yml:ro
+      - ${RHD_DATA_DIR:-./volumes}/alertmanager:/alertmanager
+    ports:
+      - ${ALERTMANAGER_BIND_IP:-127.0.0.1}:${ALERTMANAGER_PORT:-9093}:9093
+    security_opt:
+      - no-new-privileges:true
+
+  prometheus:
+    profiles: ["monitoring"]
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:latest}
+    restart: unless-stopped
+    logging: *default-logging
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - ${RHD_DATA_DIR:-./volumes}/prometheus:/prometheus
+    ports:
+      - ${PROMETHEUS_BIND_IP:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090
+    depends_on:
+      - postgres-exporter
+      - redis-exporter
+      - node-exporter
+      - alertmanager
+      - api
+    security_opt:
+      - no-new-privileges:true

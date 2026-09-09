@@ -1,0 +1,435 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+  cat <<'USAGE'
+RemoteHelpDesk private deployment control
+
+Usage:
+  ./rhdctl [--env-file PATH] <command> [options]
+
+Commands:
+  init                 Create a protected .env and generate base secrets
+  preflight            Validate host, secrets, paths and Compose configuration
+  install              Build and start a clean or existing private deployment
+  upgrade              Backup, restore-drill, build and perform guarded cutover
+  rollback             Restore the application images saved by the last upgrade
+  doctor [--logs]      Check containers and HTTP readiness
+  status               Show Compose service status
+  logs [SERVICE]       Follow logs (all services when SERVICE is omitted)
+  backup               Create a checksummed PostgreSQL backup
+  restore-drill [FILE] Restore a backup into an isolated temporary database
+  restore FILE --confirm DB_NAME
+                       Replace the configured database after a safety backup
+  monitoring-up        Start the optional Prometheus monitoring profile
+  monitoring-status    Check Prometheus, Alertmanager and exporters
+  monitoring-stop      Stop only the optional monitoring profile
+  stop                 Stop application containers without deleting data
+
+Global options:
+  --env-file PATH      Use a non-default environment file
+  -h, --help           Show this help
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --env-file)
+      [[ $# -ge 2 ]] || { echo "ERROR: --env-file requires a path" >&2; exit 2; }
+      export RHD_ENV_FILE="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
+command_name="${1:-}"
+if [[ -z "$command_name" ]]; then
+  usage
+  exit 2
+fi
+shift
+
+state_dir() {
+  rhd_absolute_path "$(rhd_env_value RHD_STATE_DIR ./.state)"
+}
+
+backup_dir() {
+  rhd_absolute_path "$(rhd_env_value RHD_BACKUP_DIR ./backups)"
+}
+
+data_dir() {
+  rhd_absolute_path "$(rhd_env_value RHD_DATA_DIR ./volumes)"
+}
+
+metrics_dir() {
+  rhd_absolute_path "$(rhd_env_value RHD_METRICS_DIR ./metrics)"
+}
+
+input_file_path() {
+  local value="$1"
+  case "$value" in
+    /*) printf '%s' "$value" ;;
+    *)
+      local parent base
+      parent="$(dirname "$value")"
+      base="$(basename "$value")"
+      printf '%s/%s' "$(cd "$parent" && pwd)" "$base"
+      ;;
+  esac
+}
+
+acquire_deploy_lock() {
+  local lock_dir lock_pid lock_owner
+  lock_dir="$(state_dir)/deploy.lock"
+  mkdir -p "$(state_dir)"
+  if ! mkdir "$lock_dir" 2>/dev/null; then
+    lock_pid="$(sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' "$lock_dir/owner" 2>/dev/null || true)"
+    if [[ -n "$lock_pid" ]] && ! kill -0 "$lock_pid" 2>/dev/null; then
+      rhd_warn "recovering stale deployment lock from process ${lock_pid}"
+      rm -f "$lock_dir/owner"
+      rmdir "$lock_dir" 2>/dev/null || true
+      mkdir "$lock_dir" 2>/dev/null || rhd_die "could not recover stale deployment lock"
+    else
+      lock_owner="$(sed -n '1p' "$lock_dir/owner" 2>/dev/null || true)"
+      rhd_die "another deployment operation is active (${lock_owner:-owner unknown})"
+    fi
+  fi
+  printf '%s pid=%s started=%s\n' "$(id -un 2>/dev/null || printf operator)" "$$" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$lock_dir/owner"
+  RHD_LOCK_DIR="$lock_dir"
+  trap 'status=$?; if [[ -n "${RHD_LOCK_DIR:-}" && "$RHD_LOCK_DIR" == *"/deploy.lock" ]]; then rm -f "$RHD_LOCK_DIR/owner"; rmdir "$RHD_LOCK_DIR" 2>/dev/null || true; fi; exit "$status"' EXIT
+}
+
+prepare_directories() {
+  mkdir -p "$(data_dir)" "$(backup_dir)" "$(state_dir)" "$(metrics_dir)"
+  chmod 700 "$(backup_dir)" "$(state_dir)" 2>/dev/null || true
+  chmod 755 "$(metrics_dir)" 2>/dev/null || true
+}
+
+run_preflight() {
+  "$SCRIPT_DIR/preflight.sh" --env-file "$RHD_ENV_FILE" --strict
+}
+
+run_doctor() {
+  "$SCRIPT_DIR/doctor.sh" --env-file "$RHD_ENV_FILE" "$@"
+}
+
+run_backup() {
+  rhd_postgres_tool_environment
+  prepare_directories
+  (
+    cd "$RHD_DEPLOY_DIR"
+    BACKUP_METRICS_FILE="$(metrics_dir)/remotehelpdesk_backup.prom" \
+      "$RHD_REPO_ROOT/scripts/backup-db.sh" "$(backup_dir)"
+  )
+}
+
+latest_backup() {
+  local db_name
+  db_name="$(rhd_env_value POSTGRES_DB cs_ai_agent)"
+  find "$(backup_dir)" -maxdepth 1 -type f -name "${db_name}_*.dump" -print 2>/dev/null | sort | tail -n 1
+}
+
+run_restore_drill() {
+  local backup_file="${1:-}"
+  if [[ -z "$backup_file" ]]; then
+    backup_file="$(latest_backup)"
+  else
+    backup_file="$(input_file_path "$backup_file")"
+  fi
+  [[ -n "$backup_file" ]] || rhd_die "no PostgreSQL backup is available for a restore drill"
+  [[ -s "$backup_file" ]] || rhd_die "backup is missing or empty: ${backup_file}"
+  rhd_postgres_tool_environment
+  (
+    cd "$RHD_DEPLOY_DIR"
+    RESTORE_DRILL_METRICS_FILE="$(metrics_dir)/remotehelpdesk_restore_drill.prom" \
+      "$RHD_REPO_ROOT/scripts/drill-db-restore.sh" "$backup_file"
+  )
+}
+
+monitoring_container_id() {
+  rhd_monitoring_compose ps -aq "$1" 2>/dev/null | head -n 1
+}
+
+monitoring_status() {
+  local errors=0 service container_id state
+  for service in postgres-exporter redis-exporter node-exporter prometheus alertmanager; do
+    container_id="$(monitoring_container_id "$service")"
+    if [[ -z "$container_id" ]]; then
+      printf 'FAIL  %-20s missing\n' "$service" >&2
+      errors=$((errors + 1))
+      continue
+    fi
+    state="$(rhd_service_state "$container_id")"
+    case "$state" in
+      running/healthy|running) printf 'PASS  %-20s %s\n' "$service" "$state" ;;
+      *) printf 'FAIL  %-20s %s\n' "$service" "${state:-unknown}" >&2; errors=$((errors + 1)) ;;
+    esac
+  done
+  if ! rhd_http_check "http://127.0.0.1:$(rhd_env_value PROMETHEUS_PORT 9090)/-/ready"; then
+    rhd_warn "Prometheus readiness endpoint failed"
+    errors=$((errors + 1))
+  fi
+  if ! rhd_http_check "http://127.0.0.1:$(rhd_env_value ALERTMANAGER_PORT 9093)/-/ready"; then
+    rhd_warn "Alertmanager readiness endpoint failed"
+    errors=$((errors + 1))
+  fi
+  [[ "$errors" == "0" ]] || return 1
+}
+
+save_rollback_state() {
+  local api_image="$1"
+  local web_image="$2"
+  local state_file="$(state_dir)/rollback.env"
+  {
+    printf 'ROLLBACK_API_IMAGE=%s\n' "$api_image"
+    printf 'ROLLBACK_WEB_IMAGE=%s\n' "$web_image"
+    printf 'ROLLBACK_CREATED_AT=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  } >"$state_file"
+  chmod 600 "$state_file"
+}
+
+rollback_value() {
+  local key="$1"
+  local state_file="$(state_dir)/rollback.env"
+  awk -F= -v key="$key" '$1 == key {sub(/^[^=]*=/, ""); print; exit}' "$state_file" 2>/dev/null
+}
+
+perform_rollback() {
+  local api_image web_image override_file status
+  api_image="$(rollback_value ROLLBACK_API_IMAGE)"
+  web_image="$(rollback_value ROLLBACK_WEB_IMAGE)"
+  [[ -n "$api_image" && -n "$web_image" ]] || rhd_die "no complete rollback state is available"
+  docker image inspect "$api_image" >/dev/null 2>&1 || rhd_die "rollback API image is missing: ${api_image}"
+  docker image inspect "$web_image" >/dev/null 2>&1 || rhd_die "rollback Web image is missing: ${web_image}"
+
+  override_file="$(mktemp "${TMPDIR:-/tmp}/remotehelpdesk-rollback.XXXXXX.yml")"
+  {
+    printf 'services:\n'
+    printf '  api:\n'
+    printf '    image: %s\n' "$api_image"
+    printf '  web:\n'
+    printf '    image: %s\n' "$web_image"
+  } >"$override_file"
+
+  status=0
+  rhd_compose_with_override "$override_file" up -d --no-deps --no-build api || status=1
+  if [[ "$status" == "0" ]]; then
+    rhd_wait_for_service api 180 || status=1
+  fi
+  rhd_compose_with_override "$override_file" up -d --no-deps --no-build web || status=1
+  if [[ "$status" == "0" ]]; then
+    rhd_wait_for_service web 120 || status=1
+  fi
+  rm -f "$override_file"
+  [[ "$status" == "0" ]] || rhd_die "application rollback failed; inspect ./rhdctl doctor --logs"
+  rhd_log "application images rolled back; database changes were not reversed"
+}
+
+case "$command_name" in
+  init)
+    [[ $# -eq 0 ]] || rhd_die "init does not accept additional arguments"
+    [[ ! -e "$RHD_ENV_FILE" ]] || rhd_die "environment file already exists: ${RHD_ENV_FILE}"
+    rhd_require_command openssl
+    mkdir -p "$(dirname "$RHD_ENV_FILE")"
+    cp "$SCRIPT_DIR/.env.example" "$RHD_ENV_FILE"
+    chmod 600 "$RHD_ENV_FILE"
+    rhd_set_env_value IMAGE_TAG "private-$(date -u +%Y%m%dT%H%M%SZ)" "$RHD_ENV_FILE"
+    rhd_set_env_value POSTGRES_PASSWORD "$(openssl rand -hex 24)" "$RHD_ENV_FILE"
+    rhd_set_env_value REDIS_PASSWORD "$(openssl rand -hex 24)" "$RHD_ENV_FILE"
+    rhd_set_env_value RHD_BOOTSTRAP_ADMIN_PASSWORD "$(openssl rand -hex 16)" "$RHD_ENV_FILE"
+    rhd_set_env_value MINIO_ROOT_PASSWORD "$(openssl rand -hex 24)" "$RHD_ENV_FILE"
+    rhd_set_env_value CUSTOMER_SESSION_SECRET "$(openssl rand -hex 32)" "$RHD_ENV_FILE"
+    rhd_set_env_value MCP_SERVER_TOKEN "$(openssl rand -hex 32)" "$RHD_ENV_FILE"
+    rhd_set_env_value ENCRYPTION_KEY "$(openssl rand -hex 32)" "$RHD_ENV_FILE"
+    chmod 600 "$RHD_ENV_FILE"
+    rhd_log "created ${RHD_ENV_FILE} with generated base secrets"
+    rhd_log "edit RHD_PUBLIC_URL and MINIO_PUBLIC_ENDPOINT, then run ./rhdctl preflight"
+    ;;
+
+  preflight)
+    "$SCRIPT_DIR/preflight.sh" --env-file "$RHD_ENV_FILE" "$@"
+    ;;
+
+  install)
+    [[ $# -eq 0 ]] || rhd_die "install does not accept additional arguments"
+    acquire_deploy_lock
+    run_preflight
+    prepare_directories
+    rhd_log "pulling dependency images"
+    rhd_compose pull postgres redis qdrant minio minio-init
+    rhd_log "building application images"
+    rhd_compose build api web
+    rhd_log "starting dependencies"
+    rhd_compose up -d postgres redis qdrant minio minio-init
+    rhd_wait_for_service postgres 180
+    rhd_wait_for_service redis 120
+    rhd_wait_for_service qdrant 180
+    rhd_wait_for_service minio 180
+    rhd_wait_for_job minio-init 120
+    rhd_log "starting API"
+    rhd_compose up -d api
+    rhd_wait_for_service api 240
+    rhd_log "starting Web"
+    rhd_compose up -d web
+    rhd_wait_for_service web 180
+    run_doctor
+    ;;
+
+  upgrade)
+    [[ $# -eq 0 ]] || rhd_die "upgrade does not accept additional arguments"
+    acquire_deploy_lock
+    run_preflight
+    api_container="$(rhd_service_container_id api)"
+    web_container="$(rhd_service_container_id web)"
+    [[ -n "$api_container" && -n "$web_container" ]] || rhd_die "install the application before running upgrade"
+    prepare_directories
+    rhd_log "creating and validating a pre-upgrade database backup"
+    run_backup
+    run_restore_drill
+
+    rollback_suffix="$(date -u +%Y%m%dT%H%M%SZ)"
+    image_name="$(rhd_env_value IMAGE_NAME remotehelpdesk)"
+    rollback_api="${image_name}-api:rollback-${rollback_suffix}"
+    rollback_web="${image_name}-web:rollback-${rollback_suffix}"
+    docker image tag "$(docker inspect --format '{{.Image}}' "$api_container")" "$rollback_api"
+    docker image tag "$(docker inspect --format '{{.Image}}' "$web_container")" "$rollback_web"
+    save_rollback_state "$rollback_api" "$rollback_web"
+
+    rhd_log "building the new application images"
+    if ! rhd_compose build api web; then
+      rhd_die "build failed; running containers were not changed"
+    fi
+
+    rhd_log "switching API"
+    if ! rhd_compose up -d --no-deps api || ! rhd_wait_for_service api 240; then
+      rhd_warn "API cutover failed; restoring previous application images"
+      perform_rollback
+      exit 1
+    fi
+
+    rhd_log "switching Web"
+    if ! rhd_compose up -d --no-deps web || ! rhd_wait_for_service web 180; then
+      rhd_warn "Web cutover failed; restoring previous application images"
+      perform_rollback
+      exit 1
+    fi
+
+    if ! run_doctor; then
+      rhd_warn "post-upgrade diagnosis failed; restoring previous application images"
+      perform_rollback
+      exit 1
+    fi
+    rhd_log "upgrade completed; rollback images are recorded in $(state_dir)/rollback.env"
+    ;;
+
+  rollback)
+    [[ $# -eq 0 ]] || rhd_die "rollback does not accept additional arguments"
+    acquire_deploy_lock
+    perform_rollback
+    run_doctor
+    ;;
+
+  doctor)
+    run_doctor "$@"
+    ;;
+
+  status)
+    [[ $# -eq 0 ]] || rhd_die "status does not accept additional arguments"
+    rhd_compose ps -a
+    ;;
+
+  logs)
+    if [[ $# -gt 1 ]]; then
+      rhd_die "logs accepts at most one service name"
+    fi
+    if [[ $# -eq 1 ]]; then
+      rhd_compose logs --tail 200 -f "$1"
+    else
+      rhd_compose logs --tail 200 -f
+    fi
+    ;;
+
+  backup)
+    [[ $# -eq 0 ]] || rhd_die "backup does not accept additional arguments"
+    run_preflight
+    run_backup
+    ;;
+
+  restore-drill)
+    [[ $# -le 1 ]] || rhd_die "restore-drill accepts at most one backup file"
+    run_preflight
+    run_restore_drill "${1:-}"
+    ;;
+
+  restore)
+    [[ $# -eq 3 && "$2" == "--confirm" ]] || rhd_die "usage: ./rhdctl restore FILE --confirm DB_NAME"
+    backup_file="$(input_file_path "$1")"
+    expected_database="$3"
+    configured_database="$(rhd_env_value POSTGRES_DB cs_ai_agent)"
+    [[ "$expected_database" == "$configured_database" ]] || rhd_die "confirmation does not match configured database: ${configured_database}"
+    [[ -s "$backup_file" ]] || rhd_die "backup is missing or empty: ${backup_file}"
+    acquire_deploy_lock
+    run_preflight
+    rhd_log "creating a safety backup before destructive restore"
+    run_backup
+    rhd_postgres_tool_environment
+    rhd_log "stopping application containers for database restore"
+    rhd_compose stop web api
+    if ! (
+      cd "$RHD_DEPLOY_DIR"
+      FORCE=1 "$RHD_REPO_ROOT/scripts/restore-db.sh" "$backup_file"
+    ); then
+      rhd_warn "database restore failed; restarting application containers for diagnosis"
+      rhd_compose up -d api web || true
+      rhd_die "database restore failed"
+    fi
+    rhd_log "database restore completed; restart and diagnose the application"
+    rhd_compose up -d api web
+    rhd_wait_for_service api 240
+    rhd_wait_for_service web 180
+    run_doctor
+    ;;
+
+  monitoring-up)
+    [[ $# -eq 0 ]] || rhd_die "monitoring-up does not accept additional arguments"
+    [[ "$(rhd_env_value RHD_MONITORING_ENABLED 0)" == "1" ]] || rhd_die "set RHD_MONITORING_ENABLED=1 before starting monitoring"
+    acquire_deploy_lock
+    run_preflight
+    prepare_directories
+    rhd_monitoring_compose up -d postgres-exporter redis-exporter node-exporter alertmanager prometheus
+    monitoring_status
+    ;;
+
+  monitoring-status)
+    [[ $# -eq 0 ]] || rhd_die "monitoring-status does not accept additional arguments"
+    monitoring_status
+    ;;
+
+  monitoring-stop)
+    [[ $# -eq 0 ]] || rhd_die "monitoring-stop does not accept additional arguments"
+    rhd_monitoring_compose stop prometheus alertmanager node-exporter redis-exporter postgres-exporter
+    ;;
+
+  stop)
+    [[ $# -eq 0 ]] || rhd_die "stop does not accept additional arguments"
+    rhd_compose stop web api
+    ;;
+
+  *)
+    usage >&2
+    rhd_die "unknown command: ${command_name}"
+    ;;
+esac

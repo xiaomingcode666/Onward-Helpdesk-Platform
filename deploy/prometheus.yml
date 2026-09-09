@@ -1,0 +1,115 @@
+# =============================================================================
+# RemoteHelpDesk — Prometheus Configuration
+# =============================================================================
+# This configuration is used by the Prometheus container in
+# docker-compose.prod.yml.  It scrapes metrics from:
+#   - remotehelpdesk (Go application metrics at /metrics)
+#   - postgres-exporter
+#   - redis-exporter
+#   - node-exporter (host-level metrics)
+#
+# Alert rules are loaded from alert-rules.yml.
+#
+# IMPORTANT: Review and adjust retention and scrape intervals for your
+# production environment.
+# =============================================================================
+
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'remotehelpdesk'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# Rule files
+rule_files:
+  - 'alert-rules.yml'
+
+# Scrape configurations
+scrape_configs:
+  # ---------------------------------------------------------------------------
+  # RemoteHelpDesk Go Application Metrics
+  # ---------------------------------------------------------------------------
+  - job_name: 'remotehelpdesk'
+    metrics_path: '/metrics'
+    scheme: http
+    static_configs:
+      - targets:
+          - 'agent-desk:8083'
+        labels:
+          service: 'remotehelpdesk'
+          env: 'production'
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database Metrics
+  # ---------------------------------------------------------------------------
+  - job_name: 'postgres'
+    static_configs:
+      - targets:
+          - 'postgres-exporter:9187'
+        labels:
+          service: 'postgres'
+          env: 'production'
+
+  # ---------------------------------------------------------------------------
+  # Redis Cache Metrics
+  # ---------------------------------------------------------------------------
+  - job_name: 'redis'
+    static_configs:
+      - targets:
+          - 'redis-exporter:9121'
+        labels:
+          service: 'redis'
+          env: 'production'
+
+  # ---------------------------------------------------------------------------
+  # Host / Node Metrics
+  # ---------------------------------------------------------------------------
+  - job_name: 'node'
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - 'node-exporter:9100'
+        labels:
+          service: 'node'
+          env: 'production'
+
+  # ---------------------------------------------------------------------------
+  # Docker Engine Metrics (requires docker daemon --metrics-addr)
+  # ---------------------------------------------------------------------------
+  # - job_name: 'docker'
+  #   static_configs:
+  #     - targets:
+  #         - '172.17.0.1:9323'
+  #       labels:
+  #         service: 'docker'
+  #         env: 'production'
+
+  # ---------------------------------------------------------------------------
+  # Nginx Metrics (requires nginx with ngx_http_stub_status_module or nginx-vts-exporter)
+  # ---------------------------------------------------------------------------
+  # - job_name: 'nginx'
+  #   static_configs:
+  #     - targets:
+  #         - 'nginx-exporter:9113'
+  #       labels:
+  #         service: 'nginx'
+  #         env: 'production'
+
+  # ---------------------------------------------------------------------------
+  # Qdrant Metrics
+  # ---------------------------------------------------------------------------
+  - job_name: 'qdrant'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets:
+          - 'qdrant:6333'
+        labels:
+          service: 'qdrant'
+          env: 'production'

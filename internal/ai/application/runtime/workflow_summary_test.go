@@ -1,0 +1,527 @@
+package runtime
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+	"testing"
+	"time"
+
+	workflowexecutor "remotehelpdesk/internal/ai/runtime/workflow"
+	"remotehelpdesk/internal/ai/workflow/dsl"
+	workflowregistry "remotehelpdesk/internal/ai/workflow/registry"
+	"remotehelpdesk/internal/models"
+	"remotehelpdesk/internal/pkg/dto"
+	"remotehelpdesk/internal/pkg/enums"
+
+	"github.com/glebarez/sqlite"
+	"github.com/mlogclub/simple/sqls"
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
+)
+
+func TestToWorkflowSummaryPreservesInterruptCheckpoint(t *testing.T) {
+	summary := toWorkflowSummary(&workflowexecutor.Result{
+		Status:         "interrupted",
+		CheckPointID:   "workflow:1:2:confirm_1",
+		CheckPointData: `{"confirmNodeId":"confirm_1"}`,
+		Interrupted:    true,
+		Interrupts: []workflowexecutor.InterruptSummary{
+			{Type: "human_confirm", ID: "confirm_1", InfoPreview: `{"message":"请确认"}`},
+		},
+	}, models.AIConfig{ModelName: "test-model"}, resolvedWorkflow{WorkflowID: 11, VersionID: 22}, 33)
+
+	if summary == nil || !summary.Interrupted {
+		t.Fatalf("expected interrupted summary, got %#v", summary)
+	}
+	if summary.CheckPointID != "workflow:1:2:confirm_1" {
+		t.Fatalf("unexpected checkpoint id: %q", summary.CheckPointID)
+	}
+	if summary.CheckPointData == "" {
+		t.Fatalf("expected checkpoint data")
+	}
+	if summary.WorkflowID != 11 || summary.WorkflowVersionID != 22 || summary.WorkflowRunID != 33 {
+		t.Fatalf("unexpected workflow identity: workflow=%d version=%d run=%d", summary.WorkflowID, summary.WorkflowVersionID, summary.WorkflowRunID)
+	}
+	if len(summary.Interrupts) != 1 || summary.Interrupts[0].ID != "confirm_1" {
+		t.Fatalf("unexpected interrupts: %#v", summary.Interrupts)
+	}
+}
+
+func TestToWorkflowSummaryPreservesKnowledgeCitations(t *testing.T) {
+	summary := toWorkflowSummary(&workflowexecutor.Result{
+		Status:    "completed",
+		ReplyText: "Use the SI-42 calibration procedure.",
+		ReplyCitations: []dto.KnowledgeCitation{{
+			DocumentID:    106,
+			DocumentTitle: "odt-uat-knowledge-20260906.md",
+			Snippet:       "Calibrate every 90 days.",
+		}},
+	}, models.AIConfig{}, resolvedWorkflow{}, 944)
+
+	if len(summary.KnowledgeCitations) != 1 || summary.KnowledgeCitations[0].DocumentID != 106 {
+		t.Fatalf("knowledge citations = %#v", summary.KnowledgeCitations)
+	}
+}
+
+func TestToWorkflowSummaryPreservesEinoAgentMetadata(t *testing.T) {
+	summary := toWorkflowSummary(&workflowexecutor.Result{
+		Status:                "completed",
+		SelectedSkillID:       7,
+		SelectedSkillName:     "diagnose",
+		SkillRouteReason:      "matched diagnosis",
+		SkillRouteTrace:       "route:diagnose",
+		SkillAllowedToolCodes: []string{"mcp/manual/search"},
+		PromptTokens:          13,
+		CompletionTokens:      5,
+		HistoryMessageCount:   3,
+		ToolCallCount:         1,
+		ToolCodes:             []string{"mcp/manual/search"},
+		InvokedToolCodes:      []string{"mcp/manual/search"},
+		TraceData:             `{"agentNodes":{"reply_1":{"status":"completed"}}}`,
+	}, models.AIConfig{
+		ModelName:                 "test-model",
+		RuntimeCredentialScope:    "product",
+		RuntimeAPIKeyID:           "key-42",
+		RuntimeCredentialFallback: false,
+	}, resolvedWorkflow{WorkflowID: 11, VersionID: 22}, 33)
+
+	if summary.PlannedSkillID != 7 || summary.PlannedSkillName != "diagnose" || summary.ToolCallCount != 1 {
+		t.Fatalf("unexpected Eino metadata: %#v", summary)
+	}
+	if summary.PromptTokens != 13 || summary.CompletionTokens != 5 || summary.HistoryMessageCount != 3 {
+		t.Fatalf("unexpected usage summary: %#v", summary)
+	}
+	if summary.ModelCredentialScope != "product" || summary.ModelAPIKeyID != "key-42" || summary.ModelCredentialFallback {
+		t.Fatalf("unexpected model credential metadata: %#v", summary)
+	}
+	if !strings.Contains(summary.TraceData, `"agentRuntime"`) || !strings.Contains(summary.TraceData, `"reply_1"`) {
+		t.Fatalf("expected nested Eino trace, got %s", summary.TraceData)
+	}
+}
+
+func TestWriteWorkflowRunPersistsSelectedEinoSkill(t *testing.T) {
+	db := setupWorkflowResumeTestDB(t)
+	result := &workflowexecutor.Result{
+		Status:                "completed",
+		SelectedSkillID:       44,
+		SelectedSkillName:     "设备故障诊断",
+		SkillRouteReason:      "eino_skill_tool",
+		SkillRouteTrace:       `{"skillId":44}`,
+		SkillAllowedToolCodes: []string{"mcp/manual/search"},
+	}
+	req := Request{
+		Conversation: models.Conversation{ID: 10, TenantID: 20},
+		UserMessage:  models.Message{ID: 30, Content: "设备显示 E37"},
+		AIAgent:      models.AIAgent{ID: 40},
+		AIConfig: models.AIConfig{
+			ID:        50,
+			ModelName: "test-model",
+			Provider:  enums.AIProviderOpenAI,
+		},
+	}
+
+	startedAt := time.Now().Add(-1500 * time.Millisecond)
+	runID, err := writeWorkflowRun(req, resolvedWorkflow{WorkflowID: 60, VersionID: 70}, result, "", startedAt)
+	if err != nil {
+		t.Fatalf("write workflow run: %v", err)
+	}
+	var log models.SkillRunLog
+	if err := db.First(&log, "workflow_run_id = ?", runID).Error; err != nil {
+		t.Fatalf("find skill run log: %v", err)
+	}
+	if log.SourceMessageID != req.UserMessage.ID || log.SkillDefinitionID != result.SelectedSkillID {
+		t.Fatalf("unexpected skill run identity: %#v", log)
+	}
+	if !log.Matched || !log.FinalSelected || log.MatchReason != result.SkillRouteReason {
+		t.Fatalf("unexpected skill run selection: %#v", log)
+	}
+	if log.UsedModel != req.AIConfig.ModelName || log.UsedProvider != req.AIConfig.Provider {
+		t.Fatalf("unexpected skill run model: %#v", log)
+	}
+	var run models.AIWorkflowRun
+	if err := db.First(&run, runID).Error; err != nil {
+		t.Fatalf("find workflow run: %v", err)
+	}
+	if run.EndedAt == nil {
+		t.Fatal("workflow run ended_at is nil")
+	}
+	if duration := run.EndedAt.Sub(run.StartedAt); duration < time.Second {
+		t.Fatalf("workflow run duration = %v, want persisted execution duration", duration)
+	}
+
+	result.SkillRouteReason = "eino_skill_tool_resumed"
+	if err := syncWorkflowSkillRunLog(db, runID, req, result, ""); err != nil {
+		t.Fatalf("update workflow skill run log: %v", err)
+	}
+	var count int64
+	if err := db.Model(&models.SkillRunLog{}).Where("workflow_run_id = ?", runID).Count(&count).Error; err != nil {
+		t.Fatalf("count skill run logs: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("skill run log count = %d, want 1", count)
+	}
+	if err := db.First(&log, "workflow_run_id = ?", runID).Error; err != nil {
+		t.Fatalf("reload skill run log: %v", err)
+	}
+	if log.MatchReason != result.SkillRouteReason {
+		t.Fatalf("skill run log was not updated: %#v", log)
+	}
+}
+
+func TestWriteWorkflowRunBackfillsGeneratedMessageWorkflowRunID(t *testing.T) {
+	db := setupWorkflowResumeTestDB(t)
+	result := &workflowexecutor.Result{Status: "completed"}
+	req := Request{
+		Conversation: models.Conversation{ID: 10, TenantID: 20},
+		UserMessage:  models.Message{ID: 30, Content: "设备显示 E37", RequestID: "req-workflow-1"},
+		AIAgent:      models.AIAgent{ID: 40},
+	}
+	messages := []models.Message{
+		{ConversationID: req.Conversation.ID, RequestID: req.UserMessage.RequestID, ClientMsgID: "ai-notice", SenderType: enums.IMSenderTypeAI},
+		{ConversationID: req.Conversation.ID, RequestID: req.UserMessage.RequestID, ClientMsgID: "system-notice", SenderType: enums.IMSenderTypeSystem},
+		{ConversationID: req.Conversation.ID, RequestID: req.UserMessage.RequestID, ClientMsgID: "customer-same-request", SenderType: enums.IMSenderTypeCustomer},
+		{ConversationID: req.Conversation.ID, RequestID: "other-request", ClientMsgID: "ai-other-request", SenderType: enums.IMSenderTypeAI},
+	}
+	if err := db.Create(&messages).Error; err != nil {
+		t.Fatalf("create generated messages: %v", err)
+	}
+
+	runID, err := writeWorkflowRun(req, resolvedWorkflow{WorkflowID: 60, VersionID: 70}, result, "", time.Now())
+	if err != nil {
+		t.Fatalf("write workflow run: %v", err)
+	}
+
+	var updatedCount int64
+	if err := db.Model(&models.Message{}).
+		Where("conversation_id = ? AND request_id = ? AND workflow_run_id = ? AND sender_type IN ?",
+			req.Conversation.ID,
+			req.UserMessage.RequestID,
+			runID,
+			[]enums.IMSenderType{enums.IMSenderTypeAI, enums.IMSenderTypeSystem},
+		).
+		Count(&updatedCount).Error; err != nil {
+		t.Fatalf("count updated messages: %v", err)
+	}
+	if updatedCount != 2 {
+		t.Fatalf("updated message count = %d, want 2", updatedCount)
+	}
+	var untouchedCount int64
+	if err := db.Model(&models.Message{}).
+		Where("(workflow_run_id = ? AND sender_type = ?) OR (workflow_run_id = ? AND request_id = ?)",
+			0, enums.IMSenderTypeCustomer, 0, "other-request").
+		Count(&untouchedCount).Error; err != nil {
+		t.Fatalf("count untouched messages: %v", err)
+	}
+	if untouchedCount != 2 {
+		t.Fatalf("untouched message count = %d, want 2", untouchedCount)
+	}
+}
+
+func TestServiceResumeUsesWorkflowCheckpointData(t *testing.T) {
+	db := setupWorkflowResumeTestDB(t)
+	def := runtimeHumanConfirmDefinition()
+	definitionJSON := mustMarshalDefinition(t, def)
+	version := models.AIWorkflowVersion{
+		WorkflowID: 1,
+		Version:    1,
+		Status:     enums.StatusOk,
+		Definition: definitionJSON,
+	}
+	if err := db.Create(&version).Error; err != nil {
+		t.Fatalf("create workflow version: %v", err)
+	}
+	checkpointData := mustMarshalWorkflowCheckpoint(t, def)
+	if err := db.Create(&models.ConversationInterrupt{
+		ConversationID: 1,
+		AIAgentID:      1,
+		CheckPointID:   "workflow:1:2:confirm_1",
+		RequestData:    checkpointData,
+		Status:         "pending",
+	}).Error; err != nil {
+		t.Fatalf("create interrupt: %v", err)
+	}
+
+	summary, err := NewService().Resume(context.Background(), ResumeRequest{
+		Conversation: models.Conversation{ID: 1},
+		UserMessage:  models.Message{ID: 2, Content: "确认"},
+		AIAgent: models.AIAgent{
+			ID:                1,
+			WorkflowVersionID: version.ID,
+		},
+		AIConfig:     models.AIConfig{ModelName: "test-model"},
+		CheckPointID: "workflow:1:2:confirm_1",
+		ResumeData: map[string]string{
+			"confirm_1": "确认",
+		},
+	})
+	if err != nil {
+		t.Fatalf("resume workflow: %v", err)
+	}
+	if summary == nil || summary.Status != "completed" || summary.Interrupted {
+		t.Fatalf("unexpected summary: %#v", summary)
+	}
+	if summary.WorkflowRunID <= 0 {
+		t.Fatalf("expected workflow run id in resume summary")
+	}
+	var run models.AIWorkflowRun
+	if err := db.First(&run, summary.WorkflowRunID).Error; err != nil {
+		t.Fatalf("find resume workflow run: %v", err)
+	}
+	if run.MessageID != 2 || run.Status != workflowRunStatusCompleted {
+		t.Fatalf("unexpected resume workflow run: %#v", run)
+	}
+}
+
+func TestServiceResumeReusesInterruptedWorkflowRun(t *testing.T) {
+	db := setupWorkflowResumeTestDB(t)
+	def := runtimeHumanConfirmDefinition()
+	version := models.AIWorkflowVersion{
+		WorkflowID: 1,
+		Version:    1,
+		Status:     enums.StatusOk,
+		Definition: mustMarshalDefinition(t, def),
+	}
+	if err := db.Create(&version).Error; err != nil {
+		t.Fatalf("create workflow version: %v", err)
+	}
+	interruptedRun := models.AIWorkflowRun{
+		WorkflowID:        version.WorkflowID,
+		WorkflowVersionID: version.ID,
+		ConversationID:    1,
+		AIAgentID:         1,
+		MessageID:         2,
+		Status:            workflowRunStatusInterrupted,
+		InterruptType:     "human_confirm",
+		InterruptNodeID:   "confirm_1",
+	}
+	if err := db.Create(&interruptedRun).Error; err != nil {
+		t.Fatalf("create interrupted workflow run: %v", err)
+	}
+	if err := db.Create(&models.ConversationInterrupt{
+		ConversationID: 1,
+		AIAgentID:      1,
+		CheckPointID:   "workflow:1:2:confirm_1",
+		InterruptID:    "confirm_1",
+		InterruptType:  "human_confirm",
+		WorkflowRunID:  interruptedRun.ID,
+		WorkflowNodeID: "confirm_1",
+		RequestData:    mustMarshalWorkflowCheckpoint(t, def),
+		Status:         "pending",
+	}).Error; err != nil {
+		t.Fatalf("create interrupt: %v", err)
+	}
+
+	summary, err := NewService().Resume(context.Background(), ResumeRequest{
+		Conversation: models.Conversation{ID: 1},
+		UserMessage:  models.Message{ID: 3, Content: "确认"},
+		AIAgent: models.AIAgent{
+			ID:                1,
+			WorkflowVersionID: version.ID,
+		},
+		AIConfig:     models.AIConfig{ModelName: "test-model"},
+		CheckPointID: "workflow:1:2:confirm_1",
+		ResumeData: map[string]string{
+			"confirm_1": "确认",
+		},
+	})
+	if err != nil {
+		t.Fatalf("resume workflow: %v", err)
+	}
+	if summary.WorkflowRunID != interruptedRun.ID {
+		t.Fatalf("expected resume to reuse workflow run %d, got %d", interruptedRun.ID, summary.WorkflowRunID)
+	}
+	var runCount int64
+	if err := db.Model(&models.AIWorkflowRun{}).Count(&runCount).Error; err != nil {
+		t.Fatalf("count workflow runs: %v", err)
+	}
+	if runCount != 1 {
+		t.Fatalf("expected one workflow run after resume, got %d", runCount)
+	}
+	var updated models.AIWorkflowRun
+	if err := db.First(&updated, interruptedRun.ID).Error; err != nil {
+		t.Fatalf("find updated workflow run: %v", err)
+	}
+	if updated.Status != workflowRunStatusCompleted || updated.ErrorMessage != "" {
+		t.Fatalf("unexpected updated workflow run: %#v", updated)
+	}
+	var nodeCount int64
+	if err := db.Model(&models.AIWorkflowNodeRun{}).Where("workflow_run_id = ?", interruptedRun.ID).Count(&nodeCount).Error; err != nil {
+		t.Fatalf("count node runs: %v", err)
+	}
+	if nodeCount == 0 {
+		t.Fatalf("expected resumed node traces to be appended to original workflow run")
+	}
+}
+
+func TestServiceRunWritesFailedWorkflowRun(t *testing.T) {
+	db := setupWorkflowResumeTestDB(t)
+	def := dsl.Definition{
+		SchemaVersion: 1,
+		EntryNodeID:   "start_1",
+		Nodes: []dsl.Node{
+			{ID: "start_1", Type: workflowregistry.NodeTypeStart, Name: "Start"},
+			{ID: "bad_1", Type: "unsupported_node", Name: "Bad"},
+		},
+		Edges: []dsl.Edge{
+			{ID: "edge_start_bad", Source: "start_1", Target: "bad_1"},
+		},
+	}
+	version := models.AIWorkflowVersion{
+		WorkflowID: 9,
+		Version:    1,
+		Status:     enums.StatusOk,
+		Definition: mustMarshalDefinition(t, def),
+	}
+	if err := db.Create(&version).Error; err != nil {
+		t.Fatalf("create workflow version: %v", err)
+	}
+
+	_, err := NewService().Run(context.Background(), Request{
+		Conversation: models.Conversation{ID: 10},
+		UserMessage:  models.Message{ID: 20, Content: "hello"},
+		AIAgent: models.AIAgent{
+			ID:                30,
+			WorkflowVersionID: version.ID,
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected workflow run error")
+	}
+	var run models.AIWorkflowRun
+	if err := db.First(&run, "workflow_version_id = ?", version.ID).Error; err != nil {
+		t.Fatalf("find failed workflow run: %v", err)
+	}
+	if run.Status != workflowRunStatusFailed || !strings.Contains(run.ErrorMessage, "unsupported workflow node type") {
+		t.Fatalf("unexpected failed workflow run: %#v", run)
+	}
+	var badNodeRun models.AIWorkflowNodeRun
+	if err := db.First(&badNodeRun, "workflow_run_id = ? AND node_id = ?", run.ID, "bad_1").Error; err != nil {
+		t.Fatalf("find failed node run: %v", err)
+	}
+	if badNodeRun.Status != workflowRunStatusFailed || badNodeRun.ErrorMessage == "" {
+		t.Fatalf("unexpected failed node run: %#v", badNodeRun)
+	}
+}
+
+func TestServiceRunWritesFailedWorkflowRunWhenVersionDisabled(t *testing.T) {
+	db := setupWorkflowResumeTestDB(t)
+	version := models.AIWorkflowVersion{
+		WorkflowID: 9,
+		Version:    1,
+		Status:     enums.StatusDisabled,
+		Definition: mustMarshalDefinition(t, runtimeHumanConfirmDefinition()),
+	}
+	if err := db.Create(&version).Error; err != nil {
+		t.Fatalf("create disabled workflow version: %v", err)
+	}
+
+	_, err := NewService().Run(context.Background(), Request{
+		Conversation: models.Conversation{ID: 10},
+		UserMessage:  models.Message{ID: 20, Content: "hello"},
+		AIAgent: models.AIAgent{
+			ID:                30,
+			WorkflowVersionID: version.ID,
+		},
+	})
+	if err == nil {
+		t.Fatalf("expected disabled workflow version error")
+	}
+	var run models.AIWorkflowRun
+	if err := db.First(&run, "workflow_version_id = ?", version.ID).Error; err != nil {
+		t.Fatalf("find prepare-stage failed workflow run: %v", err)
+	}
+	if run.WorkflowID != version.WorkflowID || run.ConversationID != 10 || run.AIAgentID != 30 || run.MessageID != 20 {
+		t.Fatalf("unexpected prepare-stage failed workflow run identity: %#v", run)
+	}
+	if run.Status != workflowRunStatusFailed || !strings.Contains(run.ErrorMessage, "workflow version does not exist") {
+		t.Fatalf("unexpected prepare-stage failed workflow run: %#v", run)
+	}
+	var nodeCount int64
+	if err := db.Model(&models.AIWorkflowNodeRun{}).Where("workflow_run_id = ?", run.ID).Count(&nodeCount).Error; err != nil {
+		t.Fatalf("count node runs: %v", err)
+	}
+	if nodeCount != 0 {
+		t.Fatalf("expected no node runs for prepare-stage failure, got %d", nodeCount)
+	}
+}
+
+func setupWorkflowResumeTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	db, err := gorm.Open(sqlite.Open("file:"+dbName+"?mode=memory&cache=shared"), &gorm.Config{
+		NamingStrategy: schema.NamingStrategy{
+			TablePrefix:   "t_",
+			SingularTable: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() {
+		sqlDB, err := db.DB()
+		if err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+	if err := db.AutoMigrate(&models.Message{}, &models.AIWorkflow{}, &models.AIWorkflowVersion{}, &models.AIWorkflowRun{}, &models.AIWorkflowNodeRun{}, &models.SkillRunLog{}, &models.ConversationInterrupt{}); err != nil {
+		t.Fatalf("auto migrate: %v", err)
+	}
+	if err := db.Create(&models.AIWorkflow{ID: 1, AgentID: 1, Name: "test workflow", Status: enums.StatusOk}).Error; err != nil {
+		t.Fatalf("create workflow: %v", err)
+	}
+	if err := db.Create(&models.AIWorkflow{ID: 9, AgentID: 30, Name: "failed workflow", Status: enums.StatusOk}).Error; err != nil {
+		t.Fatalf("create failed workflow fixture: %v", err)
+	}
+	sqls.SetDB(db)
+	return db
+}
+
+func runtimeHumanConfirmDefinition() dsl.Definition {
+	return dsl.Definition{
+		SchemaVersion: 1,
+		EntryNodeID:   "start_1",
+		Nodes: []dsl.Node{
+			{ID: "start_1", Type: workflowregistry.NodeTypeStart, Name: "Start"},
+			{ID: "prompt_1", Type: workflowregistry.NodeTypeLLMReply, Name: "Prompt", Config: []byte(`{"staticReply":"请确认"}`)},
+			{ID: "confirm_1", Type: workflowregistry.NodeTypeHumanConfirm, Name: "Confirm", Inputs: map[string]dsl.VariableSelector{
+				"prompt": {NodeID: "prompt_1", Field: "replyText"},
+			}},
+			{ID: "end_1", Type: workflowregistry.NodeTypeEnd, Name: "End"},
+		},
+		Edges: []dsl.Edge{
+			{ID: "edge_start_prompt", Source: "start_1", Target: "prompt_1"},
+			{ID: "edge_prompt_confirm", Source: "prompt_1", Target: "confirm_1"},
+			{ID: "edge_confirm_end", Source: "confirm_1", Target: "end_1"},
+		},
+	}
+}
+
+func mustMarshalDefinition(t *testing.T, def dsl.Definition) string {
+	t.Helper()
+	buf, err := json.Marshal(def)
+	if err != nil {
+		t.Fatalf("marshal definition: %v", err)
+	}
+	return string(buf)
+}
+
+func mustMarshalWorkflowCheckpoint(t *testing.T, def dsl.Definition) string {
+	t.Helper()
+	buf, err := json.Marshal(struct {
+		Definition    dsl.Definition            `json:"definition"`
+		ConfirmNodeID string                    `json:"confirmNodeId"`
+		Vars          map[string]map[string]any `json:"vars"`
+	}{
+		Definition:    def,
+		ConfirmNodeID: "confirm_1",
+		Vars: map[string]map[string]any{
+			"start_1":  {"userMessage": "创建工单"},
+			"prompt_1": {"replyText": "请确认"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal checkpoint: %v", err)
+	}
+	return string(buf)
+}
