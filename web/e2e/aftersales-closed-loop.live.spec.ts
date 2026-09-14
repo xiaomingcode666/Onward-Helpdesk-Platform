@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test"
+import { installLocalJitsi } from "./fixtures/local-jitsi"
 
 const baseUrl = process.env.E2E_BASE_URL ?? "http://localhost:3000"
 const frontendUrl = process.env.E2E_FRONTEND_URL ?? baseUrl
@@ -68,14 +69,18 @@ async function login(page: Page, nextPath: string, username: string, password: s
   await expect(page.getByText("无权访问此页面", { exact: true })).toHaveCount(0)
 }
 
-async function routeBrowserTrafficToBackend(page: Page) {
-  if (frontendUrl === baseUrl) return
+const routedContexts = new WeakSet<BrowserContext>()
 
-  await page.route(`${frontendUrl}/api/**`, async (route) => {
+async function routeBrowserTrafficToBackend(page: Page) {
+  const context = page.context()
+  if (frontendUrl === baseUrl || routedContexts.has(context)) return
+  routedContexts.add(context)
+
+  await context.route(`${frontendUrl}/api/**`, async (route) => {
     const source = new URL(route.request().url())
     await route.continue({ url: `${baseUrl}${source.pathname}${source.search}` })
   })
-  await page.addInitScript(({ backendUrl }) => {
+  await context.addInitScript(({ backendUrl }) => {
     const backend = new URL(backendUrl)
     const NativeWebSocket = window.WebSocket
     window.WebSocket = class E2EWebSocket extends NativeWebSocket {
@@ -126,7 +131,8 @@ async function sendCustomerMessage(page: Page, content: string) {
 }
 
 async function createRolePage(browser: Browser, viewport: { width: number; height: number }) {
-  const context = await browser.newContext({ viewport, permissions: ["camera", "microphone"] })
+  const context = await browser.newContext({ viewport })
+  await installLocalJitsi(context)
   return { context, page: await context.newPage() }
 }
 
@@ -142,7 +148,7 @@ async function prepareMeetingPopup(page: Page) {
 
 async function enterMeetingRoomAndWaitJoined(page: Page, roleName: string, joinedUrlPattern: RegExp) {
   await prepareMeetingPopup(page)
-  const enterButton = page.getByRole("button", { name: "进入会议", exact: true })
+  const enterButton = page.getByRole("button", { name: "进入协作", exact: true })
   await expect(enterButton, `${roleName}应看到同源会议预入会按钮`).toBeVisible({ timeout: 45_000 })
   const [joinedResponse] = await Promise.all([
     page.waitForResponse((response) =>
@@ -152,7 +158,7 @@ async function enterMeetingRoomAndWaitJoined(page: Page, roleName: string, joine
     enterButton.click(),
   ])
   expect(joinedResponse.ok(), `${roleName}入会状态回写应返回成功`).toBe(true)
-  await expect(page.getByText("正在进入会议...", { exact: true })).toHaveCount(0, { timeout: 45_000 })
+  await expect(page.getByText("正在进入协作...", { exact: true })).toHaveCount(0, { timeout: 45_000 })
 }
 
 async function closeRoleContexts(contexts: BrowserContext[]) {
@@ -1068,17 +1074,19 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     const createDeviceConversationPayload = JSON.parse(createDeviceConversationRequest.postData() || "{}") as {
       deviceId?: number
       forceNew?: boolean
+      locale?: string
       aiAgentId?: number
       workflowId?: number
     }
-    expect(Object.keys(createDeviceConversationPayload).sort()).toEqual(["deviceId", "forceNew"])
+    expect(Object.keys(createDeviceConversationPayload).sort()).toEqual(["deviceId", "forceNew", "locale"])
     expect(createDeviceConversationPayload.deviceId, "客户设备入口只能提交 deviceId").toBeGreaterThan(0)
     expect(createDeviceConversationPayload.forceNew).toBe(true)
+    expect(createDeviceConversationPayload.locale).toBe("zh-CN")
     expect(createDeviceConversationPayload.aiAgentId, "客户侧不得提交内部 Agent 路由字段").toBeUndefined()
     expect(createDeviceConversationPayload.workflowId, "客户侧不得提交内部 Workflow 路由字段").toBeUndefined()
     await expect(customer.getByText(customerDeviceNo, { exact: true }).last()).toBeVisible()
     await expect(customer.locator('[contenteditable="true"]').last()).toBeVisible()
-    await expect(customer.getByRole("button", { name: "转人工", exact: true })).toBeVisible()
+    await expect(customer.getByRole("button", { name: "请求人工介入", exact: true })).toBeVisible()
     await expect(customer.getByRole("button", { name: "创建工单", exact: true })).toHaveCount(0)
     await expect.poll(
       () => new URL(customer.url()).searchParams.get("conversationId"),
@@ -1104,12 +1112,12 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     await expect(secondAIReply).toContainText(/5 次|重复上电|反复尝试/)
 
     await sendCustomerMessage(customer, `${runTag}：复位后红灯仍常亮，已停止上电，请人工确认。`)
-    await customer.getByRole("button", { name: "转人工", exact: true }).click()
+    await customer.getByRole("button", { name: "请求人工介入", exact: true }).click()
     await expect(
       customer.locator('[data-sender-type="system"]').filter({
         hasText: "客户已申请转人工",
       }).filter({
-        hasText: "客户在会话工作台请求人工支持",
+        hasText: "客户请求人工介入",
       }),
     ).toBeVisible()
     await customer.goto(`${frontendUrl}/customer/tickets`)
@@ -1126,11 +1134,11 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
       timeout: 30_000,
     })
     const assignedMessage = dispatchFixture
-      ? `已分配给 ${dispatchFixture.engineerDisplayName}，等待工程师接入`
+      ? `已分配给 ${dispatchFixture.engineerDisplayName}`
       : ""
     const assignmentPattern = assignedMessage
       ? new RegExp(`${escapeRegExp(assignedMessage)}|已进入.*维修组待认领|组内工程师可以查看并接单`)
-      : /已分配给 .+，等待工程师接入|已进入.*维修组待认领|组内工程师可以查看并接单/
+      : /已分配给 .+|已进入.*维修组待认领|组内工程师可以查看并接单/
     await expect(async () => {
       const headerText = await customer.getByTestId("customer-assignment-status").textContent({ timeout: 1_000 }).catch(() => "")
       const timelineText = (await customer.locator("[data-sender-type]").allTextContents()).join("\n")
@@ -1145,7 +1153,7 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     const queueItem = engineer.locator("button").filter({ hasText: runTag }).first()
     await expect(queueItem).toBeVisible({ timeout: 60_000 })
     await queueItem.click()
-    const acceptButton = engineer.getByRole("button", { name: /^(重新)?接单$/ })
+    const acceptButton = engineer.getByRole("button", { name: /^(重新)?接单$/ }).first()
     if (await acceptButton.isVisible()) {
       await acceptButton.click()
     }
@@ -1162,7 +1170,7 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     const engineerReply = `${runTag}：已接单，请保持设备断电，我先核对保护输入端和 48V 母线。`
     const engineerComposer = engineer.getByPlaceholder("输入回复")
     await engineerComposer.fill(engineerReply)
-    await expect(customer.getByText("工程师正在输入...", { exact: true })).toBeVisible({ timeout: 10_000 })
+    await expect(customer.getByText("工程师正在输入…", { exact: true })).toBeVisible({ timeout: 10_000 })
     await engineer.getByRole("button", { name: "发送", exact: true }).click()
     await expect(customer.getByText(engineerReply).last()).toBeVisible()
 
@@ -1175,17 +1183,19 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
 
     const missedByCustomer = `${runTag}：客户断线期间发送的工程师回复，恢复网络后应自动补齐。`
     await customerRole.context.setOffline(true)
+    await expect(engineer.getByText("客户离线", { exact: true })).toBeVisible({ timeout: 90_000 })
     await engineerComposer.fill(missedByCustomer)
     await engineer.getByRole("button", { name: "发送", exact: true }).click()
     await customerRole.context.setOffline(false)
+    await expect(engineer.getByText("客户在线", { exact: true })).toBeVisible({ timeout: 15_000 })
     await expect(customer.getByText(missedByCustomer).last()).toBeVisible({ timeout: 20_000 })
 
     await engineer.getByRole("tab", { name: "供应商协作", exact: true }).click()
     const moduleSelect = engineer.getByRole("combobox", { name: "选择故障模块", exact: true })
     await expect(moduleSelect, `应加载产品模块 ${supplierModule}`).toHaveCount(1, { timeout: 30_000 })
-    await moduleSelect.click()
+    await engineer.locator(".ant-select").filter({ has: moduleSelect }).click()
     await engineer.locator(".ant-select-dropdown:visible").getByText(supplierModule, { exact: true }).click()
-    await engineer.getByPlaceholder(/说明需要供应商协助确认的问题/).fill(`${runTag}：请原厂核对端子规范和 48V 母线允许范围。`)
+    await engineer.getByRole("textbox", { name: "供应商协作问题", exact: true }).fill(`${runTag}：请原厂核对端子规范和 48V 母线允许范围。`)
     await engineer.getByRole("button", { name: "升级模块供应商" }).click()
     await expect(
       customer.locator('[data-sender-type="system"]').filter({ hasText: "已邀请供应商协作" }).first(),
@@ -1211,7 +1221,7 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     await expect(supplier.getByText("客户在线", { exact: true })).toBeVisible({ timeout: 15_000 })
     await expect(supplier.getByText("企业工程师在线", { exact: true })).toBeVisible({ timeout: 15_000 })
     await expect(engineer.getByText("供应商在线 1", { exact: true })).toBeVisible({ timeout: 15_000 })
-    await expect(customer.getByText("工程师在线，供应商在线 1", { exact: true })).toBeVisible({ timeout: 15_000 })
+    await expect(customer.getByText("工程师在线，1 位供应商在线", { exact: true })).toBeVisible({ timeout: 15_000 })
 
     await expect(customer.getByRole("button", { name: "发送图片", exact: true })).toBeVisible()
     await expect(customer.getByRole("button", { name: "发送附件", exact: true })).toBeVisible()
@@ -1237,7 +1247,9 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     ])
     for (const [index, page] of [customer, engineer, supplier].entries()) {
       await images[index].click()
-      const preview = page.getByRole("dialog", { name: customerImageName, exact: true })
+      const preview = page.getByRole("dialog").filter({
+        has: page.getByRole("img", { name: customerImageName, exact: true }),
+      })
       await expect(preview).toBeVisible()
       await preview.getByRole("button", { name: "关闭", exact: true }).click()
       await expect(preview).toBeHidden()
@@ -1294,7 +1306,7 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     await supplierComposer.fill(supplierReply)
     await Promise.all([
       expect(engineer.getByTestId("enterprise-typing-status")).toHaveText("供应商正在输入...", { timeout: 10_000 }),
-      expect(customer.getByText(/供应商.*正在输入\.\.\./)).toBeVisible({ timeout: 10_000 }),
+      expect(customer.getByText("供应商正在输入…", { exact: true })).toBeVisible({ timeout: 10_000 }),
     ])
     await supplier.getByRole("button", { name: "发送回复" }).click()
     await expect(engineer.getByText(supplierReply).first()).toBeVisible()
@@ -1337,8 +1349,9 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     await customer.goto(`${frontendUrl}/customer/meeting`)
     const customerMeetingItem = customer.locator("button").filter({ hasText: createdTicketNo }).first()
     await expect(customerMeetingItem).toBeVisible({ timeout: 15_000 })
+    await expect(customer).toHaveURL((url) => Boolean(url.searchParams.get("meetingId")))
     await customerMeetingItem.click()
-    const customerMeetingButton = customer.getByRole("button", { name: /加入会议/ })
+    const customerMeetingButton = customer.getByRole("button", { name: "加入协作（音视频默认关闭）", exact: true })
     await expect(customerMeetingButton).toBeVisible({ timeout: 15_000 })
     await expect(customerMeetingButton).toBeEnabled()
     const [customerJoinResponse] = await Promise.all([
@@ -1350,7 +1363,7 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
       customerMeetingButton.click(),
     ])
     expect(customerJoinResponse.ok(), "客户入会接口应返回成功").toBe(true)
-    const customerEnterMeetingButton = customer.getByRole("button", { name: "进入会议", exact: true })
+    const customerEnterMeetingButton = customer.getByRole("button", { name: "进入协作", exact: true })
     await expect(customerEnterMeetingButton, "客户应看到同源会议预入会按钮").toBeVisible({ timeout: 45_000 })
     const [customerJoinedResponse] = await Promise.all([
       customer.waitForResponse((response) =>
