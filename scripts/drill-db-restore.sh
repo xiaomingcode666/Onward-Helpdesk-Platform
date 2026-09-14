@@ -12,6 +12,8 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/postgres-tools.sh
 source "$SCRIPT_DIR/lib/postgres-tools.sh"
+# shellcheck source=lib/deployment-backup-identity.sh
+source "$SCRIPT_DIR/lib/deployment-backup-identity.sh"
 
 BACKUP_FILE="$1"
 DB_NAME="${DB_NAME:-cs_ai_agent}"
@@ -32,6 +34,7 @@ if [[ "$DRILL_DB_NAME" == "$DB_NAME" ]]; then
   exit 1
 fi
 
+rhd_backup_verify_identity "$BACKUP_FILE"
 init_pg_tools
 validate_pg_identifier "$DRILL_DB_NAME" "DRILL_DB_NAME"
 
@@ -44,7 +47,10 @@ if [[ -f "${BACKUP_FILE}.sha256" ]]; then
   fi
 fi
 
+drill_created=0
 cleanup() {
+  # An already existing database belongs to another operation. Never remove it.
+  if [[ "$drill_created" != 1 ]]; then return; fi
   if [[ "$KEEP_DRILL_DB" == "1" ]]; then
     echo "Keeping drill database: ${DRILL_DB_NAME}"
     return
@@ -63,7 +69,12 @@ fi
 
 started_at="$(date +%s)"
 pg_create_database "$DRILL_DB_NAME"
+drill_created=1
 pg_restore_database "$DRILL_DB_NAME" "$BACKUP_FILE"
+if rhd_backup_config_managed; then
+  config_summary="$(rhd_backup_config_summary "${BACKUP_FILE}.config.json")"
+  rhd_backup_verify_database_config "$DRILL_DB_NAME" "$config_summary"
+fi
 
 required_tables=(t_tenant t_user t_conversation t_ticket t_knowledge_base t_ai_agent t_ai_workflow)
 for table in "${required_tables[@]}"; do

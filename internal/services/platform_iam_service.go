@@ -229,6 +229,11 @@ func (s *platformIAMService) CreateTenant(req request.PlatformTenantCreateReques
 }
 
 func (s *platformIAMService) UpdateTenant(req request.PlatformTenantUpdateRequest, operator *dto.AuthPrincipal) (*models.Tenant, error) {
+	if req.ServiceScene != nil || req.DefaultLocale != nil || req.Timezone != nil || req.SupportedLocales != nil || req.CustomerDefaultLocale != nil || req.DataRegion != nil {
+		if err := requireLegacyProjectSettingsDB(sqls.DB(), req.ID); err != nil {
+			return nil, err
+		}
+	}
 	if req.ID <= 0 {
 		return nil, errors.New("tenant id is required")
 	}
@@ -329,6 +334,14 @@ func (s *platformIAMService) UpdateTenant(req request.PlatformTenantUpdateReques
 	}
 	var updated *models.Tenant
 	if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
+		if err := lockProjectSettingsTenantDB(ctx.Tx, req.ID); err != nil {
+			return err
+		}
+		if req.ServiceScene != nil || req.DefaultLocale != nil || req.Timezone != nil || req.SupportedLocales != nil || req.CustomerDefaultLocale != nil || req.DataRegion != nil {
+			if err := requireLegacyProjectSettingsDB(ctx.Tx, req.ID); err != nil {
+				return err
+			}
+		}
 		if err := repositories.PlatformIAMRepository.UpdateTenant(ctx.Tx, req.ID, columns); err != nil {
 			return err
 		}

@@ -437,7 +437,7 @@ if [[ "$run_backup" == "1" ]]; then
     DB_NAME="$db_name" \
     BACKUP_RETENTION_COUNT=30 \
     BACKUP_METRICS_FILE="${remote_root}/metrics/remotehelpdesk_backup.prom" \
-    "${release}/scripts/backup-db.sh" "${remote_root}/backups"
+    bash "${release}/scripts/backup-db.sh" "${remote_root}/backups"
 
   backup_file="$(find "${remote_root}/backups" -maxdepth 1 -type f -name "${db_name}_*.dump" -print | sort | tail -n 1)"
   [[ -n "$backup_file" && -s "$backup_file" ]]
@@ -448,7 +448,7 @@ if [[ "$run_backup" == "1" ]]; then
       DB_USER="$db_user" \
       DB_NAME="$db_name" \
       RESTORE_DRILL_METRICS_FILE="${remote_root}/metrics/remotehelpdesk_restore_drill.prom" \
-      "${release}/scripts/drill-db-restore.sh" "$backup_file"
+      bash "${release}/scripts/drill-db-restore.sh" "$backup_file"
   fi
 fi
 

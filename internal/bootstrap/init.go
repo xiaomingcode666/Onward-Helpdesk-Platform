@@ -44,12 +44,21 @@ func Init(configPath string) error {
 		AddSource: cfg.Logger.AddSource,
 	})
 
+	if _, err := services.CheckProjectConfigurationDeploymentFile(); err != nil {
+		return err
+	}
 	if _, err := InitDB(cfg.DB); err != nil {
 		slog.Error("init db failed", "error", err)
 		return err
 	}
+	if err := services.CheckDeploymentIdentityBeforeMigrations(sqls.DB(), false); err != nil {
+		return err
+	}
 	if err := InitMigrations(); err != nil {
 		slog.Error("init migrations failed", "error", err)
+		return err
+	}
+	if err := services.VerifyProjectConfigurationDeployment(); err != nil {
 		return err
 	}
 	if err := services.PlatformIntegrationConfigService.LoadPersisted(); err != nil {

@@ -46,6 +46,11 @@ export default function nextConfig(): NextConfig {
     devIndicators: false,
     transpilePackages: ["@railops/ui"],
     typescript: { ignoreBuildErrors: true },
+    experimental: {
+      // This large workspace makes Turbopack's persistent dev cache grow by
+      // several GB per session. Keep the in-memory cache, but do not persist it.
+      turbopackFileSystemCacheForDev: false,
+    },
     turbopack: {
       // Turbopack resolves local aliases from the Next.js project root.
       resolveAlias: railopsUITurbopackAliases,

@@ -105,6 +105,8 @@ export interface UpdateProductPayload {
 
 export interface TicketIntakeDTO {
   source_record_id?: string
+	intake_config_version_id?: number
+	project_config_version_id?: number
   project_key?: string
   ticket_type?: string
   caller_name?: string

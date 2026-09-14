@@ -21,6 +21,7 @@ Qdrant 和 MinIO。Jitsi、邮件、语音、LLM/Sub2API 都是按需接入的�
 ## 主机要求
 
 - Linux x86_64/arm64，Docker Engine 24+，Docker Compose v2。
+- 版本配置的备份恢复需要 Python 3 和本版本构建的 Go 配置校验工具。
 - 建议至少 4 核 CPU、8 GiB 内存；启用本地模型时按模型另行扩容。
 - 初始可用磁盘建议不少于 20 GiB，生产数据和备份分开评估容量。
 - 两个域名或 HTTPS 入口：应用域名、MinIO S3 API 域名。
@@ -104,8 +105,7 @@ Docker 网络或宿主机网关。不要为了省事把 PostgreSQL、Redis、Qdr
 ```
 
 建议每天调用 `./rhdctl backup`，至少每月调用一次
-`./rhdctl restore-drill`。备份包含 `.dump`、`.sha256` 和 `.meta`，并按
-`BACKUP_RETENTION_COUNT` 保留。还应把备份异地复制；只保存在同一服务器不算灾备。
+`./rhdctl restore-drill`。备份包含 `.dump`、`.sha256` 和 `.meta`；启用版本配置的环境还包含匹配的 `.config.json`，必须一起保存。配置取自数据库当前生效版本，支持磁盘上已准备下一版本的升级流程，并按 `BACKUP_RETENTION_COUNT` 保留。还应把备份异地复制；只保存在同一服务器不算灾备。所有 shell 子脚本由 `bash` 调用，入口也可直接使用 `bash rhdctl ...`。
 
 ## Prometheus 监控
 
@@ -159,7 +159,7 @@ Blackbox Exporter 或接入客户现有监控平台。
 ./rhdctl restore /path/to/backup.dump --confirm cs_ai_agent
 ```
 
-这是破坏性操作，应在维护窗口执行。恢复后 `rhdctl` 会重启应用并运行诊断。
+这是破坏性操作，应在维护窗口执行。启用版本配置时，恢复前还会检查配套配置、摘要和历史密钥的读取权限，恢复后同步 `current.json` 与 `.env` 摘要；任一步失败保持应用停止，安全备份和所选备份均保留。文件分别原子替换，不宣称数据库与文件具备跨系统事务。没有匹配配置的旧备份不能直接通过受管恢复入口。成功后 `rhdctl` 才重启应用并运行诊断。真实密钥需单独受控保存，不包含在配置归档中。
 
 ## 故障处理
 

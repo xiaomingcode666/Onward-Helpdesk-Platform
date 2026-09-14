@@ -460,7 +460,13 @@ func notificationHasChannel(channels, target string) bool {
 
 func notificationMailRetryPolicy(tenantID int64) (int, time.Duration) {
 	policy := "retry_3_10m"
-	if setting := repositories.TenantMailSettingRepository.GetByTenantID(sqls.DB(), tenantID); setting != nil {
+	r, _, err := projectRuntimeDB(sqls.DB(), tenantID, 0)
+	if err != nil {
+		return 0, 0
+	}
+	if r != nil {
+		policy = r.Mail.RetryPolicy
+	} else if setting := repositories.TenantMailSettingRepository.GetByTenantID(sqls.DB(), tenantID); setting != nil {
 		if value := strings.TrimSpace(setting.RetryPolicy); value != "" {
 			policy = value
 		}

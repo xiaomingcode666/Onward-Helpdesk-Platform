@@ -152,6 +152,9 @@ func (s *ticketService) Count(cnd *sqls.Cnd) int64 {
 }
 
 func (s *ticketService) Create(t *models.Ticket) error {
+	if err := prepareProjectRuntimeTicketDB(sqls.DB(), t); err != nil {
+		return err
+	}
 	return repositories.TicketRepository.Create(sqls.DB(), t)
 }
 
@@ -371,12 +374,15 @@ func (s *ticketService) prepareTicketCreate(db *gorm.DB, req request.CreateTicke
 	if err := prepareTicketIntakeDB(db, ticket, req.TicketIntakeInput); err != nil {
 		return nil, nil, err
 	}
+	if err := prepareProjectRuntimeTicketDB(db, ticket); err != nil {
+		return nil, nil, err
+	}
 	if ticket.CurrentAssigneeID > 0 && ticket.Status != enums.TicketStatusDraft {
 		assignedAt := ticket.CreatedAt
 		if assignedAt.IsZero() {
 			assignedAt = time.Now()
 		}
-		deadline := ticketAssignmentDeadline(ticket, assignedAt)
+		deadline := ticketAssignmentDeadlineDB(db, ticket, assignedAt)
 		ticket.AssignedAt = &assignedAt
 		ticket.AcceptDeadlineAt = &deadline
 	}

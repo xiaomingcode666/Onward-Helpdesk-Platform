@@ -16,6 +16,9 @@ var Models = []any{
 	&UserIdentity{},
 	&Company{},
 	&Tenant{},
+	&ProjectConfigurationVersion{},
+	&ProjectConfigurationState{},
+	&ProjectConfigurationActivation{},
 	&TenantBranding{},
 	&TenantPlan{},
 	&TenantPlanQuota{},
@@ -1088,6 +1091,8 @@ type Ticket struct {
 	SourceRecordID              string             `gorm:"type:varchar(160);not null;default:'';index"`
 	SourceRecordKey             *string            `gorm:"type:varchar(64);uniqueIndex:uk_ticket_intake_source,priority:2"`
 	ProjectKey                  string             `gorm:"type:varchar(64);not null;default:''"`
+	IntakeConfigVersionID       int64              `gorm:"not null;default:0;index"`
+	ProjectConfigVersionID      int64              `gorm:"not null;default:0;index"`
 	TicketType                  string             `gorm:"type:varchar(64);not null;default:''"`
 	CallerName                  string             `gorm:"type:varchar(120);not null;default:''"`
 	CallerPhone                 string             `gorm:"type:varchar(64);not null;default:''"`

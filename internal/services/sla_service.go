@@ -14,6 +14,7 @@ import (
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/eventbus"
+	"remotehelpdesk/internal/pkg/projectconfig"
 
 	"github.com/google/uuid"
 	"github.com/mlogclub/simple/sqls"
@@ -27,17 +28,18 @@ import (
 
 // SLAPolicy SLA 策略定义
 type SLAPolicy struct {
-	ID                string    `gorm:"primaryKey;type:varchar(36)"`
-	TenantID          string    `gorm:"type:varchar(36);index;not null"`
-	Name              string    `gorm:"type:varchar(128);not null;default:''"`
-	Priority          string    `gorm:"type:varchar(16);not null;default:'';index"` // p0/p1/p2/p3/p4
-	FRTMinutes        int       `gorm:"type:int;not null;default:0"`                // 首次响应时间目标（分钟）
-	AssignmentMinutes int       `gorm:"type:int;not null;default:0"`                // 接单时间目标
-	ResolutionMinutes int       `gorm:"type:int;not null;default:0"`                // 处理时间目标
-	CalendarID        string    `gorm:"type:varchar(36);not null;default:'';index"` // 关联服务日历
-	Status            string    `gorm:"type:varchar(20);not null;default:'active';index"`
-	CreatedAt         time.Time `gorm:"type:timestamp;not null;index"`
-	UpdatedAt         time.Time `gorm:"type:timestamp;not null;index"`
+	runtimeCalendar   *projectconfig.Calendar `gorm:"-"`
+	ID                string                  `gorm:"primaryKey;type:varchar(36)"`
+	TenantID          string                  `gorm:"type:varchar(36);index;not null"`
+	Name              string                  `gorm:"type:varchar(128);not null;default:''"`
+	Priority          string                  `gorm:"type:varchar(16);not null;default:'';index"` // p0/p1/p2/p3/p4
+	FRTMinutes        int                     `gorm:"type:int;not null;default:0"`                // 首次响应时间目标（分钟）
+	AssignmentMinutes int                     `gorm:"type:int;not null;default:0"`                // 接单时间目标
+	ResolutionMinutes int                     `gorm:"type:int;not null;default:0"`                // 处理时间目标
+	CalendarID        string                  `gorm:"type:varchar(36);not null;default:'';index"` // 关联服务日历
+	Status            string                  `gorm:"type:varchar(20);not null;default:'active';index"`
+	CreatedAt         time.Time               `gorm:"type:timestamp;not null;index"`
+	UpdatedAt         time.Time               `gorm:"type:timestamp;not null;index"`
 }
 
 func (SLAPolicy) TableName() string {
@@ -144,6 +146,9 @@ type CreateSLAPolicyInput struct {
 
 // CreateSLAPolicy 创建 SLA 策略
 func (s *slaService) CreateSLAPolicy(in CreateSLAPolicyInput) (*SLAPolicy, error) {
+	if err := requireLegacyProjectSettingsDB(sqls.DB(), parseID(in.TenantID)); err != nil {
+		return nil, err
+	}
 	if in.TenantID == "" {
 		return nil, errorsx.InvalidParam("tenant_id is required")
 	}
@@ -180,7 +185,7 @@ func (s *slaService) CreateSLAPolicy(in CreateSLAPolicyInput) (*SLAPolicy, error
 		UpdatedAt:         time.Now(),
 	}
 
-	if err := sqls.DB().Create(policy).Error; err != nil {
+	if err := legacyProjectSettingsWrite(parseID(in.TenantID), func(db *gorm.DB) error { return db.Create(policy).Error }); err != nil {
 		return nil, err
 	}
 	return policy, nil
@@ -231,6 +236,9 @@ func (s *slaService) UpdateSLAPolicy(id string, in UpdateSLAPolicyInput) (*SLAPo
 
 // UpdateSLAPolicyForTenant updates a policy without allowing cross-tenant IDs.
 func (s *slaService) UpdateSLAPolicyForTenant(tenantID, id string, in UpdateSLAPolicyInput) (*SLAPolicy, error) {
+	if err := requireLegacyProjectSettingsDB(sqls.DB(), parseID(tenantID)); err != nil {
+		return nil, err
+	}
 	if tenantID == "" || id == "" {
 		return nil, errorsx.InvalidParam("tenant and policy id are required")
 	}
@@ -306,7 +314,9 @@ func (s *slaService) UpdateSLAPolicyForTenant(tenantID, id string, in UpdateSLAP
 		}
 	}
 
-	if err := sqls.DB().Model(&SLAPolicy{}).Where("tenant_id = ? AND id = ?", tenantID, id).Updates(updates).Error; err != nil {
+	if err := legacyProjectSettingsWrite(parseID(tenantID), func(db *gorm.DB) error {
+		return db.Model(&SLAPolicy{}).Where("tenant_id = ? AND id = ?", tenantID, id).Updates(updates).Error
+	}); err != nil {
 		return nil, err
 	}
 	return s.GetSLAPolicyForTenant(tenantID, id), nil
@@ -326,6 +336,9 @@ func (s *slaService) ToggleSLAPolicy(id string) (*SLAPolicy, error) {
 
 // ToggleSLAPolicyForTenant changes status only within the requested tenant.
 func (s *slaService) ToggleSLAPolicyForTenant(tenantID, id string) (*SLAPolicy, error) {
+	if err := requireLegacyProjectSettingsDB(sqls.DB(), parseID(tenantID)); err != nil {
+		return nil, err
+	}
 	if tenantID == "" || id == "" {
 		return nil, errorsx.InvalidParam("tenant and policy id are required")
 	}
@@ -343,10 +356,12 @@ func (s *slaService) ToggleSLAPolicyForTenant(tenantID, id string) (*SLAPolicy, 
 	}
 
 	now := time.Now()
-	if err := sqls.DB().Model(&SLAPolicy{}).Where("tenant_id = ? AND id = ?", tenantID, id).Updates(map[string]any{
-		"status":     newStatus,
-		"updated_at": now,
-	}).Error; err != nil {
+	if err := legacyProjectSettingsWrite(parseID(tenantID), func(db *gorm.DB) error {
+		return db.Model(&SLAPolicy{}).Where("tenant_id = ? AND id = ?", tenantID, id).Updates(map[string]any{
+			"status":     newStatus,
+			"updated_at": now,
+		}).Error
+	}); err != nil {
 		return nil, err
 	}
 	policy.Status = newStatus
@@ -378,6 +393,20 @@ func (s *slaService) FindActiveSLAPolicyByPriority(tenantID, priority string) *S
 // 如果未配置对应 SLA 策略则返回 nil 值。
 func (s *slaService) CalculateSLADeadline(tenantID, priority string, startTime time.Time) map[string]time.Time {
 	result := make(map[string]time.Time)
+	r, _, err := projectRuntimeDB(sqls.DB(), parseID(tenantID), 0)
+	if err != nil {
+		return result
+	}
+	if r != nil {
+		if t, c, ok := projectTicketTarget(r, "*", priority); ok {
+			for name, minutes := range map[string]int{"frt": t.ResponseMinutes, "assignment": t.AssignmentMinutes, "resolution": t.ResolutionMinutes} {
+				if minutes > 0 {
+					result[name] = c.AddMinutes(startTime, minutes)
+				}
+			}
+		}
+		return result
+	}
 
 	policy := s.FindActiveSLAPolicyByPriority(tenantID, priority)
 	if policy == nil {
@@ -744,10 +773,6 @@ func (s *slaService) CheckSLAViolations() ([]SLAViolation, error) {
 		return nil, err
 	}
 
-	if len(policies) == 0 {
-		return violations, nil
-	}
-
 	now := time.Now()
 	processedTickets := make(map[int64]struct{})
 
@@ -765,7 +790,7 @@ func (s *slaService) CheckSLAViolations() ([]SLAViolation, error) {
 		}
 
 		for _, ticket := range tickets {
-			if _, exists := processedTickets[ticket.ID]; exists || ticketSLAPriority(ticket) != policy.Priority {
+			if _, exists := processedTickets[ticket.ID]; exists || ticketSLAPriority(ticket) != policy.Priority || ticket.ProjectConfigVersionID > 0 {
 				continue
 			}
 			processedTickets[ticket.ID] = struct{}{}
@@ -777,6 +802,17 @@ func (s *slaService) CheckSLAViolations() ([]SLAViolation, error) {
 		}
 	}
 
+	work, err := projectSLAWorkItems()
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range work {
+		items, err := s.checkSingleViolations(item.ticket, item.policy, now)
+		if err != nil {
+			return nil, err
+		}
+		violations = append(violations, items...)
+	}
 	return violations, nil
 }
 
@@ -797,9 +833,6 @@ func (s *slaService) checkSLAWarningsAt(now time.Time) (int, error) {
 	if err := sqls.DB().Where("status = 'active'").Order("updated_at DESC").Find(&policies).Error; err != nil {
 		return 0, err
 	}
-	if len(policies) == 0 {
-		return 0, nil
-	}
 	processedTickets := make(map[int64]struct{})
 	warnings := 0
 	for _, policy := range policies {
@@ -815,7 +848,7 @@ func (s *slaService) checkSLAWarningsAt(now time.Time) (int, error) {
 			return warnings, err
 		}
 		for _, ticket := range tickets {
-			if _, exists := processedTickets[ticket.ID]; exists || ticketSLAPriority(ticket) != policy.Priority {
+			if _, exists := processedTickets[ticket.ID]; exists || ticketSLAPriority(ticket) != policy.Priority || ticket.ProjectConfigVersionID > 0 {
 				continue
 			}
 			processedTickets[ticket.ID] = struct{}{}
@@ -826,6 +859,17 @@ func (s *slaService) checkSLAWarningsAt(now time.Time) (int, error) {
 			warnings += created
 		}
 	}
+	work, err := projectSLAWorkItems()
+	if err != nil {
+		return warnings, err
+	}
+	for _, item := range work {
+		count, err := s.enqueueUpcomingWarnings(item.ticket, item.policy, now)
+		if err != nil {
+			return warnings, err
+		}
+		warnings += count
+	}
 	return warnings, nil
 }
 
@@ -835,7 +879,10 @@ func (s *slaService) enqueueUpcomingWarnings(ticket models.Ticket, policy SLAPol
 	if s.GetActivePauseForTenant(tenantID, ticketID) != nil {
 		return 0, nil
 	}
-	pausedDuration := time.Duration(s.GetTotalPausedDurationForTenant(tenantID, ticketID)) * time.Second
+	pausedDuration, pauseErr := policy.paused(ticket, now)
+	if pauseErr != nil {
+		return 0, pauseErr
+	}
 	targets := make([]slaWarningTarget, 0, 3)
 	if policy.FRTMinutes > 0 {
 		firstResponseAt, err := s.firstAgentResponseAt(ticket)
@@ -845,20 +892,20 @@ func (s *slaService) enqueueUpcomingWarnings(ticket models.Ticket, policy SLAPol
 		if firstResponseAt == nil {
 			targets = append(targets, slaWarningTarget{
 				violationType: "frt", targetMinutes: policy.FRTMinutes,
-				deadline: ticket.CreatedAt.Add(time.Duration(policy.FRTMinutes) * time.Minute).Add(pausedDuration),
+				deadline: policy.deadline(ticket.CreatedAt, policy.FRTMinutes, pausedDuration),
 			})
 		}
 	}
 	if policy.AssignmentMinutes > 0 && ticket.AcceptedAt == nil {
 		targets = append(targets, slaWarningTarget{
 			violationType: "assignment", targetMinutes: policy.AssignmentMinutes,
-			deadline: ticket.CreatedAt.Add(time.Duration(policy.AssignmentMinutes) * time.Minute).Add(pausedDuration),
+			deadline: policy.deadline(ticket.CreatedAt, policy.AssignmentMinutes, pausedDuration),
 		})
 	}
 	if policy.ResolutionMinutes > 0 && ticket.ResolvedAt == nil {
 		targetMinutes := policy.ResolutionMinutes
-		deadline := ticket.CreatedAt.Add(time.Duration(targetMinutes) * time.Minute).Add(pausedDuration)
-		if ticket.SLADueAt != nil {
+		deadline := policy.deadline(ticket.CreatedAt, targetMinutes, pausedDuration)
+		if ticket.SLADueAt != nil && policy.runtimeCalendar == nil {
 			deadline = ticket.SLADueAt.Add(pausedDuration)
 			targetMinutes = max(1, int(ticket.SLADueAt.Sub(ticket.CreatedAt).Minutes()))
 		}
@@ -875,7 +922,7 @@ func (s *slaService) enqueueUpcomingWarnings(ticket models.Ticket, policy SLAPol
 		if remaining <= 0 || remaining > lead {
 			continue
 		}
-		actualMinutes := effectiveSLAMinutes(ticket.CreatedAt, now, pausedDuration)
+		actualMinutes := policy.elapsed(ticket.CreatedAt, now, pausedDuration)
 		eventID := "tenant:" + tenantID + ":sla.risk:" + ticketID + ":" + target.violationType + ":" + strconv.FormatInt(bucket, 10)
 		created := false
 		if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
@@ -919,8 +966,10 @@ func (s *slaService) checkSingleViolations(ticket models.Ticket, policy SLAPolic
 
 	ticketID := formatID(ticket.ID)
 	tenantID := formatID(ticket.TenantID)
-	pausedSeconds := s.GetTotalPausedDurationForTenant(tenantID, ticketID)
-	pausedDuration := time.Duration(pausedSeconds) * time.Second
+	pausedDuration, pauseErr := policy.paused(ticket, now)
+	if pauseErr != nil {
+		return nil, pauseErr
+	}
 	violations := make([]SLAViolation, 0, 3)
 
 	firstResponseAt, err := s.firstAgentResponseAt(ticket)
@@ -931,8 +980,14 @@ func (s *slaService) checkSingleViolations(ticket models.Ticket, policy SLAPolic
 	if firstResponseAt != nil {
 		frtEnd = *firstResponseAt
 	}
-	if _, exists := existingTypes["frt"]; !exists && policy.FRTMinutes > 0 && frtEnd.After(ticket.CreatedAt.Add(time.Duration(policy.FRTMinutes)*time.Minute).Add(pausedDuration)) {
-		violation, created, createErr := s.createViolation(ticketID, tenantID, "frt", policy.FRTMinutes, effectiveSLAMinutes(ticket.CreatedAt, frtEnd, pausedDuration), now)
+	if policy.runtimeCalendar != nil {
+		pausedDuration, err = policy.paused(ticket, frtEnd)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if _, exists := existingTypes["frt"]; !exists && policy.FRTMinutes > 0 && frtEnd.After(policy.deadline(ticket.CreatedAt, policy.FRTMinutes, pausedDuration)) {
+		violation, created, createErr := s.createViolation(ticketID, tenantID, "frt", policy.FRTMinutes, policy.elapsed(ticket.CreatedAt, frtEnd, pausedDuration), now)
 		if createErr != nil {
 			return nil, createErr
 		}
@@ -947,8 +1002,14 @@ func (s *slaService) checkSingleViolations(ticket models.Ticket, policy SLAPolic
 	if ticket.AcceptedAt != nil {
 		assignmentEnd = *ticket.AcceptedAt
 	}
-	if _, exists := existingTypes["assignment"]; !exists && policy.AssignmentMinutes > 0 && assignmentEnd.After(ticket.CreatedAt.Add(time.Duration(policy.AssignmentMinutes)*time.Minute).Add(pausedDuration)) {
-		violation, created, createErr := s.createViolation(ticketID, tenantID, "assignment", policy.AssignmentMinutes, effectiveSLAMinutes(ticket.CreatedAt, assignmentEnd, pausedDuration), now)
+	if policy.runtimeCalendar != nil {
+		pausedDuration, err = policy.paused(ticket, assignmentEnd)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if _, exists := existingTypes["assignment"]; !exists && policy.AssignmentMinutes > 0 && assignmentEnd.After(policy.deadline(ticket.CreatedAt, policy.AssignmentMinutes, pausedDuration)) {
+		violation, created, createErr := s.createViolation(ticketID, tenantID, "assignment", policy.AssignmentMinutes, policy.elapsed(ticket.CreatedAt, assignmentEnd, pausedDuration), now)
 		if createErr != nil {
 			return nil, createErr
 		}
@@ -962,14 +1023,20 @@ func (s *slaService) checkSingleViolations(ticket models.Ticket, policy SLAPolic
 	if ticket.ResolvedAt != nil {
 		resolutionEnd = *ticket.ResolvedAt
 	}
+	if policy.runtimeCalendar != nil {
+		pausedDuration, err = policy.paused(ticket, resolutionEnd)
+		if err != nil {
+			return nil, err
+		}
+	}
 	resolutionTarget := policy.ResolutionMinutes
-	resolutionDeadline := ticket.CreatedAt.Add(time.Duration(resolutionTarget) * time.Minute).Add(pausedDuration)
-	if ticket.SLADueAt != nil {
+	resolutionDeadline := policy.deadline(ticket.CreatedAt, resolutionTarget, pausedDuration)
+	if ticket.SLADueAt != nil && policy.runtimeCalendar == nil {
 		resolutionDeadline = ticket.SLADueAt.Add(pausedDuration)
 		resolutionTarget = max(1, int(ticket.SLADueAt.Sub(ticket.CreatedAt).Minutes()))
 	}
 	if _, exists := existingTypes["resolution"]; !exists && resolutionTarget > 0 && resolutionEnd.After(resolutionDeadline) {
-		violation, created, createErr := s.createViolation(ticketID, tenantID, "resolution", resolutionTarget, effectiveSLAMinutes(ticket.CreatedAt, resolutionEnd, pausedDuration), now)
+		violation, created, createErr := s.createViolation(ticketID, tenantID, "resolution", resolutionTarget, policy.elapsed(ticket.CreatedAt, resolutionEnd, pausedDuration), now)
 		if createErr != nil {
 			return nil, createErr
 		}
@@ -1209,6 +1276,9 @@ func (s *slaService) ResolveViolation(violationID string) error {
 
 // CreateServiceCalendar 创建服务日历
 func (s *slaService) CreateServiceCalendar(cal *ServiceCalendar) error {
+	if err := requireLegacyProjectSettingsDB(sqls.DB(), parseID(cal.TenantID)); err != nil {
+		return err
+	}
 	if cal.ID == "" {
 		cal.ID = uuid.NewString()
 	}
@@ -1217,7 +1287,7 @@ func (s *slaService) CreateServiceCalendar(cal *ServiceCalendar) error {
 	}
 	cal.CreatedAt = time.Now()
 	cal.UpdatedAt = time.Now()
-	return sqls.DB().Create(cal).Error
+	return legacyProjectSettingsWrite(parseID(cal.TenantID), func(db *gorm.DB) error { return db.Create(cal).Error })
 }
 
 // GetServiceCalendar 获取服务日历

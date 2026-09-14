@@ -25,8 +25,8 @@ import type {
 import type { EnterpriseCustomerInviteResult } from "@/lib/api/platform-iam"
 import type { TicketIntakePolicy, IntakeDraft } from "@/lib/ticket-intake"
 
-export function fetchTicketIntakePolicy() {
-  return apiGet<TicketIntakePolicy>("/ticket-settings/intake")
+export function fetchTicketIntakePolicy(ticketId?: number) {
+  return apiGet<TicketIntakePolicy>("/ticket-settings/intake", ticketId ? { ticket_id: ticketId } : undefined)
 }
 
 export function updateTicketIntakePolicy(policy: TicketIntakePolicy) {

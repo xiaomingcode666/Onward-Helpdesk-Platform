@@ -27,6 +27,9 @@ func Migrate() error {
 	mu.Lock()
 	defer mu.Unlock()
 
+	// Completion belongs to the connected database, never to another instance
+	// previously initialized by this process (including isolated test databases).
+	migrations = make(map[int64]models.Migration)
 	if list := services.MigrationService.Find(sqls.NewCnd().Asc("version")); len(list) > 0 {
 		for _, element := range list {
 			migrations[element.Version] = element

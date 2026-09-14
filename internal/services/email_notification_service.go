@@ -224,7 +224,16 @@ func (s *emailNotificationService) SendNotificationEmail(tenantID int64, to, sub
 }
 
 func (s *emailNotificationService) sendEmail(tenantID int64, to, subject, templateName string, data map[string]interface{}) error {
-	cfg := s.resolveMailConfig(tenantID)
+	projectMail, configErr := resolveProjectMailConfig(tenantID)
+	if configErr != nil {
+		return configErr
+	}
+	var cfg config.EmailConfig
+	if projectMail != nil {
+		cfg = *projectMail
+	} else {
+		cfg = s.resolveMailConfig(tenantID)
+	}
 	if cfg.SMTPHost == "" {
 		return fmt.Errorf("email SMTP not configured")
 	}
@@ -272,6 +281,13 @@ func (s *emailNotificationService) sendEmail(tenantID int64, to, subject, templa
 	headers["Subject"] = subjBuf.String()
 	headers["MIME-Version"] = "1.0"
 	headers["Content-Type"] = "text/html; charset=UTF-8"
+	if projectMail != nil {
+		// Metadata comes from the same active snapshot resolver as the sender.
+		headers["Reply-To"] = projectMail.ReplyTo
+		if headers["Reply-To"] == "" {
+			delete(headers, "Reply-To")
+		}
+	}
 
 	msg := ""
 	for k, v := range headers {

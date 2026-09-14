@@ -19,6 +19,7 @@ import (
 	"remotehelpdesk/internal/repositories"
 
 	"github.com/mlogclub/simple/sqls"
+	"gorm.io/gorm"
 )
 
 const (
@@ -92,6 +93,16 @@ func (s *auditRetentionService) CleanupExpiredLogs(ctx context.Context) (AuditRe
 		ctx = context.Background()
 	}
 	db := sqls.DB().WithContext(ctx)
+	managed, scopeErr := projectRetentionManagedTenantIDs(db)
+	if scopeErr != nil {
+		return AuditRetentionCleanupResult{}, scopeErr
+	}
+	if len(managed) > 0 {
+		db = db.Where("tenant_id NOT IN ?", managed)
+	}
+	// Each batch/table starts from the same scope, without reusing the previous
+	// query's model, IDs or cutoff clauses.
+	db = db.Session(&gorm.Session{})
 	var failures []error
 	authDeleted, err := deleteAuditRetentionBatches(func() (int64, error) {
 		return repositories.PlatformIAMRepository.DeleteAuthAuditLogsBefore(db, cutoff, auditRetentionBatchSize)

@@ -60,8 +60,30 @@ func (s *tenantPortalSettingsService) FindByTenantIDsDB(db *gorm.DB, tenantIDs [
 }
 
 func (s *tenantPortalSettingsService) SaveBrandingDB(db *gorm.DB, tenantID int64, brandName string, logoAssetID int64, logoURL, customDomain, customerTheme, defaultLocale string, operator *dto.AuthPrincipal) (*models.TenantBranding, error) {
+	if db == nil {
+		return nil, errors.New("tenant is required")
+	}
+	var item *models.TenantBranding
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := lockProjectSettingsTenantDB(tx, tenantID); err != nil {
+			return err
+		}
+		var err error
+		item, err = s.saveBrandingDB(tx, tenantID, brandName, logoAssetID, logoURL, customDomain, customerTheme, defaultLocale, operator)
+		return err
+	})
+	return item, err
+}
+func (s *tenantPortalSettingsService) saveBrandingDB(db *gorm.DB, tenantID int64, brandName string, logoAssetID int64, logoURL, customDomain, customerTheme, defaultLocale string, operator *dto.AuthPrincipal) (*models.TenantBranding, error) {
 	if db == nil || tenantID <= 0 {
 		return nil, errors.New("tenant is required")
+	}
+	r, _, runtimeErr := projectRuntimeDB(db, tenantID, 0)
+	if runtimeErr != nil {
+		return nil, runtimeErr
+	}
+	if r != nil && defaultLocale != r.Locale {
+		return nil, errorsx.InvalidParam("默认语言已由项目配置版本管理")
 	}
 	brandName = strings.TrimSpace(brandName)
 	customDomain = strings.TrimSpace(customDomain)
@@ -170,6 +192,24 @@ func tenantBrandConfigJSON(existingJSON, customerTheme string) (string, error) {
 }
 
 func (s *tenantPortalSettingsService) SaveOnePanelDB(db *gorm.DB, tenantID int64, displayName, baseURL, embedMode string, enabled bool, operator *dto.AuthPrincipal) (*models.TenantIntegrationConfig, error) {
+	if db == nil {
+		return nil, errors.New("tenant is required")
+	}
+	var item *models.TenantIntegrationConfig
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := lockProjectSettingsTenantDB(tx, tenantID); err != nil {
+			return err
+		}
+		var err error
+		item, err = s.saveOnePanelDB(tx, tenantID, displayName, baseURL, embedMode, enabled, operator)
+		return err
+	})
+	return item, err
+}
+func (s *tenantPortalSettingsService) saveOnePanelDB(db *gorm.DB, tenantID int64, displayName, baseURL, embedMode string, enabled bool, operator *dto.AuthPrincipal) (*models.TenantIntegrationConfig, error) {
+	if err := requireLegacyProjectSettingsDB(db, tenantID); err != nil {
+		return nil, err
+	}
 	if db == nil || tenantID <= 0 {
 		return nil, errors.New("tenant is required")
 	}

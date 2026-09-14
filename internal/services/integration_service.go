@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mlogclub/simple/sqls"
+	"gorm.io/gorm"
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/dto/request"
@@ -33,6 +34,9 @@ func (s *tenantIntegrationConfigService) FindPage(cnd *sqls.Cnd) ([]models.Tenan
 	return repositories.TenantIntegrationConfigRepository.FindPage(sqls.DB(), cnd)
 }
 func (s *tenantIntegrationConfigService) Create(req request.CreateTenantIntegrationConfigRequest, op *dto.AuthPrincipal) (*models.TenantIntegrationConfig, error) {
+	if err := requireLegacyProjectSettingsDB(sqls.DB(), req.TenantID); err != nil {
+		return nil, err
+	}
 	if op == nil {
 		return nil, errorsx.UnauthorizedI18n("error.auth.expired")
 	}
@@ -52,7 +56,7 @@ func (s *tenantIntegrationConfigService) Create(req request.CreateTenantIntegrat
 	}
 	secretRef, secretFingerprint := buildSecretReference("tenant-integration", req.TenantID, provider, req.AppSecret)
 	item := &models.TenantIntegrationConfig{TenantID: req.TenantID, Provider: provider, BaseURL: strings.TrimRight(strings.TrimSpace(req.BaseURL), "/"), AppID: strings.TrimSpace(req.AppID), AppKey: strings.TrimSpace(req.AppKey), AppSecretRef: secretRef, AppSecretFingerprint: secretFingerprint, Enabled: req.Enabled, Status: enums.StatusOk, MetadataJSON: meta, AuditFields: utils.BuildAuditFields(op)}
-	if err := repositories.TenantIntegrationConfigRepository.Create(sqls.DB(), item); err != nil {
+	if err := legacyProjectSettingsWrite(req.TenantID, func(db *gorm.DB) error { return repositories.TenantIntegrationConfigRepository.Create(db, item) }); err != nil {
 		return nil, err
 	}
 	return item, nil
@@ -64,6 +68,12 @@ func (s *tenantIntegrationConfigService) Update(req request.UpdateTenantIntegrat
 	old := s.Get(req.ID)
 	if old == nil || old.Status == enums.StatusDeleted {
 		return errorsx.InvalidParam("integration config does not exist")
+	}
+	if err := requireLegacyProjectSettingsDB(sqls.DB(), old.TenantID); err != nil {
+		return err
+	}
+	if err := requireLegacyProjectSettingsDB(sqls.DB(), req.TenantID); err != nil {
+		return err
 	}
 	if _, err := requireActiveTenant(req.TenantID); err != nil {
 		return err
@@ -79,7 +89,10 @@ func (s *tenantIntegrationConfigService) Update(req request.UpdateTenantIntegrat
 		m["app_secret_ref"] = secretRef
 		m["app_secret_fingerprint"] = secretFingerprint
 	}
-	return repositories.TenantIntegrationConfigRepository.Updates(sqls.DB(), req.ID, m)
+	if req.TenantID != old.TenantID {
+		return errorsx.InvalidParam("接入配置不能移动到其他公司，请在目标公司新建")
+	}
+	return legacyProjectSettingsWrite(req.TenantID, func(db *gorm.DB) error { return repositories.TenantIntegrationConfigRepository.Updates(db, req.ID, m) })
 }
 func (s *tenantIntegrationConfigService) Delete(id int64, op *dto.AuthPrincipal) error {
 	return s.status(id, int(enums.StatusDeleted), op)
@@ -97,7 +110,12 @@ func (s *tenantIntegrationConfigService) status(id int64, status int, op *dto.Au
 	if s.Get(id) == nil {
 		return errorsx.InvalidParam("integration config does not exist")
 	}
-	return repositories.TenantIntegrationConfigRepository.Updates(sqls.DB(), id, map[string]any{"status": status, "updated_at": time.Now(), "update_user_id": op.UserID, "update_user_name": op.Username})
+	if err := requireLegacyProjectSettingsDB(sqls.DB(), s.Get(id).TenantID); err != nil {
+		return err
+	}
+	return legacyProjectSettingsWrite(s.Get(id).TenantID, func(db *gorm.DB) error {
+		return repositories.TenantIntegrationConfigRepository.Updates(db, id, map[string]any{"status": status, "updated_at": time.Now(), "update_user_id": op.UserID, "update_user_name": op.Username})
+	})
 }
 
 type productAIUsageCredentialService struct{}

@@ -199,8 +199,16 @@ services:
     volumes:
       - agent-desk-data:/app/data
       - ./docker/remotehelpdesk.yaml:/app/config/config.yaml:ro
+      - ${RHD_PROJECT_CONFIG_DIR:-./project-config}:/app/project-config:ro
+      - ${RHD_PROJECT_SECRET_DIR:-./project-secrets}:/run/project-secrets:ro
     environment:
       TZ: UTC
+      RHD_PROJECT_ENVIRONMENT: ${RHD_PROJECT_ENVIRONMENT:-production}
+      RHD_PROJECT_CONFIG_REQUIRED: "1"
+      RHD_PROJECT_CONFIG_FILE: /app/project-config/current.json
+      RHD_PROJECT_CONFIG_TENANT_ID: ${RHD_PROJECT_CONFIG_TENANT_ID:-}
+      RHD_PROJECT_CONFIG_DIGEST: ${RHD_PROJECT_CONFIG_DIGEST:-}
+      RHD_PROJECT_SECRET_DIR: /run/project-secrets
       RHD_REDIS_ADDR: redis:6379
       RHD_REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
       RHD_REDIS_DB: 0

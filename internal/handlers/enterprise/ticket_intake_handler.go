@@ -6,17 +6,34 @@ import (
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/constants"
 	"remotehelpdesk/internal/pkg/dto"
+	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/httpx"
 	"remotehelpdesk/internal/services"
+	"strconv"
 )
 
 func TicketIntakePolicyGet(ctx *gin.Context) {
-	if _, err := services.AuthService.RequirePermission(ctx, constants.PermissionTicketCreate); err != nil {
+	operator, err := services.AuthService.RequirePermission(ctx, constants.PermissionTicketCreate)
+	if err != nil {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
 	tenantID, ok := resolveEnterpriseTenantIDInt(ctx)
 	if !ok {
+		return
+	}
+	if raw := ctx.Query("ticket_id"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			httpx.WriteJSON(ctx, errorsx.InvalidParam("工单编号无效"))
+			return
+		}
+		policy, err := services.GetTicketBoundIntakePolicy(id, operator)
+		if err != nil {
+			httpx.WriteJSON(ctx, err)
+			return
+		}
+		httpx.WriteJSON(ctx, policy)
 		return
 	}
 	policy, err := services.GetTicketIntakePolicy(tenantID)

@@ -5,7 +5,6 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "dev:turbo": "next dev --turbopack",
-    "dev:webpack": "next dev --webpack",
     "build": "next build",
     "build:static": "NEXT_STATIC_EXPORT=1 next build",
     "mobile:build": "node scripts/build-mobile.mjs",

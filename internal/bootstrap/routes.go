@@ -668,6 +668,11 @@ func registerEnterpriseAIWorkflowRoutes(group *gin.RouterGroup) {
 func registerEnterpriseTicketRoutes(group *gin.RouterGroup) {
 	require := middleware.RequirePermissionMiddleware
 	group.GET("/ticket-settings/intake", require(constants.PermissionTicketCreate), enterprise.TicketIntakePolicyGet)
+	group.GET("/ticket-settings/configuration", require(constants.PermissionTicketUpdate), enterprise.ProjectConfigurationGet)
+	group.GET("/ticket-settings/configuration/upgrade", require(constants.PermissionTicketUpdate), enterprise.ProjectConfigurationUpgrade)
+	group.POST("/ticket-settings/configuration/drafts", require(constants.PermissionTicketUpdate), enterprise.ProjectConfigurationDraft)
+	group.POST("/ticket-settings/configuration/validate", require(constants.PermissionTicketUpdate), enterprise.ProjectConfigurationValidate)
+	group.POST("/ticket-settings/configuration/:version/apply", require(constants.PermissionTicketUpdate), enterprise.ProjectConfigurationApply)
 	group.PUT("/ticket-settings/intake", require(constants.PermissionTicketUpdate), enterprise.TicketIntakePolicyUpdate)
 	group.PATCH("/tickets/:id/intake", require(constants.PermissionTicketUpdate), enterprise.TicketIntakeComplete)
 	group.GET("/ticket-settings/auto-close", require(constants.PermissionTicketView), enterprise.TicketAutoClosePolicyGet)

@@ -11,6 +11,7 @@ import (
 	"remotehelpdesk/internal/repositories"
 
 	"github.com/mlogclub/simple/sqls"
+	"gorm.io/gorm"
 )
 
 var TicketAutoCloseService = newTicketAutoCloseService()
@@ -32,16 +33,21 @@ func (s *ticketAutoCloseService) GetPolicy(tenantID int64) (*dto.TicketAutoClose
 }
 
 func (s *ticketAutoCloseService) UpdatePolicy(tenantID int64, policy dto.TicketAutoClosePolicyDTO, operator *dto.AuthPrincipal) (*dto.TicketAutoClosePolicyDTO, error) {
+	if err := requireLegacyProjectSettingsDB(sqls.DB(), tenantID); err != nil {
+		return nil, err
+	}
 	if operator == nil || operator.TenantID != tenantID {
 		return nil, errorsx.ForbiddenI18n("error.e0225")
 	}
 	days := normalizeAutoCloseDays(policy.Days)
-	if err := repositories.TenantRepository.Updates(sqls.DB(), tenantID, map[string]any{
-		"ticket_auto_close_enabled": policy.Enabled,
-		"ticket_auto_close_days":    days,
-		"updated_at":                s.now(),
-		"update_user_id":            operator.UserID,
-		"update_user_name":          operator.Username,
+	if err := legacyProjectSettingsWrite(tenantID, func(db *gorm.DB) error {
+		return repositories.TenantRepository.Updates(db, tenantID, map[string]any{
+			"ticket_auto_close_enabled": policy.Enabled,
+			"ticket_auto_close_days":    days,
+			"updated_at":                s.now(),
+			"update_user_id":            operator.UserID,
+			"update_user_name":          operator.Username,
+		})
 	}); err != nil {
 		return nil, err
 	}

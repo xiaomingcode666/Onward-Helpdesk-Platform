@@ -446,6 +446,8 @@ export function EnterpriseTicketDetailContent({
     ...(ticket.source_record_id ? [
       [intakeLabel("channel"), channelLabel(ticket.channel)],
       [intakeLabel("source_record_id"), ticket.source_record_id],
+	  ["受理规则版本", ticket.intake_config_version_id ? `V${ticket.intake_config_version_id}` : "历史版本未记录"],
+	  ["运营配置版本", ticket.project_config_version_id ? `V${ticket.project_config_version_id}` : "未绑定运营配置"],
       [intakeLabel("project_key"), ticket.project_key || "-"],
       [intakeLabel("ticket_type"), ticket.ticket_type || "-"],
       [intakeLabel("caller_name"), ticket.caller_name || "-"],
