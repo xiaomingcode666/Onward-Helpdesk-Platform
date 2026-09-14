@@ -1350,13 +1350,14 @@ function QueueDistributionPie({
   const total = queues.reduce((sum, queue) => sum + queue.count, 0)
   const [hoveredKey, setHoveredKey] = useState<string | null>(null)
 
+  const segments: { key: string; start: number; end: number; color: string }[] = []
   let cursor = 0
-  const segments = queues.map((queue) => {
+  for (const queue of queues) {
     const start = cursor
     const size = total > 0 ? (queue.count / total) * 360 : 0
     cursor += size
-    return { key: queue.key, start, end: cursor, color: queueToneColor(queue.tone, queue.key) }
-  })
+    segments.push({ key: queue.key, start, end: cursor, color: queueToneColor(queue.tone, queue.key) })
+  }
 
   // Hovered segment gets a lighter shade so the ring shows which part the value belongs to.
   const pieStyle: CSSProperties = {

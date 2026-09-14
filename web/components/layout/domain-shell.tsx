@@ -231,9 +231,11 @@ function SidebarNav({
   const [openKeysState, setOpenKeysState] = useState<string[]>(() =>
     collapsed ? [] : defaultOpenKeys
   )
-  useEffect(() => {
+  const [openKeysContext, setOpenKeysContext] = useState({ collapsed, defaultOpenKeys })
+  if (openKeysContext.collapsed !== collapsed || openKeysContext.defaultOpenKeys !== defaultOpenKeys) {
+    setOpenKeysContext({ collapsed, defaultOpenKeys })
     setOpenKeysState(collapsed ? [] : defaultOpenKeys)
-  }, [collapsed, defaultOpenKeys])
+  }
 
   const brand = (
     <>

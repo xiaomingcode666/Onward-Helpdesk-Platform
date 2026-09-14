@@ -21,6 +21,8 @@ const manageEngineerStatus = process.env.E2E_MANAGE_ENGINEER_STATUS !== "0"
 const publishKnowledgeCandidate = process.env.E2E_PUBLISH_KNOWLEDGE_CANDIDATE !== "0"
 const requiresAdmin = manageDispatchFixture || publishKnowledgeCandidate
 
+test.use({ actionTimeout: 30_000 })
+
 function requireLiveFixture() {
   const missing = Object.entries({
     E2E_PRODUCT_ID: productId > 0 ? String(productId) : "",
@@ -395,7 +397,8 @@ async function confirmEngineerAvailable(page: Page) {
       throw new Error(payload.message || `E2E engineer work status update failed with ${response.status}`)
     }
   })
-  const confirmButton = page.getByRole("button", { name: /进入工作台/ })
+  const confirmButton = page.getByRole("dialog", { name: /工程师工作确认/ })
+    .getByRole("button", { name: /^(恢复可接单并)?进入运营总览$/ })
   if (await confirmButton.isVisible({ timeout: 5_000 }).catch(() => false)) {
     await confirmButton.click()
   }
@@ -1049,7 +1052,7 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
 
 	    const previousConversationId = new URL(customer.url()).searchParams.get("conversationId")
     await closeCustomerConversationIfPresent(customer, Number(previousConversationId || "0"))
-    await customer.getByRole("button", { name: "新建会话", exact: true }).click()
+    await customer.getByRole("button", { name: "发起会话", exact: true }).click()
     const deviceChoice = customer.getByRole("dialog", { name: "发起服务会话" })
       .getByRole("button")
       .filter({ hasText: customerDeviceNo })
@@ -1060,7 +1063,7 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
         if (request.method() !== "POST") return false
         return new URL(request.url()).pathname === "/api/conversation/create_or_match"
       }),
-      customer.getByRole("button", { name: "关联设备并开始", exact: true }).click(),
+      customer.getByRole("button", { name: "创建设备会话", exact: true }).click(),
     ])
     const createDeviceConversationPayload = JSON.parse(createDeviceConversationRequest.postData() || "{}") as {
       deviceId?: number
@@ -1177,9 +1180,11 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     await customerRole.context.setOffline(false)
     await expect(customer.getByText(missedByCustomer).last()).toBeVisible({ timeout: 20_000 })
 
-    const moduleSelect = engineer.locator("select").filter({ has: engineer.locator("option", { hasText: supplierModule }) })
+    await engineer.getByRole("tab", { name: "供应商协作", exact: true }).click()
+    const moduleSelect = engineer.getByRole("combobox", { name: "选择故障模块", exact: true })
     await expect(moduleSelect, `应加载产品模块 ${supplierModule}`).toHaveCount(1, { timeout: 30_000 })
-    await moduleSelect.selectOption({ label: supplierModule })
+    await moduleSelect.click()
+    await engineer.locator(".ant-select-dropdown:visible").getByText(supplierModule, { exact: true }).click()
     await engineer.getByPlaceholder(/说明需要供应商协助确认的问题/).fill(`${runTag}：请原厂核对端子规范和 48V 母线允许范围。`)
     await engineer.getByRole("button", { name: "升级模块供应商" }).click()
     await expect(
@@ -1285,7 +1290,7 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     await customerHumanComposer.fill("")
 
     const supplierReply = `${runTag}：原厂正在核对端子与母线记录。`
-    const supplierComposer = supplier.getByPlaceholder(/回复会同步给客户和企业工程师/)
+    const supplierComposer = supplier.getByRole("textbox", { name: "回复协作会话", exact: true })
     await supplierComposer.fill(supplierReply)
     await Promise.all([
       expect(engineer.getByTestId("enterprise-typing-status")).toHaveText("供应商正在输入...", { timeout: 10_000 }),
@@ -1372,7 +1377,14 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     await engineer.getByRole("textbox", { name: "处理方案与客户注意事项" }).fill(
       "完全断电后重新压接端子；负载复测母线稳定在 48.1V，连续运行 30 分钟保持绿色慢闪。若再次红灯常亮应立即停机。",
     )
-    await engineer.getByRole("button", { name: "提交并等待客户确认" }).click()
+    await Promise.all([
+      engineer.waitForEvent("dialog", { timeout: 30_000 }).then(async (dialog) => {
+        expect(dialog.type()).toBe("confirm")
+        expect(dialog.message()).toMatch(/结束.*会议.*提交维修结论/)
+        await dialog.accept()
+      }),
+      engineer.getByRole("button", { name: "提交并等待客户确认" }).click(),
+    ])
 
     await customer.goto(`${frontendUrl}/customer/tickets`)
     await currentTicketButton.click()
@@ -1382,7 +1394,7 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
       customer.waitForResponse((response) =>
         response.request().method() === "POST" && /\/api\/customer\/v1\/tickets\/\d+\/_confirm$/.test(response.url()),
       ),
-      customer.getByRole("button", { name: "评价并确认已解决" }).click(),
+      customer.getByRole("button", { name: "评价并结束工单", exact: true }).click(),
     ])
     expect(firstConfirmResponse.ok(), "首次客户确认接口应返回成功").toBe(true)
     expect((await firstConfirmResponse.json() as { success?: boolean }).success).toBe(true)
@@ -1440,7 +1452,7 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
       customer.waitForResponse((response) =>
         response.request().method() === "POST" && /\/api\/customer\/v1\/tickets\/\d+\/_confirm$/.test(response.url()),
       ),
-      customer.getByRole("button", { name: "评价并确认已解决" }).click(),
+      customer.getByRole("button", { name: "评价并结束工单", exact: true }).click(),
     ])
     expect(secondConfirmResponse.ok(), "二次客户确认接口应返回成功").toBe(true)
     expect((await secondConfirmResponse.json() as { success?: boolean }).success).toBe(true)
@@ -1453,7 +1465,7 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     await expect(
       supplier.getByText(/已提交结论|无权限执行该操作/).first(),
     ).toBeVisible({ timeout: 15_000 })
-    await expect(supplier.getByPlaceholder(/回复会同步给客户和企业工程师/)).toHaveCount(0)
+    await expect(supplier.getByRole("textbox", { name: "回复协作会话", exact: true })).toHaveCount(0)
     await expect(supplier.getByRole("button", { name: "进入视频协作" })).toHaveCount(0)
 
     await engineer.goto(`${frontendUrl}/enterprise/ticket-workbench?conversation_id=${conversationId}`)
@@ -1464,6 +1476,7 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     await expect(engineer.getByText("客户已完成服务评价", { exact: true }).first()).toBeVisible()
     await expect(engineer.getByText(new RegExp(faultCode)).first()).toBeVisible()
     await expect(engineer.getByText("4/5", { exact: true }).first()).toBeVisible()
+    await engineer.getByRole("tab", { name: "知识候选", exact: true }).click()
     await expect(engineer.getByText(/^(待审核|重复候选)$/).first()).toBeVisible()
     if (publishKnowledgeCandidate) {
       const knowledgeLoop = await approveKnowledgeCandidateAndVerifyRAG(

@@ -1,0 +1,38 @@
+# Synthetic idempotency request key in the runtime schema downgrade regression.
+# Scoped to the reviewed historical finding; future credentials remain scanned.
+5eb6704bf46a83da5075473a8013f3d4d80a6f74:internal/services/project_configuration_runtime_test.go:generic-api-key:93
+
+# Environment variable names used to look up runtime credentials, not values.
+c123d066416bf1fc70be812a3bd0b478b8676579:internal/ai/capability_router.go:generic-api-key:27
+c123d066416bf1fc70be812a3bd0b478b8676579:internal/pkg/config/config.go:generic-api-key:75
+c123d066416bf1fc70be812a3bd0b478b8676579:internal/pkg/config/config.go:generic-api-key:78
+c123d066416bf1fc70be812a3bd0b478b8676579:internal/pkg/config/config_test.go:generic-api-key:195
+
+# Synthetic model name assigned to the model environment variable in a route test.
+c123d066416bf1fc70be812a3bd0b478b8676579:internal/ai/capability_router_test.go:generic-api-key:91
+
+# Fixed hexadecimal fingerprints used by the secret-masking builder unit test.
+c123d066416bf1fc70be812a3bd0b478b8676579:internal/builders/integration_builder_test.go:generic-api-key:9
+c123d066416bf1fc70be812a3bd0b478b8676579:internal/builders/integration_builder_test.go:generic-api-key:13
+
+# Synthetic push token in the in-memory tenant-mismatch rejection test.
+c123d066416bf1fc70be812a3bd0b478b8676579:internal/services/mobile_push_token_service_test.go:generic-api-key:107
+
+# Named dummy keys returned by the in-memory Sub2API provider test double.
+c123d066416bf1fc70be812a3bd0b478b8676579:internal/services/platform_ai_model_service_provision_test.go:generic-api-key:173
+c123d066416bf1fc70be812a3bd0b478b8676579:internal/services/platform_ai_model_service_provision_test.go:generic-api-key:245
+
+# Repeated numeric/hex sequence and named environment fixture for speech unit tests.
+c123d066416bf1fc70be812a3bd0b478b8676579:internal/services/speech_runtime_service_test.go:generic-api-key:50
+c123d066416bf1fc70be812a3bd0b478b8676579:internal/services/speech_runtime_service_test.go:generic-api-key:152
+
+# UUID idempotency identifiers recorded by the historical browser test, not tokens.
+c123d066416bf1fc70be812a3bd0b478b8676579:outputs/fun-008/browser-results.json:generic-api-key:19
+c123d066416bf1fc70be812a3bd0b478b8676579:outputs/fun-008/browser-results.json:generic-api-key:44
+
+# Deliberately invalid bearer value used to assert that authentication returns 401.
+c123d066416bf1fc70be812a3bd0b478b8676579:scripts/test-openai-endpoint.sh:curl-auth-header:67
+
+# Conversation route identifiers used as list keys in workbench navigation tests.
+c123d066416bf1fc70be812a3bd0b478b8676579:web/lib/ticket-workbench-route.test.mjs:generic-api-key:25
+c123d066416bf1fc70be812a3bd0b478b8676579:web/lib/ticket-workbench-route.test.mjs:generic-api-key:38

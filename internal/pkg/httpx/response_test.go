@@ -1,12 +1,12 @@
 package httpx
 
 import (
-	"remotehelpdesk/internal/pkg/errorsx"
-	"remotehelpdesk/internal/pkg/i18nx"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"remotehelpdesk/internal/pkg/errorsx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"testing"
 
 	"github.com/gin-gonic/gin"

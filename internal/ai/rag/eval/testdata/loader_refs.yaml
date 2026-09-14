@@ -1,0 +1,7 @@
+entryRefs:
+  manual.startup_precheck:
+    entryKey: document:101
+    kind: document
+  faq.alarm_p101_reset:
+    entryKey: faq:201
+    kind: faq

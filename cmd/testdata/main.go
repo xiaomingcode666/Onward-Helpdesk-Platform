@@ -1,6 +1,10 @@
 package main
 
 import (
+	"flag"
+	"fmt"
+	"log/slog"
+	"os"
 	"remotehelpdesk/cmd/testdata/agentteam"
 	"remotehelpdesk/cmd/testdata/aiagent"
 	"remotehelpdesk/cmd/testdata/aiconfig"
@@ -12,10 +16,6 @@ import (
 	"remotehelpdesk/cmd/testdata/tag"
 	"remotehelpdesk/internal/bootstrap"
 	"remotehelpdesk/internal/pkg/config"
-	"flag"
-	"fmt"
-	"log/slog"
-	"os"
 	"strings"
 
 	"github.com/mlogclub/simple/sqls"

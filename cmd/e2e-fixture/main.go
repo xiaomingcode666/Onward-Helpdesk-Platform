@@ -127,6 +127,13 @@ func seedFixture(now time.Time, tenantName string) (*fixture, error) {
 	}
 	auditOperator.TenantID = tenant.ID
 	auditOperator.DomainType = models.DomainTypeEnterprise
+	// UI acceptance uses Chinese labels, including when selecting the bootstrap tenant.
+	if err := db.Model(tenant).Update("default_locale", "zh-CN").Error; err != nil {
+		return nil, err
+	}
+	if err := db.Model(&models.TenantBranding{}).Where("tenant_id = ?", tenant.ID).Update("default_locale", "zh-CN").Error; err != nil {
+		return nil, err
+	}
 	if err := services.EnsureTenantDefaultIAMRolesDB(db, tenant.ID, auditOperator); err != nil {
 		return nil, err
 	}
@@ -339,7 +346,7 @@ func seedFixture(now time.Time, tenantName string) (*fixture, error) {
 	}, engineerOperator, now); err != nil {
 		return nil, err
 	}
-	if err = createAlwaysOnSchedule(productTeam.ID, engineer.User.ID, operator); err != nil {
+	if err = configureFixtureWorkCalendar(operator); err != nil {
 		return nil, err
 	}
 
@@ -412,6 +419,9 @@ func seedFixture(now time.Time, tenantName string) (*fixture, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err = registerFixturePartner(partner, partnerUsername); err != nil {
+		return nil, err
+	}
 	moduleName := "P0-Power-Module-" + suffix
 	module, err := services.ProductModuleService.CreateModule(services.CreateProductModuleRequest{
 		TenantID: tenant.ID, ProductID: product.ID, ModuleCode: "PWR-" + suffix, Name: moduleName,
@@ -460,6 +470,22 @@ func seedFixture(now time.Time, tenantName string) (*fixture, error) {
 		engineerUsername: engineerUsername, supplierUsername: partnerUsername,
 		supplierModule: moduleName, adminUsername: adminUsername,
 	}, nil
+}
+
+func registerFixturePartner(invitation *services.EnterpriseIAMPartnerAdminInviteResult, username string) error {
+	login, err := services.CustomerRegistrationService.RegisterPortalInvitation(request.PortalInvitationRegisterRequest{
+		DomainType: models.DomainTypePartner, Credential: invitation.InviteCode,
+		Username: username, DisplayName: invitation.Grant.DisplayName, Email: invitation.Grant.Email,
+		Password: fixturePassword,
+	}, config.CurrentOrDefault().Auth, "127.0.0.1", "remotehelpdesk-e2e-fixture")
+	if err != nil {
+		return fmt.Errorf("register fixture supplier invitation: %w", err)
+	}
+	if login == nil || login.User == nil || login.User.Username != username ||
+		login.DomainType != models.DomainTypePartner || login.TenantID != invitation.Grant.TenantID || login.PartnerAccountID <= 0 {
+		return fmt.Errorf("fixture supplier registration did not create the expected partner identity")
+	}
+	return nil
 }
 
 func resolveFixtureTenant(db *gorm.DB, now time.Time, tenantName string, operator *dto.AuthPrincipal) (*models.Tenant, error) {
@@ -519,20 +545,12 @@ func deployAgentDraft(agentID int64, reviewComment string, operator *dto.AuthPri
 	return release, nil
 }
 
-func createAlwaysOnSchedule(teamID, userID int64, operator *dto.AuthPrincipal) error {
-	for weekday := 1; weekday <= 7; weekday++ {
-		if _, err := services.AgentTeamScheduleService.CreateAgentTeamSchedule(request.CreateAgentTeamScheduleRequest{
-			TeamID: teamID, UserID: userID, RepeatType: "weekly",
-			Weekday: weekday, StartTime: "00:00", EndTime: "23:59",
-			Remark: "P0 acceptance always-on shift",
-		}, operator); err != nil {
-			return err
-		}
-	}
-	if _, err := services.AgentTeamScheduleService.PublishDraft(teamID, true, operator); err != nil {
-		return err
-	}
-	return nil
+func configureFixtureWorkCalendar(operator *dto.AuthPrincipal) error {
+	_, err := services.AgentTeamScheduleService.UpdateTemplate(request.UpdateAgentTeamScheduleTemplateRequest{
+		Workdays:  []int{1, 2, 3, 4, 5, 6, 7},
+		StartTime: "00:00", EndTime: "24:00",
+	}, operator)
+	return err
 }
 
 func seedAIConfigs(db *gorm.DB, tenantID int64, operator *dto.AuthPrincipal) error {
@@ -545,6 +563,12 @@ func seedAIConfigs(db *gorm.DB, tenantID int64, operator *dto.AuthPrincipal) err
 	if err != nil {
 		return err
 	}
+	encryptedLoginPassword, err := secretstore.Encrypt(fixturePassword)
+	if err != nil {
+		return err
+	}
+	loginEmail := fmt.Sprintf("tenant-%d@e2e.example.test", tenantID)
+	tokenExpiresAt := time.Now().Add(24 * time.Hour)
 	if err = repositories.SystemConfigRepository.SaveByKey(db, &models.SystemConfig{
 		ConfigKey: "platform.sub2api.host", ConfigValue: baseURL,
 		GroupCode: "e2e", Title: "P0 deterministic Sub2API host", Status: enums.StatusOk,
@@ -553,19 +577,24 @@ func seedAIConfigs(db *gorm.DB, tenantID int64, operator *dto.AuthPrincipal) err
 		return err
 	}
 	accountValues := map[string]any{
-		"account_name":            "P0 deterministic tenant account",
-		"account_status":          "active",
-		"provision_status":        "active",
-		"default_key_id":          fmt.Sprintf("e2e-key-%d", tenantID),
-		"default_key_name":        "P0 deterministic tenant key",
-		"default_key_ciphertext":  encryptedAPIKey,
-		"default_key_fingerprint": secretstore.Fingerprint(apiKey),
-		"default_key_status":      "active",
-		"default_llm_model":       "e2e-llm",
-		"status":                  enums.StatusOk,
-		"update_user_id":          operator.UserID,
-		"update_user_name":        operator.Username,
-		"updated_at":              time.Now(),
+		"account_name":              "P0 deterministic tenant account",
+		"account_status":            "active",
+		"provision_status":          "active",
+		"login_email":               loginEmail,
+		"login_password_ciphertext": encryptedLoginPassword,
+		"access_token_expires_at":   tokenExpiresAt,
+		"balance":                   1000,
+		"default_key_id":            fmt.Sprintf("e2e-key-%d", tenantID),
+		"default_key_name":          "P0 deterministic tenant key",
+		"default_key_ciphertext":    encryptedAPIKey,
+		"default_key_fingerprint":   secretstore.Fingerprint(apiKey),
+		"default_key_status":        "active",
+		"default_key_expires_at":    nil,
+		"default_llm_model":         "e2e-llm",
+		"status":                    enums.StatusOk,
+		"update_user_id":            operator.UserID,
+		"update_user_name":          operator.Username,
+		"updated_at":                time.Now(),
 	}
 	if existing := repositories.PlatformIAMRepository.FindSub2APIAccountByTenantID(db, tenantID); existing != nil {
 		if err = repositories.PlatformIAMRepository.UpdateSub2APIAccount(db, existing.ID, accountValues); err != nil {
@@ -576,6 +605,8 @@ func seedAIConfigs(db *gorm.DB, tenantID int64, operator *dto.AuthPrincipal) err
 			TenantID: tenantID, Sub2APIAccountID: fmt.Sprintf("e2e-tenant-%d", tenantID),
 			AccountName: "P0 deterministic tenant account", AccountStatus: "active",
 			ProvisionStatus: "active", DefaultKeyID: fmt.Sprintf("e2e-key-%d", tenantID),
+			LoginEmail: loginEmail, LoginPasswordCiphertext: encryptedLoginPassword,
+			AccessTokenExpiresAt: &tokenExpiresAt, Balance: 1000,
 			DefaultKeyName: "P0 deterministic tenant key", DefaultKeyCiphertext: encryptedAPIKey,
 			DefaultKeyFingerprint: secretstore.Fingerprint(apiKey), DefaultKeyStatus: "active",
 			DefaultLLMModel: "e2e-llm", Status: enums.StatusOk,
@@ -636,6 +667,9 @@ func seedAIConfigs(db *gorm.DB, tenantID int64, operator *dto.AuthPrincipal) err
 }
 
 func ensureE2EProviderHostCanBeSeeded(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&models.SystemConfig{}) {
+		return nil
+	}
 	existingHost := repositories.SystemConfigRepository.FindByKey(db, "platform.sub2api.host")
 	if existingHost != nil && !strings.EqualFold(strings.TrimSpace(existingHost.GroupCode), "e2e") {
 		return fmt.Errorf("refusing to overwrite non-E2E platform.sub2api.host configuration; use an isolated E2E database")

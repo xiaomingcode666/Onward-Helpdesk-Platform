@@ -82,6 +82,11 @@ func setupReplyUsageTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if sqlDB, err := db.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
 	if err := db.AutoMigrate(&models.ProductAIUsageEvent{}); err != nil {
 		t.Fatal(err)
 	}

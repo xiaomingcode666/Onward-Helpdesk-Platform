@@ -6,17 +6,17 @@ import (
 )
 
 func TestLoadSuite(t *testing.T) {
-	path := filepath.Join("..", "..", "..", "..", "testdata", "rag-eval", "customer_robot_seed.yaml")
+	path := filepath.Join("testdata", "loader_suite.yaml")
 	suite, err := LoadSuite(path)
 	if err != nil {
 		t.Fatalf("LoadSuite() error = %v", err)
 	}
 
-	if suite.Name != "customer_robot_seed" {
-		t.Fatalf("suite.Name = %q, want customer_robot_seed", suite.Name)
+	if suite.Name != "loader_fixture" {
+		t.Fatalf("suite.Name = %q, want loader_fixture", suite.Name)
 	}
-	if len(suite.Cases) != 20 {
-		t.Fatalf("len(suite.Cases) = %d, want 20", len(suite.Cases))
+	if len(suite.Cases) != 2 {
+		t.Fatalf("len(suite.Cases) = %d, want 2", len(suite.Cases))
 	}
 
 	normalized := suite.NormalizedCases()
@@ -26,13 +26,22 @@ func TestLoadSuite(t *testing.T) {
 	if normalized[0].Scope.Locale != "en-US" {
 		t.Fatalf("normalized locale = %q, want en-US", normalized[0].Scope.Locale)
 	}
-	if normalized[15].AnswerExpectation.MinCitationCount != 2 {
-		t.Fatalf("case 16 minCitationCount = %d, want 2", normalized[15].AnswerExpectation.MinCitationCount)
+	if normalized[0].AnswerExpectation.MinCitationCount != 1 {
+		t.Fatalf("first case minCitationCount = %d, want 1", normalized[0].AnswerExpectation.MinCitationCount)
+	}
+	if normalized[1].Enabled == nil || *normalized[1].Enabled {
+		t.Fatalf("second case enabled override was not preserved")
+	}
+	if normalized[1].Scope.Locale != "zh-CN" {
+		t.Fatalf("second case locale = %q, want zh-CN", normalized[1].Scope.Locale)
+	}
+	if normalized[1].AnswerExpectation.MinCitationCount != 2 {
+		t.Fatalf("second case minCitationCount = %d, want 2", normalized[1].AnswerExpectation.MinCitationCount)
 	}
 }
 
 func TestLoadRefsAndResolveEntryKeys(t *testing.T) {
-	path := filepath.Join("..", "..", "..", "..", "testdata", "rag-eval", "refs.local.example.yaml")
+	path := filepath.Join("testdata", "loader_refs.yaml")
 	refs, err := LoadRefs(path)
 	if err != nil {
 		t.Fatalf("LoadRefs() error = %v", err)

@@ -1,7 +1,7 @@
 "use client"
 
 import { CheckIcon, LanguagesIcon } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
 import { Button } from "@/components/ui/button"
@@ -34,9 +34,8 @@ export function MobileLanguageSwitch({
   const rootRef = useRef<HTMLDivElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) {
-      setMenuPosition(null)
       return
     }
 

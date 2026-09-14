@@ -115,6 +115,11 @@ func TestProductionNamingStrategyResolvesProductAICredentialTable(t *testing.T) 
 	if err != nil {
 		t.Fatalf("gorm.Open() error = %v", err)
 	}
+	t.Cleanup(func() {
+		if sqlDB, err := db.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
 	if err := db.AutoMigrate(&models.ProductAIUsageCredential{}); err != nil {
 		t.Fatalf("AutoMigrate() error = %v", err)
 	}
@@ -138,6 +143,11 @@ func TestEnsurePlatformBuiltInWorkflowsMaterializesAndRepairsEmbeddedManifests(t
 	if err != nil {
 		t.Fatalf("gorm.Open() error = %v", err)
 	}
+	t.Cleanup(func() {
+		if sqlDB, err := db.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
 	if err := db.AutoMigrate(&models.AIWorkflow{}, &models.AIWorkflowVersion{}); err != nil {
 		t.Fatalf("AutoMigrate() error = %v", err)
 	}
@@ -259,6 +269,11 @@ func TestEnsurePlatformBuiltInWorkflowsFailsWhenProductionSchemaIsMissing(t *tes
 	if err != nil {
 		t.Fatalf("gorm.Open() error = %v", err)
 	}
+	t.Cleanup(func() {
+		if sqlDB, err := db.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
 	if err := EnsurePlatformBuiltInWorkflows(db); err == nil {
 		t.Fatal("expected missing production schema to fail startup materialization")
 	}

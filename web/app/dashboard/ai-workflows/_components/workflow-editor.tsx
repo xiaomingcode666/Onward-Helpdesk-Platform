@@ -802,7 +802,7 @@ export function WorkflowEditor({
         }
       })
     },
-    [edges, nodes, selectedEdgeId, testRun]
+    [edges, nodes, selectedEdgeId, testRun, t]
   )
 
   const clampNodeLibraryWidth = useCallback((width: number) => {

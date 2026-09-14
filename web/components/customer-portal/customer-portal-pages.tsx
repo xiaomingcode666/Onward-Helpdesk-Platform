@@ -2621,11 +2621,11 @@ function CustomerMeetingRecord({
   const transcriptInitialLoading = loading && !hasRecordContent
   const recordRefreshing = loading && hasRecordContent
 
-  const recordTabs = useMemo<RailopsTabItem[]>(() => [
+  const recordTabs: RailopsTabItem[] = [
     { value: "summary", label: t("customerMeeting.tabsSummary"), icon: <MessageSquareTextIcon className="size-4" /> },
     { value: "participants", label: t("customerMeeting.tabsParticipantsLabel"), count: meeting.participants?.length ?? 0, icon: <UsersRoundIcon className="size-4" /> },
     { value: "transcript", label: t("customerMeeting.tabsTranscriptLabel"), count: transcriptCount, icon: <FileTextIcon className="size-4" /> },
-  ], [t, meeting.participants?.length, transcriptCount])
+  ]
 
   return (
     <div className={cn("min-w-0", compact ? "xl:border-l xl:border-border xl:pl-5" : "border-t border-border")}>

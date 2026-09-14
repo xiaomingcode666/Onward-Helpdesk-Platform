@@ -1,6 +1,7 @@
 package aiagent
 
 import (
+	"fmt"
 	"remotehelpdesk/cmd/testdata/seedlang"
 	"remotehelpdesk/cmd/testdata/seeds"
 	"remotehelpdesk/cmd/testdata/skill"
@@ -8,7 +9,6 @@ import (
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/repositories"
-	"fmt"
 	"time"
 
 	"github.com/mlogclub/simple/sqls"

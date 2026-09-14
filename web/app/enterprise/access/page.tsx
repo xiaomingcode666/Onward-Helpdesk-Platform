@@ -301,7 +301,7 @@ export default function EnterpriseAccessPage() {
       setConnectorsLoaded(true)
     }
     setLoading(false)
-  }, [canManageMail, setConnectorError, setConnectors, setLoading, setMailError, setMailForm, setMailSetting])
+  }, [canManageMail, setConnectorError, setConnectors, setConnectorsLoaded, setLoading, setMailError, setMailForm, setMailLoaded, setMailSetting])
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0)

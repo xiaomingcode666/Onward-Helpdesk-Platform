@@ -4645,9 +4645,9 @@ function localizeEnterpriseGeneratedLifecycleCopy(value: string, hasDeviceConcep
   const supplierInvited = trimmed.match(/^(?:已邀请供应商协作|升级供应商协作)[:：]\s*(.+?)(?:\s*[·/]\s*(.+))?$/)
   if (supplierInvited) {
     const company = supplierInvited[1].trim()
-    const module = supplierInvited[2]?.trim()
-    return module
-      ? cee("supplierInvitedDescriptionWithModule", { company, module })
+    const moduleName = supplierInvited[2]?.trim()
+    return moduleName
+      ? cee("supplierInvitedDescriptionWithModule", { company, module: moduleName })
       : cee("supplierInvitedDescriptionWithCompany", { company })
   }
 
