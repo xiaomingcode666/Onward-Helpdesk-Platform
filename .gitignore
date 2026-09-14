@@ -77,6 +77,18 @@ test-reports
 tmp/main
 backup/
 /reports/
+# Local planning documents and inspection artifacts.
+/outputs/
+/work/backups/
+/scripts/generate_weekly_plan.py
+/scripts/replan_single_developer.py
+/scripts/reprioritize_requirement_plan.py
+/scripts/simplify_schedule_workbook.py
+/scripts/update_week1_requirements.py
+/deploy/1panel/project-config/
+/deploy/1panel/project-secrets/
+/project-config/
+/project-secrets/
 web/ios/build/
 web/ios/App/build/
 web/ios/App/Pods/
