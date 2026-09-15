@@ -721,8 +721,8 @@ func TestTicketEscalation(t *testing.T) {
 	rule, err := services.EscalationService.CreateEscalationRule(services.CreateEscalationRuleInput{
 		TenantID:    fmt.Sprintf("%d", f.Tenant.ID),
 		Name:        "闲置超时升级",
-		Priority:    "p2",
-		HoursIdle:   1, // 1小时闲置即升级
+		Priority:    "p1", // User Case defaults to P2, stored as legacy SLA code p1.
+		HoursIdle:   1,    // 1小时闲置即升级
 		TargetLevel: 2,
 		NotifyRoles: []string{"role-supervisor"},
 		AutoAssign:  true,
