@@ -13,8 +13,12 @@ env:
 
 jobs:
   backend-test:
-    name: Backend Test
+    name: Backend Test (${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [core, 0, 1, 2, 3, 4, 5, 6, 7]
     services:
       postgres:
         image: postgres:16
@@ -53,6 +57,7 @@ jobs:
         run: go mod download
 
       - name: Check formatting
+        if: matrix.shard == 'core'
         run: |
           unformatted=$(gofmt -l .)
           if [ -n "$unformatted" ]; then
@@ -62,13 +67,18 @@ jobs:
           fi
 
       - name: Vet
+        if: matrix.shard == 'core'
         run: go vet ./...
 
       - name: Vulnerability scan
+        if: matrix.shard == 'core'
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
 
       - name: Run tests
-        run: go test ./... -v -race -coverprofile=coverage.out -covermode=atomic
+        run: |
+          export RHD_BOOTSTRAP_ADMIN_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$RHD_BOOTSTRAP_ADMIN_PASSWORD"
+          bash scripts/ci-backend-tests.sh '${{ matrix.shard }}' 8
         env:
           POSTGRES_HOST: localhost
           POSTGRES_PORT: 5432
@@ -81,8 +91,19 @@ jobs:
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-out
+          name: coverage-out-${{ matrix.shard }}
           path: coverage.out
+
+  backend-result:
+    name: Backend Test
+    if: always()
+    needs: backend-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every backend group to pass
+        env:
+          BACKEND_RESULT: ${{ needs.backend-test.result }}
+        run: test "$BACKEND_RESULT" = success
 
   frontend-test:
     name: Frontend Test
@@ -222,6 +243,8 @@ jobs:
         env:
           RHD_E2E_ALLOW_SEED: "1"
         run: |
+          export RHD_BOOTSTRAP_ADMIN_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$RHD_BOOTSTRAP_ADMIN_PASSWORD"
           go run ./cmd/e2e-fixture -config config/config.e2e.yaml -tenant-name "Default Tenant" -env-out .tmp/e2e.env
           cat .tmp/e2e.env >> "$GITHUB_ENV"
 

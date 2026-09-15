@@ -8040,8 +8040,8 @@ button.ent-product-list-item {
 
 .rhd-railops-ticket-queue-toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: 12px;
   padding: 10px 12px;
   border-bottom: 1px solid #edf2f7;
@@ -8055,32 +8055,27 @@ button.ent-product-list-item {
   justify-content: space-between;
   gap: 10px;
   min-width: 0;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .rhd-railops-ticket-filter-row {
-  flex: 1 1 auto;
+  width: 100%;
 }
 
 .rhd-railops-ticket-tool-row {
-  flex: 0 0 auto;
-  justify-content: flex-end;
+  width: 100%;
 }
 
 .rhd-railops-ticket-filter-row .railops-filter-tabs {
   flex: 1 1 auto;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 6px;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.rhd-railops-ticket-filter-row .railops-filter-tabs::-webkit-scrollbar {
-  display: none;
+  overflow: visible;
 }
 
 .rhd-railops-ticket-filter-row .railops-filter-tab.ant-btn {
+  flex-shrink: 0;
   height: 28px;
   padding-inline: 10px;
   border-radius: 6px;
@@ -8105,15 +8100,15 @@ button.ent-product-list-item {
 
 .rhd-railops-ticket-context,
 .rhd-railops-ticket-tool-actions {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .rhd-railops-ticket-context {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
 }
 
 .rhd-railops-ticket-tool-actions {
-  flex: 0 0 auto;
+  width: 100%;
 }
 
 .rhd-railops-ticket-meta {
@@ -8123,7 +8118,9 @@ button.ent-product-list-item {
 }
 
 .rhd-railops-ticket-search {
-  width: min(360px, 42vw);
+  flex: 1 1 320px;
+  width: auto;
+  max-width: 520px;
 }
 
 // Unified SearchField sizing utilities (pill visual comes from .railops-search-field)
@@ -15155,7 +15152,9 @@ button.ent-product-list-item {
   }
 
   .rhd-railops-ticket-search {
+    flex: none;
     width: 100%;
+    max-width: none;
   }
 
   .rhd-railops-enterprise-overview-hero {

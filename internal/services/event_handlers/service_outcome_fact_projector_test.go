@@ -23,6 +23,11 @@ func TestServiceOutcomeProjectorIsIdempotentAcrossCloseAndKnowledgeEvents(t *tes
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
+	t.Cleanup(func() {
+		if sqlDB, err := db.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
 	if err := db.AutoMigrate(
 		&models.Ticket{},
 		&models.Conversation{},

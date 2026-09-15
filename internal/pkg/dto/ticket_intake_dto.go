@@ -13,6 +13,8 @@ type TicketIntakeInput struct {
 }
 
 type TicketIntakeDTO struct {
+	ProjectConfigVersionID int64 `json:"project_config_version_id"`
+	ConfigVersionID        int64 `json:"intake_config_version_id"`
 	TicketIntakeInput
 	ContextStatus  string   `json:"context_status"`
 	MissingContext []string `json:"missing_context"`

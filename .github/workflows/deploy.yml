@@ -136,6 +136,7 @@ jobs:
 
             export IMAGE_NAME='${{ env.IMAGE_NAME }}'
             export IMAGE_TAG='${{ github.sha }}'
+            export RHD_PROJECT_ENVIRONMENT=staging
 
             previous_image=$(docker inspect --format '{{.Config.Image}}' "$(docker compose -f docker-compose.prod.yml ps -q agent-desk)" 2>/dev/null || true)
             if [ -n "$previous_image" ]; then
@@ -145,8 +146,17 @@ jobs:
             echo "Pulling latest images..."
             docker compose -f docker-compose.prod.yml pull agent-desk nextjs
 
+            echo "Validating the pinned project configuration before migrations..."
+            docker compose -f docker-compose.prod.yml run --rm --no-deps --entrypoint /bin/sh agent-desk -ec '
+              exec /app/remotehelpdesk -check-project-config "$RHD_PROJECT_CONFIG_FILE" \
+                -project-tenant "$RHD_PROJECT_CONFIG_TENANT_ID" \
+                -project-environment "$RHD_PROJECT_ENVIRONMENT" \
+                -project-digest "$RHD_PROJECT_CONFIG_DIGEST" \
+                -project-secret-dir "$RHD_PROJECT_SECRET_DIR"
+            '
+
             echo "Running database migrations..."
-            docker compose -f docker-compose.prod.yml run --rm agent-desk ./remotehelpdesk -migrate
+            docker compose -f docker-compose.prod.yml run --rm agent-desk ./remotehelpdesk -migrate -apply-project-config
 
             echo "Restarting services..."
             docker compose -f docker-compose.prod.yml up -d --wait
@@ -177,6 +187,7 @@ jobs:
             fi
             export IMAGE_NAME="${previous_image%:*}"
             export IMAGE_TAG="${previous_image##*:}"
+            export RHD_PROJECT_ENVIRONMENT=staging
             docker compose -f docker-compose.prod.yml up -d --wait agent-desk nextjs nginx
             echo "Staging rollback completed: ${previous_image}"
           ROLLBACK
@@ -219,6 +230,7 @@ jobs:
 
             export IMAGE_NAME='${{ env.IMAGE_NAME }}'
             export IMAGE_TAG='${{ github.sha }}'
+            export RHD_PROJECT_ENVIRONMENT=production
 
             previous_image=$(docker inspect --format '{{.Config.Image}}' "$(docker compose -f docker-compose.prod.yml ps -q agent-desk)" 2>/dev/null || true)
             if [ -n "$previous_image" ]; then
@@ -229,17 +241,26 @@ jobs:
             mkdir -p /data/remotehelpdesk/backups
             COMPOSE_FILE=docker-compose.prod.yml PG_TOOL_MODE=docker BACKUP_RETENTION_COUNT=30 \
               BACKUP_METRICS_FILE=/data/remotehelpdesk/metrics/remotehelpdesk_backup.prom \
-              ./scripts/backup-db.sh /data/remotehelpdesk/backups
+              bash ./scripts/backup-db.sh /data/remotehelpdesk/backups
             backup_file=$(ls -1t /data/remotehelpdesk/backups/cs_ai_agent_*.dump | head -n 1)
             COMPOSE_FILE=docker-compose.prod.yml PG_TOOL_MODE=docker \
               RESTORE_DRILL_METRICS_FILE=/data/remotehelpdesk/metrics/remotehelpdesk_restore_drill.prom \
-              ./scripts/drill-db-restore.sh "$backup_file"
+              bash ./scripts/drill-db-restore.sh "$backup_file"
 
             echo "Pulling latest images..."
             docker compose -f docker-compose.prod.yml pull agent-desk nextjs
 
+            echo "Validating the pinned project configuration before migrations..."
+            docker compose -f docker-compose.prod.yml run --rm --no-deps --entrypoint /bin/sh agent-desk -ec '
+              exec /app/remotehelpdesk -check-project-config "$RHD_PROJECT_CONFIG_FILE" \
+                -project-tenant "$RHD_PROJECT_CONFIG_TENANT_ID" \
+                -project-environment "$RHD_PROJECT_ENVIRONMENT" \
+                -project-digest "$RHD_PROJECT_CONFIG_DIGEST" \
+                -project-secret-dir "$RHD_PROJECT_SECRET_DIR"
+            '
+
             echo "Running database migrations..."
-            docker compose -f docker-compose.prod.yml run --rm agent-desk ./remotehelpdesk -migrate
+            docker compose -f docker-compose.prod.yml run --rm agent-desk ./remotehelpdesk -migrate -apply-project-config
 
             echo "Restarting services..."
             docker compose -f docker-compose.prod.yml up -d --wait
@@ -276,6 +297,7 @@ jobs:
             fi
             export IMAGE_NAME="${previous_image%:*}"
             export IMAGE_TAG="${previous_image##*:}"
+            export RHD_PROJECT_ENVIRONMENT=production
             docker compose -f docker-compose.prod.yml up -d --wait agent-desk nextjs nginx
             echo "Rollback completed: ${previous_image}"
           ROLLBACK

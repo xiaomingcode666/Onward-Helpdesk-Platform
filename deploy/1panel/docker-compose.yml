@@ -1,4 +1,4 @@
-name: remotehelpdesk
+name: ${RHD_PROJECT_NAME:-remotehelpdesk}
 
 x-logging: &default-logging
   driver: json-file
@@ -141,10 +141,20 @@ services:
       - "8083"
     volumes:
       - ${RHD_CONFIG_FILE:-./remotehelpdesk.yaml}:/app/config/config.yaml:ro
+      - ${RHD_PROJECT_CONFIG_DIR:-./project-config}:/app/project-config:ro
+      - ${RHD_PROJECT_SECRET_DIR:-./project-secrets}:/run/project-secrets:ro
       - ${RHD_DATA_DIR:-./volumes}/agent-desk:/app/data
     environment:
       TZ: ${TZ:-Asia/Shanghai}
       GIN_MODE: release
+      RHD_INSTANCE_ID: ${RHD_INSTANCE_ID:-}
+      RHD_DEPLOYMENT_PROJECT_ID: ${RHD_DEPLOYMENT_PROJECT_ID:-}
+      RHD_PROJECT_ENVIRONMENT: ${RHD_PROJECT_ENVIRONMENT:-production}
+      RHD_PROJECT_CONFIG_REQUIRED: ${RHD_PROJECT_CONFIG_REQUIRED:-1}
+      RHD_PROJECT_CONFIG_FILE: /app/project-config/current.json
+      RHD_PROJECT_CONFIG_TENANT_ID: ${RHD_PROJECT_CONFIG_TENANT_ID:-}
+      RHD_PROJECT_CONFIG_DIGEST: ${RHD_PROJECT_CONFIG_DIGEST:-}
+      RHD_PROJECT_SECRET_DIR: /run/project-secrets
       RHD_DB_TYPE: postgres
       RHD_DB_DSN: host=postgres user=${POSTGRES_USER:-cs_ai_agent} password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required} dbname=${POSTGRES_DB:-cs_ai_agent} port=5432 sslmode=disable TimeZone=Asia/Shanghai
       RHD_REDIS_ADDR: redis:6379
@@ -261,24 +271,28 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-cs_ai_agent}
-      POSTGRES_USER: ${POSTGRES_USER:-cs_ai_agent}
-      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      DB_NAME: ${POSTGRES_DB:-cs_ai_agent}
+      DB_USER: ${POSTGRES_USER:-cs_ai_agent}
+      DB_HOST: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      PG_TOOL_MODE: host
+      FORCE: "1"
+      RHD_INSTANCE_ID: ${RHD_INSTANCE_ID:-}
+      RHD_DEPLOYMENT_PROJECT_ID: ${RHD_DEPLOYMENT_PROJECT_ID:-}
+      RHD_PROJECT_ENVIRONMENT: ${RHD_PROJECT_ENVIRONMENT:-production}
+      RHD_PROJECT_CONFIG_TENANT_ID: ${RHD_PROJECT_CONFIG_TENANT_ID:-}
       DB_DUMP_FILE: ${DB_DUMP_FILE:-cs_ai_agent_20260807T153109Z.dump}
     volumes:
       - ${RHD_RESTORE_DATA_DIR:-./data}:/backup:ro
+      - ../../scripts:/opt/rhd-scripts:ro
     entrypoint:
       - /bin/sh
       - -ec
       - |
         cd /backup
         sha256sum -c "$$DB_DUMP_FILE.sha256"
-        psql -h postgres -U "$$POSTGRES_USER" -d postgres -v ON_ERROR_STOP=1 -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='$$POSTGRES_DB' AND pid <> pg_backend_pid();"
-        dropdb -h postgres -U "$$POSTGRES_USER" --if-exists "$$POSTGRES_DB"
-        createdb -h postgres -U "$$POSTGRES_USER" "$$POSTGRES_DB"
-        pg_restore -h postgres -U "$$POSTGRES_USER" --no-owner --no-privileges -d "$$POSTGRES_DB" "$$DB_DUMP_FILE"
-        echo "Restore completed: $$POSTGRES_DB from $$DB_DUMP_FILE"
+        exec bash /opt/rhd-scripts/restore-db.sh "$$DB_DUMP_FILE"
 
 networks:
   default:
-    name: remotehelpdesk_1panel
+    name: ${RHD_NETWORK_NAME:-${RHD_PROJECT_NAME:-remotehelpdesk}_1panel}

@@ -28,6 +28,7 @@ func TestProductOnlyTicketRepairFeedbackConfirmAndReopen(t *testing.T) {
 	}
 	if err := db.AutoMigrate(
 		&models.Tenant{}, &models.User{}, &models.Ticket{}, &models.TicketRepairRecord{}, &models.TicketProgress{},
+		&models.TenantMember{}, &models.AuthSubjectPermissionOverride{},
 		&models.TicketFeedback{}, &models.DeviceServiceRecord{}, &models.KnowledgeCandidate{},
 		&models.TicketQualityClue{}, &models.ProductFaultStatsDaily{}, &models.FaultStatsEventInbox{},
 		&models.Channel{},
@@ -56,6 +57,14 @@ func TestProductOnlyTicketRepairFeedbackConfirmAndReopen(t *testing.T) {
 	}
 	if err := db.Create(&models.User{ID: 101, Username: "engineer", Status: enums.StatusOk}).Error; err != nil {
 		t.Fatalf("create engineer: %v", err)
+	}
+	member := models.TenantMember{TenantID: 1, UserID: 101, MemberType: "employee", Status: enums.StatusOk}
+	if err := db.Create(&member).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&models.AuthSubjectPermissionOverride{TenantID: 1, DomainType: models.DomainTypeEnterprise,
+		SubjectType: models.SubjectTypeTenantMember, SubjectID: member.ID, PermissionCode: "ticket.changeStatus", Effect: "allow", Status: enums.StatusOk}).Error; err != nil {
+		t.Fatal(err)
 	}
 	if err := db.Create(&models.AgentTeamScheduleTemplate{
 		TenantID: 1, Workdays: "[" + strconv.Itoa(scheduleWeekday(now)) + "]",

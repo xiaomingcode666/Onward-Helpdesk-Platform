@@ -14,6 +14,7 @@ import (
 	"remotehelpdesk/internal/repositories"
 
 	"github.com/mlogclub/simple/sqls"
+	"gorm.io/gorm"
 )
 
 var MailSettingService = newMailSettingService()
@@ -38,6 +39,14 @@ func (s *mailSettingService) Get(tenantID int64) (*dto.EnterpriseNotificationMai
 	if tenantID <= 0 {
 		return nil, errorsx.InvalidParam("tenant is required")
 	}
+	r, _, err := projectRuntimeDB(sqls.DB(), tenantID, 0)
+	if err != nil {
+		return nil, err
+	}
+	if r != nil {
+		m := r.Mail
+		return &dto.EnterpriseNotificationMailSettingDTO{SMTPHost: m.Host, SMTPPort: m.Port, Username: m.Username, FromAddress: m.FromAddress, FromName: m.FromName, UseTLS: m.UseTLS, Connected: m.Enabled, HasPassword: m.PasswordRef != "", ReplyTo: m.ReplyTo, RetryPolicy: m.RetryPolicy}, nil
+	}
 	setting := repositories.TenantMailSettingRepository.GetByTenantID(sqls.DB(), tenantID)
 	if setting == nil {
 		setting = defaultMailSetting()
@@ -46,6 +55,9 @@ func (s *mailSettingService) Get(tenantID int64) (*dto.EnterpriseNotificationMai
 }
 
 func (s *mailSettingService) Save(tenantID int64, req request.UpdateMailSettingRequest) (*dto.EnterpriseNotificationMailSettingDTO, error) {
+	if err := requireLegacyProjectSettingsDB(sqls.DB(), tenantID); err != nil {
+		return nil, err
+	}
 	if tenantID <= 0 {
 		return nil, errorsx.InvalidParam("tenant is required")
 	}
@@ -101,7 +113,7 @@ func (s *mailSettingService) Save(tenantID int64, req request.UpdateMailSettingR
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
-	if err := repositories.TenantMailSettingRepository.Upsert(sqls.DB(), item); err != nil {
+	if err := legacyProjectSettingsWrite(tenantID, func(db *gorm.DB) error { return repositories.TenantMailSettingRepository.Upsert(db, item) }); err != nil {
 		return nil, err
 	}
 	return buildMailSettingDTO(item), nil
@@ -116,9 +128,9 @@ func (s *mailSettingService) SendTest(tenantID int64, to string) error {
 	if to == "" {
 		return errorsx.InvalidParam("recipient is required")
 	}
-	setting := repositories.TenantMailSettingRepository.GetByTenantID(sqls.DB(), tenantID)
-	if setting == nil {
-		setting = defaultMailSetting()
+	setting, err := s.Get(tenantID)
+	if err != nil {
+		return err
 	}
 	fromAddress := setting.FromAddress
 	if fromAddress == "" {

@@ -33,10 +33,11 @@ func WorkbenchGetQueue(ctx *gin.Context) {
 	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(firstNonEmptyQuery(ctx, "page_size", "pageSize"))
 	aggregate, err := services.EnterpriseWorkbenchService.Queue(tenantID, userID, services.EnterpriseWorkbenchQueueQuery{
-		Page:     page,
-		PageSize: pageSize,
-		Limit:    limit,
-		QueueKey: firstNonEmptyQuery(ctx, "queue_key", "queueKey", "queue"),
+		Page:       page,
+		PageSize:   pageSize,
+		Limit:      limit,
+		QueueKey:   firstNonEmptyQuery(ctx, "queue_key", "queueKey", "queue"),
+		CaseStatus: ctx.Query("case_status"),
 	}, services.AuthService.GetAuthPrincipal(ctx))
 	if err != nil {
 		httpx.WriteJSON(ctx, err)

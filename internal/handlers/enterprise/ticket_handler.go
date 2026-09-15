@@ -39,7 +39,11 @@ func TicketList(ctx *gin.Context) {
 		Page:           page,
 		PageSize:       pageSize,
 		Status:         firstNonEmpty(ctx.Query("status"), filter["status"]),
+		CaseStatus:     firstNonEmpty(ctx.Query("case_status"), filter["case_status"]),
 		Priority:       firstNonEmpty(ctx.Query("priority"), filter["priority"]),
+		CaseType:       ctx.Query("case_type"),
+		MergeState:     ctx.Query("merge_state"),
+		RelationRole:   ctx.Query("relation_role"),
 		Search:         firstNonEmpty(ctx.Query("search"), strings.TrimPrefix(filter["title"], "~")),
 		Sort:           ctx.Query("sort"),
 		ConversationID: firstNonZero(queryInt64(ctx, "conversation_id"), queryInt64(ctx, "conversationId")),
@@ -70,11 +74,12 @@ func TicketSummary(ctx *gin.Context) {
 	}
 	filter := parseEnterpriseFilter(ctx.Query("filter"))
 	query := services.EnterpriseTicketQuery{
-		ProductID: firstNonZero(queryInt64(ctx, "product_id"), queryInt64(ctx, "productId")),
-		DeviceID:  firstNonZero(queryInt64(ctx, "device_id"), queryInt64(ctx, "deviceId")),
-		TeamID:    firstNonZero(queryInt64(ctx, "team_id"), queryInt64(ctx, "teamId")),
-		Search:    firstNonEmpty(ctx.Query("search"), strings.TrimPrefix(filter["title"], "~")),
-		Mine:      queryBool(ctx, "mine"),
+		ProductID:  firstNonZero(queryInt64(ctx, "product_id"), queryInt64(ctx, "productId")),
+		CaseStatus: firstNonEmpty(ctx.Query("case_status"), filter["case_status"]),
+		DeviceID:   firstNonZero(queryInt64(ctx, "device_id"), queryInt64(ctx, "deviceId")),
+		TeamID:     firstNonZero(queryInt64(ctx, "team_id"), queryInt64(ctx, "teamId")),
+		Search:     firstNonEmpty(ctx.Query("search"), strings.TrimPrefix(filter["title"], "~")),
+		Mine:       queryBool(ctx, "mine"),
 	}
 	result, err := services.EnterpriseTicketService.SummaryForOperator(tenantID, query, operator)
 	if err != nil {
@@ -131,7 +136,8 @@ func TicketCustomerInvitationDraftCreate(ctx *gin.Context) {
 		return
 	}
 	var req struct {
-		Title       string `json:"title" binding:"required"`
+		Title string `json:"title" binding:"required"`
+		dto.TicketClassificationInput
 		Description string `json:"description" binding:"required"`
 		Priority    string `json:"priority"`
 		DisplayName string `json:"displayName"`
@@ -152,7 +158,8 @@ func TicketCustomerInvitationDraftCreate(ctx *gin.Context) {
 		},
 		request.CreateTicketRequest{
 			Title: req.Title, Description: req.Description, Source: string(enums.TicketSourceManual),
-			Channel: "enterprise", PriorityCode: enterpriseTicketPriorityCode(req.Priority), TenantID: tenantID,
+			TicketClassificationInput: req.TicketClassificationInput,
+			Channel:                   "enterprise", PriorityCode: enterpriseTicketPriorityCode(req.Priority), TenantID: tenantID,
 			CurrentAssigneeID: invitedCustomerDraftAssigneeID(operator),
 		},
 		operator,
@@ -197,6 +204,7 @@ func TicketCreate(ctx *gin.Context) {
 	}
 	var req struct {
 		dto.TicketIntakeInput
+		dto.TicketClassificationInput
 		IdempotencyKey         string `json:"idempotency_key"`
 		Title                  string `json:"title"`
 		Description            string `json:"description"`
@@ -252,47 +260,54 @@ func TicketCreate(ctx *gin.Context) {
 	var item *models.Ticket
 	if conversationID > 0 {
 		item, err = services.TicketService.CreateFromConversation(request.CreateTicketFromConversationRequest{
-			ConversationID:    conversationID,
-			Title:             req.Title,
-			Description:       req.Description,
-			PriorityCode:      enterpriseTicketPriorityCode(firstNonEmpty(req.PriorityCode, req.PriorityCodeCamel, req.Priority)),
-			CurrentAssigneeID: currentAssigneeID,
-			TenantID:          tenantID,
-			ProductID:         firstNonZero(req.ProductID, req.ProductIDCamel),
-			ProductModelID:    firstNonZero(req.ProductModelID, req.ProductModelIDCamel),
-			ProductModuleID:   firstNonZero(req.ProductModuleID, req.ProductModuleIDCamel),
-			DeviceID:          firstNonZero(req.DeviceID, req.DeviceIDCamel),
-			ServiceCodeID:     firstNonZero(req.ServiceCodeID, req.ServiceCodeIDCamel),
-			ServiceRegion:     firstNonEmpty(req.ServiceRegion, req.ServiceRegionCamel),
-			FaultCode:         firstNonEmpty(req.FaultCode, req.FaultCodeCamel),
-			SymptomSummary:    firstNonEmpty(req.SymptomSummary, req.SymptomSummaryCamel),
-			DiagnosisSummary:  firstNonEmpty(req.DiagnosisSummary, req.DiagnosisSummaryCamel),
+			TicketClassificationInput: req.TicketClassificationInput,
+			IdempotencyKey:            req.IdempotencyKey,
+			ConversationID:            conversationID,
+			Title:                     req.Title,
+			Description:               req.Description,
+			PriorityCode:              enterpriseTicketPriorityCode(firstNonEmpty(req.PriorityCode, req.PriorityCodeCamel, req.Priority)),
+			CurrentAssigneeID:         currentAssigneeID,
+			TenantID:                  tenantID,
+			ProductID:                 firstNonZero(req.ProductID, req.ProductIDCamel),
+			ProductModelID:            firstNonZero(req.ProductModelID, req.ProductModelIDCamel),
+			ProductModuleID:           firstNonZero(req.ProductModuleID, req.ProductModuleIDCamel),
+			DeviceID:                  firstNonZero(req.DeviceID, req.DeviceIDCamel),
+			ServiceCodeID:             firstNonZero(req.ServiceCodeID, req.ServiceCodeIDCamel),
+			ServiceRegion:             firstNonEmpty(req.ServiceRegion, req.ServiceRegionCamel),
+			FaultCode:                 firstNonEmpty(req.FaultCode, req.FaultCodeCamel),
+			SymptomSummary:            firstNonEmpty(req.SymptomSummary, req.SymptomSummaryCamel),
+			DiagnosisSummary:          firstNonEmpty(req.DiagnosisSummary, req.DiagnosisSummaryCamel),
 		}, operator)
 	} else {
 		item, err = services.TicketService.CreateTicket(request.CreateTicketRequest{
-			TicketIntakeInput: req.TicketIntakeInput,
-			IdempotencyKey:    req.IdempotencyKey,
-			Title:             req.Title,
-			Description:       req.Description,
-			Source:            source,
-			Channel:           req.Channel,
-			PriorityCode:      enterpriseTicketPriorityCode(firstNonEmpty(req.PriorityCode, req.PriorityCodeCamel, req.Priority)),
-			CustomerID:        firstNonZero(req.CustomerID, req.CustomerIDCamel),
-			ConversationID:    conversationID,
-			CurrentAssigneeID: currentAssigneeID,
-			TenantID:          tenantID,
-			ProductID:         firstNonZero(req.ProductID, req.ProductIDCamel),
-			ProductModelID:    firstNonZero(req.ProductModelID, req.ProductModelIDCamel),
-			ProductModuleID:   firstNonZero(req.ProductModuleID, req.ProductModuleIDCamel),
-			DeviceID:          firstNonZero(req.DeviceID, req.DeviceIDCamel),
-			ServiceCodeID:     firstNonZero(req.ServiceCodeID, req.ServiceCodeIDCamel),
-			ServiceRegion:     firstNonEmpty(req.ServiceRegion, req.ServiceRegionCamel),
-			FaultCode:         firstNonEmpty(req.FaultCode, req.FaultCodeCamel),
-			SymptomSummary:    firstNonEmpty(req.SymptomSummary, req.SymptomSummaryCamel),
-			DiagnosisSummary:  firstNonEmpty(req.DiagnosisSummary, req.DiagnosisSummaryCamel),
+			TicketClassificationInput: req.TicketClassificationInput,
+			TicketIntakeInput:         req.TicketIntakeInput,
+			IdempotencyKey:            req.IdempotencyKey,
+			Title:                     req.Title,
+			Description:               req.Description,
+			Source:                    source,
+			Channel:                   req.Channel,
+			PriorityCode:              enterpriseTicketPriorityCode(firstNonEmpty(req.PriorityCode, req.PriorityCodeCamel, req.Priority)),
+			CustomerID:                firstNonZero(req.CustomerID, req.CustomerIDCamel),
+			ConversationID:            conversationID,
+			CurrentAssigneeID:         currentAssigneeID,
+			TenantID:                  tenantID,
+			ProductID:                 firstNonZero(req.ProductID, req.ProductIDCamel),
+			ProductModelID:            firstNonZero(req.ProductModelID, req.ProductModelIDCamel),
+			ProductModuleID:           firstNonZero(req.ProductModuleID, req.ProductModuleIDCamel),
+			DeviceID:                  firstNonZero(req.DeviceID, req.DeviceIDCamel),
+			ServiceCodeID:             firstNonZero(req.ServiceCodeID, req.ServiceCodeIDCamel),
+			ServiceRegion:             firstNonEmpty(req.ServiceRegion, req.ServiceRegionCamel),
+			FaultCode:                 firstNonEmpty(req.FaultCode, req.FaultCodeCamel),
+			SymptomSummary:            firstNonEmpty(req.SymptomSummary, req.SymptomSummaryCamel),
+			DiagnosisSummary:          firstNonEmpty(req.DiagnosisSummary, req.DiagnosisSummaryCamel),
 		}, operator)
 	}
 	if err != nil {
+		if errors.Is(err, services.ErrTicketIdempotencyConflict) {
+			httpx.WriteHttpStatusJSON(ctx, 409, errorsx.InvalidParam("请求内容与此前相同请求编号不一致"))
+			return
+		}
 		httpx.WriteJSON(ctx, err)
 		return
 	}

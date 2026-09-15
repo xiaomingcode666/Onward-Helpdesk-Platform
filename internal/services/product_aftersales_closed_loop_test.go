@@ -23,6 +23,7 @@ import (
 func TestProductAfterSalesClosedLoop(t *testing.T) {
 	setupTicketIntegrationDB(t)
 	f := createTicketIntegrationFixture(t, "product-closed-loop")
+	ensureTestTicketProcessingMember(t, f.Tenant.ID, f.Operator.UserID)
 	now := time.Now()
 
 	previousJitsiClient := providers.DefaultJitsiClient
@@ -112,11 +113,7 @@ func TestProductAfterSalesClosedLoop(t *testing.T) {
 	require.Equal(t, f.Operator.UserID, ticket.CurrentAssigneeID)
 	require.EqualValues(t, 1, repositories.TicketRepository.Count(sqls.DB(), sqls.NewCnd().Eq("conversation_id", conversation.ID)))
 
-	var acceptErr error
-	require.Eventually(t, func() bool {
-		acceptErr = services.TicketLifecycleService.Accept(ticket.ID, f.Operator.UserID, f.Operator)
-		return acceptErr == nil
-	}, 2*time.Second, 50*time.Millisecond, "accept handoff ticket: %v", acceptErr)
+	require.NoError(t, services.TicketLifecycleService.Accept(ticket.ID, f.Operator.UserID, f.Operator), "accept handoff ticket")
 	conversation = services.ConversationService.Get(conversation.ID)
 	require.NotNil(t, conversation)
 	require.Equal(t, enums.IMConversationStatusActive, conversation.Status)

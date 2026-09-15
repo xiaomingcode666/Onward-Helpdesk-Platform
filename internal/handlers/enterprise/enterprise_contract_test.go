@@ -48,6 +48,9 @@ func setupEnterpriseContractDB(t *testing.T) *gorm.DB {
 	modelsToMigrate := []any{
 		&models.User{},
 		&models.Tenant{},
+		&models.ProjectConfigurationVersion{},
+		&models.ProjectConfigurationState{},
+		&models.ProjectConfigurationActivation{},
 		&models.ProductLine{},
 		&models.Product{},
 		&models.ProductServiceProfile{},

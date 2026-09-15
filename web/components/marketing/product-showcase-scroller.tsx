@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState, type TransitionEvent } from "react"
 
 const showcases = [
   {
@@ -35,30 +35,35 @@ const loopedShowcases = [...showcases, showcases[0]]
 
 export function ProductShowcaseScroller() {
   const [slideIndex, setSlideIndex] = useState(0)
-  const [activeIndex, setActiveIndex] = useState(0)
   const [transitionEnabled, setTransitionEnabled] = useState(true)
+  const activeIndex = slideIndex % showcases.length
+
+  const resetLoop = useCallback(() => {
+    setTransitionEnabled(false)
+    setSlideIndex(0)
+  }, [])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       setTransitionEnabled(true)
-      setSlideIndex((current) => current + 1)
+      // Wait at the cloned first slide until the loop has been reset.
+      setSlideIndex((current) => Math.min(current + 1, showcases.length))
     }, 4200)
 
     return () => window.clearInterval(timer)
   }, [])
 
-  const handleTransitionEnd = () => {
-    if (slideIndex === showcases.length) {
-      setActiveIndex(0)
-      setTransitionEnabled(false)
-      setSlideIndex(0)
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => setTransitionEnabled(true))
-      })
-      return
-    }
+  useEffect(() => {
+    if (slideIndex < showcases.length) return
 
-    setActiveIndex(slideIndex)
+    // Background tabs or interrupted transitions may never emit transitionend.
+    const timer = window.setTimeout(resetLoop, 800)
+    return () => window.clearTimeout(timer)
+  }, [slideIndex, resetLoop])
+
+  const handleTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.propertyName !== "transform") return
+    if (slideIndex >= showcases.length) resetLoop()
   }
 
   return (

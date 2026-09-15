@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Checkbox, Input, Select } from "antd"
-import { PlusIcon, SaveIcon, Settings2Icon, Trash2Icon } from "lucide-react"
-import { FormField, IconButton, RailopsButton, StandardModal } from "@railops/ui"
+import { Input, Select } from "antd"
+import { SaveIcon } from "lucide-react"
+import { FormField, RailopsButton, StandardModal } from "@railops/ui"
 import { translateCurrentMessage } from "@/i18n/messages"
 import { useAuth } from "@/components/auth-provider"
-import { completeTicketIntake, fetchTicketIntakePolicy, fetchTicketCustomerOptions, updateTicketIntakePolicy, type TicketCustomerOption } from "@/lib/api/enterprise-tickets"
+import { completeTicketIntake, fetchTicketIntakePolicy, fetchTicketCustomerOptions, type TicketCustomerOption } from "@/lib/api/enterprise-tickets"
 import { listAllProducts, getProductDevices, type ProductDevice } from "@/lib/api/enterprise-products"
 import type { TicketAggregateDTO } from "@/lib/api/types"
 import { EMPTY_INTAKE, missingPhoneContext, type IntakeDraft, type TicketIntakePolicy } from "@/lib/ticket-intake"
@@ -74,47 +74,7 @@ export function IntakeFields({ value, onChange, policy, customerId, original, sh
   </div>
 }
 
-export function IntakePolicyButton({ onSaved }: { onSaved?: (policy: TicketIntakePolicy) => void }) {
-  const [open, setOpen] = useState(false)
-  const [policy, setPolicy] = useState<TicketIntakePolicy>({ rules: [] })
-  const [loaded, setLoaded] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState("")
-  async function load() {
-    setOpen(true); setLoaded(false); setError("")
-    try {
-      const result = await fetchTicketIntakePolicy()
-      if (!result.success || !result.data) throw new Error(result.error?.message || intakeLabel("loadError"))
-      setPolicy({ rules: result.data.rules ?? [] }); setLoaded(true)
-    } catch (error) { setError(error instanceof Error ? error.message : intakeLabel("loadError")) }
-  }
-  async function save() {
-    setSaving(true); setError("")
-    try {
-      const result = await updateTicketIntakePolicy(policy)
-      if (!result.success) throw new Error(result.error?.message || intakeLabel("saveError"))
-      onSaved?.(policy)
-      setOpen(false)
-    } catch (error) { setError(error instanceof Error ? error.message : intakeLabel("saveError")) }
-    finally { setSaving(false) }
-  }
-  return <>
-    <IconButton icon={<Settings2Icon />} tooltip={intakeLabel("policy")} aria-label={intakeLabel("policy")} onClick={() => void load()} />
-    <StandardModal open={open} width={720} styles={{ body: { maxHeight: "calc(100dvh - 180px)", overflowY: "auto" } }} title={intakeLabel("policy")} onCancel={() => !saving && setOpen(false)} footer={<RailopsButton disabled={!loaded || saving} onClick={() => void save()}><SaveIcon size={16} />{intakeLabel("save")}</RailopsButton>}>
-      <div className="grid gap-4">
-        {policy.rules.map((rule, index) => <div key={index} className="grid grid-cols-1 gap-3 border-b pb-4 sm:grid-cols-3">
-          {(["project_key", "channel", "ticket_type"] as const).map((key) => <FormField key={key} label={intakeLabel(key)} required>
-            {key === "channel" ? <Select className="w-full" value={rule.channel} options={["phone", "email", "monitoring_alert", "api", "webhook", "whatsapp", "chatbot_handoff"].map((value) => ({ value, label: value === "phone" ? intakeLabel("phone") : value }))} onChange={(value) => setPolicy({ rules: policy.rules.map((item, i) => i === index ? { ...item, channel: value } : item) })} /> : <Input maxLength={64} value={rule[key]} onChange={(event) => setPolicy({ rules: policy.rules.map((item, i) => i === index ? { ...item, [key]: event.target.value } : item) })} />}
-          </FormField>)}
-          <div className="sm:col-span-3"><FormField label={intakeLabel("requiredFields")}><Checkbox.Group value={rule.required_fields} options={["caller_name", "caller_phone", "customer_id", "product_id", "device_id", "service_region"].map((value) => ({ value, label: intakeLabel(value) }))} onChange={(fields) => setPolicy({ rules: policy.rules.map((item, i) => i === index ? { ...item, required_fields: fields as string[] } : item) })} /></FormField></div>
-          <IconButton icon={<Trash2Icon />} tooltip={intakeLabel("removeRule")} aria-label={intakeLabel("removeRule")} onClick={() => setPolicy({ rules: policy.rules.filter((_, i) => i !== index) })} />
-        </div>)}
-        <RailopsButton disabled={!loaded || saving} onClick={() => setPolicy({ rules: [...policy.rules, { project_key: "", channel: "phone", ticket_type: "", required_fields: [] }] })}><PlusIcon size={16} />{intakeLabel("addRule")}</RailopsButton>
-        {error && <div role="alert" className="text-sm text-destructive">{error}{!loaded && <RailopsButton onClick={() => void load()}>{intakeLabel("retry")}</RailopsButton>}</div>}
-      </div>
-    </StandardModal>
-  </>
-}
+export { ProjectConfigurationEditor as IntakePolicyButton } from "./project-configuration-editor"
 
 export function IntakeCompletion({ aggregate, onSaved, showDeviceContext }: { aggregate: TicketAggregateDTO; onSaved: (value: TicketAggregateDTO) => void; showDeviceContext: boolean }) {
   const { session } = useAuth()
@@ -132,7 +92,7 @@ export function IntakeCompletion({ aggregate, onSaved, showDeviceContext }: { ag
     const value = { ...EMPTY_INTAKE, project_key: ticket.project_key ?? "", ticket_type: ticket.ticket_type ?? "", caller_name: ticket.caller_name ?? "", caller_phone: ticket.caller_phone ?? "", product_id: ticket.product_id, device_id: ticket.device_id ?? 0, service_region: ticket.service_region ?? "" }
     setDraft(value); setOriginal(value); setCustomerId(aggregate.customer.id); setCustomers([]); setError(""); setOpen(true)
     try {
-      const result = await fetchTicketIntakePolicy()
+      const result = await fetchTicketIntakePolicy(ticket.id)
       if (!result.success || !result.data) throw new Error(result.error?.message || intakeLabel("loadError"))
       setPolicy({ rules: result.data.rules ?? [] })
       if (!aggregate.customer.id) {

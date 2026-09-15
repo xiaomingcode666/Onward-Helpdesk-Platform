@@ -1,9 +1,9 @@
 package tag
 
 import (
+	"regexp"
 	"remotehelpdesk/cmd/testdata/seedlang"
 	"remotehelpdesk/cmd/testdata/seeds"
-	"regexp"
 	"testing"
 )
 

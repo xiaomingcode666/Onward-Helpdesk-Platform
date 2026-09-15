@@ -46,10 +46,11 @@ type EnterpriseWorkbenchQueueAggregate struct {
 }
 
 type EnterpriseWorkbenchQueueQuery struct {
-	Page     int
-	PageSize int
-	Limit    int
-	QueueKey string
+	Page       int
+	PageSize   int
+	Limit      int
+	QueueKey   string
+	CaseStatus string
 }
 
 type workbenchUsageByProduct struct {
@@ -87,10 +88,14 @@ func (s *enterpriseWorkbenchService) Queue(tenantID, userID int64, query Enterpr
 
 func enterpriseWorkbenchTicketQuery(query EnterpriseWorkbenchQueueQuery) EnterpriseTicketQuery {
 	ret := EnterpriseTicketQuery{
-		Page:     query.Page,
-		PageSize: query.PageSize,
-		Sort:     "-updated_at",
-		Status:   "active",
+		Page:       query.Page,
+		PageSize:   query.PageSize,
+		Sort:       "-updated_at",
+		Status:     "active",
+		CaseStatus: query.CaseStatus,
+	}
+	if query.CaseStatus != "" {
+		ret.Status = ""
 	}
 	switch strings.ToLower(strings.TrimSpace(query.QueueKey)) {
 	case "sla_risk":
@@ -259,7 +264,7 @@ func (s *enterpriseWorkbenchService) Core(tenantID, userID int64, operator *dto.
 
 	scope := s.scope(tenantID, userID, operator)
 	queueTickets := s.visibleTicketList(tenantID, operator, false, func(db *gorm.DB) *gorm.DB {
-		return db.Where("status NOT IN ?", []enums.TicketStatus{enums.TicketStatusClosed, enums.TicketStatusDone, enums.TicketStatusCancelled})
+		return db.Where(ticketCaseOpenSQL)
 	}, 8)
 	summary := s.ticketSummaryFromDB(tenantID, operator)
 	return &dto.EnterpriseWorkbenchCoreDTO{
@@ -411,13 +416,13 @@ func (s *enterpriseWorkbenchService) visibleTickets(tenantID int64, operator *dt
 		viewerTeamIDs := uniqueServiceInt64s(scope.TeamIDs)
 		viewerProductIDs := uniqueServiceInt64s(scope.ProductIDs)
 		if len(viewerProductIDs) > 0 && len(viewerTeamIDs) > 0 {
-			cnd.Where("product_id IN ? OR current_assignee_id = ? OR (product_id = 0 AND current_team_id IN ?)", viewerProductIDs, scope.UserID, viewerTeamIDs)
+			cnd.Where("(product_id IN ? OR current_assignee_id = ? OR case_owner_id = ? OR (product_id = 0 AND current_team_id IN ?))", viewerProductIDs, scope.UserID, scope.UserID, viewerTeamIDs)
 		} else if len(viewerProductIDs) > 0 {
-			cnd.Where("product_id IN ? OR current_assignee_id = ?", viewerProductIDs, scope.UserID)
+			cnd.Where("(product_id IN ? OR current_assignee_id = ? OR case_owner_id = ?)", viewerProductIDs, scope.UserID, scope.UserID)
 		} else if len(viewerTeamIDs) > 0 {
-			cnd.Where("current_assignee_id = ? OR (product_id = 0 AND current_team_id IN ?)", scope.UserID, viewerTeamIDs)
+			cnd.Where("(current_assignee_id = ? OR case_owner_id = ? OR (product_id = 0 AND current_team_id IN ?))", scope.UserID, scope.UserID, viewerTeamIDs)
 		} else {
-			cnd.Eq("current_assignee_id", scope.UserID)
+			cnd.Where("(current_assignee_id = ? OR case_owner_id = ?)", scope.UserID, scope.UserID)
 		}
 	}
 	if oldestFirst {
@@ -438,13 +443,13 @@ func (s *enterpriseWorkbenchService) visibleTicketDB(tenantID int64, operator *d
 	viewerProductIDs := uniqueServiceInt64s(scope.ProductIDs)
 	switch {
 	case len(viewerProductIDs) > 0 && len(viewerTeamIDs) > 0:
-		db = db.Where("product_id IN ? OR current_assignee_id = ? OR (product_id = 0 AND current_team_id IN ?)", viewerProductIDs, scope.UserID, viewerTeamIDs)
+		db = db.Where("(product_id IN ? OR current_assignee_id = ? OR case_owner_id = ? OR (product_id = 0 AND current_team_id IN ?))", viewerProductIDs, scope.UserID, scope.UserID, viewerTeamIDs)
 	case len(viewerProductIDs) > 0:
-		db = db.Where("product_id IN ? OR current_assignee_id = ?", viewerProductIDs, scope.UserID)
+		db = db.Where("(product_id IN ? OR current_assignee_id = ? OR case_owner_id = ?)", viewerProductIDs, scope.UserID, scope.UserID)
 	case len(viewerTeamIDs) > 0:
-		db = db.Where("current_assignee_id = ? OR (product_id = 0 AND current_team_id IN ?)", scope.UserID, viewerTeamIDs)
+		db = db.Where("(current_assignee_id = ? OR case_owner_id = ? OR (product_id = 0 AND current_team_id IN ?))", scope.UserID, scope.UserID, viewerTeamIDs)
 	default:
-		db = db.Where("current_assignee_id = ?", scope.UserID)
+		db = db.Where("(current_assignee_id = ? OR case_owner_id = ?)", scope.UserID, scope.UserID)
 	}
 	return db
 }
@@ -588,7 +593,7 @@ func (s *enterpriseWorkbenchService) ticketSummary(tickets []models.Ticket) dto.
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	ret := dto.EnterpriseWorkbenchSummaryDTO{}
 	for _, item := range tickets {
-		done := ticketSLACompleted(item.Status)
+		done := ticketCaseClosed(item)
 		if !done {
 			ret.OpenTickets++
 		}
@@ -598,8 +603,10 @@ func (s *enterpriseWorkbenchService) ticketSummary(tickets []models.Ticket) dto.
 		if enterpriseTicketStatusInFilter(item.Status, "processing") {
 			ret.ProcessingTickets++
 		}
-		if enterpriseTicketStatusInFilter(item.Status, "awaiting_customer") {
+		if ticketCaseAwaitingClosure(item) {
 			ret.AwaitingCustomerTickets++
+		}
+		if models.EffectiveTicketCaseStatus(item) == "waiting" {
 			ret.SuspendedTickets++
 		}
 		if enterpriseTicketUnassigned(item) {
@@ -624,10 +631,9 @@ func (s *enterpriseWorkbenchService) ticketSummary(tickets []models.Ticket) dto.
 func (s *enterpriseWorkbenchService) ticketSummaryFromDB(tenantID int64, operator *dto.AuthPrincipal) dto.EnterpriseWorkbenchSummaryDTO {
 	now := time.Now()
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	completed := enterpriseTicketCompletedStatuses()
 	ret := dto.EnterpriseWorkbenchSummaryDTO{}
 	ret.OpenTickets = s.visibleTicketCount(tenantID, operator, func(db *gorm.DB) *gorm.DB {
-		return db.Where("status NOT IN ?", completed)
+		return db.Where(ticketCaseOpenSQL)
 	})
 	ret.PendingTickets = s.visibleTicketCount(tenantID, operator, func(db *gorm.DB) *gorm.DB {
 		return db.Where("status IN ?", enterpriseStatusFilterToDB("pending"))
@@ -636,23 +642,25 @@ func (s *enterpriseWorkbenchService) ticketSummaryFromDB(tenantID int64, operato
 		return db.Where("status IN ?", enterpriseStatusFilterToDB("processing"))
 	})
 	ret.AwaitingCustomerTickets = s.visibleTicketCount(tenantID, operator, func(db *gorm.DB) *gorm.DB {
-		return db.Where("status IN ?", enterpriseStatusFilterToDB("awaiting_customer"))
+		return db.Where(ticketCaseAwaitingClosureSQL)
 	})
-	ret.SuspendedTickets = ret.AwaitingCustomerTickets
+	ret.SuspendedTickets = s.visibleTicketCount(tenantID, operator, func(db *gorm.DB) *gorm.DB {
+		return db.Where(ticketEffectiveCaseStatusSQL+" = ?", "waiting")
+	})
 	ret.UnassignedTickets = s.visibleTicketCount(tenantID, operator, func(db *gorm.DB) *gorm.DB {
-		return db.Where("status NOT IN ? AND current_assignee_id <= 0", completed)
+		return db.Where(ticketResolutionSLARunningSQL + " AND current_assignee_id <= 0")
 	})
 	ret.SLARiskTickets = s.visibleTicketCount(tenantID, operator, func(db *gorm.DB) *gorm.DB {
-		return db.Where("status NOT IN ? AND sla_due_at IS NOT NULL AND sla_due_at <= ?", completed, now.Add(2*time.Hour))
+		return db.Where(ticketResolutionSLARunningSQL+" AND sla_due_at IS NOT NULL AND sla_due_at <= ?", now.Add(2*time.Hour))
 	})
 	ret.SLABreachedTickets = s.visibleTicketCount(tenantID, operator, func(db *gorm.DB) *gorm.DB {
-		return db.Where("status NOT IN ? AND sla_due_at IS NOT NULL AND sla_due_at < ?", completed, now)
+		return db.Where(ticketResolutionSLARunningSQL+" AND sla_due_at IS NOT NULL AND sla_due_at < ?", now)
 	})
 	ret.UrgentTickets = s.visibleTicketCount(tenantID, operator, func(db *gorm.DB) *gorm.DB {
-		return db.Where("status NOT IN ? AND (LOWER(priority_code) = ? OR (sla_due_at IS NOT NULL AND sla_due_at < ?))", completed, "p0", now)
+		return db.Where(ticketResolutionSLARunningSQL+" AND (LOWER(priority_code) = ? OR (sla_due_at IS NOT NULL AND sla_due_at < ?))", "p0", now)
 	})
 	ret.ClosedTodayTickets = s.visibleTicketCount(tenantID, operator, func(db *gorm.DB) *gorm.DB {
-		return db.Where("status IN ? AND COALESCE(resolved_at, updated_at, created_at) >= ?", completed, startOfDay)
+		return db.Where("NOT "+ticketCaseOpenSQL+" AND COALESCE(handled_at, updated_at, created_at) >= ?", startOfDay)
 	})
 	return ret
 }
@@ -763,7 +771,7 @@ func (s *enterpriseWorkbenchService) queueCards(tickets []models.Ticket) []dto.E
 		{key: "unassigned", title: "产品组待分配", description: "还没有指定工程师，产品组成员可见", tone: "amber", actionURL: "/enterprise/org", match: enterpriseTicketUnassigned},
 		{key: "pending", title: "待响应", description: "待受理、待派单、待接单", tone: "amber", actionURL: "/enterprise/tickets?status=pending", match: func(t models.Ticket) bool { return enterpriseTicketStatusInFilter(t.Status, "pending") }},
 		{key: "processing", title: "处理中", description: "工程师、视频或供应商正在处理", tone: "blue", actionURL: "/enterprise/tickets?status=processing", match: func(t models.Ticket) bool { return enterpriseTicketStatusInFilter(t.Status, "processing") }},
-		{key: "awaiting_customer", title: "客户确认", description: "已解决，等客户确认或评价", tone: "green", actionURL: "/enterprise/tickets?status=awaiting_customer", match: func(t models.Ticket) bool { return enterpriseTicketStatusInFilter(t.Status, "awaiting_customer") }},
+		{key: "awaiting_customer", title: "客户确认", description: "已解决，等客户确认或评价", tone: "green", actionURL: "/enterprise/tickets?status=awaiting_customer", match: ticketCaseAwaitingClosure},
 		{key: "urgent", title: "P0 紧急", description: "主管需要盯进度", tone: "red", actionURL: "/enterprise/tickets?priority=critical", match: func(t models.Ticket) bool { return DeriveTicketPriority(t) == "critical" }},
 	}
 	ret := make([]dto.EnterpriseWorkbenchQueueCardDTO, 0, len(specs))
@@ -788,7 +796,6 @@ func (s *enterpriseWorkbenchService) queueCards(tickets []models.Ticket) []dto.E
 
 func (s *enterpriseWorkbenchService) queueCardsFromDB(tenantID int64, operator *dto.AuthPrincipal) []dto.EnterpriseWorkbenchQueueCardDTO {
 	now := time.Now()
-	completed := enterpriseTicketCompletedStatuses()
 	specs := []struct {
 		key         string
 		title       string
@@ -800,13 +807,13 @@ func (s *enterpriseWorkbenchService) queueCardsFromDB(tenantID int64, operator *
 		{
 			key: "sla_risk", title: "SLA 风险", description: "已超时，或 2 小时内到期", tone: "red", actionURL: "/enterprise/tickets?sla_risk=true",
 			apply: func(db *gorm.DB) *gorm.DB {
-				return db.Where("status NOT IN ? AND sla_due_at IS NOT NULL AND sla_due_at <= ?", completed, now.Add(2*time.Hour))
+				return db.Where(ticketResolutionSLARunningSQL+" AND sla_due_at IS NOT NULL AND sla_due_at <= ?", now.Add(2*time.Hour))
 			},
 		},
 		{
 			key: "unassigned", title: "产品组待分配", description: "还没有指定工程师，产品组成员可见", tone: "amber", actionURL: "/enterprise/org",
 			apply: func(db *gorm.DB) *gorm.DB {
-				return db.Where("status NOT IN ? AND current_assignee_id <= 0", completed)
+				return db.Where(ticketResolutionSLARunningSQL + " AND current_assignee_id <= 0")
 			},
 		},
 		{
@@ -824,13 +831,13 @@ func (s *enterpriseWorkbenchService) queueCardsFromDB(tenantID int64, operator *
 		{
 			key: "awaiting_customer", title: "客户确认", description: "已解决，等客户确认或评价", tone: "green", actionURL: "/enterprise/tickets?status=awaiting_customer",
 			apply: func(db *gorm.DB) *gorm.DB {
-				return db.Where("status IN ?", enterpriseStatusFilterToDB("awaiting_customer"))
+				return db.Where(ticketCaseAwaitingClosureSQL)
 			},
 		},
 		{
 			key: "urgent", title: "P0 紧急", description: "主管需要盯进度", tone: "red", actionURL: "/enterprise/tickets?priority=critical",
 			apply: func(db *gorm.DB) *gorm.DB {
-				return db.Where("status NOT IN ? AND (LOWER(priority_code) = ? OR (sla_due_at IS NOT NULL AND sla_due_at < ?))", completed, "p0", now)
+				return db.Where(ticketResolutionSLARunningSQL+" AND (LOWER(priority_code) = ? OR (sla_due_at IS NOT NULL AND sla_due_at < ?))", "p0", now)
 			},
 		},
 	}
@@ -1006,7 +1013,6 @@ func (s *enterpriseWorkbenchService) productTicketLoads(tenantID int64, productI
 	if len(productIDs) == 0 {
 		return ret
 	}
-	completed := enterpriseTicketCompletedStatuses()
 	now := time.Now()
 	type row struct {
 		ProductID         int64
@@ -1021,16 +1027,13 @@ func (s *enterpriseWorkbenchService) productTicketLoads(tenantID int64, productI
 		Where("product_id IN ?", productIDs).
 		Select(
 			`product_id,
-			SUM(CASE WHEN status NOT IN ? THEN 1 ELSE 0 END) AS open_tickets,
+			SUM(CASE WHEN `+ticketCaseOpenSQL+` THEN 1 ELSE 0 END) AS open_tickets,
 			SUM(CASE WHEN status IN ? THEN 1 ELSE 0 END) AS pending_tickets,
 			SUM(CASE WHEN status IN ? THEN 1 ELSE 0 END) AS processing_tickets,
-			SUM(CASE WHEN status NOT IN ? AND current_assignee_id <= 0 THEN 1 ELSE 0 END) AS unassigned_tickets,
-			SUM(CASE WHEN status NOT IN ? AND sla_due_at IS NOT NULL AND sla_due_at <= ? THEN 1 ELSE 0 END) AS sla_risk_tickets`,
-			completed,
+			SUM(CASE WHEN `+ticketResolutionSLARunningSQL+` AND current_assignee_id <= 0 THEN 1 ELSE 0 END) AS unassigned_tickets,
+			SUM(CASE WHEN `+ticketResolutionSLARunningSQL+` AND sla_due_at IS NOT NULL AND sla_due_at <= ? THEN 1 ELSE 0 END) AS sla_risk_tickets`,
 			enterpriseStatusFilterToDB("pending"),
 			enterpriseStatusFilterToDB("processing"),
-			completed,
-			completed,
 			now.Add(2*time.Hour),
 		).
 		Group("product_id").
@@ -1223,12 +1226,7 @@ func enterpriseWorkbenchQueueTickets(items []models.Ticket) []models.Ticket {
 }
 
 func enterpriseWorkbenchQueueTicket(ticket models.Ticket) bool {
-	switch enums.NormalizeTicketStatus(string(ticket.Status)) {
-	case enums.TicketStatusClosed, enums.TicketStatusDone, enums.TicketStatusCancelled:
-		return false
-	default:
-		return true
-	}
+	return !ticketCaseClosed(ticket)
 }
 
 func productIDsFromProducts(products []models.Product) []int64 {
@@ -1278,6 +1276,9 @@ func uniqueWorkbenchInt64s(values []int64) []int64 {
 }
 
 func ticketBusinessTime(ticket models.Ticket) time.Time {
+	if ticketCaseClosed(ticket) && ticket.HandledAt != nil && !ticket.HandledAt.IsZero() {
+		return *ticket.HandledAt
+	}
 	if ticket.ResolvedAt != nil && !ticket.ResolvedAt.IsZero() {
 		return *ticket.ResolvedAt
 	}
@@ -1331,7 +1332,7 @@ func productLoadTone(item dto.EnterpriseWorkbenchProductLoadDTO) string {
 }
 
 func enterpriseTicketUnassigned(ticket models.Ticket) bool {
-	return !ticketSLACompleted(ticket.Status) && ticket.CurrentAssigneeID <= 0
+	return !ticketResolutionSLAStopped(ticket) && ticket.CurrentAssigneeID <= 0
 }
 
 func slaTone(breached, risk int64) string {

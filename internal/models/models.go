@@ -16,6 +16,9 @@ var Models = []any{
 	&UserIdentity{},
 	&Company{},
 	&Tenant{},
+	&ProjectConfigurationVersion{},
+	&ProjectConfigurationState{},
+	&ProjectConfigurationActivation{},
 	&TenantBranding{},
 	&TenantPlan{},
 	&TenantPlanQuota{},
@@ -362,23 +365,24 @@ func (TenantMailSetting) TableName() string {
 
 // DeliveryLog 投递日志。
 type DeliveryLog struct {
-	ID             int64      `gorm:"primaryKey;autoIncrement"`
-	TenantID       int64      `gorm:"type:bigint;not null;default:0;index;uniqueIndex:uk_delivery_tenant_idempotency,priority:1"`
-	IdempotencyKey *string    `gorm:"type:varchar(180);uniqueIndex:uk_delivery_tenant_idempotency,priority:2"`
-	NotificationID int64      `gorm:"type:bigint;not null;index"`
-	Channel        string     `gorm:"type:varchar(32);not null;default:'';index"` // in_app / wxwork / email / sms
-	RecipientID    string     `gorm:"type:varchar(128);not null;default:'';index"`
-	Status         string     `gorm:"type:varchar(20);not null;default:'pending';index"` // pending / processing / waiting_retry / sent / delivered / failed / bounced
-	ProviderMsgID  string     `gorm:"type:varchar(255);not null;default:''"`
-	ErrorMsg       string     `gorm:"type:text"`
-	RetryCount     int        `gorm:"type:int;not null;default:0"`
-	MaxRetries     int        `gorm:"type:int;not null;default:0"`
-	NextAttemptAt  *time.Time `gorm:"type:timestamp;index"`
-	LastAttemptAt  *time.Time `gorm:"type:timestamp;index"`
-	SentAt         *time.Time `gorm:"type:timestamp;index"`
-	DeliveredAt    *time.Time `gorm:"type:timestamp;index"`
-	CreatedAt      time.Time  `gorm:"type:timestamp;not null;index"`
-	UpdatedAt      time.Time  `gorm:"type:timestamp;not null;index"`
+	ID                  int64      `gorm:"primaryKey;autoIncrement"`
+	TenantID            int64      `gorm:"type:bigint;not null;default:0;index;uniqueIndex:uk_delivery_tenant_idempotency,priority:1"`
+	IdempotencyKey      *string    `gorm:"type:varchar(180);uniqueIndex:uk_delivery_tenant_idempotency,priority:2"`
+	NotificationID      int64      `gorm:"type:bigint;not null;index"`
+	Channel             string     `gorm:"type:varchar(32);not null;default:'';index"` // in_app / wxwork / email / sms
+	RecipientID         string     `gorm:"type:varchar(128);not null;default:'';index"`
+	RecipientCiphertext string     `gorm:"type:text" json:"-"`                                // Only pending email delivery needs the encrypted destination.
+	Status              string     `gorm:"type:varchar(20);not null;default:'pending';index"` // pending / processing / waiting_retry / sent / delivered / failed / bounced
+	ProviderMsgID       string     `gorm:"type:varchar(255);not null;default:''"`
+	ErrorMsg            string     `gorm:"type:text"`
+	RetryCount          int        `gorm:"type:int;not null;default:0"`
+	MaxRetries          int        `gorm:"type:int;not null;default:0"`
+	NextAttemptAt       *time.Time `gorm:"type:timestamp;index"`
+	LastAttemptAt       *time.Time `gorm:"type:timestamp;index"`
+	SentAt              *time.Time `gorm:"type:timestamp;index"`
+	DeliveredAt         *time.Time `gorm:"type:timestamp;index"`
+	CreatedAt           time.Time  `gorm:"type:timestamp;not null;index"`
+	UpdatedAt           time.Time  `gorm:"type:timestamp;not null;index"`
 }
 
 // TableName 设置 DeliveryLog 表名
@@ -1078,9 +1082,11 @@ type ConversationEventLog struct {
 
 // Ticket 客服问题记录。
 type Ticket struct {
+	TicketGovernance
 	ID                          int64              `gorm:"primaryKey;autoIncrement"`
 	TicketNo                    string             `gorm:"type:varchar(64);not null;default:'';uniqueIndex"`
 	IdempotencyKey              *string            `gorm:"type:varchar(160);uniqueIndex:uk_ticket_tenant_idempotency,priority:2"`
+	IdempotencyPayloadHash      string             `gorm:"type:char(64);not null;default:''"`
 	Title                       string             `gorm:"type:varchar(255);not null;default:'';index"`
 	Description                 string             `gorm:"type:text"`
 	Source                      enums.TicketSource `gorm:"type:varchar(50);not null;default:'';index"`
@@ -1088,6 +1094,8 @@ type Ticket struct {
 	SourceRecordID              string             `gorm:"type:varchar(160);not null;default:'';index"`
 	SourceRecordKey             *string            `gorm:"type:varchar(64);uniqueIndex:uk_ticket_intake_source,priority:2"`
 	ProjectKey                  string             `gorm:"type:varchar(64);not null;default:''"`
+	IntakeConfigVersionID       int64              `gorm:"not null;default:0;index"`
+	ProjectConfigVersionID      int64              `gorm:"not null;default:0;index"`
 	TicketType                  string             `gorm:"type:varchar(64);not null;default:''"`
 	CallerName                  string             `gorm:"type:varchar(120);not null;default:''"`
 	CallerPhone                 string             `gorm:"type:varchar(64);not null;default:''"`
@@ -1098,23 +1106,36 @@ type Ticket struct {
 	CustomerRegistrationGrantID int64              `gorm:"type:bigint;not null;default:0;index"`
 	ConversationID              int64              `gorm:"type:bigint;not null;default:0;index"`
 	Status                      enums.TicketStatus `gorm:"type:varchar(50);not null;default:'pending';index"`
-	PriorityCode                string             `gorm:"type:varchar(8);not null;default:'p2';index"`
-	CurrentTeamID               int64              `gorm:"type:bigint;not null;default:0;index"`
-	CurrentAssigneeID           int64              `gorm:"type:bigint;not null;default:0;index"`
-	HandledAt                   *time.Time         `gorm:"type:timestamp;index"`
-	TenantID                    int64              `gorm:"type:bigint;not null;default:0;index;uniqueIndex:uk_ticket_tenant_idempotency,priority:1;uniqueIndex:uk_ticket_intake_source,priority:1"`
-	ProductID                   int64              `gorm:"type:bigint;not null;default:0;index"`
-	ProductModelID              int64              `gorm:"type:bigint;not null;default:0;index"`
-	ProductModuleID             int64              `gorm:"type:bigint;not null;default:0;index"`
-	DeviceID                    int64              `gorm:"type:bigint;not null;default:0;index"`
-	ServiceCodeID               int64              `gorm:"type:bigint;not null;default:0;index"`
-	CustomerEntrySessionID      int64              `gorm:"type:bigint;not null;default:0;index"`
-	ServiceRegion               string             `gorm:"type:varchar(64);not null;default:'';index"`
-	FaultCode                   string             `gorm:"type:varchar(128);not null;default:'';index"`
-	SymptomSummary              string             `gorm:"type:text"`
-	DiagnosisSummary            string             `gorm:"type:text"`
-	SLADueAt                    *time.Time         `gorm:"type:timestamp;index"`
-	ResolvedAt                  *time.Time         `gorm:"type:timestamp;index"`
+	// CaseStatus is the customer case lifecycle; Status retains the technical workflow step.
+	// Empty values identify historical records, whose missing facts must not be invented.
+	CaseStatus                string     `gorm:"type:varchar(32);not null;default:'';index"`
+	CaseWorkflowVersionID     int64      `gorm:"not null;default:0"`
+	CaseWorkflowKey           string     `gorm:"type:varchar(64);not null;default:''"`
+	CaseRevision              int64      `gorm:"not null;default:0"`
+	CaseOwnerID               int64      `gorm:"not null;default:0;index"`
+	AcknowledgedAt            *time.Time `gorm:"type:timestamp"`
+	RestoredAt                *time.Time `gorm:"type:timestamp"`
+	WaitingReason             string     `gorm:"type:text;not null;default:''"`
+	CaseResumeStatus          string     `gorm:"type:varchar(32);not null;default:''"`
+	CaseResumeTechnicalStatus string     `gorm:"type:varchar(50);not null;default:''"`
+	CaseResolution            string     `gorm:"type:text;not null;default:''"`
+	PriorityCode              string     `gorm:"type:varchar(8);not null;default:'p2';index"`
+	CurrentTeamID             int64      `gorm:"type:bigint;not null;default:0;index"`
+	CurrentAssigneeID         int64      `gorm:"type:bigint;not null;default:0;index"`
+	HandledAt                 *time.Time `gorm:"type:timestamp;index"`
+	TenantID                  int64      `gorm:"type:bigint;not null;default:0;index;uniqueIndex:uk_ticket_tenant_idempotency,priority:1;uniqueIndex:uk_ticket_intake_source,priority:1"`
+	ProductID                 int64      `gorm:"type:bigint;not null;default:0;index"`
+	ProductModelID            int64      `gorm:"type:bigint;not null;default:0;index"`
+	ProductModuleID           int64      `gorm:"type:bigint;not null;default:0;index"`
+	DeviceID                  int64      `gorm:"type:bigint;not null;default:0;index"`
+	ServiceCodeID             int64      `gorm:"type:bigint;not null;default:0;index"`
+	CustomerEntrySessionID    int64      `gorm:"type:bigint;not null;default:0;index"`
+	ServiceRegion             string     `gorm:"type:varchar(64);not null;default:'';index"`
+	FaultCode                 string     `gorm:"type:varchar(128);not null;default:'';index"`
+	SymptomSummary            string     `gorm:"type:text"`
+	DiagnosisSummary          string     `gorm:"type:text"`
+	SLADueAt                  *time.Time `gorm:"type:timestamp;index"`
+	ResolvedAt                *time.Time `gorm:"type:timestamp;index"`
 	// AssignedAt 自动派单/人工指派写入负责人的时间。
 	AssignedAt *time.Time `gorm:"type:timestamp;index"`
 	// AcceptedAt 工程师明确确认接单的时间，用于接单 SLA 计时。

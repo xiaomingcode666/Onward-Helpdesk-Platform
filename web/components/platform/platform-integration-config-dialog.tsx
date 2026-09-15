@@ -457,9 +457,12 @@ function SMTPFields({ draft, setDraft, settings }: DraftFieldsProps) {
   const [smtpHostChoice, setSMTPHostChoice] = useState(activePreset?.key || "custom")
   const usernamePlaceholder = activePreset?.usernamePlaceholder || "name@example.com"
 
-  useEffect(() => {
+  const smtpPresetKey = JSON.stringify([activePreset?.key, settings.smtp.smtpHost, settings.smtp.smtpPort, settings.smtp.useTls])
+  const [previousSMTPPresetKey, setPreviousSMTPPresetKey] = useState(smtpPresetKey)
+  if (previousSMTPPresetKey !== smtpPresetKey) {
+    setPreviousSMTPPresetKey(smtpPresetKey)
     setSMTPHostChoice(activePreset?.key || "custom")
-  }, [activePreset?.key, settings.smtp.smtpHost, settings.smtp.smtpPort, settings.smtp.useTls])
+  }
 
   function applySMTPPreset(preset: SMTPProviderPreset) {
     setDraft((value) => ({

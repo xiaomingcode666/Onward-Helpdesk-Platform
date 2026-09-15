@@ -640,7 +640,9 @@ func parseOptionalEnterpriseDeviceDate(value, field string) (*time.Time, error) 
 }
 
 func enterpriseDeviceDateOnly(value time.Time) time.Time {
-	year, month, day := value.In(time.Local).Date()
+	// Installation and warranty fields represent calendar dates, not instants.
+	// Converting an offset timestamp to the server timezone can change its day.
+	year, month, day := value.Date()
 	return time.Date(year, month, day, 0, 0, 0, 0, time.Local)
 }
 

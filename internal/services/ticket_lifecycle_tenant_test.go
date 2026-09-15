@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"remotehelpdesk/internal/models"
+	"remotehelpdesk/internal/pkg/constants"
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
 
@@ -84,7 +85,7 @@ func TestTicketLifecycleAcceptRequiresProductTeamMembership(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.AgentProfile{}, &models.AgentTeam{}, &models.AgentTeamMember{}, &models.AgentTeamScheduleTemplate{}, &models.AgentWorkStatus{}, &models.Ticket{}, &models.TicketProgress{}, &models.TicketDispatchAttempt{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.AgentProfile{}, &models.AgentTeam{}, &models.AgentTeamMember{}, &models.AgentTeamScheduleTemplate{}, &models.AgentWorkStatus{}, &models.Ticket{}, &models.TicketProgress{}, &models.TicketDispatchAttempt{}, &models.TenantMember{}, &models.AuthSubjectPermissionOverride{}); err != nil {
 		t.Fatalf("auto migrate: %v", err)
 	}
 	sqls.SetDB(db)
@@ -98,6 +99,7 @@ func TestTicketLifecycleAcceptRequiresProductTeamMembership(t *testing.T) {
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
 	}
+	ensureHumanDispatchRealtimeMember(t, db, 1, user.ID)
 	now := time.Now()
 	local := now.In(time.FixedZone("CST", 8*60*60))
 	weekday := int(local.Weekday())
@@ -291,7 +293,7 @@ func TestEnterpriseTicketListAndAcceptSupportMultiProductTeamMembership(t *testi
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.AgentProfile{}, &models.AgentTeam{}, &models.AgentTeamMember{}, &models.AgentTeamScheduleTemplate{}, &models.AgentWorkStatus{}, &models.Ticket{}, &models.TicketProgress{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.AgentProfile{}, &models.AgentTeam{}, &models.AgentTeamMember{}, &models.AgentTeamScheduleTemplate{}, &models.AgentWorkStatus{}, &models.Ticket{}, &models.TicketProgress{}, &models.TenantMember{}, &models.AuthSubjectPermissionOverride{}); err != nil {
 		t.Fatalf("auto migrate: %v", err)
 	}
 	sqls.SetDB(db)
@@ -304,6 +306,15 @@ func TestEnterpriseTicketListAndAcceptSupportMultiProductTeamMembership(t *testi
 	user := models.User{Username: "multi-product-engineer", Status: enums.StatusOk}
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
+	}
+	member := models.TenantMember{TenantID: 1, UserID: user.ID, DisplayName: "多产品工程师", MemberType: "employee", Status: enums.StatusOk}
+	if err := db.Create(&member).Error; err != nil {
+		t.Fatalf("create enterprise member: %v", err)
+	}
+	if err := db.Create(&models.AuthSubjectPermissionOverride{TenantID: 1, DomainType: models.DomainTypeEnterprise,
+		SubjectType: models.SubjectTypeTenantMember, SubjectID: member.ID, PermissionCode: constants.PermissionTicketChangeStatus.Code,
+		Effect: "allow", Status: enums.StatusOk}).Error; err != nil {
+		t.Fatalf("create member ticket permission: %v", err)
 	}
 	now := time.Now()
 	if err := db.Create(&models.AgentProfile{

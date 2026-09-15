@@ -1,9 +1,6 @@
 package wxwork
 
 import (
-	"remotehelpdesk/internal/pkg/dto/response"
-	"remotehelpdesk/internal/pkg/errorsx"
-	"remotehelpdesk/internal/pkg/i18nx"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -12,6 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"remotehelpdesk/internal/pkg/dto/response"
+	"remotehelpdesk/internal/pkg/errorsx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"strings"
 	"sync"
 	"time"

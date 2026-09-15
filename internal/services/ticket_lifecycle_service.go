@@ -94,7 +94,7 @@ func (s *ticketLifecycleService) accept(ticketID int64, assigneeID int64, operat
 			return errorsx.Forbidden("operators can only accept tickets for themselves")
 		}
 		if isTicketAlreadyAcceptedByAssignee(ticket, operator.UserID) {
-			return nil
+			return ensureTicketCaseAcknowledgedDB(ctx.Tx, ticket, operator)
 		}
 		now := time.Now()
 		takingOver := ticket.CurrentAssigneeID > 0 && ticket.CurrentAssigneeID != operator.UserID
@@ -164,6 +164,9 @@ func (s *ticketLifecycleService) accept(ticketID int64, assigneeID int64, operat
 			} else if err := validateAssignedTicketAcceptanceDB(ctx.Tx, ticket, effectiveAssigneeID, effectiveTeamID, now); err != nil {
 				return err
 			}
+		}
+		if err := ensureTicketCaseAcknowledgedDB(ctx.Tx, ticket, operator); err != nil {
+			return err
 		}
 		updates := map[string]any{
 			"status":                       targetStatus,
@@ -318,7 +321,7 @@ func isTicketAlreadyAcceptedByAssignee(ticket *models.Ticket, assigneeID int64) 
 		return false
 	}
 	switch enums.NormalizeTicketStatus(string(ticket.Status)) {
-	case enums.TicketStatusAccepted, enums.TicketStatusProcessing:
+	case enums.TicketStatusAccepted, enums.TicketStatusProcessing, enums.TicketStatusInProgress, enums.TicketStatusVideoSupport, enums.TicketStatusSupplierSupport, enums.TicketStatusPendingCustomerConfirm:
 		return true
 	default:
 		return false
@@ -855,7 +858,7 @@ func (s *ticketLifecycleService) Assign(ticketID int64, assigneeID int64, reason
 		if err := requireManualTicketAssignmentAuthority(ticket, operator); err != nil {
 			return err
 		}
-		if !canAssignTicketStatus(ticket.Status) {
+		if !canAssignTicketCase(ticket) {
 			return errorsx.InvalidParamI18n("error.e0182")
 		}
 		if ticket.CurrentAssigneeID == assigneeID {
@@ -864,6 +867,9 @@ func (s *ticketLifecycleService) Assign(ticketID int64, assigneeID int64, reason
 		now := time.Now()
 		toUser, _, currentTeamID, err := validateManualTicketAssigneeDB(ctx.Tx, ticket, assigneeID, now)
 		if err != nil {
+			return err
+		}
+		if err := ensureTicketCaseAcknowledgedDB(ctx.Tx, ticket, operator); err != nil {
 			return err
 		}
 		fromUserID := ticket.CurrentAssigneeID
@@ -1032,6 +1038,11 @@ func (s *ticketLifecycleService) Repair(record *models.TicketRepairRecord, opera
 			return err
 		}
 		record.TenantID = ticket.TenantID
+		if ticket.CaseStatus != "" {
+			if err := ensureTicketCaseAcknowledgedDB(ctx.Tx, ticket, operator); err != nil {
+				return err
+			}
+		}
 		record.AuditFields = utils.BuildAuditFields(operator)
 		if record.DeviceID == 0 {
 			record.DeviceID = ticket.DeviceID
@@ -1069,6 +1080,10 @@ func (s *ticketLifecycleService) Repair(record *models.TicketRepairRecord, opera
 // Close 关闭工单：校验维修记录、更新状态与时间线。
 // 关闭提交后再生成知识候选/质量线索/事件，这些副作用失败只记日志、不阻塞关闭（设计 §6.7）。
 func (s *ticketLifecycleService) Close(ticketID int64, resolution string, operator *dto.AuthPrincipal) error {
+	return s.close(ticketID, resolution, operator, nil)
+}
+
+func (s *ticketLifecycleService) close(ticketID int64, resolution string, operator *dto.AuthPrincipal, command *TicketCaseCommand) error {
 	if operator == nil {
 		return errorsx.UnauthorizedI18n("error.auth.expired")
 	}
@@ -1085,18 +1100,23 @@ func (s *ticketLifecycleService) Close(ticketID int64, resolution string, operat
 		if err := requireTicketMutationAccess(ticket, operator); err != nil {
 			return err
 		}
+		if replay, err := checkTicketCaseCommandDB(ctx.Tx, ticket, command, operator); err != nil || replay {
+			return err
+		}
 		if enums.NormalizeTicketStatus(string(ticket.Status)) == enums.TicketStatusClosed {
 			return nil
 		}
+		if err := requireTicketCaseCloseDB(ctx.Tx, ticket); err != nil {
+			return err
+		}
 		customerInitiatedClose := operator.IsCustomer()
-		if !customerInitiatedClose && !isValidTicketCloseTransition(ticket.Status) {
+		if ticket.CaseStatus == "" && !customerInitiatedClose && !isValidTicketCloseTransition(ticket.Status) {
 			return errorsx.InvalidParamI18n("error.e0182")
 		}
-		// Internal closure requires a repair record. Customers may end a ticket
-		// at any point, so their explicit action is recorded as a separate close
-		// reason without inventing a repair conclusion.
+		// Standard cases need recorded resolution first. Generic service cases
+		// use CaseResolution; device cases retain their repair-record checks.
 		repairs = repositories.TicketRepairRepository.FindByTicketID(ctx.Tx, ticket.ID)
-		if !customerInitiatedClose && len(repairs) == 0 {
+		if !customerInitiatedClose && len(repairs) == 0 && (ticket.CaseStatus == "" || strings.TrimSpace(ticket.CaseResolution) == "") {
 			return errorsx.InvalidParam("ticket must have at least one repair record before closing")
 		}
 		if !customerInitiatedClose && ticket.ProductID > 0 && strings.TrimSpace(ticket.FaultCode) == "" {
@@ -1140,7 +1160,7 @@ func (s *ticketLifecycleService) Close(ticketID int64, resolution string, operat
 			return err
 		}
 		closedTicket = ticket
-		return nil
+		return recordTicketCaseCommandDB(ctx.Tx, ticket.ID, command, operator)
 	})
 	if err != nil {
 		return err
@@ -1151,6 +1171,10 @@ func (s *ticketLifecycleService) Close(ticketID int64, resolution string, operat
 
 // Cancel cancels an active ticket without producing repair or knowledge side effects.
 func (s *ticketLifecycleService) Cancel(ticketID int64, reason string, operator *dto.AuthPrincipal) error {
+	return s.cancel(ticketID, reason, operator, nil)
+}
+
+func (s *ticketLifecycleService) cancel(ticketID int64, reason string, operator *dto.AuthPrincipal, command *TicketCaseCommand) error {
 	if operator == nil {
 		return errorsx.UnauthorizedI18n("error.auth.expired")
 	}
@@ -1171,10 +1195,19 @@ func (s *ticketLifecycleService) Cancel(ticketID int64, reason string, operator 
 			return err
 		}
 		status := enums.NormalizeTicketStatus(string(ticket.Status))
+		if replay, err := checkTicketCaseCommandDB(ctx.Tx, ticket, command, operator); err != nil || replay {
+			return err
+		}
 		if status == enums.TicketStatusCancelled {
 			return nil
 		}
-		if !enums.IsValidAfterSalesTransition(string(status), string(enums.TicketStatusCancelled)) {
+		if ticket.CaseStatus != "" {
+			switch ticket.CaseStatus {
+			case "new", "acknowledged", "in_triage", "assigned", "waiting", "restored":
+			default:
+				return errorsx.InvalidParam("只有尚未解决的工单可以取消")
+			}
+		} else if !enums.IsValidAfterSalesTransition(string(status), string(enums.TicketStatusCancelled)) {
 			return errorsx.InvalidParamI18n("error.e0182")
 		}
 
@@ -1207,7 +1240,10 @@ func (s *ticketLifecycleService) Cancel(ticketID int64, reason string, operator 
 			return err
 		}
 		cancelledAssigneeID = ticket.CurrentAssigneeID
-		return s.addProgress(ctx.Tx, ticket.ID, enums.TicketProgressEventClosed, "取消工单，原因："+reason, operator)
+		if err := s.addProgress(ctx.Tx, ticket.ID, enums.TicketProgressEventClosed, "取消工单，原因："+reason, operator); err != nil {
+			return err
+		}
+		return recordTicketCaseCommandDB(ctx.Tx, ticket.ID, command, operator)
 	}); err != nil {
 		return err
 	}
@@ -1711,6 +1747,10 @@ func (s *ticketLifecycleService) writeDeviceServiceRecord(tx *gorm.DB, ticket *m
 
 // Reopen 重新打开工单
 func (s *ticketLifecycleService) Reopen(ticketID int64, reason string, operator *dto.AuthPrincipal) error {
+	return s.reopen(ticketID, reason, operator, nil)
+}
+
+func (s *ticketLifecycleService) reopen(ticketID int64, reason string, operator *dto.AuthPrincipal, command *TicketCaseCommand) error {
 	if operator == nil {
 		return errorsx.UnauthorizedI18n("error.auth.expired")
 	}
@@ -1725,10 +1765,29 @@ func (s *ticketLifecycleService) Reopen(ticketID int64, reason string, operator 
 		if err := requireTicketTenantAccess(ticket, operator); err != nil {
 			return err
 		}
-		if enums.NormalizeTicketStatus(string(ticket.Status)) == enums.TicketStatusReopened {
-			return nil
+		if err := requireTicketMutationAccess(ticket, operator); err != nil {
+			return err
 		}
-		if !enums.IsValidTicketStatusTransition(string(ticket.Status), string(enums.TicketStatusReopened)) {
+		if enums.NormalizeTicketStatus(string(ticket.Status)) == enums.TicketStatusReopened {
+			if command == nil {
+				return nil
+			}
+		}
+		if replay, err := checkTicketCaseCommandDB(ctx.Tx, ticket, command, operator); err != nil || replay {
+			return err
+		}
+		if ticket.CaseStatus != "" {
+			if strings.TrimSpace(reason) == "" {
+				return errorsx.InvalidParam("请填写重新打开的原因")
+			}
+			if err := RequireTicketCaseOwnerDB(ctx.Tx, ticket); err != nil {
+				return err
+			}
+		}
+		if ticket.CaseStatus != "" && ticket.CaseStatus != "resolved" && ticket.CaseStatus != "closure_pending" && ticket.CaseStatus != "closed" {
+			return errorsx.InvalidParam("只有已解决、待关闭或已关闭的工单可以重新打开")
+		}
+		if ticket.CaseStatus == "" && !enums.IsValidTicketStatusTransition(string(ticket.Status), string(enums.TicketStatusReopened)) && !enums.IsValidAfterSalesTransition(string(ticket.Status), string(enums.TicketStatusReopened)) {
 			return errorsx.InvalidParamI18n("error.e0182")
 		}
 		now := time.Now()
@@ -1923,7 +1982,7 @@ func (s *ticketLifecycleService) Reopen(ticketID int64, reason string, operator 
 			ctx.RegisterCallback(eventbus.WakeDefaultOutboxPublisher)
 		}
 		reopened = ticket
-		return nil
+		return recordTicketCaseCommandDB(ctx.Tx, ticket.ID, command, operator)
 	})
 	if err != nil {
 		return err

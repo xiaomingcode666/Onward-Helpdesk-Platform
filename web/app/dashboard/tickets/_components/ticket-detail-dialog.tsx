@@ -1,6 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import Link from "next/link"
+import { displayTicketStatus } from "@/lib/ticket-lifecycle"
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -363,7 +365,7 @@ export function TicketDetailDialog({
         title={
           <div className="flex min-w-0 items-center gap-2 pr-16 text-base">
             <span className="truncate">{ticket?.title ?? t("ticket.detailTitle")}</span>
-            {ticket ? <TicketStatusBadge status={ticket.status} /> : null}
+            {ticket ? <TicketStatusBadge status={displayTicketStatus(ticket)} /> : null}
           </div>
         }
         description={
@@ -396,6 +398,11 @@ export function TicketDetailDialog({
                 <div className="space-y-2">
                   <div className="text-sm font-medium text-muted-foreground">{t("ticket.currentStatus")}</div>
                   <div className="flex flex-wrap items-center gap-2">
+                    {ticket.case_status_recorded ? <>
+                      <TicketStatusBadge status={displayTicketStatus(ticket)} />
+                      <Link href={`/enterprise/ticket-workbench?ticket_id=${ticket.id}`} className="text-sm text-primary underline underline-offset-4">{t("ticketCase.openWorkbench")}</Link>
+                      <p className="text-xs text-muted-foreground">{t("ticketCase.canonicalHelp")}</p>
+                    </> : (
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
@@ -430,6 +437,7 @@ export function TicketDetailDialog({
                         })}
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">

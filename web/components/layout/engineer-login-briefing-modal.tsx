@@ -33,6 +33,8 @@ import { useI18n } from "@/i18n/provider"
 import { fetchEngineerBriefing, updateEngineerWorkStatus, type EngineerBriefing, type EngineerWorkStatus } from "@/lib/api/engineer-status"
 import type { AuthSession } from "@/lib/auth"
 import type { TicketListItem } from "@/lib/api/types"
+import { caseStatusLabel } from "@/lib/ticket-case-labels"
+import { isCaseStatus } from "@/lib/ticket-lifecycle"
 import { buildEnterpriseTicketWorkbenchPathFromItem } from "@/lib/ticket-workbench-route"
 import { formatDateTime } from "@/lib/utils"
 
@@ -190,7 +192,7 @@ function TicketRows({
         const meta = knownMeta || DEFAULT_TICKET_STATUS
         const StatusIcon = meta.icon
         const dispatchLabel = ticketDispatchAgingLabel(item, t)
-        const badgeLabel = knownMeta ? eb(t, knownMeta.labelKey) : item.status || eb(t, DEFAULT_TICKET_STATUS.labelKey)
+        const badgeLabel = item.case_status && isCaseStatus(item.case_status) ? caseStatusLabel(item.case_status) : knownMeta ? eb(t, knownMeta.labelKey) : item.status || eb(t, DEFAULT_TICKET_STATUS.labelKey)
         const ticketHref = buildEnterpriseTicketWorkbenchPathFromItem(item)
         return (
           <Link key={item.id || item.ticket_no} href={ticketHref} onClick={onNavigate} className="group grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-4 py-3 text-sm no-underline transition-colors hover:bg-muted/60">

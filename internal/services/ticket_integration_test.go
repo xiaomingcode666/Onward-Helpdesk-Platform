@@ -114,6 +114,7 @@ func createTicketIntegrationEngineer(t *testing.T, f *ticketIntegrationFixture, 
 	operator := createTestOperator(t, prefix)
 	operator.TenantID = f.Tenant.ID
 	operator.Roles = []string{services.EnterpriseRoleEngineer}
+	ensureTestTicketProcessingMember(t, f.Tenant.ID, operator.UserID)
 	team := repositories.AgentTeamRepository.FindOne(sqls.DB(), sqls.NewCnd().
 		Eq("tenant_id", f.Tenant.ID).
 		Eq("product_id", f.Product.ID).
@@ -207,10 +208,13 @@ func TestTicketLifecycle(t *testing.T) {
 	accepted := services.TicketService.Get(created.ID)
 	require.NotNil(t, accepted)
 	assert.Equal(t, enums.TicketStatusProcessing, accepted.Status)
+	assert.Equal(t, f.Operator.UserID, accepted.CaseOwnerID, "实际受理人应成为客服负责人")
+	assert.NotNil(t, accepted.AcknowledgedAt, "客户受理应有独立时间")
+	assert.NotNil(t, accepted.AcceptedAt, "工程师接单应有独立时间")
 
 	// 验证受理后的progress
-	progressList = services.TicketProgressService.Find(sqls.NewCnd().Eq("ticket_id", created.ID).Asc("id"))
-	assert.Len(t, progressList, 2, "受理工单应产生第二条progress记录")
+	progressList = services.TicketProgressService.Find(sqls.NewCnd().Eq("ticket_id", created.ID).Eq("event_type", enums.TicketProgressEventAccepted).Asc("id"))
+	assert.Len(t, progressList, 1, "工程师接单应产生一条独立记录")
 
 	// 3. 派单（分配）
 	nextAssignee := createTicketIntegrationEngineer(t, f, "lifecycle-assignee")
@@ -224,10 +228,11 @@ func TestTicketLifecycle(t *testing.T) {
 	require.NotNil(t, assigned)
 	assert.Equal(t, nextAssignee.UserID, assigned.CurrentAssigneeID)
 	assert.Equal(t, enums.TicketStatusPendingAssigneeAccept, assigned.Status)
+	assert.Equal(t, f.Operator.UserID, assigned.CaseOwnerID, "更换工程师不能替换客服负责人")
 
 	// 验证派单记录
-	assignProgress := services.TicketProgressService.Find(sqls.NewCnd().Eq("ticket_id", created.ID).Asc("id"))
-	assert.Len(t, assignProgress, 3)
+	assignProgress := services.TicketProgressService.Find(sqls.NewCnd().Eq("ticket_id", created.ID).Eq("event_type", enums.TicketProgressEventAssigned).Asc("id"))
+	require.Len(t, assignProgress, 1)
 	lastProgress := assignProgress[len(assignProgress)-1]
 	assert.Contains(t, lastProgress.Content, "分配工单")
 	assert.Contains(t, lastProgress.Content, "需要二线工程师跟进硬件问题")
@@ -288,18 +293,16 @@ func TestTicketLifecycle(t *testing.T) {
 	}
 	require.NoError(t, repositories.TicketSupplierCollaborationRepository.CreateAuthorizationScope(sqls.DB(), authorization))
 
-	// 6. 保存维修记录后关闭工单（关闭必须走 TicketLifecycleService.Close 且需有维修记录）
+	// 6. 结束视频协作并提交通过复测的维修结论，再由生命周期服务关闭工单。
+	require.NoError(t, services.MeetingService.EndMeetingForOperator(nil, meetingConfig.MeetingID, nextAssignee))
 	_, err = services.TicketService.CreateRepairRecord(request.CreateTicketRepairRecordRequest{
 		TicketID:     created.ID,
 		Conclusion:   "更换电源板后设备正常启动",
 		RootCause:    "电源板故障",
 		RepairMethod: "更换电源板",
-	}, nextAssignee)
-	require.NoError(t, err)
-	_, err = services.TicketService.Transition(request.TransitionTicketRequest{
-		TicketID: created.ID,
-		Status:   string(enums.TicketStatusResolved),
-		Remark:   "维修记录已提交",
+		Solution:     "更换电源板并复测启动功能",
+		TestResult:   "passed",
+		MarkResolved: true,
 	}, nextAssignee)
 	require.NoError(t, err)
 	require.NoError(t, services.TicketLifecycleService.Close(created.ID, "更换电源板后设备正常启动", nextAssignee))
@@ -667,7 +670,7 @@ func TestTicketSLATracking(t *testing.T) {
 	}, f.Operator)
 	require.NoError(t, err)
 	waitTicketIntegrationEvents()
-	assert.NotNil(t, created.SLADueAt, "SLA截止时间应被保存")
+	require.NotNil(t, created.SLADueAt, "SLA截止时间应被保存")
 	assert.WithinDuration(t, slaDue, *created.SLADueAt, time.Second)
 
 	// 2. 暂停 SLA
@@ -718,8 +721,8 @@ func TestTicketEscalation(t *testing.T) {
 	rule, err := services.EscalationService.CreateEscalationRule(services.CreateEscalationRuleInput{
 		TenantID:    fmt.Sprintf("%d", f.Tenant.ID),
 		Name:        "闲置超时升级",
-		Priority:    "p2",
-		HoursIdle:   1, // 1小时闲置即升级
+		Priority:    "p1", // User Case defaults to P2, stored as legacy SLA code p1.
+		HoursIdle:   1,    // 1小时闲置即升级
 		TargetLevel: 2,
 		NotifyRoles: []string{"role-supervisor"},
 		AutoAssign:  true,

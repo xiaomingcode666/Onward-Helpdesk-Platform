@@ -344,9 +344,12 @@ func TestSupplierCollaborationTimeoutEscalatesToSupervisorAndAllowsReinvite(t *t
 		t.Fatalf("create linked conversation: %v", err)
 	}
 	if err := repositories.TicketRepository.Updates(sqls.DB(), ticket.ID, map[string]any{
-		"status": enums.TicketStatusProcessing, "conversation_id": conversation.ID, "current_team_id": teamID,
+		"conversation_id": conversation.ID, "current_team_id": teamID,
 	}); err != nil {
-		t.Fatalf("seed ticket status: %v", err)
+		t.Fatalf("link ticket conversation: %v", err)
+	}
+	if err := services.TicketLifecycleService.Accept(ticket.ID, operator.UserID, operator); err != nil {
+		t.Fatalf("engineer accepts ticket: %v", err)
 	}
 	company := &models.PartnerCompany{
 		TenantID: tenant.ID, PartnerNo: "SUP-TIMEOUT", Name: "超时测试供应商", PartnerType: "module_supplier", Status: enums.StatusOk,
@@ -399,8 +402,19 @@ func TestSupplierCollaborationTimeoutEscalatesToSupervisorAndAllowsReinvite(t *t
 		t.Fatalf("supplier collaboration was not timed out: %+v", closed)
 	}
 	current := services.TicketService.Get(ticket.ID)
-	if current == nil || current.CurrentAssigneeID != supervisorID || current.Status != enums.TicketStatusProcessing || current.AcceptedAt == nil {
+	if current == nil || current.CurrentAssigneeID != supervisorID || current.Status != enums.TicketStatusPendingAssigneeAccept || current.AcceptedAt != nil {
 		t.Fatalf("ticket was not escalated to product repair supervisor: %+v", current)
+	}
+	if current.CaseOwnerID != operator.UserID {
+		t.Fatalf("escalation lost original case owner: %d", current.CaseOwnerID)
+	}
+	supervisor := &dto.AuthPrincipal{TenantID: tenant.ID, UserID: supervisorID, Username: "supplier-timeout-supervisor"}
+	if err := services.TicketLifecycleService.Accept(ticket.ID, supervisorID, supervisor); err != nil {
+		t.Fatalf("supervisor accepts escalated ticket: %v", err)
+	}
+	current = services.TicketService.Get(ticket.ID)
+	if current.Status != enums.TicketStatusProcessing || current.AcceptedAt == nil || current.CaseOwnerID != operator.UserID {
+		t.Fatalf("supervisor acceptance must preserve case owner and record acceptance: %+v", current)
 	}
 	var timeoutProgressCount int64
 	if err := sqls.DB().Model(&models.TicketProgress{}).

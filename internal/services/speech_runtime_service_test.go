@@ -1,6 +1,7 @@
 package services
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -17,6 +18,15 @@ import (
 )
 
 func TestSpeechRuntimeServiceSwitchesProviderAndRollsBackInvalidReplacement(t *testing.T) {
+	// This scenario reloads the database configuration without deployment overrides.
+	for _, entry := range os.Environ() {
+		name, _, _ := strings.Cut(entry, "=")
+		canonical := strings.TrimPrefix(strings.TrimPrefix(name, "RHD_"), "AGENT_DESK_")
+		if strings.HasPrefix(canonical, "SPEECH_") || strings.HasPrefix(canonical, "XFYUN_") ||
+			strings.HasPrefix(canonical, "ALIYUN_ASR_") || canonical == "DASHSCOPE_API_KEY" {
+			t.Setenv(name, "")
+		}
+	}
 	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
 	db, err := gorm.Open(sqlite.Open("file:"+dbName+"?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {

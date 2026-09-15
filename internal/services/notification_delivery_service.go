@@ -11,6 +11,7 @@ import (
 
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/logprivacy"
 	"remotehelpdesk/internal/pkg/providers"
 	"remotehelpdesk/internal/pkg/secretstore"
 	"remotehelpdesk/internal/repositories"
@@ -89,19 +90,24 @@ func (s *notificationDeliveryService) scheduleEmail(item *models.Notification) e
 		return nil
 	}
 	recipient := NotificationRecipientSettingService.ResolveEmail(item.TenantID, item.RecipientUserID)
+	ciphertext, err := secretstore.Encrypt(recipient)
+	if err != nil {
+		return fmt.Errorf("encrypt email destination: %s", logprivacy.Error(err))
+	}
 	now := s.now()
 	maxRetries, _ := notificationMailRetryPolicy(item.TenantID)
 	delivery := &models.DeliveryLog{
-		TenantID:       item.TenantID,
-		IdempotencyKey: &key,
-		NotificationID: item.ID,
-		Channel:        "email",
-		RecipientID:    recipient,
-		Status:         notificationDeliveryStatusPending,
-		MaxRetries:     maxRetries,
-		NextAttemptAt:  &now,
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		TenantID:            item.TenantID,
+		IdempotencyKey:      &key,
+		NotificationID:      item.ID,
+		Channel:             "email",
+		RecipientID:         logprivacy.Value(recipient),
+		RecipientCiphertext: ciphertext,
+		Status:              notificationDeliveryStatusPending,
+		MaxRetries:          maxRetries,
+		NextAttemptAt:       &now,
+		CreatedAt:           now,
+		UpdatedAt:           now,
 	}
 	if err := repositories.NotificationDeliveryRepository.Create(sqls.DB(), delivery); err != nil {
 		if existing := repositories.NotificationDeliveryRepository.FindByIdempotencyKey(sqls.DB(), item.TenantID, key); existing != nil {
@@ -182,7 +188,7 @@ func (s *notificationDeliveryService) ProcessDue(ctx context.Context, limit int)
 			processErr = s.finishPushDelivery(&items[i], notificationDeliveryStatusFailed, "unsupported delivery channel", nil, "")
 		}
 		if processErr != nil {
-			slog.Warn("notification delivery failed", "channel", items[i].Channel, "deliveryId", items[i].ID, "notificationId", items[i].NotificationID, "error", processErr)
+			slog.Warn("notification delivery failed", "channel", items[i].Channel, "deliveryId", items[i].ID, "notificationId", items[i].NotificationID, "error", logprivacy.Error(processErr))
 		}
 		processed++
 	}
@@ -374,6 +380,18 @@ func (s *notificationDeliveryService) processEmailDelivery(delivery *models.Deli
 	}
 
 	recipient := strings.TrimSpace(delivery.RecipientID)
+	if delivery.RecipientCiphertext != "" {
+		if !strings.HasPrefix(delivery.RecipientCiphertext, "enc:v1:") {
+			return s.retryOrFail(delivery, item, errors.New("invalid encrypted email destination"))
+		}
+		var err error
+		recipient, err = secretstore.Decrypt(delivery.RecipientCiphertext)
+		if err != nil {
+			return s.retryOrFail(delivery, item, errors.New("email destination cannot be decrypted"))
+		}
+	} else if recipient == logprivacy.Redacted {
+		recipient = ""
+	}
 	if recipient == "" {
 		return s.finishDelivery(delivery, item, notificationDeliveryStatusFailed, notificationEmailStatusUnavailable, "recipient email is unavailable", nil)
 	}
@@ -428,11 +446,13 @@ func (s *notificationDeliveryService) finishDelivery(delivery *models.DeliveryLo
 	now := s.now()
 	return sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 		columns := map[string]any{
-			"status":          deliveryStatus,
-			"retry_count":     delivery.RetryCount,
-			"next_attempt_at": nil,
-			"error_msg":       errorMessage,
-			"updated_at":      now,
+			"recipient_id":         logprivacy.Value(delivery.RecipientID),
+			"recipient_ciphertext": "",
+			"status":               deliveryStatus,
+			"retry_count":          delivery.RetryCount,
+			"next_attempt_at":      nil,
+			"error_msg":            errorMessage,
+			"updated_at":           now,
 		}
 		if sentAt != nil {
 			columns["sent_at"] = *sentAt
@@ -460,7 +480,13 @@ func notificationHasChannel(channels, target string) bool {
 
 func notificationMailRetryPolicy(tenantID int64) (int, time.Duration) {
 	policy := "retry_3_10m"
-	if setting := repositories.TenantMailSettingRepository.GetByTenantID(sqls.DB(), tenantID); setting != nil {
+	r, _, err := projectRuntimeDB(sqls.DB(), tenantID, 0)
+	if err != nil {
+		return 0, 0
+	}
+	if r != nil {
+		policy = r.Mail.RetryPolicy
+	} else if setting := repositories.TenantMailSettingRepository.GetByTenantID(sqls.DB(), tenantID); setting != nil {
 		if value := strings.TrimSpace(setting.RetryPolicy); value != "" {
 			policy = value
 		}
@@ -479,9 +505,5 @@ func truncateNotificationDeliveryError(err error) string {
 	if err == nil {
 		return ""
 	}
-	value := strings.TrimSpace(err.Error())
-	if len(value) > 2000 {
-		return value[:2000]
-	}
-	return value
+	return logprivacy.Error(err)
 }

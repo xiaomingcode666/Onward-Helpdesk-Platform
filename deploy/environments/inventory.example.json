@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "shared_integration": {
+    "host_id": "integration-host",
+    "tenant_id": 9001,
+    "deploy_root": "/srv/onward/shared-integration",
+    "public_url": "https://integration.helpdesk.example.com",
+    "files_url": "https://files.integration.helpdesk.example.com",
+    "port_base": 18000,
+    "config_bundle": ""
+  },
+  "projects": [
+    {
+      "project_id": "knowledge-service",
+      "tenant_id": 1001,
+      "staging": {
+        "host_id": "staging-host",
+        "deploy_root": "/srv/onward/knowledge-service-staging",
+        "public_url": "https://staging.knowledge.helpdesk.example.com",
+        "files_url": "https://files.staging.knowledge.helpdesk.example.com",
+        "port_base": 18100,
+        "config_bundle": ""
+      },
+      "production": {
+        "host_id": "production-host",
+        "deploy_root": "/srv/onward/knowledge-service-production",
+        "public_url": "https://knowledge.helpdesk.example.com",
+        "files_url": "https://files.knowledge.helpdesk.example.com",
+        "port_base": 18200,
+        "config_bundle": ""
+      }
+    }
+  ]
+}

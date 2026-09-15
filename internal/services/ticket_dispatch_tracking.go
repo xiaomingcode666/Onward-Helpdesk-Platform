@@ -99,6 +99,25 @@ func ticketAssignmentSLADeadlineDB(db *gorm.DB, ticket *models.Ticket) (time.Tim
 	if db == nil || !db.Migrator().HasTable(&SLAPolicy{}) {
 		return time.Time{}, false
 	}
+	if ticket.ProjectConfigVersionID > 0 {
+		r, _, err := projectRuntimeDB(db, ticket.TenantID, ticket.ProjectConfigVersionID)
+		if err != nil || r == nil {
+			return time.Time{}, false
+		}
+		t, c, ok := projectTicketTarget(r, ticket.ProjectKey, ticketSLAPriority(*ticket))
+		if !ok || t.AssignmentMinutes <= 0 {
+			return time.Time{}, false
+		}
+		p := SLAPolicy{runtimeCalendar: &c}
+		paused := time.Duration(0)
+		if ticket.ID > 0 {
+			paused, err = p.pausedDB(db, *ticket, time.Now())
+			if err != nil {
+				return time.Time{}, false
+			}
+		}
+		return p.deadline(ticket.CreatedAt, t.AssignmentMinutes, paused), true
+	}
 	var policy SLAPolicy
 	err := db.Where("tenant_id = ? AND priority = ? AND status = ? AND assignment_minutes > ?",
 		formatID(ticket.TenantID), ticketSLAPriority(*ticket), "active", 0).

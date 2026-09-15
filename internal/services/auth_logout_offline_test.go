@@ -14,8 +14,8 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-// TestLogoutMarksEngineerOfflineWhenLastSession 验证工程师登出最后一个会话后被置离线，
-// 从而不再参与自动派单（工单响应闭环 M4）。
+// TestLogoutMarksEngineerOfflineWhenLastSession 验证最后一个会话登出后令牌失效，
+// 工程师状态置离线，并保持由日历和已审批请假决定的排班可用性。
 func TestLogoutMarksEngineerOfflineWhenLastSession(t *testing.T) {
 	db := setupLogoutOfflineTestDB(t)
 	now := time.Now()
@@ -26,9 +26,18 @@ func TestLogoutMarksEngineerOfflineWhenLastSession(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
+	calendarAvailable := AgentWorkStatusService.IsDispatchAvailable(1, 11)
 
-	if err := newAuthService().Logout("Bearer ak_only"); err != nil {
+	auth := newAuthService()
+	if err := auth.Logout("Bearer ak_only"); err != nil {
 		t.Fatalf("logout failed: %v", err)
+	}
+	session := LoginSessionService.FindOne(sqls.NewCnd().Eq("token", "ak_only"))
+	if session == nil || session.RevokedAt == nil {
+		t.Fatal("logout must persist the session revocation")
+	}
+	if _, err := auth.validateSessionToken("ak_only"); err == nil {
+		t.Fatal("logged-out token must not authenticate")
 	}
 
 	status := repositories.AgentWorkStatusRepository.GetByTenantAndUser(db, 1, 11)
@@ -38,8 +47,8 @@ func TestLogoutMarksEngineerOfflineWhenLastSession(t *testing.T) {
 	if status.Status != AgentWorkStatusOffline {
 		t.Fatalf("expected offline after last session logout, got %q", status.Status)
 	}
-	if AgentWorkStatusService.IsDispatchAvailable(1, 11) {
-		t.Fatal("offline engineer must not be dispatchable")
+	if AgentWorkStatusService.IsDispatchAvailable(1, 11) != calendarAvailable {
+		t.Fatal("logout presence must not change calendar availability")
 	}
 }
 
@@ -58,8 +67,15 @@ func TestLogoutKeepsEngineerAvailableWithOtherActiveSession(t *testing.T) {
 		}
 	}
 
-	if err := newAuthService().Logout("Bearer ak_a"); err != nil {
+	auth := newAuthService()
+	if err := auth.Logout("Bearer ak_a"); err != nil {
 		t.Fatalf("logout failed: %v", err)
+	}
+	if _, err := auth.validateSessionToken("ak_a"); err == nil {
+		t.Fatal("logged-out token must not authenticate")
+	}
+	if _, err := auth.validateSessionToken("ak_b"); err != nil {
+		t.Fatalf("other active session must remain valid: %v", err)
 	}
 
 	status := repositories.AgentWorkStatusRepository.GetByTenantAndUser(db, 1, 12)
@@ -88,11 +104,18 @@ func setupLogoutOfflineTestDB(t *testing.T) *gorm.DB {
 		&models.LoginSession{},
 		&models.AgentProfile{},
 		&models.AgentWorkStatus{},
+		&models.Ticket{},
+		&models.Conversation{},
 	); err != nil {
 		t.Fatalf("migrate tables: %v", err)
 	}
 	sqls.SetDB(db)
-	t.Cleanup(func() { sqls.SetDB(nil) })
+	t.Cleanup(func() {
+		sqls.SetDB(nil)
+		if sqlDB, err := db.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
 	return db
 }
 

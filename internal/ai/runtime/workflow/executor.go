@@ -649,6 +649,8 @@ func (e *Executor) executeCreateTicket(state *runState, node dsl.Node) error {
 	state.setNodeVars(node.ID, map[string]any{
 		"ticketId": item.ID,
 		"ticketNo": item.TicketNo,
+		"caseType": item.CaseType,
+		"priority": item.PriorityLevel,
 		"created":  true,
 		"message":  buildTicketCreatedMessage(item),
 	})

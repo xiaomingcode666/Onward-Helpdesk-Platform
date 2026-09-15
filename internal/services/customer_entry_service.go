@@ -925,7 +925,8 @@ func (s *customerEntryService) buildContextTickets(tickets []models.Ticket, devi
 			repairSummary = firstNonBlank(strings.TrimSpace(repair.Solution), strings.TrimSpace(repair.Conclusion), strings.TrimSpace(repair.RepairMethod))
 		}
 		items = append(items, dto.CustomerEntryTicketDTO{
-			ID: ticket.ID, ConversationID: ticket.ConversationID, TicketNo: ticket.TicketNo, Title: ticket.Title,
+			TicketCaseSummaryDTO: buildTicketCaseSummary(ticket),
+			ID:                   ticket.ID, ConversationID: ticket.ConversationID, TicketNo: ticket.TicketNo, Title: ticket.Title,
 			Status: MapTicketStatusForEnterprise(ticket.Status), Priority: DeriveTicketPriority(ticket),
 			CreatedAt: formatEnterpriseTime(ticket.CreatedAt), DeviceNo: rowDeviceNo,
 			RepairSummary: repairSummary, Feedback: buildCustomerEntryFeedback(feedback),

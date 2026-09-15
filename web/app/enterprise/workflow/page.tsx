@@ -31,6 +31,7 @@ import { PageShell, RailopsButton, SearchField, StandardModal, StatusTag, Underl
 import { AIWorkflowRunsWorkspace } from "@/app/dashboard/ai-workflow-runs/_components/workspace"
 import { EnterpriseWorkflowDetailPage } from "@/app/enterprise/workflow/[workflowId]/template-page"
 import { EnterpriseAIFeatureGuard } from "@/components/enterprise/ai-feature-guard"
+import { TicketStatusWorkflowCard } from "./ticket-status-workflow"
 import { DashboardListPage, type DashboardListColumn } from "@/components/dashboard/list"
 import { useRouteBreadcrumbItems } from "@/components/layout/route-breadcrumbs"
 import { CanUseButton } from "@/components/layout/permission-guard"
@@ -60,6 +61,7 @@ import {
 const workflowListI18nPrefix = "workflowExtract.enterpriseWorkflowList."
 type WorkflowListT = ReturnType<typeof useI18n>
 const wl = (t: WorkflowListT, key: string, values?: Record<string, string | number>) => t(`${workflowListI18nPrefix}${key}`, values)
+
 
 function toNumberMap(record?: Record<string, number>) {
   const ret = new Map<number, number>()
@@ -269,12 +271,20 @@ function workflowGovernanceState(
 export default function EnterpriseWorkflowPage() {
   const searchParams = useSearchParams()
   const workflowId = normalizeEnterpriseDetailId(searchParams.get("workflowId"))
+  const [workspace, setWorkspace] = useState("tickets")
+  const breadcrumb = useRouteBreadcrumbItems()
   return (
-    <EnterpriseAIFeatureGuard title="AI Workflow">
+    <>
+      {!workflowId && <div className="mb-3 flex gap-2" role="group" aria-label="工作流类型">
+        <RailopsButton aria-pressed={workspace === "tickets"} onClick={() => setWorkspace("tickets")}>工单状态</RailopsButton>
+        <RailopsButton aria-pressed={workspace === "ai"} onClick={() => setWorkspace("ai")}>智能客服流程</RailopsButton>
+      </div>}
+      {!workflowId && workspace === "tickets" ? <PageShell title="工作流引擎" breadcrumb={breadcrumb}><TicketStatusWorkflowCard /></PageShell> : <EnterpriseAIFeatureGuard title="AI Workflow">
       {workflowId > 0
         ? <EnterpriseWorkflowDetailPage workflowId={workflowId} defaultPreviewOpen />
         : <EnterpriseWorkflowListPage />}
-    </EnterpriseAIFeatureGuard>
+      </EnterpriseAIFeatureGuard>}
+    </>
   )
 }
 

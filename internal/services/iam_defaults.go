@@ -112,6 +112,17 @@ func SyncDefaultIAMRolePoliciesDB(db *gorm.DB) error {
 }
 
 func replaceIAMRoleBindingsDB(db *gorm.DB, tenantID int64, domainType, subjectType string, subjectID int64, roleCodes []string, fallbackRole string, operator *dto.AuthPrincipal) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if domainType == models.DomainTypeEnterprise && subjectType == models.SubjectTypeTenantMember {
+			if err := lockCaseOwnerIAMChangesDB(tx); err != nil {
+				return err
+			}
+		}
+		return applyIAMRoleBindingsDB(tx, tenantID, domainType, subjectType, subjectID, roleCodes, fallbackRole, operator)
+	})
+}
+
+func applyIAMRoleBindingsDB(db *gorm.DB, tenantID int64, domainType, subjectType string, subjectID int64, roleCodes []string, fallbackRole string, operator *dto.AuthPrincipal) error {
 	roleCodes = normalizeIAMRoleCodes(roleCodes)
 	if len(roleCodes) == 0 && strings.TrimSpace(fallbackRole) != "" {
 		roleCodes = []string{strings.TrimSpace(fallbackRole)}
@@ -136,6 +147,17 @@ func replaceIAMRoleBindingsDB(db *gorm.DB, tenantID int64, domainType, subjectTy
 }
 
 func ensureIAMRoleBindingDB(db *gorm.DB, tenantID int64, domainType, subjectType string, subjectID int64, roleCode string, operator *dto.AuthPrincipal) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if domainType == models.DomainTypeEnterprise && subjectType == models.SubjectTypeTenantMember {
+			if err := lockCaseOwnerIAMChangesDB(tx); err != nil {
+				return err
+			}
+		}
+		return applyIAMRoleBindingDB(tx, tenantID, domainType, subjectType, subjectID, roleCode, operator)
+	})
+}
+
+func applyIAMRoleBindingDB(db *gorm.DB, tenantID int64, domainType, subjectType string, subjectID int64, roleCode string, operator *dto.AuthPrincipal) error {
 	role := repositories.PlatformIAMRepository.FindAuthRoleByCode(db, tenantID, domainType, strings.TrimSpace(roleCode))
 	if role == nil || role.Status != enums.StatusOk {
 		return fmt.Errorf("role %s is not available in %s domain", roleCode, domainType)
@@ -167,6 +189,33 @@ func ensureIAMRoleBindingDB(db *gorm.DB, tenantID int64, domainType, subjectType
 }
 
 func ensureIAMRoleSpecsDB(db *gorm.DB, tenantID int64, specs []iamDefaultRoleSpec, operator *dto.AuthPrincipal) error {
+	// Callers include both standalone bootstrap operations and existing business
+	// transactions. Keep the complete refresh atomic in either case.
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := lockCaseOwnerIAMChangesDB(tx); err != nil {
+			return err
+		}
+		var enterpriseCodes []string
+		for _, spec := range specs {
+			if spec.DomainType == models.DomainTypeEnterprise {
+				enterpriseCodes = append(enterpriseCodes, spec.Code)
+			}
+		}
+		var roleIDs []int64
+		if len(enterpriseCodes) > 0 {
+			if err := tx.Model(&models.AuthRole{}).
+				Where("tenant_id = ? AND domain_type = ? AND code IN ?", tenantID, models.DomainTypeEnterprise, enterpriseCodes).
+				Pluck("id", &roleIDs).Error; err != nil {
+				return err
+			}
+		}
+		return withCaseOwnerRolesGuardDB(tx, tenantID, roleIDs, func() error {
+			return applyIAMRoleSpecsDB(tx, tenantID, specs, operator)
+		})
+	})
+}
+
+func applyIAMRoleSpecsDB(db *gorm.DB, tenantID int64, specs []iamDefaultRoleSpec, operator *dto.AuthPrincipal) error {
 	for _, spec := range specs {
 		role := repositories.PlatformIAMRepository.FindAuthRoleByCode(db, tenantID, spec.DomainType, spec.Code)
 		if role == nil {

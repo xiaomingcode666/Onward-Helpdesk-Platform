@@ -105,6 +105,8 @@ export interface UpdateProductPayload {
 
 export interface TicketIntakeDTO {
   source_record_id?: string
+	intake_config_version_id?: number
+	project_config_version_id?: number
   project_key?: string
   ticket_type?: string
   caller_name?: string
@@ -114,7 +116,39 @@ export interface TicketIntakeDTO {
   missing_context?: string[]
 }
 
-export interface TicketListItem extends TicketIntakeDTO {
+export type TicketCaseStatus = "new" | "acknowledged" | "in_triage" | "assigned" | "waiting" | "restored" | "resolved" | "closure_pending" | "closed" | "cancelled"
+
+export interface TicketCaseSummaryDTO {
+  merged_into_id?: number
+  case_type?: string
+  priority_level?: string
+  priority_review_required?: boolean
+  case_status?: TicketCaseStatus
+  case_status_recorded?: boolean
+  case_owner_id?: number
+  case_owner_name?: string
+  acknowledged_at?: string
+  restored_at?: string
+}
+
+export type TicketLifecycleAction = "acknowledge" | "triage" | "wait" | "resume" | "restore" | "resolve" | "request_closure" | "close" | "cancel" | "reopen"
+
+export interface TicketCaseLifecycleDTO {
+  workflow_version_id?: number
+  workflow_error?: string
+  status: TicketCaseStatus
+  revision: number
+  owner_id: number
+  owner_name: string
+  acknowledged_at?: string
+  restored_at?: string
+  waiting_reason?: string
+  allowed_actions: string[]
+  can_transfer_owner: boolean
+  legacy_record: boolean
+}
+
+export interface TicketListItem extends TicketIntakeDTO, TicketCaseSummaryDTO {
   id: number
   ticket_no: string
   title: string
@@ -166,7 +200,7 @@ export type TicketStatus =
 
 export type TicketPriority = "critical" | "high" | "medium" | "low"
 
-export interface TicketHeaderDTO extends TicketIntakeDTO {
+export interface TicketHeaderDTO extends TicketIntakeDTO, TicketCaseSummaryDTO {
   device_id?: number
   service_region?: string
   id: number
@@ -331,6 +365,7 @@ export interface TicketActionPermissionsDTO {
 
 export interface TicketAggregateDTO {
   ticket: TicketHeaderDTO
+  case_lifecycle?: TicketCaseLifecycleDTO
   customer: CustomerSummaryDTO
   device_context: DeviceContextSnapshotDTO
   conversation_snapshot?: ConversationSnapshotDTO
@@ -425,6 +460,12 @@ export interface CreateTicketKnowledgeCandidatePayload {
 }
 
 export interface CreateTicketPayload extends TicketIntakeDTO {
+  case_type?: string
+  priority_facts?: import("@/lib/ticket-governance").PriorityFacts
+  priority_level?: string
+  priority_reason?: string
+  parent_ticket_id?: number
+  relation_reason?: string
   idempotency_key?: string
   source: string
   channel: string

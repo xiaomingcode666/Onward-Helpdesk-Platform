@@ -68,6 +68,7 @@ import { createRealtimeConnectionManager } from "@/lib/realtime-connection"
 import { createAccessTokenWebSocket, createWebSocketBaseUrl } from "@/lib/api/websocket"
 import { selectInitialCustomerConversationId } from "@/lib/api/customer-portal-runtime"
 import { customerTicketProgressContent, customerTicketProgressLabel } from "@/lib/customer-ticket-progress-i18n"
+import { displayTicketStatus, isCaseStatus } from "@/lib/ticket-lifecycle"
 import { renderCustomerConversationSummary } from "@/lib/customer-conversation-summary-i18n"
 import {
   TYPING_IDLE_TIMEOUT_MS,
@@ -411,7 +412,7 @@ function StatusBadge({ status }: { status: string }) {
   const t = useI18n()
   return (
     <span className={cn("inline-flex shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-rhd-xs font-semibold leading-4", portalStatusTone(status))}>
-      {customerPortalStatusLabel(t, status)}
+      {isCaseStatus(status) ? t(`ticketCase.status.${status}`) : customerPortalStatusLabel(t, status)}
     </span>
   )
 }
@@ -2208,6 +2209,12 @@ export function CustomerTicketsPortalPage() {
       .catch((error) => {
         if (!cancelled) {
           toast.error(error instanceof Error ? error.message : t("customerTickets.loadFailed"))
+          if ((error as { errorCode?: number })?.errorCode === 3001) {
+            missingTicketPollsRef.current = 5
+            setSelectedId(0)
+            setSelectedTicketDetail(null)
+            router.replace("/customer/tickets")
+          }
         }
       })
       .finally(() => {
@@ -2218,7 +2225,7 @@ export function CustomerTicketsPortalPage() {
     return () => {
       cancelled = true
     }
-  }, [loadVersion, selectedId, t])
+  }, [loadVersion, selectedId, t, router])
 
   useEffect(() => {
     if (selectedId) {
@@ -2377,7 +2384,7 @@ export function CustomerTicketsPortalPage() {
                     <div className="min-w-0">
                       <div data-testid="customer-ticket-list-item-heading" className="flex min-w-0 items-center gap-1.5">
                         <span className="min-w-0 truncate text-rhd-xs font-semibold leading-4 text-muted-foreground">{item.ticket_no}</span>
-                        <StatusBadge status={item.status} />
+                        <StatusBadge status={displayTicketStatus(item)} />
                       </div>
                       <div className="mt-0.5 line-clamp-2 text-xs font-semibold leading-4 text-foreground">{item.title}</div>
                     </div>
@@ -2418,9 +2425,9 @@ export function CustomerTicketsPortalPage() {
                       <span className="shrink-0 lg:hidden">
                         <IconButton icon={<ArrowLeftIcon className="size-4" />} aria-label={t("common.back")} tooltip={t("common.back")} onClick={() => setMobileTicketListOpen(true)} />
                       </span>
-                      <div className="min-w-0 max-w-3xl"><div className="text-xs font-semibold text-primary">{selectedTicket.ticket_no}</div><h2 className="mt-1 text-lg font-semibold leading-6 text-foreground">{selectedTicket.title}</h2><p className="mt-1 text-xs text-muted-foreground">{hasDeviceConcept ? selectedTicket.device_no || selectedTicket.product_name || t("customerTickets.unlinkedDevice") : t("customerTickets.generalService")} · {t("customerTickets.updatedAt")} {formatDateTime(selectedTicket.updated_at, locale)}</p></div>
+                      <div className="min-w-0 max-w-3xl"><div className="text-xs font-semibold text-primary">{selectedTicket.ticket_no}</div><h2 className="mt-1 text-lg font-semibold leading-6 text-foreground">{selectedTicket.title}</h2>{selectedTicket.merged_into_id ? <a className="text-sm underline" href={buildCustomerTicketPath(selectedTicket.merged_into_id)}>{t("ticketGovernance.mergedInto")} #{selectedTicket.merged_into_id}</a> : null}<p className="mt-1 text-xs text-muted-foreground">{hasDeviceConcept ? selectedTicket.device_no || selectedTicket.product_name || t("customerTickets.unlinkedDevice") : t("customerTickets.generalService")} · {t("customerTickets.updatedAt")} {formatDateTime(selectedTicket.updated_at, locale)}</p></div>
                     </div>
-                    <span data-testid="customer-selected-ticket-status"><StatusBadge status={selectedTicket.status} /></span>
+                    <span data-testid="customer-selected-ticket-status"><StatusBadge status={displayTicketStatus(selectedTicket)} /></span>
                   </div>
                   <div className="mt-4 grid gap-2.5 sm:grid-cols-3"><InfoTile label={t("customerTickets.priority")} value={selectedTicket.priority} /><InfoTile label={t("customerTickets.currentEngineer")} value={selectedTicket.assignee_name || t("customerTickets.unassigned")} /><InfoTile label={t("customerTickets.createdAt")} value={formatDateTime(selectedTicket.created_at, locale)} /></div>
                 </div>
@@ -2621,11 +2628,11 @@ function CustomerMeetingRecord({
   const transcriptInitialLoading = loading && !hasRecordContent
   const recordRefreshing = loading && hasRecordContent
 
-  const recordTabs = useMemo<RailopsTabItem[]>(() => [
+  const recordTabs: RailopsTabItem[] = [
     { value: "summary", label: t("customerMeeting.tabsSummary"), icon: <MessageSquareTextIcon className="size-4" /> },
     { value: "participants", label: t("customerMeeting.tabsParticipantsLabel"), count: meeting.participants?.length ?? 0, icon: <UsersRoundIcon className="size-4" /> },
     { value: "transcript", label: t("customerMeeting.tabsTranscriptLabel"), count: transcriptCount, icon: <FileTextIcon className="size-4" /> },
-  ], [t, meeting.participants?.length, transcriptCount])
+  ]
 
   return (
     <div className={cn("min-w-0", compact ? "xl:border-l xl:border-border xl:pl-5" : "border-t border-border")}>

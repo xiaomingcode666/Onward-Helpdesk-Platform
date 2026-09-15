@@ -1,8 +1,8 @@
 import { CheckOutlined, FilterOutlined } from '@ant-design/icons';
-import { Button, Checkbox, Dropdown, Form, Radio, Select, Space, Tag } from 'antd';
+import { Button, Checkbox, Dropdown, Form, Radio, Select, Tag } from 'antd';
 import type { MenuProps, RadioGroupProps, SelectProps } from 'antd';
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { RailopsButton } from './Button';
 import { useRailopsLocaleText } from './Locale';
 
@@ -32,7 +32,11 @@ const hasValue = (value: TableFilterValue) => Array.isArray(value) ? value.lengt
 export const TableFilters = ({ fields, value, onChange, onApply, onReset, triggerText, className }: TableFiltersProps) => {
   const text = useRailopsLocaleText();
   const [draft, setDraft] = useState<TableFilterValues>(value);
-  useEffect(() => setDraft(value), [value]);
+  const [previousValue, setPreviousValue] = useState(value);
+  if (previousValue !== value) {
+    setPreviousValue(value);
+    setDraft(value);
+  }
   const count = fields.filter((field) => hasValue(value[field.key])).length;
   const update = (key: string, nextValue: TableFilterValue) => setDraft((current) => ({ ...current, [key]: nextValue }));
   const apply = () => { onChange(draft); onApply?.(draft); };

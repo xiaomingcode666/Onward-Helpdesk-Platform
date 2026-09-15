@@ -10,3 +10,10 @@ regexes = ['''SUB2API_DEFAULT_KEY''']
 description = "Fixed fingerprints used by secret-masking unit tests"
 regexTarget = "match"
 regexes = ['''1234567890abcdef''', '''abcdef1234567890''']
+
+[[allowlists]]
+description = "Synthetic idempotency request key in configuration downgrade test, not a credential"
+regexTarget = "match"
+paths = ['''^internal/services/project_configuration_runtime_test\.go$''']
+condition = "AND"
+regexes = ['''RequestKey: "reject-v1-downgrade"''']

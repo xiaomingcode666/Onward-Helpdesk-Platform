@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -545,6 +546,7 @@ func ensureTestProductRepairEngineer(t *testing.T, tenantID, productID, userID i
 		}
 	}
 	operator := &dto.AuthPrincipal{UserID: userID, Username: "test-engineer", TenantID: tenantID}
+	ensureTestTicketProcessingMember(t, tenantID, userID)
 	if _, err := services.AgentTeamMemberService.EnsureMemberDB(sqls.DB(), tenantID, team.ID, userID, 0, 1, true, operator); err != nil {
 		t.Fatalf("ensure product repair member: %v", err)
 	}
@@ -561,6 +563,20 @@ func ensureTestProductRepairEngineer(t *testing.T, tenantID, productID, userID i
 	}
 	ensureTestEnterpriseWorkTime(t, tenantID, now)
 	return team.ID
+}
+
+func ensureTestTicketProcessingMember(t *testing.T, tenantID, userID int64) {
+	t.Helper()
+	member := models.TenantMember{TenantID: tenantID, UserID: userID, DisplayName: "测试客服", MemberType: "employee", Status: enums.StatusOk}
+	if err := sqls.DB().Where("tenant_id = ? AND user_id = ?", tenantID, userID).FirstOrCreate(&member).Error; err != nil {
+		t.Fatalf("create enterprise ticket member: %v", err)
+	}
+	permission := models.AuthSubjectPermissionOverride{TenantID: tenantID, DomainType: models.DomainTypeEnterprise,
+		SubjectType: models.SubjectTypeTenantMember, SubjectID: member.ID, PermissionCode: constants.PermissionTicketChangeStatus.Code, Effect: "allow", Status: enums.StatusOk}
+	if err := sqls.DB().Where("tenant_id = ? AND domain_type = ? AND subject_type = ? AND subject_id = ? AND permission_code = ?",
+		tenantID, permission.DomainType, permission.SubjectType, member.ID, permission.PermissionCode).FirstOrCreate(&permission).Error; err != nil {
+		t.Fatalf("grant member ticket processing permission: %v", err)
+	}
 }
 
 func ensureTestEnterpriseWorkTime(t *testing.T, tenantID int64, at time.Time) {
@@ -720,6 +736,10 @@ func TestTicketServiceChangeStatusRejectsDirectResolved(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTicket() error = %v", err)
 	}
+	// Legacy ChangeStatus remains supported for historical records only.
+	if err := repositories.TicketRepository.Updates(sqls.DB(), ticket.ID, map[string]any{"case_status": ""}); err != nil {
+		t.Fatalf("seed historical lifecycle: %v", err)
+	}
 
 	for _, status := range []enums.TicketStatus{enums.TicketStatusAccepted, enums.TicketStatusInProgress} {
 		if err := services.TicketService.ChangeStatus(request.ChangeTicketStatusRequest{
@@ -854,13 +874,20 @@ func TestTicketServiceAssignTicketRejectsDisabledUser(t *testing.T) {
 
 func TestTicketServiceAssignTicketCreatesProgressEntry(t *testing.T) {
 	setupTicketTestDB(t)
+	tenant, product, _, _, _ := createTicketAfterSalesFixture(t, "assign-progress", enums.StatusOk)
 	operator := createTestOperator(t, "assign-progress-operator")
+	operator.TenantID = tenant.ID
 	operator.Roles = []string{services.EnterpriseRoleServiceManager}
+	ensureTestTicketProcessingMember(t, tenant.ID, operator.UserID)
 	firstAssignee := createTestOperator(t, "assign-progress-first")
 	nextAssignee := createTestOperator(t, "assign-progress-next")
+	ensureTestProductRepairEngineer(t, tenant.ID, product.ID, firstAssignee.UserID)
+	ensureTestProductRepairEngineer(t, tenant.ID, product.ID, nextAssignee.UserID)
 	ticket, err := services.TicketService.CreateTicket(request.CreateTicketRequest{
 		Title:             "assign progress ticket",
 		Description:       "assign progress description",
+		TenantID:          tenant.ID,
+		ProductID:         product.ID,
 		CurrentAssigneeID: firstAssignee.UserID,
 	}, operator)
 	if err != nil {
@@ -875,11 +902,11 @@ func TestTicketServiceAssignTicketCreatesProgressEntry(t *testing.T) {
 		t.Fatalf("AssignTicket() error = %v", err)
 	}
 
-	progresses := services.TicketProgressService.Find(sqls.NewCnd().Eq("ticket_id", ticket.ID).Asc("id"))
-	if len(progresses) != 2 {
-		t.Fatalf("expected create progress and assignment progress, got %d: %+v", len(progresses), progresses)
+	progresses := services.TicketProgressService.Find(sqls.NewCnd().Eq("ticket_id", ticket.ID).Eq("event_type", enums.TicketProgressEventAssigned).Asc("id"))
+	if len(progresses) != 1 {
+		t.Fatalf("expected one assignment progress, got %d: %+v", len(progresses), progresses)
 	}
-	assignmentProgress := progresses[1]
+	assignmentProgress := progresses[0]
 	if assignmentProgress.AuthorID != operator.UserID {
 		t.Fatalf("expected assignment progress author %d, got %d", operator.UserID, assignmentProgress.AuthorID)
 	}
@@ -978,7 +1005,8 @@ func TestTicketServiceFindPageAggregateFiltersStaleTickets(t *testing.T) {
 
 	// 关闭工单必须走 TicketLifecycleService.Close；此测试只关心 stale 过滤，直接经仓储置为 closed
 	if err := repositories.TicketRepository.Updates(sqls.DB(), staleDone.ID, map[string]any{
-		"status": enums.TicketStatusClosed,
+		"status":      enums.TicketStatusClosed,
+		"case_status": "", // Preserve the historical closed-record filtering case.
 	}); err != nil {
 		t.Fatalf("set staleDone closed error = %v", err)
 	}
@@ -1163,11 +1191,14 @@ func TestTicketServiceIdempotencyKeyIsScopedByTenant(t *testing.T) {
 	}
 	firstRetry, err := services.TicketService.CreateTicket(request.CreateTicketRequest{
 		IdempotencyKey: key,
-		Title:          "retry must return original",
-		Description:    "retry must return original description",
+		Title:          "first tenant ticket",
+		Description:    "first tenant ticket description",
 	}, firstOperator)
 	if err != nil || firstRetry == nil || firstRetry.ID != first.ID {
 		t.Fatalf("same-tenant retry must be idempotent: ticket=%+v err=%v", firstRetry, err)
+	}
+	if _, err := services.TicketService.CreateTicket(request.CreateTicketRequest{IdempotencyKey: key, Title: "different", Description: "different"}, firstOperator); !errors.Is(err, services.ErrTicketIdempotencyConflict) {
+		t.Fatalf("different payload with same key must conflict, got %v", err)
 	}
 
 	second, err := services.TicketService.CreateTicket(request.CreateTicketRequest{

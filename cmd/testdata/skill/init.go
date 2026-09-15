@@ -1,11 +1,11 @@
 package skill
 
 import (
+	"fmt"
 	"remotehelpdesk/cmd/testdata/seedlang"
 	"remotehelpdesk/cmd/testdata/seeds"
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/repositories"
-	"fmt"
 	"strings"
 	"time"
 

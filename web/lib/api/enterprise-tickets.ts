@@ -21,12 +21,13 @@ import type {
   CreateTicketKnowledgeCandidatePayload,
   TicketActionPermissionsDTO,
   TicketKnowledgeCandidateDTO,
+  TicketLifecycleAction,
 } from "@/lib/api/types"
 import type { EnterpriseCustomerInviteResult } from "@/lib/api/platform-iam"
 import type { TicketIntakePolicy, IntakeDraft } from "@/lib/ticket-intake"
 
-export function fetchTicketIntakePolicy() {
-  return apiGet<TicketIntakePolicy>("/ticket-settings/intake")
+export function fetchTicketIntakePolicy(ticketId?: number) {
+  return apiGet<TicketIntakePolicy>("/ticket-settings/intake", ticketId ? { ticket_id: ticketId } : undefined)
 }
 
 export function updateTicketIntakePolicy(policy: TicketIntakePolicy) {
@@ -40,6 +41,10 @@ export function completeTicketIntake(id: number, input: IntakeDraft, customerId:
 
 export interface TicketListQuery extends ListQuery {
   status?: string
+  case_status?: string
+  merge_state?: string
+  relation_role?: string
+  case_type?: string
   priority?: string
   product_id?: number
   productId?: number
@@ -88,6 +93,12 @@ export interface TicketCustomerOption {
 }
 
 export interface TicketCustomerInvitationDraftPayload {
+  case_type?: string
+  priority_facts?: import("@/lib/ticket-governance").PriorityFacts
+  priority_level?: string
+  priority_reason?: string
+  parent_ticket_id?: number
+  relation_reason?: string
   title: string
   description: string
   priority: TicketPriority
@@ -159,6 +170,10 @@ export async function fetchTickets(query?: TicketListQuery): Promise<ApiResponse
   // Build composite filter string
   const filters: Record<string, string | string[] | undefined> = {}
   if (query?.status) filters["status"] = query.status
+  if (query?.case_status) params["case_status"] = query.case_status
+  if (query?.relation_role) params["relation_role"] = query.relation_role
+  if (query?.merge_state) params["merge_state"] = query.merge_state
+  if (query?.case_type) params["case_type"] = query.case_type
   if (query?.priority) filters["priority"] = query.priority
   if (query?.product_name) filters["product_name"] = query.product_name
   if (query?.product_id) params["product_id"] = query.product_id
@@ -203,6 +218,25 @@ export async function fetchTicketSummary(query?: Pick<TicketListQuery, "product_
 
 export async function fetchTicketAggregate(id: number): Promise<ApiResponse<TicketAggregateDTO>> {
   return apiGet<TicketAggregateDTO>(`/tickets/${id}`)
+}
+
+export interface TicketCaseCommandResult {
+  ticket_id: number
+  operation_key: string
+  status: string
+  revision: number
+}
+
+export function advanceTicketLifecycle(id: number, payload: { action: TicketLifecycleAction; reason: string; expected_status: string; expected_revision: number; idempotency_key: string; owner_id?: number }) {
+  return apiPost<TicketCaseCommandResult>(`/tickets/${id}/lifecycle`, payload)
+}
+
+export function transferTicketCaseOwner(id: number, payload: { owner_id: number; reason: string; expected_owner_id: number; idempotency_key: string }) {
+  return apiPost<TicketCaseCommandResult>(`/tickets/${id}/case-owner`, payload)
+}
+
+export function fetchTicketCaseOwnerOptions(id: number) {
+  return apiGet<Array<{ id: number; name: string }>>(`/tickets/${id}/case-owner-options`)
 }
 
 export async function createTicket(payload: CreateTicketPayload): Promise<ApiResponse<TicketListItem>> {

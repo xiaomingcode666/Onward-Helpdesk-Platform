@@ -11,6 +11,8 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/postgres-tools.sh
 source "$SCRIPT_DIR/lib/postgres-tools.sh"
+# shellcheck source=lib/deployment-backup-identity.sh
+source "$SCRIPT_DIR/lib/deployment-backup-identity.sh"
 
 BACKUP_FILE="$1"
 DB_NAME="${DB_NAME:-cs_ai_agent}"
@@ -29,6 +31,12 @@ if [[ "$FORCE" != "1" ]]; then
   exit 1
 fi
 
+rhd_backup_verify_identity "$BACKUP_FILE"
+if rhd_backup_config_managed; then
+  # Requires the host package, env file and checker. A postgres-only tools
+  # container cannot repair a managed application's deployment configuration.
+  python3 "$RHD_BACKUP_HELPER_DIR/deployment-backup-config.py" check-target "${BACKUP_FILE}.config.json"
+fi
 init_pg_tools
 if [[ -f "${BACKUP_FILE}.sha256" ]]; then
   expected_checksum="$(awk 'NR == 1 {print $1}' "${BACKUP_FILE}.sha256")"
@@ -45,5 +53,10 @@ if pg_database_exists "$DB_NAME"; then
 fi
 pg_create_database "$DB_NAME"
 pg_restore_database "$DB_NAME" "$BACKUP_FILE"
+if rhd_backup_config_managed; then
+  config_summary="$(rhd_backup_config_summary "${BACKUP_FILE}.config.json")"
+  rhd_backup_verify_database_config "$DB_NAME" "$config_summary"
+  python3 "$RHD_BACKUP_HELPER_DIR/deployment-backup-config.py" activate "${BACKUP_FILE}.config.json"
+fi
 
 echo "Restore completed: ${DB_NAME} from ${BACKUP_FILE}"

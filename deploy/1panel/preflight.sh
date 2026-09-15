@@ -5,6 +5,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STRICT=0
 SKIP_DOCKER=0
+INITIAL_DOCUMENT=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -21,8 +22,13 @@ while [[ $# -gt 0 ]]; do
       SKIP_DOCKER=1
       shift
       ;;
+    --initialize-config)
+      [[ $# -ge 2 ]] || { echo "ERROR: --initialize-config requires a document path" >&2; exit 2; }
+      INITIAL_DOCUMENT="$2"
+      shift 2
+      ;;
     -h|--help)
-      echo "Usage: ./preflight.sh [--env-file PATH] [--strict] [--skip-docker]"
+      echo "Usage: ./preflight.sh [--env-file PATH] [--strict] [--skip-docker] [--initialize-config RAW_DOCUMENT]"
       exit 0
       ;;
     *)
@@ -109,6 +115,18 @@ else
     400|600) pass "environment file permissions are restricted (${env_mode})" ;;
     *) warn "environment file permissions should be 600 (current: ${env_mode:-unknown})" ;;
   esac
+fi
+
+if [[ -n "${RHD_INSTANCE_ID:-}" ]]; then
+  pass "instance identity: ${RHD_INSTANCE_ID} (${RHD_DEPLOYMENT_PROJECT_ID}/${RHD_PROJECT_ENVIRONMENT})"
+  for key in RHD_PROJECT_CONFIG_DIR RHD_PROJECT_SECRET_DIR; do
+    target_path="$(rhd_env_value "$key")"
+    if [[ -d "$target_path" && ! -L "$target_path" ]]; then
+      pass "${key} exists for this deployment package"
+    else
+      fail "${key} must be an existing directory, not a symlink; prepare the instance package before preflight"
+    fi
+  done
 fi
 
 if [[ ! -f "$RHD_COMPOSE_FILE" ]]; then
@@ -277,6 +295,41 @@ if [[ -f "$RHD_ENV_FILE" ]]; then
       fi
     fi
   fi
+fi
+
+# FND-002: use the same embedded schema/policy/secret checks as the API.
+project_config_file="$(rhd_env_value RHD_PROJECT_CONFIG_FILE)"
+if [[ -n "$project_config_file" ]]; then
+  project_config_file="$(rhd_absolute_path "$project_config_file")"
+  project_checker="$(rhd_absolute_path "$(rhd_env_value RHD_PROJECT_CONFIG_CHECKER ../../dist/remotehelpdesk)")"
+  project_secret_dir="$(rhd_env_value RHD_PROJECT_SECRET_DIR)"
+  if [[ -n "$project_secret_dir" ]]; then project_secret_dir="$(rhd_absolute_path "$project_secret_dir")"; fi
+  if [[ ! -x "$project_checker" ]]; then
+    fail "configuration checker is missing; build cmd/server from the release being deployed"
+  elif [[ -n "$INITIAL_DOCUMENT" ]]; then
+    if [[ -z "${RHD_INSTANCE_ID:-}" || "$INITIAL_DOCUMENT" != "$RHD_PROJECT_CONFIG_DIR/"* || ! -f "$INITIAL_DOCUMENT" || -L "$INITIAL_DOCUMENT" ]]; then
+      fail "initial document must be a regular file inside this managed instance's project-config directory"
+    elif "$project_checker" -check-project-config-document "$INITIAL_DOCUMENT" \
+        -project-tenant "$(rhd_env_value RHD_PROJECT_CONFIG_TENANT_ID)" \
+        -project-environment "$(rhd_env_value RHD_PROJECT_ENVIRONMENT)" \
+        -project-secret-dir "$project_secret_dir"; then
+      pass "initial document schema, policy and secret references verified without a database"
+    else
+      fail "initial project configuration document validation failed"
+    fi
+  elif "$project_checker" -check-project-config "$project_config_file" \
+      -project-tenant "$(rhd_env_value RHD_PROJECT_CONFIG_TENANT_ID)" \
+      -project-environment "$(rhd_env_value RHD_PROJECT_ENVIRONMENT)" \
+      -project-digest "$(rhd_env_value RHD_PROJECT_CONFIG_DIGEST)" \
+      -project-secret-dir "$project_secret_dir"; then
+    pass "project configuration schema, policy and secret references verified"
+  else
+    fail "project configuration validation failed"
+  fi
+elif [[ "$STRICT" == "1" || "$(rhd_env_value RHD_PROJECT_CONFIG_REQUIRED 0)" == "1" ]]; then
+  fail "RHD_PROJECT_CONFIG_FILE is required for deployment; export an applied configuration version first"
+else
+  warn "project configuration is not pinned; strict deployment will be blocked"
 fi
 
 printf '\nPreflight summary: %d error(s), %d warning(s).\n' "$errors" "$warnings"

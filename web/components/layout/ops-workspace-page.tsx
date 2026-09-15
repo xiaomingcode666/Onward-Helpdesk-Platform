@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
+import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
 import { EyeIcon } from "lucide-react"
 import { Button as AntButton } from "antd"
 import type { TableColumnsType } from "antd"
@@ -148,6 +148,11 @@ export function OpsWorkspacePage(props: {
   const [internalSearch, setInternalSearch] = useState("")
   const effectiveActiveTab = tabs.includes(activeTab) ? activeTab : tabs[0] ?? ""
   const search = searchValue ?? internalSearch
+  const [pageContext, setPageContext] = useState({ activeTab: effectiveActiveTab, search, rowCount: rows.length })
+  if (pageContext.activeTab !== effectiveActiveTab || pageContext.search !== search || pageContext.rowCount !== rows.length) {
+    setPageContext({ activeTab: effectiveActiveTab, search, rowCount: rows.length })
+    setCurrentPage(1)
+  }
   const handleSearchChange = (value: string) => {
     if (onSearchChange) {
       onSearchChange(value)
@@ -164,9 +169,6 @@ export function OpsWorkspacePage(props: {
       return !keyword || (row.searchText ?? "").toLowerCase().includes(keyword)
     })
   }, [effectiveActiveTab, rows, search, tabs])
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [effectiveActiveTab, search, rows.length])
   const hasSelectableRows = rows.some((row) => row.onSelect)
   const hasRowActions = rows.some((row) => row.actions?.length)
   const totalPages = Math.max(1, Math.ceil(visibleRows.length / WORKSPACE_PAGE_SIZE))

@@ -125,7 +125,13 @@ export type CustomerPortalTicketProgress = {
 }
 
 export type CustomerPortalTicket = {
+	merged_into_id?: number
   id: number
+  case_status?: string
+  case_status_recorded?: boolean
+  case_owner_name?: string
+  acknowledged_at?: string
+  restored_at?: string
   ticket_no: string
   title: string
   status: string

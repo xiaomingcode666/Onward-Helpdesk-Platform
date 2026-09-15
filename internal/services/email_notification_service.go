@@ -13,6 +13,7 @@ import (
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/config"
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/logprivacy"
 	"remotehelpdesk/internal/pkg/secretstore"
 	"remotehelpdesk/internal/repositories"
 
@@ -224,7 +225,16 @@ func (s *emailNotificationService) SendNotificationEmail(tenantID int64, to, sub
 }
 
 func (s *emailNotificationService) sendEmail(tenantID int64, to, subject, templateName string, data map[string]interface{}) error {
-	cfg := s.resolveMailConfig(tenantID)
+	projectMail, configErr := resolveProjectMailConfig(tenantID)
+	if configErr != nil {
+		return configErr
+	}
+	var cfg config.EmailConfig
+	if projectMail != nil {
+		cfg = *projectMail
+	} else {
+		cfg = s.resolveMailConfig(tenantID)
+	}
 	if cfg.SMTPHost == "" {
 		return fmt.Errorf("email SMTP not configured")
 	}
@@ -272,6 +282,13 @@ func (s *emailNotificationService) sendEmail(tenantID int64, to, subject, templa
 	headers["Subject"] = subjBuf.String()
 	headers["MIME-Version"] = "1.0"
 	headers["Content-Type"] = "text/html; charset=UTF-8"
+	if projectMail != nil {
+		// Metadata comes from the same active snapshot resolver as the sender.
+		headers["Reply-To"] = projectMail.ReplyTo
+		if headers["Reply-To"] == "" {
+			delete(headers, "Reply-To")
+		}
+	}
 
 	msg := ""
 	for k, v := range headers {
@@ -295,12 +312,15 @@ func (s *emailNotificationService) sendEmail(tenantID int64, to, subject, templa
 	}
 
 	if sendErr != nil {
-		slog.Error("send email failed", "to", to, "template", templateName, "error", sendErr)
+		slog.Error("send email failed", "tenant_id", tenantID, "to", logprivacy.Value(to), "template", templateName, "error", logprivacy.Error(sendErr))
 	} else {
-		slog.Info("email sent successfully", "to", to, "template", templateName)
+		slog.Info("email sent successfully", "tenant_id", tenantID, "to", logprivacy.Value(to), "template", templateName)
 	}
 
-	return sendErr
+	if sendErr != nil {
+		return fmt.Errorf("email delivery: %s", logprivacy.Error(sendErr))
+	}
+	return nil
 }
 
 // sendTLS 使用 TLS 发送邮件
@@ -353,19 +373,19 @@ func (s *emailNotificationService) logDelivery(tenantID int64, recipient, templa
 	errMsg := ""
 	if sendErr != nil {
 		status = "failed"
-		errMsg = sendErr.Error()
+		errMsg = logprivacy.Error(sendErr)
 	}
 	log := &models.DeliveryLog{
 		TenantID:    tenantID,
 		Channel:     "email",
-		RecipientID: recipient,
+		RecipientID: logprivacy.Value(recipient),
 		Status:      status,
 		ErrorMsg:    errMsg,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
 	if err := sqls.DB().Create(log).Error; err != nil {
-		slog.Error("failed to save email delivery log", "error", err)
+		slog.Error("failed to save email delivery log", "error", logprivacy.Error(err))
 	}
 }
 

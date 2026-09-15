@@ -82,6 +82,8 @@ func (g *CreateTicketGraph) Run(ctx context.Context, argumentsInJSON string) (st
 	decision := ParseConfirmationDecision(resumeText)
 	switch decision {
 	case ConfirmationDecisionConfirm:
+		state.Request.ConversationID = g.conversation.ID
+		state.Request.TenantID = g.conversation.TenantID
 		item, err := services.TicketService.CreateFromConversation(state.Request, g.buildAIPrincipal())
 		if err != nil {
 			return "", err
@@ -113,6 +115,7 @@ func (g *CreateTicketGraph) Run(ctx context.Context, argumentsInJSON string) (st
 func (g *CreateTicketGraph) buildCreateRequest(argumentsInJSON string) (request.CreateTicketFromConversationRequest, error) {
 	req := request.CreateTicketFromConversationRequest{
 		ConversationID: g.conversation.ID,
+		TenantID:       g.conversation.TenantID,
 	}
 	var args createTicketGraphArgs
 	if strings.TrimSpace(argumentsInJSON) != "" {
@@ -159,6 +162,7 @@ func (g *CreateTicketGraph) buildAIPrincipal() *dto.AuthPrincipal {
 		username = strings.TrimSpace(g.aiAgent.Name)
 	}
 	return &dto.AuthPrincipal{
+		TenantID: g.conversation.TenantID,
 		UserID:   0,
 		Username: username,
 		Nickname: username,

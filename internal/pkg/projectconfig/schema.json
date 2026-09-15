@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tenant_id", "environment", "projects", "intake", "secret_refs"],
+  "properties": {
+    "ticket_workflows": {"type":"object","maxProperties":201,"additionalProperties":{
+      "type":"object","additionalProperties":false,"required":["transitions"],"properties":{
+        "transitions":{"type":"object","minProperties":10,"maxProperties":10,
+          "propertyNames":{"enum":["new","acknowledged","in_triage","assigned","waiting","restored","resolved","closure_pending","closed","cancelled"]},
+          "additionalProperties":{"type":"array","uniqueItems":true,"maxItems":9,"items":{"enum":["new","acknowledged","in_triage","assigned","waiting","restored","resolved","closure_pending","closed","cancelled"]}}}
+      }
+    }},
+    "ticket_priority": {
+      "type":"object", "additionalProperties":false, "required":["version","defaults","matrix"],
+      "properties":{
+        "version":{"type":"string","minLength":1,"maxLength":80},
+        "defaults":{"type":"object","additionalProperties":false,"required":["user_case","incident","major_incident","problem","known_error","service_request"],"properties":{
+          "user_case":{"enum":["p1","p2","p3","p4"]},"incident":{"enum":["p1","p2","p3","p4"]},"major_incident":{"enum":["p1","p2","p3","p4"]},
+          "problem":{"enum":["p1","p2","p3","p4"]},"known_error":{"enum":["p1","p2","p3","p4"]},"service_request":{"enum":["p1","p2","p3","p4"]}}},
+        "matrix":{"type":"array","minItems":3,"maxItems":3,"items":{"type":"array","minItems":3,"maxItems":3,"items":{"enum":["p1","p2","p3","p4"]}}}
+      }
+    },
+    "schema_version": {"enum": [1, 2]},
+    "tenant_id": {"type": "integer", "minimum": 1},
+    "environment": {"enum": ["development", "integration", "staging", "production"]},
+    "projects": {
+      "type": "array", "maxItems": 200,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["key", "name"],
+        "properties": {"key": {"type": "string", "minLength": 1, "maxLength": 64}, "name": {"type": "string", "minLength": 1, "maxLength": 120}}
+      }
+    },
+    "intake": {
+      "type": "object", "additionalProperties": false, "required": ["rules"],
+      "properties": {"rules": {
+        "type": "array", "maxItems": 200,
+        "items": {
+          "type": "object", "additionalProperties": false,
+          "required": ["project_key", "channel", "ticket_type", "required_fields"],
+          "properties": {
+            "project_key": {"type": "string", "minLength": 1, "maxLength": 64},
+            "channel": {"enum": ["phone", "email", "monitoring_alert", "api", "webhook", "whatsapp", "chatbot_handoff"]},
+            "ticket_type": {"type": "string", "minLength": 1, "maxLength": 64},
+            "required_fields": {"type": "array", "uniqueItems": true, "items": {"enum": ["caller_name", "caller_phone", "customer_id", "product_id", "device_id", "service_region"]}}
+          }
+        }
+      }}
+    },
+    "secret_refs": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "pattern": "^secret://[a-z][a-z0-9_-]{0,63}$"}},
+    "runtime": {"$ref": "#/$defs/runtime"}
+  },
+  "if": {"properties": {"schema_version": {"const": 2}}},
+  "then": {"required": ["runtime"]},
+  "else": {"not": {"required": ["runtime"]}},
+  "$defs": {
+    "minutes": {"type":"integer","minimum":0,"maximum":525600},
+    "runtime": {
+      "type":"object","additionalProperties":false,
+      "required":["timezone","locale","locales","service_scene","calendars","targets","channels","mail","integrations","retention","auto_close"],
+      "properties": {
+        "timezone":{"type":"string","minLength":1,"maxLength":64},
+        "locale":{"type":"string","minLength":1,"maxLength":16},
+        "locales":{"type":"array","minItems":1,"maxItems":10,"uniqueItems":true,"items":{"type":"string"}},
+        "service_scene":{"enum":["knowledge_support","equipment_after_sales"]},
+        "calendars":{"type":"array","maxItems":200,"items":{
+          "type":"object","additionalProperties":false,"required":["key","timezone","work_days","start","end","holidays"],
+          "properties":{
+            "key":{"type":"string","minLength":1,"maxLength":64},"timezone":{"type":"string","minLength":1,"maxLength":64},
+            "work_days":{"type":"array","minItems":1,"maxItems":7,"uniqueItems":true,"items":{"type":"integer","minimum":0,"maximum":6}},
+            "start":{"type":"string","pattern":"^[0-2][0-9]:[0-5][0-9]$"},"end":{"type":"string","pattern":"^[0-2][0-9]:[0-5][0-9]$"},
+            "holidays":{"type":"array","maxItems":1000,"uniqueItems":true,"items":{"type":"string"}}
+          }
+        }},
+        "targets":{"type":"array","maxItems":1000,"items":{
+          "type":"object","additionalProperties":false,"required":["project_key","profile","priority","calendar_key","response_minutes","assignment_minutes","resolution_minutes"],
+          "properties":{
+            "project_key":{"type":"string","minLength":1,"maxLength":64},"profile":{"enum":["standard","enhanced","mission_critical"]},
+            "priority":{"enum":["p0","p1","p2","p3","p4"]},"calendar_key":{"type":"string","minLength":1,"maxLength":64},
+            "response_minutes":{"$ref":"#/$defs/minutes"},"assignment_minutes":{"$ref":"#/$defs/minutes"},"resolution_minutes":{"$ref":"#/$defs/minutes"}
+          }
+        }},
+        "channels":{"type":"array","maxItems":8,"items":{
+          "type":"object","additionalProperties":false,"required":["name","enabled"],
+          "properties":{"name":{"enum":["manual","phone","email","monitoring_alert","api","webhook","whatsapp","chatbot_handoff"]},"enabled":{"type":"boolean"}}
+        }},
+        "mail":{"type":"object","additionalProperties":false,"required":["enabled","host","port","username","password_ref","from_address","from_name","use_tls"],
+          "properties":{"enabled":{"type":"boolean"},"host":{"type":"string","maxLength":255},"port":{"type":"integer","minimum":0,"maximum":65535},"username":{"type":"string","maxLength":255},"password_ref":{"type":"string","maxLength":80},"from_address":{"type":"string","maxLength":255},"from_name":{"type":"string","maxLength":120},"use_tls":{"type":"boolean"},"reply_to":{"type":"string","maxLength":255},"retry_policy":{"enum":["retry_3_10m","retry_1_5m","no_retry"]}}
+        },
+        "integrations":{"type":"array","maxItems":64,"items":{
+          "type":"object","additionalProperties":false,"required":["provider","enabled","base_url","app_id","secret_ref"],
+          "properties":{"provider":{"type":"string","pattern":"^[a-z][a-z0-9_-]{0,31}$"},"enabled":{"type":"boolean"},"base_url":{"type":"string","maxLength":512},"app_id":{"type":"string","maxLength":128},"secret_ref":{"type":"string","maxLength":80},"key_ref":{"type":"string","maxLength":80},"metadata_json":{"type":"string","maxLength":10000}}
+        }},
+        "retention":{"type":"object","additionalProperties":false,"required":["data_region","days","archive_after_days","auto_delete","legal_hold"],
+          "properties":{"data_region":{"type":"string","minLength":1,"maxLength":64},"days":{"type":"integer","minimum":1,"maximum":36500},"archive_after_days":{"type":"integer","minimum":0,"maximum":36500},"auto_delete":{"type":"boolean"},"legal_hold":{"type":"boolean"},"gdpr_region":{"type":"boolean"},"ccpa_region":{"type":"boolean"}}
+        },
+        "auto_close":{"type":"object","additionalProperties":false,"required":["enabled","days"],"properties":{"enabled":{"type":"boolean"},"days":{"type":"integer","minimum":1,"maximum":90}}}
+      }
+    }
+  }
+}

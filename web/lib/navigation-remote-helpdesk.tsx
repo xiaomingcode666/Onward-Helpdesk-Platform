@@ -265,8 +265,7 @@ export const enterpriseNavItems: RemoteHelpdeskNavItem[] = [
     href: "/enterprise/workflow",
     domain: "enterprise",
     icon: WorkflowIcon,
-    requiredPermission: "aiWorkflow.view",
-    requiredFeature: "ai",
+    requiredPermission: ["ticket.view", "aiWorkflow.view"],
     aliases: ["/enterprise/workflows", "/enterprise/workflow/"],
   },
   {

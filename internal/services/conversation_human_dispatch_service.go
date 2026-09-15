@@ -753,18 +753,14 @@ func (s *conversationHumanDispatchService) ensureHumanOnlyCreateTicket(conversat
 	if conversation.TenantID <= 0 {
 		return nil, false, errorsx.InvalidParam("conversation must belong to a tenant before ticket creation")
 	}
-	if existing := repositories.TicketRepository.FindOne(sqls.DB(), sqls.NewCnd().
-		Eq("tenant_id", conversation.TenantID).
-		Eq("conversation_id", conversation.ID).
-		Where("status NOT IN ?", []enums.TicketStatus{enums.TicketStatusClosed, enums.TicketStatusDone, enums.TicketStatusCancelled}).
-		Desc("id")); existing != nil {
+	if existing := TicketService.findActiveConversationTicket(sqls.DB(), conversation.TenantID, conversation.ID); existing != nil {
 		return existing, false, nil
 	}
 	req := request.CreateTicketFromConversationRequest{
 		IdempotencyKey:    conversationTicketIdempotencyKey(conversation.ID),
 		ConversationID:    conversation.ID,
-		Title:             i18nx.Get("ticket.defaultConversationTitle"),
-		Description:       "客户发起人工服务会话，已进入工单处理流程。",
+		Title:             "",
+		Description:       conversation.LastMessageSummary,
 		CurrentTeamID:     conversation.CurrentTeamID,
 		CurrentAssigneeID: conversation.CurrentAssigneeID,
 	}

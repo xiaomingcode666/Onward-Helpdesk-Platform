@@ -43,7 +43,11 @@ import {
 } from "@/lib/api/enterprise-tickets"
 import type { TicketAggregateDTO, TicketListItem, TicketPriority } from "@/lib/api/types"
 import { customerDisplayName } from "@/lib/customer-identity"
-import { isProcessingTicketStatus, isTerminalTicketStatus } from "@/lib/ticket-lifecycle"
+import { caseStatuses, displayTicketStatus, isProcessingTicketStatus, isTerminalTicketStatus } from "@/lib/ticket-lifecycle"
+import { caseLabel, caseStatusLabel } from "@/lib/ticket-case-labels"
+import { TicketCaseLifecycle } from "./_components/ticket-case-lifecycle"
+import { TicketClassificationFields, TicketGovernancePanel } from "./_components/ticket-governance"
+import { caseTypes, governanceLabel as g, type CaseType } from "@/lib/ticket-governance"
 import { toast } from "sonner"
 import { IntakeFields, IntakePolicyButton, IntakeCompletion, intakeLabel } from "./_components/ticket-intake"
 import { EMPTY_INTAKE, phoneIntakePayload, type IntakeDraft, type TicketIntakePolicy } from "@/lib/ticket-intake"
@@ -103,6 +107,11 @@ const EMPTY_SUMMARY: TicketSummary = {
 type TicketCustomerMode = "existing" | "invite"
 
 type TicketDraft = {
+  priorityOverride: string
+  priorityReason: string
+  caseType: CaseType
+  parentId: number
+  relationReason: string
 	channel: "enterprise" | "phone"
 	intake: IntakeDraft
   title: string
@@ -116,6 +125,11 @@ type TicketDraft = {
 }
 
 const EMPTY_TICKET_DRAFT: TicketDraft = {
+  priorityOverride: "",
+  priorityReason: "",
+  caseType: "user_case",
+  parentId: 0,
+  relationReason: "",
   channel: "enterprise",
   intake: EMPTY_INTAKE,
   title: "",
@@ -250,6 +264,7 @@ export default function EnterpriseTicketsPage() {
   const deviceFilterId = deviceFilter?.id ?? 0
   const mineOnly = searchParams.get("mine") === "1" || searchParams.get("mine") === "true"
   const [filter, setFilter] = useState<TicketFilterKey>("all")
+  const [caseStatusFilter, setCaseStatusFilter] = useState("")
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [tickets, setTickets] = useState<TicketListItem[]>([])
@@ -259,6 +274,7 @@ export default function EnterpriseTicketsPage() {
   const [ticketsLoaded, setTicketsLoaded] = useState(false)
   const [error, setError] = useState("")
   const [page, setPage] = useState(1)
+  const [caseTypeFilter, setCaseTypeFilter] = useState("")
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [detailOpen, setDetailOpen] = useState(false)
@@ -266,12 +282,12 @@ export default function EnterpriseTicketsPage() {
   const [detailData, setDetailData] = useState<TicketAggregateDTO | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState("")
-  const [createOpen, setCreateOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(Number(searchParams.get("parent_ticket_id")) > 0)
   const [createSaving, setCreateSaving] = useState(false)
   const [intakePolicy, setIntakePolicy] = useState<TicketIntakePolicy>({ rules: [] })
-  const [createKey, setCreateKey] = useState("")
+  const [createKey, setCreateKey] = useState(() => crypto.randomUUID())
   const [createError, setCreateError] = useState("")
-  const [ticketDraft, setTicketDraft] = useState(EMPTY_TICKET_DRAFT)
+  const [ticketDraft, setTicketDraft] = useState({ ...EMPTY_TICKET_DRAFT, parentId: Math.max(0, Number(searchParams.get("parent_ticket_id")) || 0) })
   const [customerOptions, setCustomerOptions] = useState<TicketCustomerOption[]>([])
   const [customerOptionsLoading, setCustomerOptionsLoading] = useState(false)
   const [customerOptionsError, setCustomerOptionsError] = useState("")
@@ -291,6 +307,8 @@ export default function EnterpriseTicketsPage() {
         device_id: deviceFilterId || undefined,
         mine: mineOnly || undefined,
         ...filterToQuery(filter),
+        case_status: caseStatusFilter || undefined,
+        case_type: caseTypeFilter || undefined,
       })
       if (res.success && res.data) {
         setTickets(res.data.items)
@@ -305,7 +323,7 @@ export default function EnterpriseTicketsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, filter, debouncedSearch, deviceFilterId, mineOnly])
+  }, [page, filter, caseStatusFilter, caseTypeFilter, debouncedSearch, deviceFilterId, mineOnly])
 
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true)
@@ -349,7 +367,7 @@ export default function EnterpriseTicketsPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [filter, debouncedSearch, deviceFilterId, mineOnly])
+  }, [filter, caseStatusFilter, debouncedSearch, deviceFilterId, mineOnly])
 
   const clearDeviceFilter = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString())
@@ -455,12 +473,15 @@ export default function EnterpriseTicketsPage() {
       setCreateError(ee("tickets.text091"))
       return
     }
+    if (ticketDraft.priorityOverride && !ticketDraft.priorityReason.trim()) { setCreateError(g("reasonRequired")); return }
     setCreateSaving(true)
     setCreateError("")
     try {
       const inviteCustomer = ticketDraft.customerMode === "invite"
       const result = inviteCustomer
         ? await createTicketCustomerInvitationDraft({
+            priority_level: ticketDraft.priorityOverride || undefined, priority_reason: ticketDraft.priorityOverride ? ticketDraft.priorityReason.trim() : undefined,
+            case_type: ticketDraft.caseType, parent_ticket_id: ticketDraft.parentId, relation_reason: ticketDraft.relationReason,
             title,
             description,
             priority: ticketDraft.priority,
@@ -469,6 +490,8 @@ export default function EnterpriseTicketsPage() {
             customerOrg: ticketDraft.inviteCustomerOrg.trim(),
           })
         : await createTicket({
+            priority_level: ticketDraft.priorityOverride || undefined, priority_reason: ticketDraft.priorityOverride ? ticketDraft.priorityReason.trim() : undefined,
+            case_type: ticketDraft.caseType, parent_ticket_id: ticketDraft.parentId, relation_reason: ticketDraft.relationReason,
             source: "manual",
             channel: ticketDraft.channel,
             idempotency_key: createKey,
@@ -521,11 +544,11 @@ export default function EnterpriseTicketsPage() {
         if (cancelled) {
           return
         }
-        if (res.success && res.data) {
+        if (res.success && res.data && res.data.ticket.id === ticketId) {
           setDetailData(res.data)
         } else {
           setDetailData(null)
-          setDetailError(res.error?.message || ee("tickets.text015"))
+          setDetailError(res.data && res.data.ticket.id !== ticketId ? caseLabel("invalidTicket") : res.error?.message || ee("tickets.text015"))
         }
       } catch (err) {
         if (!cancelled) {
@@ -623,6 +646,7 @@ export default function EnterpriseTicketsPage() {
         </div>
       ),
     },
+    { title: g("classification"), key: "case_type", width: 120, render: (_, ticket) => ticket.case_type ? g(`type.${ticket.case_type}`) : g("unclassified") },
     {
       title: ee("tickets.text031"),
       key: "status",
@@ -630,8 +654,8 @@ export default function EnterpriseTicketsPage() {
       align: "center",
       render: (_, ticket) => (
         <div className="rhd-railops-centered-cell">
-          <StatusTag tone={ticketStatusTagTone(ticket.status)}>
-            {ticketStatusLabel(ticket.status)}
+          <StatusTag tone={ticketStatusTagTone(displayTicketStatus(ticket))}>
+            {ticketStatusLabel(displayTicketStatus(ticket))}
           </StatusTag>
           <span>{ticket.dispatch_attempts > 0 ? ee("tickets.text032", { value0: ticket.dispatch_attempts }) : ee("tickets.text033")}</span>
         </div>
@@ -644,6 +668,7 @@ export default function EnterpriseTicketsPage() {
       render: (_, ticket) => (
         <div className="rhd-railops-table-cell">
           <strong>{ticketOwner(ticket)}</strong>
+          <span>{caseLabel("owner")}: {ticket.case_owner_name || caseLabel("unowned")}</span>
           <span>{ticket.team_name || ee("tickets.text035")}</span>
         </div>
       ),
@@ -767,15 +792,24 @@ export default function EnterpriseTicketsPage() {
                 <UserRoundCheckIcon className="size-4" />{ee("tickets.text048")}</RailopsButton>
               <RailopsButton
                 size="small"
-                disabled={!search && filter === "all" && !deviceFilter && !mineOnly}
+                disabled={!search && filter === "all" && !caseStatusFilter && !caseTypeFilter && !deviceFilter && !mineOnly}
                 onClick={() => {
                   setSearch("")
                   setFilter("all")
+                  setCaseStatusFilter("")
+                  setCaseTypeFilter("")
                   if (deviceFilter || mineOnly) {
                     router.replace("/enterprise/tickets", { scroll: false })
                   }
                 }}
               >{ee("tickets.text053")}</RailopsButton>
+              <SelectField selectProps={{ "aria-label": g("classification"), value: caseTypeFilter, style: { minWidth: 150 }, options: [{ value: "", label: g("allTypes") }, ...caseTypes.map(type => ({ value: type, label: g(`type.${type}`) }))], onChange: value => { setCaseTypeFilter(String(value)); setPage(1) } }} />
+              <SelectField selectProps={{
+                "aria-label": caseLabel("title"), value: caseStatusFilter,
+                style: { minWidth: 160 },
+                options: [{ value: "", label: caseLabel("allStatuses") }, ...caseStatuses.map((status) => ({ value: status, label: caseStatusLabel(status) }))],
+                onChange: (value) => setCaseStatusFilter(String(value)),
+              }} />
             </div>
           </div>
         </div>
@@ -968,19 +1002,8 @@ export default function EnterpriseTicketsPage() {
                 onChange={(event) => setTicketDraft((current) => ({ ...current, description: event.target.value }))}
               />
             </FormField>
-            <SelectField
-              label={ee("tickets.text068")}
-              selectProps={{
-                value: ticketDraft.priority,
-                onChange: (priority) => setTicketDraft((current) => ({ ...current, priority: priority as TicketPriority })),
-                options: [
-                  { value: "critical", label: ee("tickets.text008") },
-                  { value: "high", label: ee("tickets.text009") },
-                  { value: "medium", label: ee("tickets.text010") },
-                  { value: "low", label: ee("tickets.text011") },
-                ],
-              }}
-            />
+            <TicketClassificationFields priorityOverride={ticketDraft.priorityOverride} priorityReason={ticketDraft.priorityReason} onPriorityChange={priorityOverride => setTicketDraft(current => ({ ...current, priorityOverride }))} onPriorityReasonChange={priorityReason => setTicketDraft(current => ({ ...current, priorityReason }))} value={ticketDraft.caseType} disabled={createSaving} onChange={caseType => setTicketDraft(current => ({ ...current, caseType }))} />
+            {ticketDraft.parentId > 0 ? <FormField label={`${g("parentTicket")} #${ticketDraft.parentId} · ${g("reason")}`} required><Input.TextArea value={ticketDraft.relationReason} maxLength={2000} onChange={e => setTicketDraft(current => ({ ...current, relationReason: e.target.value }))} /></FormField> : null}
             {createError ? <div className="border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">{createError}</div> : null}
           </div>
         )}
@@ -1000,8 +1023,8 @@ export default function EnterpriseTicketsPage() {
                 : detailListTicket?.ticket_no || ee("tickets.text060")}
             </span>
             {detailData ? (
-              <StatusTag tone={ticketStatusTagTone(detailData.ticket.status)}>
-                {ticketStatusLabel(detailData.ticket.status)}
+              <StatusTag tone={ticketStatusTagTone(displayTicketStatus(detailData.ticket))}>
+                {ticketStatusLabel(displayTicketStatus(detailData.ticket))}
               </StatusTag>
             ) : null}
           </div>
@@ -1028,8 +1051,8 @@ export default function EnterpriseTicketsPage() {
                     </div>
                   </div>
                   {detailListTicket ? (
-                    <StatusTag tone={ticketStatusTagTone(detailListTicket.status)}>
-                      {ticketStatusLabel(detailListTicket.status)}
+                    <StatusTag tone={ticketStatusTagTone(displayTicketStatus(detailListTicket))}>
+                      {ticketStatusLabel(displayTicketStatus(detailListTicket))}
                     </StatusTag>
                   ) : null}
                 </div>
@@ -1048,6 +1071,8 @@ export default function EnterpriseTicketsPage() {
             </div>
           ) : detailData ? (
             <div className="rhd-railops-ticket-detail-shell">
+              <TicketCaseLifecycle key={detailData.ticket.id} active={detailOpen} aggregate={detailData} onSaved={(value) => { setDetailData((current) => current?.ticket.id === value.ticket.id ? value : current); void loadTickets(); void loadSummary() }} />
+              <TicketGovernancePanel key={`governance-${detailData.ticket.id}`} active={detailOpen} aggregate={detailData} onSaved={(value) => { setDetailData(current => current?.ticket.id === value.ticket.id ? value : current); void loadTickets(); void loadSummary() }} />
               <EnterpriseTicketDetailContent aggregate={detailData} showDeviceContext={hasDeviceConcept} />
             </div>
           ) : (

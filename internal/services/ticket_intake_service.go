@@ -50,6 +50,13 @@ func ValidateTicketIntakePolicy(policy dto.TicketIntakePolicy) error {
 }
 
 func ticketIntakePolicyDB(db *gorm.DB, tenantID int64) (*dto.TicketIntakePolicy, error) {
+	state, err := projectState(db, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if state.ActiveVersionID > 0 {
+		return versionedIntakePolicyDB(db, tenantID, state.ActiveVersionID)
+	}
 	var tenant models.Tenant
 	if err := db.First(&tenant, tenantID).Error; err != nil {
 		return nil, err
@@ -73,6 +80,23 @@ func GetTicketIntakePolicy(tenantID int64) (*dto.TicketIntakePolicy, error) {
 	return ticketIntakePolicyDB(sqls.DB(), tenantID)
 }
 
+func GetTicketBoundIntakePolicy(ticketID int64, operator *dto.AuthPrincipal) (*dto.TicketIntakePolicy, error) {
+	if operator == nil {
+		return nil, errorsx.ForbiddenI18n("error.e0225")
+	}
+	if _, err := EnterpriseTicketService.GetAggregateForOperator(operator.TenantID, ticketID, operator); err != nil {
+		return nil, err
+	}
+	ticket := TicketService.Get(ticketID)
+	if ticket == nil || ticket.TenantID != operator.TenantID {
+		return nil, errorsx.ForbiddenI18n("error.e0225")
+	}
+	if ticket.IntakeConfigVersionID > 0 {
+		return versionedIntakePolicyDB(sqls.DB(), ticket.TenantID, ticket.IntakeConfigVersionID)
+	}
+	return GetTicketIntakePolicy(ticket.TenantID)
+}
+
 func UpdateTicketIntakePolicy(tenantID int64, policy dto.TicketIntakePolicy, operator *dto.AuthPrincipal) error {
 	if operator == nil || operator.TenantID != tenantID || !operator.HasPermission(constants.PermissionTicketUpdate.Code) {
 		return errorsx.ForbiddenI18n("error.e0225")
@@ -87,7 +111,20 @@ func UpdateTicketIntakePolicy(tenantID int64, policy dto.TicketIntakePolicy, ope
 	if err != nil {
 		return err
 	}
-	return repositories.TenantRepository.Updates(sqls.DB(), tenantID, map[string]any{"ticket_intake_policy_json": string(encoded), "updated_at": time.Now(), "update_user_id": operator.UserID, "update_user_name": operator.Username})
+	return sqls.DB().Transaction(func(db *gorm.DB) error {
+		var tenant models.Tenant
+		if err := db.Clauses(clause.Locking{Strength: "UPDATE"}).First(&tenant, tenantID).Error; err != nil {
+			return err
+		}
+		state, err := projectState(db, tenantID)
+		if err != nil {
+			return err
+		}
+		if state.ID > 0 {
+			return errorsx.InvalidParam("已启用配置版本管理，请通过草稿、检查和应用修改规则")
+		}
+		return repositories.TenantRepository.Updates(db, tenantID, map[string]any{"ticket_intake_policy_json": string(encoded), "updated_at": time.Now(), "update_user_id": operator.UserID, "update_user_name": operator.Username})
+	})
 }
 
 // EvaluateTicketIntake uses only recorded values and explicitly reports an absent rule.
@@ -126,7 +163,13 @@ func refreshTicketIntakeDB(db *gorm.DB, ticket *models.Ticket) error {
 	if ticket.SourceRecordID == "" {
 		return nil
 	}
-	policy, err := ticketIntakePolicyDB(db, ticket.TenantID)
+	var policy *dto.TicketIntakePolicy
+	var err error
+	if ticket.IntakeConfigVersionID > 0 {
+		policy, err = versionedIntakePolicyDB(db, ticket.TenantID, ticket.IntakeConfigVersionID)
+	} else {
+		policy, err = ticketIntakePolicyDB(db, ticket.TenantID)
+	}
 	if err != nil {
 		return err
 	}
@@ -158,6 +201,18 @@ func validateIntakeText(input dto.TicketIntakeInput) error {
 }
 
 func prepareTicketIntakeDB(db *gorm.DB, ticket *models.Ticket, input dto.TicketIntakeInput) error {
+	if ticket.Source == enums.TicketSourceManual && (ticket.Channel == "manual" || ticket.Channel == "enterprise" || ticket.Channel == "dashboard" || ticket.Channel == "web" || ticket.Channel == "") {
+		// Service category and type can scope SLA without claiming a phone call.
+		if err := validateIntakeText(input); err != nil {
+			return err
+		}
+		if input.SourceRecordID != "" || input.CallerPhone != "" || input.CallerName != "" || input.ReceivedAt != nil {
+			return errorsx.InvalidParam("电话信息请使用人工电话渠道")
+		}
+		ticket.ProjectKey = strings.TrimSpace(input.ProjectKey)
+		ticket.TicketType = strings.TrimSpace(input.TicketType)
+		return nil
+	}
 	if ticket.Source == enums.TicketSourceManual && !intakeChannels[ticket.Channel] {
 		switch ticket.Channel {
 		case "", "enterprise", "dashboard", "web", "im", "widget":
@@ -199,6 +254,11 @@ func prepareTicketIntakeDB(db *gorm.DB, ticket *models.Ticket, input dto.TicketI
 		return errorsx.InvalidParam("source record already has a ticket in this tenant and channel")
 	}
 	ticket.ProjectKey = strings.TrimSpace(input.ProjectKey)
+	state, err := projectState(db, ticket.TenantID)
+	if err != nil {
+		return err
+	}
+	ticket.IntakeConfigVersionID = state.ActiveVersionID
 	ticket.TicketType = strings.TrimSpace(input.TicketType)
 	ticket.CallerName = strings.TrimSpace(input.CallerName)
 	ticket.CallerPhone = strings.TrimSpace(input.CallerPhone)
@@ -220,7 +280,7 @@ func BuildTicketIntakeDTO(ticket *models.Ticket) dto.TicketIntakeDTO {
 	if status == "" {
 		status = "not_evaluated"
 	}
-	return dto.TicketIntakeDTO{TicketIntakeInput: dto.TicketIntakeInput{SourceRecordID: ticket.SourceRecordID, ProjectKey: ticket.ProjectKey, TicketType: ticket.TicketType, CallerName: ticket.CallerName, CallerPhone: ticket.CallerPhone, ReceivedAt: ticket.ReceivedAt}, ContextStatus: status, MissingContext: missing}
+	return dto.TicketIntakeDTO{TicketIntakeInput: dto.TicketIntakeInput{SourceRecordID: ticket.SourceRecordID, ProjectKey: ticket.ProjectKey, TicketType: ticket.TicketType, CallerName: ticket.CallerName, CallerPhone: ticket.CallerPhone, ReceivedAt: ticket.ReceivedAt}, ContextStatus: status, MissingContext: missing, ConfigVersionID: ticket.IntakeConfigVersionID, ProjectConfigVersionID: ticket.ProjectConfigVersionID}
 }
 
 func CompleteTicketIntake(ticketID int64, input dto.CompleteTicketIntakeRequest, operator *dto.AuthPrincipal) error {

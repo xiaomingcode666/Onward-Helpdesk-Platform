@@ -151,7 +151,7 @@ export function WorkflowRunAuditGraph({ run }: { run: AIWorkflowRun }) {
       ...definitionNodes,
       createSyntheticDefinitionNode(externalHumanNodeId, "human_handling", wr(t, "syntheticNode.humanHandling"), maxX + traceColumnGap, 0),
     ]
-  }, [definitionNodes, externalHumanNodeId])
+  }, [definitionNodes, externalHumanNodeId, t])
   const traceDefinitionNodes = useMemo(() => {
     const definitionByID = new Map(graphDefinitionNodes.map((node) => [node.id, node]))
     const seen = new Set<string>()

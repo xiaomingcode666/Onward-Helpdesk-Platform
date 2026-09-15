@@ -69,6 +69,22 @@ func (s *dataRetentionService) ArchiveOldData(ctx context.Context, tableName, te
 	db := sqls.DB().WithContext(ctx)
 	var archivedCount int64
 	err = db.Transaction(func(tx *gorm.DB) error {
+		if err := lockProjectSettingsTenantDB(tx, parsedTenantID); err != nil {
+			return err
+		}
+		r, _, err := projectRuntimeDB(tx, parsedTenantID, 0)
+		if err != nil {
+			return err
+		}
+		if r != nil {
+			if r.Retention.LegalHold || !r.Retention.AutoDelete || r.Retention.ArchiveAfterDays == 0 {
+				return errorsx.InvalidParam("当前配置禁止归档移动")
+			}
+			cutoff := time.Now().AddDate(0, 0, -r.Retention.ArchiveAfterDays)
+			if beforeDate.After(cutoff) {
+				beforeDate = cutoff
+			}
+		}
 		createSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s AS SELECT * FROM %s WHERE 1 = 0", archiveTableName, tableName)
 		if err := tx.Exec(createSQL).Error; err != nil {
 			return fmt.Errorf("create archive table: %w", err)
@@ -105,6 +121,18 @@ func (s *dataRetentionService) CleanupExpiredData(ctx context.Context) error {
 	var failures []error
 
 	for _, policy := range policies {
+		r, _, err := projectRuntimeDB(sqls.DB(), parseID(policy.TenantID), 0)
+		if err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		if r != nil && (r.Retention.LegalHold || !r.Retention.AutoDelete) {
+			continue
+		}
+		if r != nil {
+			policy.RetentionDays = r.Retention.Days
+			policy.ArchiveAfterDays = r.Retention.ArchiveAfterDays
+		}
 		if policy.RetentionDays <= 0 {
 			failures = append(failures, fmt.Errorf("tenant %s retention_days must be positive", policy.TenantID))
 			continue
@@ -130,6 +158,11 @@ func (s *dataRetentionService) CleanupExpiredData(ctx context.Context) error {
 		if err := s.deleteExpiredPrivacyConsents(ctx, policy.TenantID, cutoffDate); err != nil {
 			failures = append(failures, err)
 		}
+		if r != nil {
+			if err := s.cleanupManagedAudit(ctx, parseID(policy.TenantID)); err != nil {
+				failures = append(failures, err)
+			}
+		}
 
 		// 归档旧数据（如 retention 较长可再做归档）
 		if policy.ArchiveAfterDays > 0 && policy.ArchiveAfterDays < policy.RetentionDays {
@@ -148,6 +181,33 @@ func (s *dataRetentionService) CleanupExpiredData(ctx context.Context) error {
 
 	slog.Info("data_retention: cleanup completed")
 	return errors.Join(failures...)
+}
+
+func (s *dataRetentionService) cleanupManagedAudit(ctx context.Context, tenantID int64) error {
+	return sqls.DB().WithContext(ctx).Transaction(func(db *gorm.DB) error {
+		if err := lockProjectSettingsTenantDB(db, tenantID); err != nil {
+			return err
+		}
+		r, _, err := projectRuntimeDB(db, tenantID, 0)
+		if err != nil {
+			return err
+		}
+		if r == nil || r.Retention.LegalHold || !r.Retention.AutoDelete {
+			return nil
+		}
+		cutoff := time.Now().AddDate(0, 0, -r.Retention.Days)
+		if db.Migrator().HasTable(&models.AuthAuditLog{}) {
+			if err := db.Where("tenant_id = ? AND occurred_at < ?", tenantID, cutoff).Delete(&models.AuthAuditLog{}).Error; err != nil {
+				return err
+			}
+		}
+		if db.Migrator().HasTable("audit_logs_archive") {
+			if err := db.Table("audit_logs_archive").Where("tenant_id = ? AND created_at < ?", tenantID, cutoff).Delete(&models.AuditLog{}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // GetRetentionPolicy 获取租户的数据保留策略
@@ -187,6 +247,9 @@ func (s *dataRetentionService) GetRetentionPolicy(ctx context.Context, tenantID 
 
 // SetRetentionPolicy 设置租户的数据保留策略
 func (s *dataRetentionService) SetRetentionPolicy(ctx context.Context, tenantID, dataRegion string, retentionDays, archiveAfterDays int, autoDelete, gdpr, ccpa bool) error {
+	if err := requireLegacyProjectSettingsDB(sqls.DB(), parseID(tenantID)); err != nil {
+		return err
+	}
 	if strings.TrimSpace(tenantID) == "" {
 		return errorsx.InvalidParam("tenant_id is required")
 	}
@@ -225,10 +288,10 @@ func (s *dataRetentionService) SetRetentionPolicy(ctx context.Context, tenantID,
 			CreatedAt:         now,
 			UpdatedAt:         now,
 		}
-		return sqls.DB().Create(policy).Error
+		return legacyProjectSettingsWrite(parseID(tenantID), func(db *gorm.DB) error { return db.Create(policy).Error })
 	}
 
-	return sqls.DB().Model(&existing).Updates(updates).Error
+	return legacyProjectSettingsWrite(parseID(tenantID), func(db *gorm.DB) error { return db.Model(&existing).Updates(updates).Error })
 }
 
 // ScheduledRetentionCleanup 定时清理任务（每日执行）
@@ -239,40 +302,67 @@ func (s *dataRetentionService) ScheduledRetentionCleanup() error {
 
 // deleteExpiredAuditLogs 清理过期的审计日志
 func (s *dataRetentionService) deleteExpiredAuditLogs(ctx context.Context, tenantID string, cutoffDate time.Time) error {
-	result := sqls.DB().WithContext(ctx).Where("tenant_id = ? AND created_at < ?", tenantID, cutoffDate).Delete(&models.AuditLog{})
-	if result.Error == nil && result.RowsAffected > 0 {
-		slog.Info("data_retention: deleted expired audit logs", "tenant_id", tenantID, "count", result.RowsAffected)
-	}
-	return result.Error
+	return retentionDeleteDB(ctx, tenantID, cutoffDate, func(db *gorm.DB, cutoffDate time.Time) error {
+		result := db.Where("tenant_id = ? AND created_at < ?", tenantID, cutoffDate).Delete(&models.AuditLog{})
+		if result.Error == nil && result.RowsAffected > 0 {
+			slog.Info("data_retention: deleted expired audit logs", "tenant_id", tenantID, "count", result.RowsAffected)
+		}
+		return result.Error
+	})
 }
 
 // deleteExpiredConversationLogs 清理过期的会话日志
 func (s *dataRetentionService) deleteExpiredConversationLogs(ctx context.Context, tenantID string, cutoffDate time.Time) error {
-	conversationIDs := sqls.DB().WithContext(ctx).Model(&models.Conversation{}).Select("id").Where("tenant_id = ?", tenantID)
-	result := sqls.DB().WithContext(ctx).
-		Where("created_at < ? AND conversation_id IN (?)", cutoffDate, conversationIDs).
-		Delete(&models.ConversationEventLog{})
-	if result.Error == nil && result.RowsAffected > 0 {
-		slog.Info("data_retention: deleted expired conversation logs", "tenant_id", tenantID, "count", result.RowsAffected)
-	}
-	return result.Error
+	return retentionDeleteDB(ctx, tenantID, cutoffDate, func(db *gorm.DB, cutoffDate time.Time) error {
+		conversationIDs := db.Model(&models.Conversation{}).Select("id").Where("tenant_id = ?", tenantID)
+		result := db.
+			Where("created_at < ? AND conversation_id IN (?)", cutoffDate, conversationIDs).
+			Delete(&models.ConversationEventLog{})
+		if result.Error == nil && result.RowsAffected > 0 {
+			slog.Info("data_retention: deleted expired conversation logs", "tenant_id", tenantID, "count", result.RowsAffected)
+		}
+		return result.Error
+	})
 }
 
 // deleteExpiredNotifications 清理过期的通知
 func (s *dataRetentionService) deleteExpiredNotifications(ctx context.Context, tenantID string, cutoffDate time.Time) error {
-	result := sqls.DB().WithContext(ctx).Where("tenant_id = ? AND created_at < ?", tenantID, cutoffDate).Delete(&models.Notification{})
-	if result.Error == nil && result.RowsAffected > 0 {
-		slog.Info("data_retention: deleted expired notifications", "tenant_id", tenantID, "count", result.RowsAffected)
-	}
-	return result.Error
+	return retentionDeleteDB(ctx, tenantID, cutoffDate, func(db *gorm.DB, cutoffDate time.Time) error {
+		result := db.Where("tenant_id = ? AND created_at < ?", tenantID, cutoffDate).Delete(&models.Notification{})
+		if result.Error == nil && result.RowsAffected > 0 {
+			slog.Info("data_retention: deleted expired notifications", "tenant_id", tenantID, "count", result.RowsAffected)
+		}
+		return result.Error
+	})
 }
 
 func (s *dataRetentionService) deleteExpiredPrivacyConsents(ctx context.Context, tenantID string, cutoffDate time.Time) error {
-	result := sqls.DB().WithContext(ctx).
-		Where("tenant_id = ? AND consented_at < ?", tenantID, cutoffDate).
-		Delete(&models.CustomerPrivacyConsent{})
-	if result.Error == nil && result.RowsAffected > 0 {
-		slog.Info("data_retention: deleted expired privacy consents", "tenant_id", tenantID, "count", result.RowsAffected)
-	}
-	return result.Error
+	return retentionDeleteDB(ctx, tenantID, cutoffDate, func(db *gorm.DB, cutoffDate time.Time) error {
+		result := db.
+			Where("tenant_id = ? AND consented_at < ?", tenantID, cutoffDate).
+			Delete(&models.CustomerPrivacyConsent{})
+		if result.Error == nil && result.RowsAffected > 0 {
+			slog.Info("data_retention: deleted expired privacy consents", "tenant_id", tenantID, "count", result.RowsAffected)
+		}
+		return result.Error
+	})
+}
+
+func retentionDeleteDB(ctx context.Context, tenantID string, cutoff time.Time, deleteRows func(*gorm.DB, time.Time) error) error {
+	return sqls.DB().WithContext(ctx).Transaction(func(db *gorm.DB) error {
+		if err := lockProjectSettingsTenantDB(db, parseID(tenantID)); err != nil {
+			return err
+		}
+		r, _, err := projectRuntimeDB(db, parseID(tenantID), 0)
+		if err != nil {
+			return err
+		}
+		if r != nil {
+			if r.Retention.LegalHold || !r.Retention.AutoDelete {
+				return nil
+			}
+			cutoff = time.Now().AddDate(0, 0, -r.Retention.Days)
+		}
+		return deleteRows(db, cutoff)
+	})
 }

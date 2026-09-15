@@ -181,7 +181,7 @@ test("enterprise AI-disabled tenants cannot see AI-only navigation", async () =>
   assert.equal(visibleKeys.includes("diagnosis"), false)
   assert.equal(visibleKeys.includes("ai"), false)
   assert.equal(visibleKeys.includes("usage"), false)
-  assert.equal(visibleKeys.includes("workflow"), false)
+  assert.equal(visibleKeys.includes("workflow"), true)
   assert.equal(visibleKeys.includes("tickets"), true)
   assert.equal(visibleKeys.includes("products"), true)
 })

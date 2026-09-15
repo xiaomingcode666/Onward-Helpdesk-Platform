@@ -293,6 +293,9 @@ func customerTicketActionFlags(ticket *models.Ticket, feedback *models.TicketFee
 	}
 	status := enums.NormalizeTicketStatus(string(ticket.Status))
 	canConfirm = customerCanEndTicket(string(status))
+	if ticket.CaseStatus != "" {
+		canConfirm = (ticket.CaseStatus == "resolved" || ticket.CaseStatus == "closure_pending") && ticket.ResolvedAt != nil
+	}
 	canReopen = status == enums.TicketStatusResolved || status == enums.TicketStatusPendingCustomerConfirm || status == enums.TicketStatusClosed
 	ratingWindowOpen := customerCanRate(string(status))
 	feedbackIsFromPreviousResolution := feedback != nil && ticket.ResolvedAt != nil && feedback.SubmittedAt.Before(*ticket.ResolvedAt)

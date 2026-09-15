@@ -1038,10 +1038,10 @@ func (s *meetingService) endMeetingAtDB(
 		var ticket models.Ticket
 		if err := tx.First(&ticket, ticketID).Error; err == nil && ticket.TenantID == endedMeeting.TenantID {
 			if enums.NormalizeTicketStatus(string(ticket.Status)) == enums.TicketStatusVideoSupport {
-				if err := tx.Model(&models.Ticket{}).Where("id = ?", ticket.ID).Updates(map[string]any{
+				if err := repositories.TicketRepository.Updates(tx, ticket.ID, map[string]any{
 					"status":     enums.TicketStatusProcessing,
 					"updated_at": endedAt,
-				}).Error; err != nil {
+				}); err != nil {
 					return false, endedMeeting, err
 				}
 			}

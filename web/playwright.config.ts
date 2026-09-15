@@ -3,6 +3,11 @@ import { defineConfig } from "@playwright/test"
 export default defineConfig({
   testDir: "./e2e",
   testMatch: [
+    "ticket-status-workflow.spec.ts",
+    "ticket-governance.spec.ts",
+    "ticket-case-lifecycle.spec.ts",
+    "project-configuration.spec.ts",
+    "product-showcase.spec.ts",
     "aftersales-closed-loop.live.spec.ts",
     "aftersales-adversarial.live.spec.ts",
     "aftersales-capability.live.spec.ts",
@@ -18,7 +23,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  reporter: [["list"]],
+  reporter: process.env.CI ? [["list"], ["github"]] : [["list"]],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
     ...(process.env.CI ? {} : { channel: "chrome" as const }),

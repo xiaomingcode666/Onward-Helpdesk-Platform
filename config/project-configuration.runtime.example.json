@@ -1,0 +1,21 @@
+{
+  "schema_version": 2,
+  "tenant_id": 1,
+  "environment": "development",
+  "projects": [{"key": "general-support", "name": "通用知识服务"}],
+  "intake": {"rules": [{"project_key": "general-support", "channel": "phone", "ticket_type": "incident", "required_fields": ["caller_phone"]}]},
+  "secret_refs": [],
+  "runtime": {
+    "timezone": "Asia/Shanghai",
+    "locale": "zh-CN",
+    "locales": ["zh-CN", "en-US"],
+    "service_scene": "knowledge_support",
+    "calendars": [{"key": "office", "timezone": "Asia/Shanghai", "work_days": [1,2,3,4,5], "start": "09:00", "end": "18:00", "holidays": []}],
+    "targets": [{"project_key": "*", "profile": "standard", "priority": "p2", "calendar_key": "office", "response_minutes": 30, "assignment_minutes": 60, "resolution_minutes": 480}],
+    "channels": [{"name":"manual","enabled":true},{"name":"phone","enabled":true},{"name":"email","enabled":false},{"name":"monitoring_alert","enabled":false},{"name":"api","enabled":false},{"name":"webhook","enabled":false},{"name":"whatsapp","enabled":false},{"name":"chatbot_handoff","enabled":false}],
+    "mail": {"enabled":false,"host":"","port":465,"username":"","password_ref":"","from_address":"","from_name":"","use_tls":true,"reply_to":"","retry_policy":"retry_3_10m"},
+    "integrations": [],
+    "retention": {"data_region":"global","days":365,"archive_after_days":180,"auto_delete":false,"legal_hold":false,"gdpr_region":false,"ccpa_region":false},
+    "auto_close": {"enabled":false,"days":7}
+  }
+}

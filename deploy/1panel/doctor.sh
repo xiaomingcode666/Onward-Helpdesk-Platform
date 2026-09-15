@@ -56,7 +56,7 @@ check_service() {
   esac
 }
 
-if ! "$SCRIPT_DIR/preflight.sh" --env-file "$RHD_ENV_FILE"; then
+if ! bash "$SCRIPT_DIR/preflight.sh" --env-file "$RHD_ENV_FILE"; then
   rhd_die "preflight failed; fix configuration before runtime diagnosis"
 fi
 

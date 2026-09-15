@@ -44,7 +44,9 @@ func TestTicketAutoCloseClosesEligibleTicketsAndSkipsSafetyCriticalModules(t *te
 		if err != nil {
 			t.Fatalf("CreateTicket(%s): %v", title, err)
 		}
-		if err := repositories.TicketRepository.Updates(sqls.DB(), ticket.ID, map[string]any{"status": enums.TicketStatusProcessing}); err != nil {
+		// These pre-existing auto-close fixtures model historical tickets. New
+		// recorded cases exercise acknowledgement/ownership in lifecycle tests.
+		if err := sqls.DB().Model(&models.Ticket{}).Where("id = ?", ticket.ID).Updates(map[string]any{"case_status": "", "status": enums.TicketStatusProcessing}).Error; err != nil {
 			t.Fatalf("set processing status: %v", err)
 		}
 		if _, err := services.TicketService.CreateRepairRecord(request.CreateTicketRepairRecordRequest{

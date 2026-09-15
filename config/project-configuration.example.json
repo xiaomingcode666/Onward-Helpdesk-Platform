@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "tenant_id": 1,
+  "environment": "development",
+  "projects": [{"key": "general-support", "name": "通用知识服务"}],
+  "intake": {
+    "rules": [{"project_key": "general-support", "channel": "phone", "ticket_type": "incident", "required_fields": ["caller_phone"]}]
+  },
+  "secret_refs": []
+}

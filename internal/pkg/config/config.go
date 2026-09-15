@@ -1038,6 +1038,7 @@ func (c RedisConfig) NotificationConsumerGroupOrDefault() string {
 
 // EmailConfig SMTP 邮件发送配置。
 type EmailConfig struct {
+	ReplyTo     string `yaml:"reply_to"`
 	SMTPHost    string `yaml:"smtpHost"`
 	SMTPPort    int    `yaml:"smtpPort"`
 	Username    string `yaml:"username"`
