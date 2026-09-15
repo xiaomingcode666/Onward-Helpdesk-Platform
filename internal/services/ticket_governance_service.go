@@ -218,7 +218,11 @@ func refreshGovernanceDeadlineDB(db *gorm.DB, t *models.Ticket) error {
 			return err
 		}
 		if policy.ID == "" || policy.ResolutionMinutes <= 0 {
-			t.SLADueAt = nil
+			// A new legacy ticket may supply its own deadline when no SLA policy
+			// exists. Priority changes on saved tickets must still clear stale targets.
+			if t.ID != 0 || policy.ID != "" {
+				t.SLADueAt = nil
+			}
 			return nil
 		}
 	}

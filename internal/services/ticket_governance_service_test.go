@@ -227,6 +227,37 @@ func TestTicketGovernanceRelationsCyclesPermissionsAndClosure(t *testing.T) {
 	}
 }
 
+func TestTicketGovernanceExplicitDeadlineWithoutPolicy(t *testing.T) {
+	db, _, _ := setupGovernance(t)
+	if err := db.AutoMigrate(&SLAPolicy{}); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	explicit := start.Add(4 * time.Hour)
+	ticket := models.Ticket{TenantID: 91, PriorityCode: "p2", SLADueAt: &explicit,
+		AuditFields: models.AuditFields{CreatedAt: start}}
+	if err := refreshGovernanceDeadlineDB(db, &ticket); err != nil || ticket.SLADueAt == nil || !ticket.SLADueAt.Equal(explicit) {
+		t.Fatalf("new ticket lost explicit deadline without policy: %+v, %v", ticket.SLADueAt, err)
+	}
+	policy := SLAPolicy{ID: "configured", TenantID: "91", Priority: "p2", ResolutionMinutes: 30, Status: "active"}
+	if err := db.Create(&policy).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := refreshGovernanceDeadlineDB(db, &ticket); err != nil || ticket.SLADueAt == nil || !ticket.SLADueAt.Equal(start.Add(30*time.Minute)) {
+		t.Fatalf("configured target must override manual deadline: %+v, %v", ticket.SLADueAt, err)
+	}
+	if err := db.Model(&policy).Update("resolution_minutes", 0).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := refreshGovernanceDeadlineDB(db, &ticket); err != nil || ticket.SLADueAt != nil {
+		t.Fatalf("explicitly disabled target must clear deadline: %+v, %v", ticket.SLADueAt, err)
+	}
+	ticket.ID, ticket.PriorityCode, ticket.SLADueAt = 999, "p3", &explicit
+	if err := refreshGovernanceDeadlineDB(db, &ticket); err != nil || ticket.SLADueAt != nil {
+		t.Fatalf("saved ticket must clear stale deadline after priority change: %+v, %v", ticket.SLADueAt, err)
+	}
+}
+
 func TestTicketGovernancePrioritySLAUsesOriginalStart(t *testing.T) {
 	db, op, ticket := setupGovernance(t)
 	if err := db.AutoMigrate(&SLAPolicy{}); err != nil {

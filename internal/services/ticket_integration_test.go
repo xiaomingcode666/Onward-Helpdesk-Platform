@@ -670,7 +670,7 @@ func TestTicketSLATracking(t *testing.T) {
 	}, f.Operator)
 	require.NoError(t, err)
 	waitTicketIntegrationEvents()
-	assert.NotNil(t, created.SLADueAt, "SLA截止时间应被保存")
+	require.NotNil(t, created.SLADueAt, "SLA截止时间应被保存")
 	assert.WithinDuration(t, slaDue, *created.SLADueAt, time.Second)
 
 	// 2. 暂停 SLA

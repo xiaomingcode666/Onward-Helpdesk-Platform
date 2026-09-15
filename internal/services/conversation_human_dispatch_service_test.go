@@ -437,6 +437,10 @@ func TestConversationHumanDispatchAllowsKnowledgeTenantDefaultGeneralHandoff(t *
 		t.Fatalf("knowledge handoff ticket retained equipment context: %+v", ticket)
 	}
 	createHumanDispatchAgentProfile(t, db, 101, 1, enums.ServiceStatusIdle, 3, true, enums.StatusOk)
+	if err := db.AutoMigrate(&models.TenantMember{}, &models.AuthSubjectPermissionOverride{}); err != nil {
+		t.Fatal(err)
+	}
+	ensureTestTicketProcessingMember(t, 1, 101)
 	if err := services.TicketLifecycleService.Takeover(ticket.ID, &dto.AuthPrincipal{TenantID: 1, UserID: 101, Username: "knowledge-engineer", Nickname: "知识服务工程师"}); err != nil {
 		t.Fatalf("knowledge support ticket takeover error = %v", err)
 	}
