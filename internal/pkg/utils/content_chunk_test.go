@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"remotehelpdesk/internal/pkg/enums"
 	"reflect"
+	"remotehelpdesk/internal/pkg/enums"
 	"testing"
 )
 

@@ -407,7 +407,7 @@ export function EnterpriseNotificationsLivePage() {
       setError(res.error?.message || ee("enterpriseLive.text060"))
     }
     setLoading(false)
-  }, [category, page, readStatus, scope, search, setData, setError, setLoading, setScope])
+  }, [category, page, readStatus, scope, search, setData, setError, setLoading, setNotificationListLoaded, setScope])
 
   const loadRecipientSetting = useCallback(async () => {
     const res = await fetchNotificationRecipientSetting()
@@ -417,7 +417,7 @@ export function EnterpriseNotificationsLivePage() {
       setUseProfileEmail(res.data.use_profile_email)
       setEmailEnabled(res.data.email_enabled)
     }
-  }, [])
+  }, [setRecipientSetting, setRecipientEmail, setUseProfileEmail, setEmailEnabled])
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0)
@@ -433,12 +433,15 @@ export function EnterpriseNotificationsLivePage() {
     const timer = window.setTimeout(() => void loadRecipientSetting(), 0)
     return () => window.clearTimeout(timer)
   }, [loadRecipientSetting])
-  useEffect(() => {
+  const routeFilterKey = `${routeCategory}:${initialReadStatus}`
+  const [previousRouteFilterKey, setPreviousRouteFilterKey] = useState(routeFilterKey)
+  if (previousRouteFilterKey !== routeFilterKey) {
+    setPreviousRouteFilterKey(routeFilterKey)
     setPage(1)
     setSelectedNotification(null)
     setCategory(routeCategory)
     setReadStatus(initialReadStatus)
-  }, [initialReadStatus, routeCategory])
+  }
   useEffect(() => {
     const timer = setTimeout(() => {
       setPage(1)

@@ -38,6 +38,8 @@ const railopsUITurbopackAliases = {
 
 export default function nextConfig(): NextConfig {
   const config: NextConfig = {
+    // Keep contributor guidance in the repository's existing root AGENTS.md.
+    agentRules: false,
     ...(staticExport ? { output: "export" as const } : {}),
     basePath: productionBasePath,
     assetPrefix: `${productionBasePath}/`,

@@ -1,0 +1,3 @@
+# Synthetic idempotency request key in the runtime schema downgrade regression.
+# Scoped to the reviewed historical finding; future credentials remain scanned.
+5eb6704bf46a83da5075473a8013f3d4d80a6f74:internal/services/project_configuration_runtime_test.go:generic-api-key:93

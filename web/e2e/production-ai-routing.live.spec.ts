@@ -612,14 +612,15 @@ test("服务码匿名识别后通过正式客户登录恢复设备会话", async
 
   await page.goto(`${frontendUrl}/c/${encodeURIComponent(serviceCode)}`)
   await expect(page.getByText(customerDeviceNo, { exact: true }).first()).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByRole("button", { name: "登录后确认设备", exact: true })).toBeVisible()
+  const confirmDeviceLogin = page.getByRole("button", { name: "Sign in to confirm device", exact: true })
+  await expect(confirmDeviceLogin).toBeVisible()
   await expect(page.locator('[contenteditable="true"]')).toHaveCount(0)
 
-  await page.getByRole("button", { name: "登录后确认设备", exact: true }).click()
-  await page.waitForURL((url) => url.pathname === "/dashboard/login", { timeout: 15_000 })
-  const loginUrl = new URL(page.url())
-  expect(loginUrl.searchParams.get("portal")).toBe("customer")
-  expect(loginUrl.searchParams.get("next")).toBe(`/c/${serviceCode}`)
+  await confirmDeviceLogin.click()
+  await page.waitForURL((url) => (
+    decodeURIComponent(url.pathname) === `/c/${serviceCode}` && url.searchParams.get("state") === "login"
+  ), { timeout: 15_000 })
+  await page.getByRole("tab", { name: "Log in", exact: true }).click()
 
   await page.locator('input[name="username"]').fill(customerUsername)
   await page.locator('input[name="password"]').fill(customerPassword)

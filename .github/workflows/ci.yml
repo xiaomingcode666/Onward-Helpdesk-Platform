@@ -68,7 +68,10 @@ jobs:
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
 
       - name: Run tests
-        run: go test ./... -v -race -coverprofile=coverage.out -covermode=atomic
+        run: |
+          export RHD_BOOTSTRAP_ADMIN_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$RHD_BOOTSTRAP_ADMIN_PASSWORD"
+          go test ./... -v -race -timeout=30m -coverprofile=coverage.out -covermode=atomic
         env:
           POSTGRES_HOST: localhost
           POSTGRES_PORT: 5432
@@ -222,6 +225,8 @@ jobs:
         env:
           RHD_E2E_ALLOW_SEED: "1"
         run: |
+          export RHD_BOOTSTRAP_ADMIN_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$RHD_BOOTSTRAP_ADMIN_PASSWORD"
           go run ./cmd/e2e-fixture -config config/config.e2e.yaml -tenant-name "Default Tenant" -env-out .tmp/e2e.env
           cat .tmp/e2e.env >> "$GITHUB_ENV"
 

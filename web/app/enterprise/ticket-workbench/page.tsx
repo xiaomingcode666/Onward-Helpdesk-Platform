@@ -1211,7 +1211,9 @@ function EnterpriseTicketWorkbench() {
     ),
     [realtimePresence, selectedItem?.conversationId],
   )
-  const customerOnline = selectedConversation?.customerOnline ?? false
+  const customerOnline = selectedPresence.some(
+    (item) => item.participantType === "customer" && item.online,
+  )
   const customerLastSeenAt = selectedConversation?.customerLastSeenAt ?? ""
   const partnerOnlineCount = selectedPresence.filter(
     (item) => item.participantType === "partner" && item.online,

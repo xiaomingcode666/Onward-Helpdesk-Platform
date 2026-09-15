@@ -1,10 +1,6 @@
 package oidcclient
 
 import (
-	"remotehelpdesk/internal/pkg/config"
-	"remotehelpdesk/internal/pkg/dto/response"
-	"remotehelpdesk/internal/pkg/errorsx"
-	"remotehelpdesk/internal/pkg/i18nx"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -12,6 +8,10 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"remotehelpdesk/internal/pkg/config"
+	"remotehelpdesk/internal/pkg/dto/response"
+	"remotehelpdesk/internal/pkg/errorsx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"strings"
 	"sync"
 	"time"

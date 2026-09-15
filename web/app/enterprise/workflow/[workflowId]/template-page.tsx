@@ -1642,7 +1642,6 @@ function WorkflowOrchestrationPanel({
     }
   }), [definition.nodes, profile.journey])
   const firstStageKey = stageItems[0]?.key ?? "receive"
-  const stageSignature = stageItems.map((stage) => `${stage.key}:${stage.nodes.map((node) => node.id).join(",")}`).join("|")
   const [selectedStageKey, setSelectedStageKey] = useState(firstStageKey)
   const selectedStage = stageItems.find((stage) => stage.key === selectedStageKey) ?? stageItems[0]
   const firstNodeId = selectedStage?.nodes[0]?.id ?? ""
@@ -1652,17 +1651,12 @@ function WorkflowOrchestrationPanel({
   const selectedNodeConfig = (selectedNode?.config ?? {}) as Record<string, unknown>
   const selectedNodeStaticReply = typeof selectedNodeConfig.staticReply === "string" ? selectedNodeConfig.staticReply : ""
 
-  useEffect(() => {
-    const nextStage = stageItems.find((stage) => stage.key === selectedStageKey) ?? stageItems[0]
-    if (nextStage && nextStage.key !== selectedStageKey) {
-      setSelectedStageKey(nextStage.key)
-      setSelectedNodeId(nextStage.nodes[0]?.id ?? "")
-      return
-    }
-    if (nextStage && nextStage.nodes.length > 0 && !nextStage.nodes.some((node) => node.id === selectedNodeId)) {
-      setSelectedNodeId(nextStage.nodes[0].id)
-    }
-  }, [firstStageKey, selectedNodeId, selectedStageKey, stageItems, stageSignature])
+  if (selectedStage && selectedStage.key !== selectedStageKey) {
+    setSelectedStageKey(selectedStage.key)
+    setSelectedNodeId(selectedStage.nodes[0]?.id ?? "")
+  } else if (selectedStage && selectedStage.nodes.length > 0 && !selectedStage.nodes.some((node) => node.id === selectedNodeId)) {
+    setSelectedNodeId(selectedStage.nodes[0].id)
+  }
 
   const updateNode = useCallback((nodeId: string, patch: Partial<WorkflowDefinitionNode>) => {
     if (!editable) return
@@ -1711,7 +1705,7 @@ function WorkflowOrchestrationPanel({
       return
     }
     onBlueprintApply(template)
-  }, [onBlueprintApply, templates, templatesLoading])
+  }, [onBlueprintApply, templates, templatesLoading, t])
 
   return (
     <section className="rhd-railops-workflow-orchestrator" aria-label={wd(t, "orchestration.aria")}>

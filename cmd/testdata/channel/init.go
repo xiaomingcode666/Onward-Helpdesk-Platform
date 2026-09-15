@@ -1,12 +1,12 @@
 package channel
 
 import (
+	"fmt"
 	"remotehelpdesk/cmd/testdata/seedlang"
 	"remotehelpdesk/cmd/testdata/seeds"
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/repositories"
-	"fmt"
 	"time"
 
 	"github.com/mlogclub/simple/common/strs"

@@ -918,19 +918,28 @@ export function MobileCustomerDevicesPage({ navigate }: { navigate: MobileCustom
   const [devicePage, setDevicePage] = useState(1)
   const [deviceTotal, setDeviceTotal] = useState(0)
   const [selectedId, setSelectedId] = useState(0)
-  const [manuals, setManuals] = useState<CustomerPortalManualFile[]>([])
-  const [manualsLoading, setManualsLoading] = useState(false)
+  const [manualResult, setManualResult] = useState<{ deviceId: number; items: CustomerPortalManualFile[] }>({ deviceId: 0, items: [] })
+  const [previousManualDeviceId, setPreviousManualDeviceId] = useState(selectedId)
+  if (previousManualDeviceId !== selectedId) {
+    setPreviousManualDeviceId(selectedId)
+    setManualResult({ deviceId: 0, items: [] })
+  }
+  const manuals = manualResult.deviceId === selectedId ? manualResult.items : []
+  const manualsLoading = selectedId > 0 && manualResult.deviceId !== selectedId
   const selected = devices.find((item) => item.id === selectedId) ?? null
-  const requestedDeviceId = Number(searchParams.get("deviceId") || "0")
+  const parsedDeviceId = Number(searchParams.get("deviceId") || "0")
+  const requestedDeviceId = Number.isSafeInteger(parsedDeviceId) && parsedDeviceId > 0 ? parsedDeviceId : 0
   const returnConversationId = normalizeMobileConversationId(searchParams.get("fromConversationId"))
 
-  useEffect(() => {
+  const [previousDeviceSelection, setPreviousDeviceSelection] = useState({ devices, requestedDeviceId })
+  if (previousDeviceSelection.devices !== devices || previousDeviceSelection.requestedDeviceId !== requestedDeviceId) {
+    setPreviousDeviceSelection({ devices, requestedDeviceId })
     if (requestedDeviceId > 0 && devices.some((item) => item.id === requestedDeviceId)) {
       setSelectedId(requestedDeviceId)
     } else if (requestedDeviceId <= 0) {
       setSelectedId(0)
     }
-  }, [devices, requestedDeviceId])
+  }
 
   const load = useCallback(async (nextPage = 1, append = false) => {
     setState({ loading: true, error: "" })
@@ -953,12 +962,20 @@ export function MobileCustomerDevicesPage({ navigate }: { navigate: MobileCustom
     } catch (error) {
       setState({ loading: false, error: error instanceof Error ? error.message : t("portalExtract.customerMobile.device.loadFailed") })
     }
-  }, [query])
-  useEffect(() => { void load() }, [load])
+  }, [query, t])
   useEffect(() => {
-    if (!selectedId) { setManuals([]); return }
-    setManualsLoading(true)
-    fetchCustomerDeviceManuals(selectedId).then(setManuals).catch(() => setManuals([])).finally(() => setManualsLoading(false))
+    const timer = window.setTimeout(() => void load(), 0)
+    return () => window.clearTimeout(timer)
+  }, [load])
+  useEffect(() => {
+    if (!selectedId) return
+    let active = true
+    fetchCustomerDeviceManuals(selectedId)
+      .catch(() => [])
+      .then((items) => {
+        if (active) setManualResult({ deviceId: selectedId, items })
+      })
+    return () => { active = false }
   }, [selectedId])
 
   const visibleDevices = devices

@@ -1,0 +1,27 @@
+name: loader_fixture
+version: 1
+description: Synthetic cases for loading suite defaults and explicit overrides.
+defaults:
+  enabled: true
+  scope:
+    locale: en-US
+  answerExpectation:
+    citationRequired: true
+    minCitationCount: 1
+cases:
+  - id: inherited_defaults
+    name: Inherit the suite defaults
+    input:
+      query: What does the test document say?
+    answerExpectation:
+      shouldAnswer: true
+  - id: explicit_overrides
+    name: Preserve case-specific settings
+    enabled: false
+    scope:
+      locale: zh-CN
+    input:
+      query: Which two test documents support this answer?
+    answerExpectation:
+      shouldAnswer: true
+      minCitationCount: 2

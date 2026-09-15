@@ -778,10 +778,11 @@ function ProductTableWorkspace({
   const t = useI18n()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-
-  useEffect(() => {
+  const [previousProducts, setPreviousProducts] = useState(products)
+  if (previousProducts !== products) {
+    setPreviousProducts(products)
     setPage(1)
-  }, [products])
+  }
 
   const pageProducts = useMemo(
     () => products.slice((page - 1) * pageSize, page * pageSize),
