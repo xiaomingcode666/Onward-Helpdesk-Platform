@@ -1,15 +1,16 @@
 package utils
 
-// SanitizeForLog truncates a string to maxLen characters for safe storage in log tables.
-// Returns empty string if input is empty. This prevents accidental storage of large
-// sensitive payloads in access logs.
+import "remotehelpdesk/internal/pkg/logprivacy"
+
+// SanitizeForLog omits untrusted content rather than merely truncating it.
+// The limit is retained for callers, but never allows a prefix of the raw input.
 func SanitizeForLog(s string, maxLen int) string {
-	if s == "" {
+	if maxLen <= 0 {
 		return ""
 	}
-	runes := []rune(s)
-	if len(runes) > maxLen {
-		return string(runes[:maxLen]) + "...[truncated]"
+	safe := []rune(logprivacy.Value(s))
+	if len(safe) > maxLen {
+		safe = safe[:maxLen]
 	}
-	return s
+	return string(safe)
 }

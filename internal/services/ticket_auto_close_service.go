@@ -6,7 +6,6 @@ import (
 
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/dto"
-	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/repositories"
 
@@ -82,8 +81,8 @@ func (s *ticketAutoCloseService) CloseDueTickets(limitPerTenant int) int {
 }
 
 func (s *ticketAutoCloseService) eligibleAt(ticket models.Ticket, runAt time.Time) bool {
-	status := enums.NormalizeTicketStatus(string(ticket.Status))
-	if status != enums.TicketStatusResolved && status != enums.TicketStatusPendingCustomerConfirm {
+	status := models.EffectiveTicketCaseStatus(ticket)
+	if status != "resolved" && status != "closure_pending" {
 		return false
 	}
 	if ticket.ResolvedAt == nil || ticket.ResolvedAt.After(runAt) {

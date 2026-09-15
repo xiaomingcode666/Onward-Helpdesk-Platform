@@ -260,7 +260,9 @@ func DefaultRegistry() *Registry {
 			},
 			OutputSchema: []VariableSpec{
 				output("ticketId", VariableTypeInteger, "已创建的工单 ID。"),
-				output("ticketNo", VariableTypeString, "已创建的工单号。"),
+				output("ticketNo", VariableTypeString, "已创建或复用的主工单号。"),
+				output("caseType", VariableTypeString, "工单分类；会话默认 user_case。"),
+				output("priority", VariableTypeString, "当前紧急程度 p1-p4；客户问题默认 p2。"),
 				output("created", VariableTypeBoolean, "工单是否创建成功。"),
 				output("message", VariableTypeString, "客户可见的建单结果。"),
 			},

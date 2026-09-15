@@ -4,6 +4,23 @@
   "additionalProperties": false,
   "required": ["schema_version", "tenant_id", "environment", "projects", "intake", "secret_refs"],
   "properties": {
+    "ticket_workflows": {"type":"object","maxProperties":201,"additionalProperties":{
+      "type":"object","additionalProperties":false,"required":["transitions"],"properties":{
+        "transitions":{"type":"object","minProperties":10,"maxProperties":10,
+          "propertyNames":{"enum":["new","acknowledged","in_triage","assigned","waiting","restored","resolved","closure_pending","closed","cancelled"]},
+          "additionalProperties":{"type":"array","uniqueItems":true,"maxItems":9,"items":{"enum":["new","acknowledged","in_triage","assigned","waiting","restored","resolved","closure_pending","closed","cancelled"]}}}
+      }
+    }},
+    "ticket_priority": {
+      "type":"object", "additionalProperties":false, "required":["version","defaults","matrix"],
+      "properties":{
+        "version":{"type":"string","minLength":1,"maxLength":80},
+        "defaults":{"type":"object","additionalProperties":false,"required":["user_case","incident","major_incident","problem","known_error","service_request"],"properties":{
+          "user_case":{"enum":["p1","p2","p3","p4"]},"incident":{"enum":["p1","p2","p3","p4"]},"major_incident":{"enum":["p1","p2","p3","p4"]},
+          "problem":{"enum":["p1","p2","p3","p4"]},"known_error":{"enum":["p1","p2","p3","p4"]},"service_request":{"enum":["p1","p2","p3","p4"]}}},
+        "matrix":{"type":"array","minItems":3,"maxItems":3,"items":{"type":"array","minItems":3,"maxItems":3,"items":{"enum":["p1","p2","p3","p4"]}}}
+      }
+    },
     "schema_version": {"enum": [1, 2]},
     "tenant_id": {"type": "integer", "minimum": 1},
     "environment": {"enum": ["development", "integration", "staging", "production"]},

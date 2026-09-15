@@ -185,13 +185,13 @@ function meetingStatusTone(status: string | undefined): StatusTagTone {
 function priorityLabel(priority?: string) {
   switch (priority) {
     case "critical":
-      return "P0"
-    case "high":
       return "P1"
-    case "medium":
+    case "high":
       return "P2"
-    default:
+    case "medium":
       return "P3"
+    default:
+      return "P4"
   }
 }
 
@@ -1350,13 +1350,11 @@ function QueueDistributionPie({
   const total = queues.reduce((sum, queue) => sum + queue.count, 0)
   const [hoveredKey, setHoveredKey] = useState<string | null>(null)
 
-  let cursor = 0
-  const segments = queues.map((queue) => {
-    const start = cursor
+  const segments = queues.reduce<Array<{ key: string; start: number; end: number; color: string }>>((previous, queue) => {
+    const start = previous.at(-1)?.end ?? 0
     const size = total > 0 ? (queue.count / total) * 360 : 0
-    cursor += size
-    return { key: queue.key, start, end: cursor, color: queueToneColor(queue.tone, queue.key) }
-  })
+    return [...previous, { key: queue.key, start, end: start + size, color: queueToneColor(queue.tone, queue.key) }]
+  }, [])
 
   // Hovered segment gets a lighter shade so the ring shows which part the value belongs to.
   const pieStyle: CSSProperties = {

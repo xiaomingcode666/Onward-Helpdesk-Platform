@@ -784,7 +784,7 @@ func (s *slaService) CheckSLAViolations() ([]SLAViolation, error) {
 		var tickets []models.Ticket
 		if err := sqls.DB().
 			Where("tenant_id = ?", tenantID).
-			Where("status NOT IN ('closed', 'cancelled', 'done')").
+			Where(ticketCaseOpenSQL).
 			Find(&tickets).Error; err != nil {
 			return nil, err
 		}
@@ -843,7 +843,7 @@ func (s *slaService) checkSLAWarningsAt(now time.Time) (int, error) {
 		var tickets []models.Ticket
 		if err := sqls.DB().
 			Where("tenant_id = ?", tenantID).
-			Where("status NOT IN ('closed', 'cancelled', 'done')").
+			Where(ticketCaseOpenSQL).
 			Find(&tickets).Error; err != nil {
 			return warnings, err
 		}

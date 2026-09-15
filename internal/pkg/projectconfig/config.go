@@ -17,6 +17,7 @@ import (
 	"sync"
 
 	"github.com/google/jsonschema-go/jsonschema"
+	"remotehelpdesk/internal/pkg/ticketpolicy"
 )
 
 //go:embed schema.json
@@ -37,13 +38,15 @@ type Project struct {
 	Name string `json:"name"`
 }
 type Document struct {
-	SchemaVersion int          `json:"schema_version"`
-	TenantID      int64        `json:"tenant_id"`
-	Environment   string       `json:"environment"`
-	Projects      []Project    `json:"projects"`
-	Intake        IntakePolicy `json:"intake"`
-	SecretRefs    []string     `json:"secret_refs"`
-	Runtime       *Runtime     `json:"runtime,omitempty"`
+	TicketWorkflows map[string]ticketpolicy.Workflow `json:"ticket_workflows,omitempty"`
+	TicketPriority  *ticketpolicy.Policy             `json:"ticket_priority,omitempty"`
+	SchemaVersion   int                              `json:"schema_version"`
+	TenantID        int64                            `json:"tenant_id"`
+	Environment     string                           `json:"environment"`
+	Projects        []Project                        `json:"projects"`
+	Intake          IntakePolicy                     `json:"intake"`
+	SecretRefs      []string                         `json:"secret_refs"`
+	Runtime         *Runtime                         `json:"runtime,omitempty"`
 }
 
 type Issue struct {
@@ -99,6 +102,9 @@ func DeploymentManaged() bool {
 // ValidateDraftShape permits unfinished business rules, but not missing arrays.
 // Historical drafts are left intact; clients must also handle older null fields.
 func ValidateDraftShape(doc Document) error {
+	if err := validateTicketWorkflows(doc); err != nil {
+		return err
+	}
 	if (doc.SchemaVersion != 1 && doc.SchemaVersion != 2) || doc.Projects == nil || doc.Intake.Rules == nil || doc.SecretRefs == nil {
 		return fmt.Errorf("草稿必须包含 schema_version=1 或 2、projects、intake.rules 和 secret_refs；空列表请填写 []")
 	}
@@ -270,5 +276,27 @@ func Validate(doc Document, tenantID int64, environment string, check SecretChec
 	if doc.Runtime != nil {
 		validateRuntime(doc, add)
 	}
+	if err := validateTicketWorkflows(doc); err != nil {
+		add("policy", "ticket_workflows", err.Error())
+	}
 	return r
+}
+
+func validateTicketWorkflows(doc Document) error {
+	if len(doc.TicketWorkflows) > 201 {
+		return fmt.Errorf("工单流程配置数量超限")
+	}
+	for key, workflow := range doc.TicketWorkflows {
+		found := key == "*"
+		for _, project := range doc.Projects {
+			found = found || project.Key == key
+		}
+		if !found {
+			return fmt.Errorf("工单流程所属服务项目不存在：%s", key)
+		}
+		if err := workflow.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
 }

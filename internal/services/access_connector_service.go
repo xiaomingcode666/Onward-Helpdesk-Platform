@@ -28,7 +28,9 @@ func newAccessConnectorService() *accessConnectorService {
 	return &accessConnectorService{}
 }
 
-type accessConnectorService struct{}
+type accessConnectorService struct {
+	httpClient *http.Client
+}
 
 const connectorResponseLimit = 4 << 20
 
@@ -444,7 +446,10 @@ func (s *accessConnectorService) CallConnector(ctx context.Context, tenantID, co
 		httpReq.Header.Set("Content-Type", "application/json")
 	}
 
-	client := safeConnectorHTTPClient(30 * time.Second)
+	client := s.httpClient
+	if client == nil {
+		client = safeConnectorHTTPClient(30 * time.Second)
+	}
 	resp, err := client.Do(httpReq)
 	durationMs := time.Since(startTime).Milliseconds()
 
@@ -452,7 +457,7 @@ func (s *accessConnectorService) CallConnector(ctx context.Context, tenantID, co
 		ID:            utils.UUID(),
 		TenantID:      tenantID,
 		ConnectorID:   connectorID,
-		RequestURL:    reqURL,
+		RequestURL:    utils.SanitizeForLog(reqURL, 2048),
 		RequestMethod: method,
 		RequestBody:   utils.SanitizeForLog(string(reqBody), 4096),
 		DurationMs:    durationMs,
@@ -461,18 +466,18 @@ func (s *accessConnectorService) CallConnector(ctx context.Context, tenantID, co
 	}
 
 	if err != nil {
-		callLog.ErrorMessage = err.Error()
+		callLog.ErrorMessage = "connector transport failed (details redacted)"
 		callLog.ResponseCode = 0
 		sqls.DB().Create(callLog)
-		return nil, fmt.Errorf("connector call failed: %w", err)
+		return nil, fmt.Errorf("connector call failed; trace %s", traceID)
 	}
 	defer resp.Body.Close()
 
 	respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, connectorResponseLimit+1))
 	if readErr != nil {
-		callLog.ErrorMessage = readErr.Error()
+		callLog.ErrorMessage = "connector response read failed (details redacted)"
 		sqls.DB().Create(callLog)
-		return nil, fmt.Errorf("read connector response: %w", readErr)
+		return nil, fmt.Errorf("read connector response failed; trace %s", traceID)
 	}
 	if len(respBody) > connectorResponseLimit {
 		callLog.ErrorMessage = "connector response exceeds 4 MiB"
@@ -549,6 +554,12 @@ func (s *accessConnectorService) GetCallLogs(ctx context.Context, tenantID, conn
 		Limit(limit).
 		Find(&logs).Error; err != nil {
 		return nil, fmt.Errorf("failed to get call logs: %w", err)
+	}
+	for _, entry := range logs {
+		entry.RequestURL = utils.SanitizeForLog(entry.RequestURL, 2048)
+		entry.RequestBody = utils.SanitizeForLog(entry.RequestBody, 4096)
+		entry.ResponseBody = utils.SanitizeForLog(entry.ResponseBody, 4096)
+		entry.ErrorMessage = utils.SanitizeForLog(entry.ErrorMessage, 2000)
 	}
 	return logs, nil
 }

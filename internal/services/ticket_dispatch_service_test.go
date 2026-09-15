@@ -18,6 +18,14 @@ import (
 	"gorm.io/gorm"
 )
 
+func seedTicketDispatchManager(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if err := db.Create(&models.User{ID: 900, Username: "manager", Nickname: "经理", Status: enums.StatusOk}).Error; err != nil {
+		t.Fatal(err)
+	}
+	ensureHumanDispatchRealtimeMember(t, db, 1, 900)
+}
+
 func TestTicketDispatchAssignsIndependentTicketAndTracksDeadline(t *testing.T) {
 	previousWS := WsService
 	WsService = newWsService()
@@ -117,6 +125,59 @@ func TestTicketDispatchAssignsIndependentTicketAndTracksDeadline(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("accepted assignee did not receive notification resync")
+	}
+}
+
+func TestTicketCanonicalDispatchAndReassignmentPreserveCaseOwner(t *testing.T) {
+	previousWS := WsService
+	WsService = newWsService()
+	t.Cleanup(func() { WsService = previousWS })
+	db := setupHumanDispatchRealtimeTestDB(t)
+	createHumanDispatchRealtimeTeam(t, db, 1)
+	createHumanDispatchRealtimeAgentProfile(t, db, 101, 1)
+	ticket := models.Ticket{
+		TicketNo: "CANONICAL-DISPATCH-OWNER", Title: "派单不能代替实际受理", TenantID: 1,
+		CurrentTeamID: 1, Status: enums.TicketStatusPending, CaseStatus: "new",
+		AuditFields: models.AuditFields{CreatedAt: time.Now().Add(-time.Hour), UpdatedAt: time.Now()},
+	}
+	if err := db.Create(&ticket).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count, err := TicketDispatchService.DispatchPendingTickets(1); err != nil || count != 1 {
+		t.Fatalf("automatic dispatch = (%d, %v), want (1, nil)", count, err)
+	}
+	dispatched := repositoriesTicket(t, ticket.ID)
+	if dispatched.CurrentAssigneeID != 101 || dispatched.CaseStatus != "new" || dispatched.CaseOwnerID != 0 || dispatched.AcknowledgedAt != nil || dispatched.AcceptedAt != nil {
+		t.Fatalf("automatic assignment must not invent reception: %+v", dispatched)
+	}
+	operator := &dto.AuthPrincipal{UserID: 101, Username: "agent-101", TenantID: 1, Roles: []string{EnterpriseRoleEngineer}, Status: enums.StatusOk}
+	if err := TicketLifecycleService.Accept(ticket.ID, 101, operator); err != nil {
+		t.Fatal(err)
+	}
+	accepted := repositoriesTicket(t, ticket.ID)
+	if accepted.CaseOwnerID != 101 || accepted.CaseStatus != "assigned" || accepted.AcknowledgedAt == nil || accepted.AcceptedAt == nil || accepted.CaseRevision <= dispatched.CaseRevision {
+		t.Fatalf("actual acceptance must establish ownership and record both lifecycle milestones: %+v", accepted)
+	}
+	acknowledgedAt := *accepted.AcknowledgedAt
+	createHumanDispatchRealtimeAgentProfile(t, db, 102, 1)
+	if err := TicketService.AssignTicket(request.AssignTicketRequest{TicketID: ticket.ID, ToUserID: 102, Reason: "更换技术处理工程师"}, operator); err != nil {
+		t.Fatal(err)
+	}
+	assigned := repositoriesTicket(t, ticket.ID)
+	if assigned.CurrentAssigneeID != 102 || assigned.CaseOwnerID != 101 || assigned.AcknowledgedAt == nil || !assigned.AcknowledgedAt.Equal(acknowledgedAt) || assigned.AcceptedAt != nil || assigned.CaseStatus != "assigned" {
+		t.Fatalf("technical reassignment must retain reception ownership and reset only engineer acceptance: %+v", assigned)
+	}
+	// Keep the original customer-service owner enabled, while excluding them
+	// from automatic engineering assignment so recovery remains in the pool.
+	if err := db.Model(&models.AgentProfile{}).Where("tenant_id = ? AND user_id = ?", 1, 101).Update("auto_assign_enabled", false).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count, err := TicketDispatchService.RecoverUnavailableAssigneeAssignments(1, 102, time.Now()); err != nil || count != 1 {
+		t.Fatalf("recover unavailable engineer = (%d, %v), want (1, nil)", count, err)
+	}
+	recovered := repositoriesTicket(t, ticket.ID)
+	if recovered.CurrentAssigneeID != 0 || recovered.CaseOwnerID != 101 || recovered.AcknowledgedAt == nil || !recovered.AcknowledgedAt.Equal(acknowledgedAt) || recovered.CaseStatus != "in_triage" || recovered.CaseRevision <= assigned.CaseRevision {
+		t.Fatalf("returning to dispatch pool must preserve owner and version the changed lifecycle stage: %+v", recovered)
 	}
 }
 
@@ -1102,6 +1163,7 @@ func TestManualTicketAssignmentAllowsDispatchDisabledTeamMember(t *testing.T) {
 	db := setupHumanDispatchRealtimeTestDB(t)
 	createHumanDispatchRealtimeTeam(t, db, 1)
 	createHumanDispatchRealtimeAgentProfile(t, db, 101, 1)
+	seedTicketDispatchManager(t, db)
 	manager := &dto.AuthPrincipal{TenantID: 1, UserID: 900, Username: "manager", Roles: []string{EnterpriseRoleServiceManager}}
 	if _, err := AgentTeamMemberService.EnsureMember(1, 1, 101, 0, 1, false, manager); err != nil {
 		t.Fatalf("EnsureMember() error = %v", err)
@@ -2043,6 +2105,7 @@ func TestSLAAssignmentViolationTriggersSupervisorTakeover(t *testing.T) {
 
 func TestManualTicketAssignmentRequiresAuthorityButIgnoresDisplayWorkStatus(t *testing.T) {
 	db := setupHumanDispatchRealtimeTestDB(t)
+	seedTicketDispatchManager(t, db)
 	createHumanDispatchRealtimeTeam(t, db, 1)
 	createHumanDispatchRealtimeAgentProfile(t, db, 101, 1)
 	now := time.Now()
@@ -2150,6 +2213,7 @@ func TestManualTicketAssignmentOverridesAutomaticEligibilityButRequiresCapabilit
 			db := setupHumanDispatchRealtimeTestDB(t)
 			createHumanDispatchRealtimeTeam(t, db, 1)
 			createHumanDispatchRealtimeAgentProfile(t, db, 101, 1)
+			seedTicketDispatchManager(t, db)
 			productID := int64(0)
 			faultCode := ""
 			serviceRegion := ""
@@ -2556,6 +2620,7 @@ func TestManualTicketAssignmentRejectsEngineerOutsideProductRepairTeam(t *testin
 
 func TestManualTicketAssignmentAllowsLeaveEngineer(t *testing.T) {
 	db := setupHumanDispatchRealtimeTestDB(t)
+	seedTicketDispatchManager(t, db)
 	productTeam := models.AgentTeam{
 		ID: 41, TenantID: 1, ProductID: 801, TeamType: AgentTeamTypeProductRepair,
 		Name: "个人可用性维修组", ScheduleEnforced: true, Status: enums.StatusOk,
@@ -3208,7 +3273,7 @@ func createTicketDispatchEngineerCapability(t *testing.T, db *gorm.DB, userID in
 		DisplayName: "工程师", MemberType: "employee", Status: enums.StatusOk,
 		AuditFields: models.AuditFields{CreatedAt: now, UpdatedAt: now},
 	}
-	if err := db.Create(&member).Error; err != nil {
+	if err := db.Where("tenant_id = ? AND user_id = ?", member.TenantID, member.UserID).FirstOrCreate(&member).Error; err != nil {
 		t.Fatalf("create tenant member: %v", err)
 	}
 	engineer := models.EngineerProfile{

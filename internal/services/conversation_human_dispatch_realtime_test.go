@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"remotehelpdesk/internal/models"
+	"remotehelpdesk/internal/pkg/constants"
 	"remotehelpdesk/internal/pkg/enums"
 
 	"github.com/glebarez/sqlite"
@@ -144,6 +145,8 @@ func setupHumanDispatchRealtimeTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(
 		&models.Tenant{},
 		&models.User{},
+		&models.TenantMember{},
+		&models.AuthSubjectPermissionOverride{},
 		&models.Notification{},
 		&models.Customer{},
 		&models.CustomerIdentity{},
@@ -259,6 +262,7 @@ func createHumanDispatchRealtimeAgentProfile(t *testing.T, db *gorm.DB, userID, 
 	}).Error; err != nil {
 		t.Fatalf("create user error = %v", err)
 	}
+	ensureHumanDispatchRealtimeMember(t, db, 1, userID)
 	if err := db.Create(&models.AgentProfile{
 		TenantID:           1,
 		UserID:             userID,
@@ -288,6 +292,20 @@ func createHumanDispatchRealtimeAgentProfile(t *testing.T, db *gorm.DB, userID, 
 		ConfirmedAt: now, StatusChangedAt: now,
 	}).Error; err != nil {
 		t.Fatalf("create work status error = %v", err)
+	}
+}
+
+func ensureHumanDispatchRealtimeMember(t *testing.T, db *gorm.DB, tenantID, userID int64) {
+	t.Helper()
+	member := models.TenantMember{TenantID: tenantID, UserID: userID, DisplayName: "客服", MemberType: "employee", Status: enums.StatusOk}
+	if err := db.Where("tenant_id = ? AND user_id = ?", tenantID, userID).FirstOrCreate(&member).Error; err != nil {
+		t.Fatalf("create enterprise member: %v", err)
+	}
+	permission := models.AuthSubjectPermissionOverride{TenantID: tenantID, DomainType: models.DomainTypeEnterprise,
+		SubjectType: models.SubjectTypeTenantMember, SubjectID: member.ID, PermissionCode: constants.PermissionTicketChangeStatus.Code, Effect: "allow", Status: enums.StatusOk}
+	if err := db.Where("tenant_id = ? AND domain_type = ? AND subject_type = ? AND subject_id = ? AND permission_code = ?",
+		tenantID, permission.DomainType, permission.SubjectType, member.ID, permission.PermissionCode).FirstOrCreate(&permission).Error; err != nil {
+		t.Fatalf("grant fixture member ticket processing permission: %v", err)
 	}
 }
 

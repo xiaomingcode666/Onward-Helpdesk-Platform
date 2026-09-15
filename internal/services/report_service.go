@@ -345,7 +345,8 @@ func (s *reportService) GetDashboardOverview(ctx interface{}, tenantID string) (
 		db.Model(&models.Ticket{}).Where("tenant_id = ? AND status IN ?", tenantID, enterpriseStatusFilterToDB("processing")).Count(&overview.InProgressTickets)
 	})
 	run(func() { // SLA 风险工单
-		db.Model(&models.Ticket{}).Where("tenant_id = ? AND sla_due_at IS NOT NULL AND sla_due_at < ? AND status NOT IN ?", tenantID, now, enterpriseTicketCompletedStatuses()).Count(&overview.SLAAtRisk)
+		db.Model(&models.Ticket{}).Where("tenant_id = ? AND sla_due_at IS NOT NULL AND sla_due_at < ?", tenantID, now).
+			Where(ticketResolutionSLARunningSQL).Count(&overview.SLAAtRisk)
 	})
 	run(func() { // 今日新增工单
 		db.Model(&models.Ticket{}).Where("tenant_id = ? AND created_at >= ?", tenantID, todayStart).Count(&overview.NewToday)
@@ -366,7 +367,7 @@ func (s *reportService) GetDashboardOverview(ctx interface{}, tenantID string) (
 			Find(&recentTickets)
 	})
 	run(func() { // 待办队列工单（Top 6）
-		db.Where("tenant_id = ? AND status NOT IN ?", tenantID, enterpriseTicketCompletedStatuses()).
+		db.Where("tenant_id = ?", tenantID).Where(ticketResolutionSLARunningSQL).
 			Order("created_at desc").
 			Limit(6).
 			Find(&queueTickets)

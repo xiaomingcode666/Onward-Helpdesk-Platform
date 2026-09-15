@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var TicketRepository = newTicketRepository()
@@ -23,8 +25,9 @@ func (r *ticketRepository) FindDueForAutoClose(db *gorm.DB, tenantID int64, cuto
 		limit = 100
 	}
 	items := make([]models.Ticket, 0)
-	db.Where("tenant_id = ? AND status IN ? AND resolved_at IS NOT NULL AND resolved_at <= ?",
-		tenantID, []enums.TicketStatus{enums.TicketStatusResolved, enums.TicketStatusPendingCustomerConfirm}, cutoff).
+	db.Where("tenant_id = ? AND resolved_at IS NOT NULL AND resolved_at <= ?", tenantID, cutoff).
+		Where("(case_status IN ? OR (COALESCE(case_status, '') = '' AND status IN ?))",
+			[]string{"resolved", "closure_pending"}, []enums.TicketStatus{enums.TicketStatusResolved, enums.TicketStatusPendingCustomerConfirm}).
 		Order("resolved_at ASC").Limit(limit).Find(&items)
 	return items
 }
@@ -147,23 +150,50 @@ func (r *ticketRepository) Count(db *gorm.DB, cnd *sqls.Cnd) int64 {
 }
 
 func (r *ticketRepository) Create(db *gorm.DB, t *models.Ticket) (err error) {
+	if err = BindTicketWorkflowDB(db, t); err != nil {
+		return err
+	}
 	err = db.Create(t).Error
 	return
 }
 
 func (r *ticketRepository) Update(db *gorm.DB, t *models.Ticket) (err error) {
-	err = db.Save(t).Error
-	return
+	return db.Transaction(func(tx *gorm.DB) error {
+		var previous models.Ticket
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&previous, t.ID).Error; err != nil {
+			return err
+		}
+		if t.CaseWorkflowVersionID != previous.CaseWorkflowVersionID || t.CaseWorkflowKey != previous.CaseWorkflowKey {
+			return fmt.Errorf("不能修改已有工单的流程版本")
+		}
+		if previous.CaseWorkflowVersionID > 0 && (t.TenantID != previous.TenantID || t.Status != previous.Status || t.CaseStatus != previous.CaseStatus || t.CurrentAssigneeID != previous.CurrentAssigneeID) {
+			return fmt.Errorf("请使用工单状态或分派操作，不能直接覆盖工单流程字段")
+		}
+		columns := map[string]any{"status": t.Status, "case_status": models.EffectiveTicketCaseStatus(*t), "project_key": t.ProjectKey}
+		if err := GuardTicketWorkflowDB(tx, t.ID, columns); err != nil {
+			return err
+		}
+		if err := GuardTicketRelationsDB(tx, t.ID, map[string]any{"status": t.Status, "case_status": t.CaseStatus}); err != nil {
+			return err
+		}
+		return tx.Save(t).Error
+	})
 }
 
 func (r *ticketRepository) Updates(db *gorm.DB, id int64, columns map[string]interface{}) (err error) {
-	err = db.Model(&models.Ticket{}).Where("id = ?", id).Updates(columns).Error
-	return
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := SyncTicketCaseColumns(tx, id, columns); err != nil {
+			return err
+		}
+		if err := GuardTicketWorkflowDB(tx, id, columns); err != nil {
+			return err
+		}
+		return tx.Model(&models.Ticket{}).Where("id = ?", id).Updates(columns).Error
+	})
 }
 
 func (r *ticketRepository) UpdateColumn(db *gorm.DB, id int64, name string, value interface{}) (err error) {
-	err = db.Model(&models.Ticket{}).Where("id = ?", id).UpdateColumn(name, value).Error
-	return
+	return r.Updates(db, id, map[string]any{name: value})
 }
 
 func (r *ticketRepository) Delete(db *gorm.DB, id int64) {

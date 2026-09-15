@@ -126,6 +126,7 @@ type CustomerPortalTicketFeedbackDTO struct {
 }
 
 type CustomerPortalTicketDTO struct {
+	TicketCaseSummaryDTO
 	ID               int64                             `json:"id"`
 	TicketNo         string                            `json:"ticket_no"`
 	Title            string                            `json:"title"`

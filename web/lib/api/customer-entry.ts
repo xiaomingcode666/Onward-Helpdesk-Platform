@@ -184,6 +184,11 @@ export type CustomerEntryDevice = {
 }
 
 export type CustomerEntryTicket = {
+  case_status?: string
+  case_status_recorded?: boolean
+  case_owner_name?: string
+  acknowledged_at?: string
+  restored_at?: string
   id: number
 	conversationId: number
   ticketNo: string

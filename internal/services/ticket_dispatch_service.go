@@ -472,7 +472,7 @@ func (s *ticketDispatchService) EscalateToSupervisor(ticketID, expectedAssigneeI
 		return nil, nil
 	}
 	snapshot := repositories.TicketRepository.Get(sqls.DB(), ticketID)
-	if snapshot == nil || snapshot.CurrentAssigneeID != expectedAssigneeID || !canAssignTicketStatus(snapshot.Status) {
+	if snapshot == nil || snapshot.CurrentAssigneeID != expectedAssigneeID || !canAssignTicketCase(snapshot) {
 		return nil, nil
 	}
 	supervisorScope := *snapshot
@@ -516,7 +516,7 @@ func (s *ticketDispatchService) EscalateToSupervisor(ticketID, expectedAssigneeI
 	escalated := false
 	err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 		locked := loadTicketForUpdate(ctx.Tx, ticketID)
-		if locked == nil || locked.CurrentAssigneeID != expectedAssigneeID || !canAssignTicketStatus(locked.Status) {
+		if locked == nil || locked.CurrentAssigneeID != expectedAssigneeID || !canAssignTicketCase(locked) {
 			return nil
 		}
 		teamID := resolveTicketDispatchTeamIDDB(ctx.Tx, locked)
@@ -532,6 +532,11 @@ func (s *ticketDispatchService) EscalateToSupervisor(ticketID, expectedAssigneeI
 			"updated_at":                   now,
 			"update_user_id":               operator.UserID,
 			"update_user_name":             operator.Username,
+		}
+		// Automatic escalation assigns an engineer; it is not a human acceptance.
+		if locked.CaseStatus != "" {
+			updates["status"] = enums.TicketStatusPendingAssigneeAccept
+			updates["accepted_at"] = nil
 		}
 		if err := repositories.TicketRepository.Updates(ctx.Tx, locked.ID, updates); err != nil {
 			return err
@@ -615,6 +620,12 @@ func (s *ticketDispatchService) tryAssignTicketTx(ticketID int64, candidate disp
 			"update_user_name":    operator.Username,
 		}
 		addTicketAssignmentTrackingForTicketDB(updates, ctx.Tx, ticket, now)
+		if err := repositories.SyncTicketCaseColumns(ctx.Tx, ticket.ID, updates); err != nil {
+			return err
+		}
+		if err := repositories.GuardTicketWorkflowDB(ctx.Tx, ticket.ID, updates); err != nil {
+			return err
+		}
 		result := ctx.Tx.Model(&models.Ticket{}).
 			Where("id = ? AND current_assignee_id = ? AND conversation_id = ?", ticketID, 0, 0).
 			Updates(updates)
@@ -731,7 +742,7 @@ func (s *ticketDispatchService) RecoverTicketAssignmentSLA(ticketID int64, now t
 		return false, nil
 	}
 	ticket := repositories.TicketRepository.Get(sqls.DB(), ticketID)
-	if ticket == nil || ticket.AcceptedAt != nil || !canAssignTicketStatus(ticket.Status) {
+	if ticket == nil || ticket.AcceptedAt != nil || !canAssignTicketCase(ticket) {
 		return false, nil
 	}
 	if ticket.CurrentAssigneeID <= 0 {
@@ -1210,7 +1221,7 @@ func (s *ticketDispatchService) recycleTicketAfterAcceptTimeout(ticket *models.T
 	recycled := false
 	err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 		locked := loadTicketForUpdate(ctx.Tx, ticket.ID)
-		if locked == nil || locked.CurrentAssigneeID != oldAssigneeID {
+		if locked == nil || locked.CurrentAssigneeID != oldAssigneeID || !canAssignTicketCase(locked) {
 			return nil
 		}
 		if locked.AcceptedAt != nil {
@@ -1284,7 +1295,7 @@ func (s *ticketDispatchService) escalateTicketAfterRepeatedTimeout(ticket *model
 	escalated := false
 	err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 		locked := loadTicketForUpdate(ctx.Tx, ticket.ID)
-		if locked == nil || locked.CurrentAssigneeID != oldAssigneeID {
+		if locked == nil || locked.CurrentAssigneeID != oldAssigneeID || !canAssignTicketCase(locked) {
 			return nil
 		}
 		if locked.AcceptedAt != nil {
@@ -1308,6 +1319,10 @@ func (s *ticketDispatchService) escalateTicketAfterRepeatedTimeout(ticket *model
 		}
 		updates["assigned_at"] = now
 		updates["accepted_at"] = now
+		if locked.CaseStatus != "" {
+			updates["status"] = enums.TicketStatusPendingAssigneeAccept
+			updates["accepted_at"] = nil
+		}
 		if err := repositories.TicketRepository.Updates(ctx.Tx, locked.ID, updates); err != nil {
 			return err
 		}

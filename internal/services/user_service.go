@@ -249,12 +249,17 @@ func (s *userService) DeleteUser(id int64, operator *dto.AuthPrincipal) error {
 		return errorsx.InvalidParamI18n("error.e0255")
 	}
 
-	if err := s.Updates(id, map[string]any{
-		"status":           enums.StatusDisabled,
-		"deleted_at":       time.Now(),
-		"update_user_id":   operator.UserID,
-		"update_user_name": operator.Username,
-		"updated_at":       time.Now(),
+	if err := sqls.DB().Transaction(func(tx *gorm.DB) error {
+		if err := requireNoActiveCaseOwnershipDB(tx, id); err != nil {
+			return err
+		}
+		return repositories.UserRepository.Updates(tx, id, map[string]any{
+			"status":           enums.StatusDisabled,
+			"deleted_at":       time.Now(),
+			"update_user_id":   operator.UserID,
+			"update_user_name": operator.Username,
+			"updated_at":       time.Now(),
+		})
 	}); err != nil {
 		return err
 	}
@@ -269,11 +274,18 @@ func (s *userService) UpdateStatus(id int64, status int, operator *dto.AuthPrinc
 	if !slices.Contains(enums.StatusValues, enums.Status(status)) {
 		return errorsx.InvalidParamI18n("error.e0254")
 	}
-	if err := s.Updates(id, map[string]any{
-		"status":           status,
-		"update_user_id":   operator.UserID,
-		"update_user_name": operator.Username,
-		"updated_at":       time.Now(),
+	if err := sqls.DB().Transaction(func(tx *gorm.DB) error {
+		if status != int(enums.StatusOk) {
+			if err := requireNoActiveCaseOwnershipDB(tx, id); err != nil {
+				return err
+			}
+		}
+		return repositories.UserRepository.Updates(tx, id, map[string]any{
+			"status":           status,
+			"update_user_id":   operator.UserID,
+			"update_user_name": operator.Username,
+			"updated_at":       time.Now(),
+		})
 	}); err != nil {
 		return err
 	}
@@ -318,7 +330,9 @@ func (s *userService) AssignRoles(userID int64, roleIDs []int64, operator *dto.A
 
 func (s *userService) replaceUserRoles(userID int64, roleIDs []int64, operator *dto.AuthPrincipal) error {
 	return sqls.WithTransaction(func(ctx *sqls.TxContext) error {
-		return s.replaceUserRolesDB(ctx.Tx, userID, roleIDs, operator)
+		return withCaseOwnerUsersGuardDB(ctx.Tx, 0, []int64{userID}, func() error {
+			return s.replaceUserRolesDB(ctx.Tx, userID, roleIDs, operator)
+		})
 	})
 }
 

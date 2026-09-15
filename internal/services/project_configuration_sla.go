@@ -14,7 +14,7 @@ type projectSLAWork struct {
 
 func projectSLAWorkItems() ([]projectSLAWork, error) {
 	var tickets []models.Ticket
-	if err := sqls.DB().Where("project_config_version_id > 0 AND status NOT IN ('closed','cancelled','done')").Find(&tickets).Error; err != nil {
+	if err := sqls.DB().Where("project_config_version_id > 0").Where(ticketCaseOpenSQL).Find(&tickets).Error; err != nil {
 		return nil, err
 	}
 	items := []projectSLAWork{}
@@ -50,12 +50,21 @@ func (p SLAPolicy) paused(ticket models.Ticket, now time.Time) (time.Duration, e
 	return p.pausedDB(sqls.DB(), ticket, now)
 }
 func (p SLAPolicy) pausedDB(db *gorm.DB, ticket models.Ticket, now time.Time) (time.Duration, error) {
-	if p.runtimeCalendar == nil {
-		return time.Duration(SLAService.GetTotalPausedDurationForTenant(formatID(ticket.TenantID), formatID(ticket.ID))) * time.Second, nil
-	}
 	var records []SLAPauseRecord
 	if err := db.Where("tenant_id = ? AND ticket_id = ?", formatID(ticket.TenantID), formatID(ticket.ID)).Order("paused_at ASC").Find(&records).Error; err != nil {
 		return 0, err
+	}
+	if p.runtimeCalendar == nil {
+		// Use the caller's transaction; borrowing a global connection here can
+		// deadlock a saturated pool. Keep legacy stored-duration semantics.
+		var seconds int64
+		for _, r := range records {
+			seconds += r.Duration
+			if r.ResumedAt == nil && now.After(r.PausedAt) {
+				seconds += int64(now.Sub(r.PausedAt) / time.Second)
+			}
+		}
+		return time.Duration(seconds) * time.Second, nil
 	}
 	minutes := 0
 	lastEnd := ticket.CreatedAt

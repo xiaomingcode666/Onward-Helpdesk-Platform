@@ -19,6 +19,7 @@ import (
 	"remotehelpdesk/internal/repositories"
 
 	"github.com/mlogclub/simple/sqls"
+	"gorm.io/gorm"
 )
 
 var PlatformIAMService = &platformIAMService{}
@@ -1090,6 +1091,9 @@ func (s *platformIAMService) DeletePlatformStaff(req request.PlatformStaffDelete
 	}
 	now := time.Now()
 	err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
+		if err := requireNoActiveCaseOwnershipDB(ctx.Tx, staff.UserID); err != nil {
+			return err
+		}
 		auditColumns := map[string]any{
 			"status":           enums.StatusDeleted,
 			"updated_at":       now,
@@ -1168,7 +1172,11 @@ func (s *platformIAMService) SaveAuthRole(req request.PlatformAuthRoleSaveReques
 			"update_user_id":   auditUserID(operator),
 			"update_user_name": auditUserName(operator),
 		}
-		if err := repositories.PlatformIAMRepository.UpdateAuthRole(sqls.DB(), req.ID, columns); err != nil {
+		if err := sqls.DB().Transaction(func(tx *gorm.DB) error {
+			return withCaseOwnerRoleGuardDB(tx, existing, func() error {
+				return repositories.PlatformIAMRepository.UpdateAuthRole(tx, req.ID, columns)
+			})
+		}); err != nil {
 			return nil, err
 		}
 		_ = s.RecordAuthAudit(operator, req.TenantID, domainType, "auth_role", fmt.Sprint(req.ID), "auth_role.updated", nil, columns, models.RiskLevelMedium, "")
@@ -1230,7 +1238,11 @@ func (s *platformIAMService) SaveAuthPolicy(req request.PlatformAuthPolicySaveRe
 			},
 		})
 	}
-	if err := repositories.PlatformIAMRepository.ReplaceAuthRolePermissions(sqls.DB(), req.TenantID, role.ID, permissions); err != nil {
+	if err := sqls.DB().Transaction(func(tx *gorm.DB) error {
+		return withCaseOwnerRoleGuardDB(tx, role, func() error {
+			return repositories.PlatformIAMRepository.ReplaceAuthRolePermissions(tx, req.TenantID, role.ID, permissions)
+		})
+	}); err != nil {
 		return nil, nil, err
 	}
 	permissionCodes := make([]string, 0, len(permissions))
@@ -1260,13 +1272,15 @@ func (s *platformIAMService) DeleteAuthRole(req request.PlatformAuthRoleDeleteRe
 		"update_user_name": auditUserName(operator),
 	}
 	err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
-		if err := repositories.PlatformIAMRepository.UpdateAuthRole(ctx.Tx, role.ID, columns); err != nil {
-			return err
-		}
-		if err := repositories.PlatformIAMRepository.UpdateRoleBindingsByRole(ctx.Tx, role.TenantID, role.DomainType, role.ID, columns); err != nil {
-			return err
-		}
-		return repositories.PlatformIAMRepository.UpdateRolePermissionsByRole(ctx.Tx, role.TenantID, role.ID, columns)
+		return withCaseOwnerRoleGuardDB(ctx.Tx, role, func() error {
+			if err := repositories.PlatformIAMRepository.UpdateAuthRole(ctx.Tx, role.ID, columns); err != nil {
+				return err
+			}
+			if err := repositories.PlatformIAMRepository.UpdateRoleBindingsByRole(ctx.Tx, role.TenantID, role.DomainType, role.ID, columns); err != nil {
+				return err
+			}
+			return repositories.PlatformIAMRepository.UpdateRolePermissionsByRole(ctx.Tx, role.TenantID, role.ID, columns)
+		})
 	})
 	if err != nil {
 		return err

@@ -94,6 +94,9 @@ func MapTicketStatusForEnterprise(status enums.TicketStatus) string {
 }
 
 func DeriveTicketPriority(item models.Ticket) string {
+	if item.PriorityLevel != "" {
+		return map[string]string{"p1": "critical", "p2": "high", "p3": "medium", "p4": "low"}[item.PriorityLevel]
+	}
 	if ticketSLACompleted(item.Status) {
 		return "low"
 	}

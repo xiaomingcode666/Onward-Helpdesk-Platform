@@ -2,6 +2,8 @@ package services
 
 import (
 	"encoding/json"
+	"remotehelpdesk/internal/pkg/ticketpolicy"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -25,9 +27,13 @@ func newEnterpriseTicketService() *enterpriseTicketService {
 type enterpriseTicketService struct{}
 
 type EnterpriseTicketQuery struct {
+	RelationRole     string
+	MergeState       string
+	CaseType         string
 	Page             int
 	PageSize         int
 	Status           string
+	CaseStatus       string
 	Priority         string
 	Search           string
 	Sort             string
@@ -67,10 +73,44 @@ func (s *enterpriseTicketService) List(tenantID int64, query EnterpriseTicketQue
 		return nil, errorsx.InvalidParam("current enterprise user is required for personal ticket filtering")
 	}
 	query.Page, query.PageSize = normalizeEnterprisePage(query.Page, query.PageSize)
-	cnd := enterpriseTicketBaseCnd(tenantID, query)
-	if statuses := enterpriseStatusFilterToDB(query.Status); len(statuses) > 0 {
-		cnd.In("status", statuses)
+	caseStatus, err := validateTicketCaseStatusFilter(query.CaseStatus)
+	if err != nil {
+		return nil, err
 	}
+	query.CaseStatus = caseStatus
+	cnd := enterpriseTicketBaseCnd(tenantID, query)
+	switch query.MergeState {
+	case "merged":
+		cnd.Where("merged_into_id > 0")
+	case "unmerged":
+		cnd.Eq("merged_into_id", 0)
+	case "":
+	default:
+		return nil, errorsx.InvalidParam("无效合并筛选")
+	}
+	if query.RelationRole != "" {
+		if !slices.Contains([]string{"parent", "child", "standalone"}, query.RelationRole) {
+			return nil, errorsx.InvalidParam("无效父子工单筛选")
+		}
+		relations := sqls.DB().Model(&models.TicketRelation{}).Where("tenant_id = ? AND kind = 'parent' AND active_key IS NOT NULL", tenantID)
+		if query.RelationRole == "parent" {
+			cnd.Where("id IN (?)", relations.Select("source_id"))
+		}
+		if query.RelationRole == "child" {
+			cnd.Where("id IN (?)", relations.Select("target_id"))
+		}
+		if query.RelationRole == "standalone" {
+			cnd.Where("id NOT IN (?)", relations.Session(&gorm.Session{}).Select("source_id"))
+			cnd.Where("id NOT IN (?)", relations.Session(&gorm.Session{}).Select("target_id"))
+		}
+	}
+	if query.CaseType != "" {
+		if !slices.Contains(ticketpolicy.Types, query.CaseType) {
+			return nil, errorsx.InvalidParam("无效工单分类")
+		}
+		cnd.Eq("case_type", query.CaseType)
+	}
+	applyEnterpriseTicketStatusCnd(cnd, query.Status)
 	now := time.Now()
 	applyEnterpriseTicketPriorityCnd(cnd, query.Priority, now)
 	applyEnterpriseTicketSLACnd(cnd, query.SLABreached, query.SLARisk, now)
@@ -127,6 +167,11 @@ func (s *enterpriseTicketService) Summary(tenantID int64, query EnterpriseTicket
 	if query.Mine && query.ViewerUserID <= 0 {
 		return nil, errorsx.InvalidParam("current enterprise user is required for personal ticket filtering")
 	}
+	caseStatus, err := validateTicketCaseStatusFilter(query.CaseStatus)
+	if err != nil {
+		return nil, err
+	}
+	query.CaseStatus = caseStatus
 	now := time.Now()
 	baseQuery := query
 	ret := &dto.EnterpriseTicketSummaryDTO{GeneratedAt: formatEnterpriseTime(now)}
@@ -164,17 +209,20 @@ func (s *enterpriseTicketService) ListCustomerOptions(tenantID int64, search str
 
 func enterpriseTicketBaseCnd(tenantID int64, query EnterpriseTicketQuery) *sqls.Cnd {
 	cnd := sqls.NewCnd().Eq("tenant_id", tenantID)
+	if query.CaseStatus != "" {
+		cnd.Where(ticketEffectiveCaseStatusSQL+" = ?", query.CaseStatus)
+	}
 	if query.RestrictViewer {
 		viewerTeamIDs := enterpriseViewerTeamIDs(query)
 		viewerProductIDs := uniqueServiceInt64s(query.ViewerProductIDs)
 		if len(viewerProductIDs) > 0 && len(viewerTeamIDs) > 0 {
-			cnd.Where("(product_id IN ? OR current_assignee_id = ? OR (product_id = 0 AND current_team_id IN ?))", viewerProductIDs, query.ViewerUserID, viewerTeamIDs)
+			cnd.Where("(product_id IN ? OR current_assignee_id = ? OR case_owner_id = ? OR (product_id = 0 AND current_team_id IN ?))", viewerProductIDs, query.ViewerUserID, query.ViewerUserID, viewerTeamIDs)
 		} else if len(viewerProductIDs) > 0 {
-			cnd.Where("(product_id IN ? OR current_assignee_id = ?)", viewerProductIDs, query.ViewerUserID)
+			cnd.Where("(product_id IN ? OR current_assignee_id = ? OR case_owner_id = ?)", viewerProductIDs, query.ViewerUserID, query.ViewerUserID)
 		} else if len(viewerTeamIDs) > 0 {
-			cnd.Where("(current_assignee_id = ? OR (product_id = 0 AND current_team_id IN ?))", query.ViewerUserID, viewerTeamIDs)
+			cnd.Where("(current_assignee_id = ? OR case_owner_id = ? OR (product_id = 0 AND current_team_id IN ?))", query.ViewerUserID, query.ViewerUserID, viewerTeamIDs)
 		} else {
-			cnd.Eq("current_assignee_id", query.ViewerUserID)
+			cnd.Where("(current_assignee_id = ? OR case_owner_id = ?)", query.ViewerUserID, query.ViewerUserID)
 		}
 	}
 	if query.Mine {
@@ -198,10 +246,25 @@ func enterpriseTicketBaseCnd(tenantID int64, query EnterpriseTicketQuery) *sqls.
 
 func enterpriseTicketStatusCnd(tenantID int64, query EnterpriseTicketQuery, status string) *sqls.Cnd {
 	cnd := enterpriseTicketBaseCnd(tenantID, query)
+	applyEnterpriseTicketStatusCnd(cnd, status)
+	return cnd
+}
+
+func applyEnterpriseTicketStatusCnd(cnd *sqls.Cnd, status string) {
+	switch strings.TrimSpace(status) {
+	case "awaiting_customer":
+		cnd.Where(ticketCaseAwaitingClosureSQL)
+		return
+	case "active":
+		cnd.Where(ticketCaseOpenSQL)
+		return
+	case "done":
+		cnd.Where("NOT " + ticketCaseOpenSQL)
+		return
+	}
 	if statuses := enterpriseStatusFilterToDB(status); len(statuses) > 0 {
 		cnd.In("status", statuses)
 	}
-	return cnd
 }
 
 func enterpriseTicketSLASummaryCnd(tenantID int64, query EnterpriseTicketQuery, breached, risk *bool, now time.Time) *sqls.Cnd {
@@ -269,17 +332,17 @@ func applyEnterpriseTicketPriorityCnd(cnd *sqls.Cnd, priority string, now time.T
 	case "":
 		return
 	case "critical":
-		cnd.Where("status NOT IN ? AND (LOWER(TRIM(priority_code)) = ? OR (LOWER(TRIM(priority_code)) NOT IN ? AND sla_due_at IS NOT NULL AND sla_due_at < ?))",
-			enterpriseTicketCompletedStatuses(), "p0", enterpriseTicketKnownPriorityCodes(), now)
+		cnd.Where("(priority_level = ? OR (COALESCE(priority_level, '') = '' AND (status NOT IN ? AND (LOWER(TRIM(priority_code)) = ? OR (LOWER(TRIM(priority_code)) NOT IN ? AND sla_due_at IS NOT NULL AND sla_due_at < ?)))))",
+			"p1", enterpriseTicketCompletedStatuses(), "p0", enterpriseTicketKnownPriorityCodes(), now)
 	case "high":
-		cnd.Where("status NOT IN ? AND (LOWER(TRIM(priority_code)) = ? OR (LOWER(TRIM(priority_code)) NOT IN ? AND status = ?))",
-			enterpriseTicketCompletedStatuses(), "p1", enterpriseTicketKnownPriorityCodes(), enums.TicketStatusEscalated)
+		cnd.Where("(priority_level = ? OR (COALESCE(priority_level, '') = '' AND (status NOT IN ? AND (LOWER(TRIM(priority_code)) = ? OR (LOWER(TRIM(priority_code)) NOT IN ? AND status = ?)))))",
+			"p2", enterpriseTicketCompletedStatuses(), "p1", enterpriseTicketKnownPriorityCodes(), enums.TicketStatusEscalated)
 	case "medium":
-		cnd.Where("status NOT IN ? AND (LOWER(TRIM(priority_code)) = ? OR (LOWER(TRIM(priority_code)) NOT IN ? AND status <> ? AND sla_due_at IS NOT NULL AND sla_due_at >= ? AND sla_due_at <= ?))",
-			enterpriseTicketCompletedStatuses(), "p2", enterpriseTicketKnownPriorityCodes(), enums.TicketStatusEscalated, now, now.Add(24*time.Hour))
+		cnd.Where("(priority_level = ? OR (COALESCE(priority_level, '') = '' AND (status NOT IN ? AND (LOWER(TRIM(priority_code)) = ? OR (LOWER(TRIM(priority_code)) NOT IN ? AND status <> ? AND sla_due_at IS NOT NULL AND sla_due_at >= ? AND sla_due_at <= ?)))))",
+			"p3", enterpriseTicketCompletedStatuses(), "p2", enterpriseTicketKnownPriorityCodes(), enums.TicketStatusEscalated, now, now.Add(24*time.Hour))
 	case "low":
-		cnd.Where("(status IN ? OR (status NOT IN ? AND (LOWER(TRIM(priority_code)) IN ? OR (LOWER(TRIM(priority_code)) NOT IN ? AND status <> ? AND (sla_due_at IS NULL OR sla_due_at > ?)))))",
-			enterpriseTicketCompletedStatuses(), enterpriseTicketCompletedStatuses(), []string{"p3", "p4"}, enterpriseTicketKnownPriorityCodes(), enums.TicketStatusEscalated, now.Add(24*time.Hour))
+		cnd.Where("(priority_level = ? OR (COALESCE(priority_level, '') = '' AND ((status IN ? OR (status NOT IN ? AND (LOWER(TRIM(priority_code)) IN ? OR (LOWER(TRIM(priority_code)) NOT IN ? AND status <> ? AND (sla_due_at IS NULL OR sla_due_at > ?))))))))",
+			"p4", enterpriseTicketCompletedStatuses(), enterpriseTicketCompletedStatuses(), []string{"p3", "p4"}, enterpriseTicketKnownPriorityCodes(), enums.TicketStatusEscalated, now.Add(24*time.Hour))
 	}
 }
 
@@ -287,13 +350,13 @@ func enterpriseTicketNormalizePriorityFilter(priority string) string {
 	switch strings.ToLower(strings.TrimSpace(priority)) {
 	case "", "all":
 		return ""
-	case "critical", "p0":
+	case "critical", "p0", "p1":
 		return "critical"
-	case "high", "p1":
+	case "high", "p2":
 		return "high"
-	case "medium", "p2":
+	case "medium", "p3":
 		return "medium"
-	case "low", "p3", "p4":
+	case "low", "p4":
 		return "low"
 	default:
 		return strings.ToLower(strings.TrimSpace(priority))
@@ -321,16 +384,16 @@ func applyEnterpriseTicketSLACnd(cnd *sqls.Cnd, breached, risk *bool, now time.T
 	}
 	if breached != nil {
 		if *breached {
-			cnd.Where("status NOT IN ? AND sla_due_at IS NOT NULL AND sla_due_at < ?", enterpriseTicketCompletedStatuses(), now)
+			cnd.Where(ticketResolutionSLARunningSQL+" AND sla_due_at IS NOT NULL AND sla_due_at < ?", now)
 		} else {
-			cnd.Where("(status IN ? OR sla_due_at IS NULL OR sla_due_at >= ?)", enterpriseTicketCompletedStatuses(), now)
+			cnd.Where("(NOT "+ticketResolutionSLARunningSQL+" OR sla_due_at IS NULL OR sla_due_at >= ?)", now)
 		}
 	}
 	if risk != nil {
 		if *risk {
-			cnd.Where("status NOT IN ? AND sla_due_at IS NOT NULL AND sla_due_at <= ?", enterpriseTicketCompletedStatuses(), now.Add(2*time.Hour))
+			cnd.Where(ticketResolutionSLARunningSQL+" AND sla_due_at IS NOT NULL AND sla_due_at <= ?", now.Add(2*time.Hour))
 		} else {
-			cnd.Where("(status IN ? OR sla_due_at IS NULL OR sla_due_at > ?)", enterpriseTicketCompletedStatuses(), now.Add(2*time.Hour))
+			cnd.Where("(NOT "+ticketResolutionSLARunningSQL+" OR sla_due_at IS NULL OR sla_due_at > ?)", now.Add(2*time.Hour))
 		}
 	}
 }
@@ -361,11 +424,11 @@ func enterpriseTicketSLABreached(ticket models.Ticket) bool {
 	if !ok {
 		return false
 	}
-	return time.Now().After(deadline) && !ticketSLACompleted(ticket.Status)
+	return time.Now().After(deadline) && !ticketResolutionSLAStopped(ticket)
 }
 
 func enterpriseTicketSLAAtRisk(ticket models.Ticket) bool {
-	if ticketSLACompleted(ticket.Status) {
+	if ticketResolutionSLAStopped(ticket) {
 		return false
 	}
 	deadline, ok := ticketSLADeadline(ticket)
@@ -417,8 +480,10 @@ func (s *enterpriseTicketService) GetAggregate(tenantID int64, ticketID int64) (
 	}
 	deviceNo, deviceContext := s.buildDeviceContext(ticket)
 	repair := s.buildRepair(ticket, deviceNo)
+	caseLifecycle := BuildTicketCaseLifecycle(ticket, nil)
 	return &dto.TicketAggregateDTO{
 		Ticket:               s.buildHeader(ticket),
+		CaseLifecycle:        &caseLifecycle,
 		Customer:             s.buildCustomer(ticket),
 		DeviceContext:        deviceContext,
 		ConversationSnapshot: s.buildConversationSnapshot(ticket),
@@ -448,11 +513,13 @@ func (s *enterpriseTicketService) GetAggregateForOperator(tenantID, ticketID int
 		return nil, err
 	}
 	result.Actions = s.BuildActionsForOperator(ticket, operator)
+	caseLifecycle := BuildTicketCaseLifecycle(ticket, operator)
+	result.CaseLifecycle = &caseLifecycle
 	return result, nil
 }
 
 func (s *enterpriseTicketService) BuildActions(ticket *models.Ticket) dto.TicketActionPermissionsDTO {
-	if ticket == nil {
+	if ticket == nil || ticket.MergedIntoID > 0 {
 		return dto.TicketActionPermissionsDTO{}
 	}
 	status := enums.NormalizeTicketStatus(string(ticket.Status))
@@ -478,7 +545,7 @@ func (s *enterpriseTicketService) BuildActions(ticket *models.Ticket) dto.Ticket
 
 func (s *enterpriseTicketService) BuildActionsForOperator(ticket *models.Ticket, operator *dto.AuthPrincipal) dto.TicketActionPermissionsDTO {
 	actions := s.BuildActions(ticket)
-	if ticket == nil || operator == nil {
+	if ticket == nil || ticket.MergedIntoID > 0 || operator == nil {
 		return dto.TicketActionPermissionsDTO{}
 	}
 	isAssignee := ticket.CurrentAssigneeID > 0 && ticket.CurrentAssigneeID == operator.UserID
@@ -711,6 +778,7 @@ func (s *enterpriseTicketService) buildListItem(ticket models.Ticket) dto.Enterp
 		Source:                    string(ticket.Source),
 		Channel:                   ticket.Channel,
 		TicketIntakeDTO:           BuildTicketIntakeDTO(&ticket),
+		TicketCaseSummaryDTO:      buildTicketCaseSummary(ticket),
 		ConversationID:            ticket.ConversationID,
 		ProductID:                 ticket.ProductID,
 		DeviceID:                  ticket.DeviceID,
@@ -724,7 +792,7 @@ func (s *enterpriseTicketService) buildListItem(ticket models.Ticket) dto.Enterp
 		CreatedAt:                 formatEnterpriseTime(ticket.CreatedAt),
 		UpdatedAt:                 formatEnterpriseTime(ticket.UpdatedAt),
 		SLADeadline:               formatEnterpriseTime(deadline),
-		SLABreached:               hasSLADeadline && time.Now().After(deadline) && !ticketSLACompleted(ticket.Status),
+		SLABreached:               hasSLADeadline && time.Now().After(deadline) && !ticketResolutionSLAStopped(ticket),
 		DispatchAttempts:          dispatchAttempts,
 		DispatchDeferredUntil:     formatEnterpriseTimePtr(ticket.DispatchDeferredUntil),
 		LastDispatchFailureReason: ticket.LastDispatchFailureReason,
@@ -738,24 +806,25 @@ func (s *enterpriseTicketService) BuildListItem(ticket models.Ticket) dto.Enterp
 
 func (s *enterpriseTicketService) buildHeader(ticket *models.Ticket) dto.TicketHeaderDTO {
 	return dto.TicketHeaderDTO{
-		ID:              ticket.ID,
-		ProductID:       ticket.ProductID,
-		ProductModuleID: ticket.ProductModuleID,
-		TicketNo:        ticket.TicketNo,
-		Title:           ticket.Title,
-		Description:     ticket.Description,
-		Status:          MapTicketStatusForEnterprise(ticket.Status),
-		Priority:        DeriveTicketPriority(*ticket),
-		Source:          string(ticket.Source),
-		Channel:         ticket.Channel,
-		TicketIntakeDTO: BuildTicketIntakeDTO(ticket),
-		DeviceID:        ticket.DeviceID,
-		ServiceRegion:   ticket.ServiceRegion,
-		ConversationID:  ticket.ConversationID,
-		CreatedAt:       formatEnterpriseTime(ticket.CreatedAt),
-		UpdatedAt:       formatEnterpriseTime(ticket.UpdatedAt),
-		SLADeadline:     formatTicketSLADeadline(*ticket),
-		Category:        ticket.FaultCode,
+		ID:                   ticket.ID,
+		ProductID:            ticket.ProductID,
+		ProductModuleID:      ticket.ProductModuleID,
+		TicketNo:             ticket.TicketNo,
+		Title:                ticket.Title,
+		Description:          ticket.Description,
+		Status:               MapTicketStatusForEnterprise(ticket.Status),
+		Priority:             DeriveTicketPriority(*ticket),
+		Source:               string(ticket.Source),
+		Channel:              ticket.Channel,
+		TicketIntakeDTO:      BuildTicketIntakeDTO(ticket),
+		TicketCaseSummaryDTO: buildTicketCaseSummary(*ticket),
+		DeviceID:             ticket.DeviceID,
+		ServiceRegion:        ticket.ServiceRegion,
+		ConversationID:       ticket.ConversationID,
+		CreatedAt:            formatEnterpriseTime(ticket.CreatedAt),
+		UpdatedAt:            formatEnterpriseTime(ticket.UpdatedAt),
+		SLADeadline:          formatTicketSLADeadline(*ticket),
+		Category:             ticket.FaultCode,
 	}
 }
 
@@ -1234,6 +1303,10 @@ func (s *enterpriseTicketService) buildTimeline(ticket *models.Ticket) []dto.Tic
 		Asc("id"))
 	hasCreatedProgress := false
 	for _, item := range progresses {
+		// Governance reasons are exposed only by the permission-filtered governance endpoint.
+		if item.EventType == "ticket_governance" {
+			continue
+		}
 		actor := ""
 		eventType := item.EventType
 		if eventType == "" {

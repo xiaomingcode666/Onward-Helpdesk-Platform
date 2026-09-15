@@ -74,6 +74,9 @@ func TestReportServiceOverviewCountsCurrentAndLegacyTicketStates(t *testing.T) {
 			Status: status, SLADueAt: &overdue,
 			AuditFields: models.AuditFields{CreatedAt: now.Add(time.Duration(i) * time.Second), UpdatedAt: now},
 		}
+		if status == enums.TicketStatusPendingCustomerConfirm {
+			ticket.ResolvedAt = &now
+		}
 		if err := db.Create(&ticket).Error; err != nil {
 			t.Fatalf("create %s ticket: %v", status, err)
 		}
@@ -99,6 +102,44 @@ func TestReportServiceOverviewCountsCurrentAndLegacyTicketStates(t *testing.T) {
 		switch ticket.Summary {
 		case "pending_customer_confirm", "closed", "cancelled", "done":
 			t.Fatalf("completed ticket leaked into action queue: %+v", ticket)
+		}
+	}
+}
+
+func TestReportServiceOverviewKeepsWaitingAndRestoredCasesInSLAQueue(t *testing.T) {
+	db := setupReportServiceTestDB(t)
+	now := time.Now()
+	overdue := now.Add(-time.Hour)
+	tickets := []models.Ticket{
+		{TicketNo: "CASE-WAITING", CaseStatus: "waiting", Status: enums.TicketStatusWaitingCustomer},
+		{TicketNo: "CASE-RESTORED", CaseStatus: "restored", Status: enums.TicketStatusProcessing, RestoredAt: &now},
+		{TicketNo: "CASE-LEGACY-WAIT", Status: enums.TicketStatusPendingCustomerConfirm},
+		{TicketNo: "CASE-RESOLVED", CaseStatus: "resolved", Status: enums.TicketStatusResolved, ResolvedAt: &now},
+		{TicketNo: "CASE-CONFIRM", CaseStatus: "closure_pending", Status: enums.TicketStatusPendingCustomerConfirm, ResolvedAt: &now},
+		{TicketNo: "CASE-CLOSED", CaseStatus: "closed", Status: enums.TicketStatusProcessing},
+	}
+	for i := range tickets {
+		tickets[i].TenantID = 91
+		tickets[i].SLADueAt = &overdue
+		tickets[i].CreatedAt = now
+	}
+	if err := db.Create(&tickets).Error; err != nil {
+		t.Fatal(err)
+	}
+	foreign := models.Ticket{TenantID: 92, TicketNo: "CASE-FOREIGN", CaseStatus: "waiting", Status: enums.TicketStatusWaitingCustomer, SLADueAt: &overdue}
+	if err := db.Create(&foreign).Error; err != nil {
+		t.Fatal(err)
+	}
+	overview, err := ReportService.GetDashboardOverview(nil, "91")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if overview.SLAAtRisk != 3 || len(overview.QueueTickets) != 3 {
+		t.Fatalf("waiting and restored cases must remain open: risk=%d queue=%+v", overview.SLAAtRisk, overview.QueueTickets)
+	}
+	for _, ticket := range overview.QueueTickets {
+		if ticket.TicketNo != "CASE-WAITING" && ticket.TicketNo != "CASE-RESTORED" && ticket.TicketNo != "CASE-LEGACY-WAIT" {
+			t.Fatalf("resolved, closed or foreign case leaked into work queue: %+v", ticket)
 		}
 	}
 }

@@ -119,7 +119,11 @@ import {
   agentConversationSelectors,
   useAgentConversationsStore,
 } from "@/lib/stores/agent-conversations"
-import { isProcessingTicketStatus, isTerminalTicketStatus } from "@/lib/ticket-lifecycle"
+import { displayTicketStatus, isCaseStatus, isProcessingTicketStatus, isTerminalTicketStatus } from "@/lib/ticket-lifecycle"
+import { caseLabel, caseStatusLabel, localizeCaseTimelineContent } from "@/lib/ticket-case-labels"
+import { TicketCaseLifecycle } from "@/app/enterprise/tickets/_components/ticket-case-lifecycle"
+import { TicketClassificationFields, TicketGovernancePanel } from "@/app/enterprise/tickets/_components/ticket-governance"
+import { governanceLabel, type CaseType } from "@/lib/ticket-governance"
 import { sortWorkbenchQueueItems } from "@/lib/ticket-workbench-queue"
 import {
   findWorkbenchRouteItem,
@@ -350,6 +354,7 @@ function statusMeta(status: number) {
 }
 
 function ticketStatusLabel(status: string) {
+  if (isCaseStatus(status)) return caseStatusLabel(status)
   const map: Record<string, string> = {
     draft: ee("ticketWorkbench.text014"),
     pending: ee("ticketWorkbench.text015"),
@@ -408,10 +413,10 @@ function canManageTicketDispatchFromSession(session: AuthSession | null) {
 
 function ticketPriorityLabel(priority: string) {
   const map: Record<string, string> = {
-    critical: "P0",
-    high: "P1",
-    medium: "P2",
-    low: "P3",
+    critical: "P1",
+    high: "P2",
+    medium: "P3",
+    low: "P4",
   }
   return map[priority] ?? priority
 }
@@ -462,13 +467,13 @@ function statusToneClassName(tone: Tone) {
 }
 
 function priorityClassName(priority: string) {
-  if (priority === "critical" || priority === "P0") {
+  if (priority === "critical" || priority === "P1") {
     return "border-destructive/20 bg-destructive/10 text-destructive"
   }
-  if (priority === "high" || priority === "P1") {
+  if (priority === "high" || priority === "P2") {
     return "border-orange-200 bg-orange-50 text-orange-700"
   }
-  if (priority === "medium" || priority === "P2") {
+  if (priority === "medium" || priority === "P3") {
     return "border-primary/20 bg-primary/10 text-primary"
   }
   return "border-border bg-muted text-muted-foreground"
@@ -700,26 +705,32 @@ function buildTicketDraft(item: WorkbenchQueueItem | null) {
     return {
       title: "",
       description: "",
+      caseType: "user_case" as CaseType,
+      priorityOverride: "",
+      priorityReason: "",
       priority: "high" as TicketPriority,
     }
   }
   return {
+    caseType: "user_case" as CaseType,
+    priorityOverride: "",
+    priorityReason: "",
     title: ee("ticketWorkbench.text077", { value0: item.customer }),
     description: item.summary || ee("ticketWorkbench.text078", { value0: item.title, value1: item.source }),
     priority:
-      item.priorityLabel === "P0"
+      item.priorityLabel === "P1"
         ? ("critical" as TicketPriority)
-        : item.priorityLabel === "P1"
+        : item.priorityLabel === "P2"
           ? ("high" as TicketPriority)
           : ("medium" as TicketPriority),
   }
 }
 
 function conversationPriorityLabel(priority: number) {
-  if (priority >= 3) return "P0"
-  if (priority >= 2) return "P1"
-  if (priority >= 1) return "P2"
-  return "P3"
+  if (priority >= 3) return "P1"
+  if (priority >= 2) return "P2"
+  if (priority >= 1) return "P3"
+  return "P4"
 }
 
 function toAgentConversation(conversation: EnterpriseWorkbenchConversation): AgentConversation {
@@ -770,7 +781,7 @@ function buildConversationQueueItem(
     priorityLabel: linkedTicket
       ? ticketPriorityLabel(linkedTicket.priority)
       : conversationPriorityLabel(conversation.priority),
-    statusLabel: linkedTicket ? ticketStatusLabel(linkedTicket.status) : meta.label,
+    statusLabel: linkedTicket ? ticketStatusLabel(displayTicketStatus(linkedTicket)) : meta.label,
     statusTone: linkedTicketTone,
     updatedLabel: linkedTicket
       ? ticketAgeLabel(linkedTicket.created_at)
@@ -834,7 +845,7 @@ function buildTicketQueueItem(ticket: TicketListItem): WorkbenchQueueItem {
     summary: `${ticket.product_name || ee("ticketWorkbench.text087")} / ${ticket.device_no || ee("ticketWorkbench.text088")} · ${ticketSourceLabel(ticket.source || "")}`,
     ticketNo: ticket.ticket_no,
     priorityLabel: ticketPriorityLabel(ticket.priority),
-    statusLabel: ticketStatusLabel(ticket.status),
+    statusLabel: ticketStatusLabel(displayTicketStatus(ticket)),
     statusTone: tone,
     updatedLabel: ticketAgeLabel(ticket.created_at),
     updatedAt: ticket.updated_at || ticket.created_at,
@@ -857,6 +868,12 @@ function buildTicketListItemFromAggregate(aggregate: TicketAggregateDTO): Ticket
     title: ticket.title,
     priority: ticket.priority,
     status: ticket.status,
+    case_status: ticket.case_status,
+    case_status_recorded: ticket.case_status_recorded,
+    case_owner_id: ticket.case_owner_id,
+    case_owner_name: ticket.case_owner_name,
+    acknowledged_at: ticket.acknowledged_at,
+    restored_at: ticket.restored_at,
     source: ticket.source,
     channel: ticket.channel,
     conversation_id: ticket.conversation_id,
@@ -1701,6 +1718,7 @@ function EnterpriseTicketWorkbench() {
           )}
         >
           <WorkbenchContextPane
+            key={selectedItem?.key ?? "empty"}
             item={selectedItem}
             conversation={selectedConversation}
             canAssignTicket={canAssignTicket}
@@ -2432,8 +2450,8 @@ function ConversationChatPane({
               <HandshakeIcon className="size-4" />
             )}
             {acceptingTicket
-              ? canTakeOverTicket ? ee("ticketWorkbench.text144") : ee("ticketWorkbench.text145")
-              : canTakeOverTicket ? item.ticket?.assignee_id ? ee("ticketWorkbench.text314") : ee("ticketWorkbench.text315") : item.ticket?.status === "reopened" ? ee("ticketWorkbench.text147") : ee("ticketWorkbench.text148")}
+              ? caseLabel("engineerAccepting")
+              : caseLabel(canTakeOverTicket ? "engineerTakeover" : "engineerAccept")}
           </RailopsButton>
         ) : null}
       </div>
@@ -2799,7 +2817,8 @@ function WorkbenchContextPane({
 }) {
   const [linkedTickets, setLinkedTickets] = useState<TicketListItem[]>([])
   const [contextTicketId, setContextTicketId] = useState<number | null>(null)
-  const [aggregate, setAggregate] = useState<TicketAggregateDTO | null>(null)
+  const [loadedAggregate, setAggregate] = useState<TicketAggregateDTO | null>(null)
+  const aggregate = loadedAggregate?.ticket.id === contextTicketId ? loadedAggregate : null
   const [loadingTickets, setLoadingTickets] = useState(false)
   const [loadingAggregate, setLoadingAggregate] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -2915,7 +2934,7 @@ function WorkbenchContextPane({
         if (cancelled) {
           return
         }
-        if (res.success && res.data) {
+        if (res.success && res.data && res.data.ticket.id === contextTicketId) {
           setAggregate(res.data)
         } else {
           setAggregate(null)
@@ -2949,7 +2968,7 @@ function WorkbenchContextPane({
       refreshInFlight = true
       try {
         const res = await fetchTicketAggregate(contextTicketId)
-        if (!cancelled && res.success && res.data) {
+        if (!cancelled && res.success && res.data && res.data.ticket.id === contextTicketId) {
           setAggregate(res.data)
         }
       } finally {
@@ -3183,6 +3202,7 @@ function WorkbenchContextPane({
       toast.error(ee("ticketWorkbench.text185"))
       return
     }
+    if (draft.priorityOverride && !draft.priorityReason.trim()) { toast.error(governanceLabel("reasonRequired")); return }
     setCreating(true)
     try {
       const res = await createTicket({
@@ -3194,6 +3214,9 @@ function WorkbenchContextPane({
         title,
         description,
         priority: draft.priority,
+        case_type: draft.caseType,
+        priority_level: draft.priorityOverride || undefined,
+        priority_reason: draft.priorityOverride ? draft.priorityReason.trim() : undefined,
       })
       if (!res.success || !res.data) {
         toast.error(res.error?.message || ee("ticketWorkbench.text186"))
@@ -3525,6 +3548,8 @@ function WorkbenchContextPane({
         <div className="min-h-full bg-card">
         {contextTab === "summary" ? (
           <>
+        {aggregate ? <div className="p-3"><TicketCaseLifecycle key={aggregate.ticket.id} aggregate={aggregate} onSaved={async (value) => { setAggregate(value); await onTicketUpdated() }} /></div> : null}
+        {aggregate ? <div className="p-3"><TicketGovernancePanel key={`governance-${aggregate.ticket.id}`} aggregate={aggregate} onSaved={async (value) => { setAggregate(value); await onTicketUpdated() }} /></div> : null}
         <ContextSection title={ee("ticketWorkbench.text210")}>
           <p className="text-xs leading-5 text-foreground">{hasDeviceConcept ? detail.serviceSummary : item?.title || detail.serviceSummary}</p>
           {contextTicket ? (
@@ -3656,24 +3681,7 @@ function WorkbenchContextPane({
                 className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
                 placeholder={ee("ticketWorkbench.text255")}
               />
-              <SelectField
-                style={{ marginBottom: 0 }}
-                selectProps={{
-                  value: draft.priority,
-                  onChange: (value) =>
-                    setDraft((current) => ({
-                      ...current,
-                      priority: (value as string) as TicketPriority,
-                    })),
-                  options: [
-                    { value: "critical", label: ee("ticketWorkbench.text026") },
-                    { value: "high", label: ee("ticketWorkbench.text027") },
-                    { value: "medium", label: ee("ticketWorkbench.text028") },
-                    { value: "low", label: ee("ticketWorkbench.text029") },
-                  ],
-                  style: { width: "100%" },
-                }}
-              />
+              <TicketClassificationFields priorityOverride={draft.priorityOverride} priorityReason={draft.priorityReason} onPriorityChange={priorityOverride => setDraft(current => ({ ...current, priorityOverride }))} onPriorityReasonChange={priorityReason => setDraft(current => ({ ...current, priorityReason }))} value={draft.caseType} disabled={creating} onChange={value => setDraft(current => ({ ...current, caseType: value }))} />
               <Input.TextArea
                 aria-label={ee("ticketWorkbench.text256")}
                 value={draft.description}
@@ -3987,8 +3995,8 @@ function WorkbenchContextPane({
                     <HandshakeIcon className="size-4" />
                   )}
 	                  {acceptingTicket
-	                    ? contextCanTakeOverTicket ? ee("ticketWorkbench.text144") : ee("ticketWorkbench.text145")
-	                    : contextCanTakeOverTicket ? contextAssigneeId > 0 ? ee("ticketWorkbench.text314") : ee("ticketWorkbench.text315") : contextTicket.status === "reopened" ? ee("ticketWorkbench.text147") : ee("ticketWorkbench.text148")}
+	                    ? caseLabel("engineerAccepting")
+	                    : caseLabel(contextCanTakeOverTicket ? "engineerTakeover" : "engineerAccept")}
 	                </RailopsButton>
 	              ) : null}
               <RailopsButton
@@ -4089,12 +4097,12 @@ function WorkbenchContextPane({
                 onClick={() => setRecordOpen(true)}
               >
                 <FileTextIcon className="size-4" />{ee("ticketWorkbench.text259")}</RailopsButton>
-              <RailopsButton
+              {aggregate && !aggregate.case_lifecycle ? <RailopsButton
                 className="col-span-2 gap-2 border-destructive/20 text-destructive hover:bg-destructive/10 hover:text-destructive"
                 onClick={() => setCancelOpen(true)}
                 disabled={aggregate?.actions.can_cancel === false}
               >
-                <CircleXIcon className="size-4" />{ee("ticketWorkbench.text269")}</RailopsButton>
+                <CircleXIcon className="size-4" />{ee("ticketWorkbench.text269")}</RailopsButton> : null}
             </div>
           )
         ) : null}
@@ -4645,9 +4653,9 @@ function localizeEnterpriseGeneratedLifecycleCopy(value: string, hasDeviceConcep
   const supplierInvited = trimmed.match(/^(?:已邀请供应商协作|升级供应商协作)[:：]\s*(.+?)(?:\s*[·/]\s*(.+))?$/)
   if (supplierInvited) {
     const company = supplierInvited[1].trim()
-    const module = supplierInvited[2]?.trim()
-    return module
-      ? cee("supplierInvitedDescriptionWithModule", { company, module })
+    const moduleName = supplierInvited[2]?.trim()
+    return moduleName
+      ? cee("supplierInvitedDescriptionWithModule", { company, module: moduleName })
       : cee("supplierInvitedDescriptionWithCompany", { company })
   }
 
@@ -4870,6 +4878,8 @@ function buildAggregateFlow(steps: TicketFlowStepDTO[] | undefined): WorkbenchTi
 }
 
 function timelineContent(content: string, hasDeviceConcept = true) {
+  const caseContent = localizeCaseTimelineContent(content)
+  if (caseContent !== content) return caseContent
   const localized = localizeEnterpriseGeneratedLifecycleCopy(content, hasDeviceConcept)
   if (localized !== content) return localized
 

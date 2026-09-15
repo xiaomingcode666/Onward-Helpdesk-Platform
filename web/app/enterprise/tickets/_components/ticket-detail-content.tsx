@@ -17,7 +17,8 @@ import { useState, type ReactNode } from "react"
 
 import { StatusTag, UnderlineTabs, type RailopsTabItem } from "@railops/ui"
 import type { TicketAggregateDTO, TicketFlowStepDTO } from "@/lib/api/types"
-import { isProcessingTicketStatus, isTerminalTicketStatus } from "@/lib/ticket-lifecycle"
+import { displayTicketStatus, isCaseStatus, isProcessingTicketStatus, isTerminalTicketStatus } from "@/lib/ticket-lifecycle"
+import { caseLabel, caseStatusLabel, localizeCaseTimelineContent } from "@/lib/ticket-case-labels"
 import { cn, formatDateTime } from "@/lib/utils"
 import { intakeLabel } from "./ticket-intake"
 function ee(key: string, values?: Record<string, unknown>) {
@@ -61,6 +62,7 @@ function buildDetailTabs(): RailopsTabItem[] {
 }
 
 export function ticketStatusLabel(status: string) {
+  if (isCaseStatus(status)) return caseStatusLabel(status)
   const map: Record<string, string> = {
     draft: ee("ticketDetail.text005"),
     pending_acceptance: ee("ticketDetail.text006"),
@@ -213,6 +215,8 @@ function progressStateClass(status: string) {
 const CHINESE_DURATION_PATTERN = /^\s*(?:(\d+)\s*分)?\s*(?:(\d+)\s*秒)?\s*$/
 
 function timelineContent(content: string, showDeviceContext = true) {
+  const caseContent = localizeCaseTimelineContent(content)
+  if (caseContent !== content) return caseContent
   const localized = localizeGeneratedTimelineContent(content, showDeviceContext)
   if (localized !== content) return localized
 
@@ -455,9 +459,10 @@ export function EnterpriseTicketDetailContent({
       [intakeLabel("received_at"), ticket.received_at ? formatDateTime(ticket.received_at) : "-"],
       [ticket.context_status === "context_incomplete" ? intakeLabel("incomplete") : intakeLabel("complete"), (ticket.missing_context ?? []).map(intakeLabel).join(", ") || "-"],
     ] as Array<[string, string]> : []),
-    [ee("ticketDetail.text055"), assignment.assignee_name || ee("ticketDetail.text056")],
+    [caseLabel("owner"), ticket.case_owner_name || caseLabel("unowned")],
+    [caseLabel("engineer"), assignment.assignee_name || ee("ticketDetail.text056")],
     ["SLA", slaLabel(ticket.sla_deadline, ticket.status)],
-    [ee("ticketDetail.text057"), ticketStatusLabel(ticket.status)],
+    [ee("ticketDetail.text057"), ticketStatusLabel(displayTicketStatus(ticket))],
   ]
 
   const assignmentSection = (
@@ -472,7 +477,7 @@ export function EnterpriseTicketDetailContent({
           meta={assignment.dispatch_attempts > 0 ? ee("ticketDetail.text061", { value0: assignment.dispatch_attempts }) : undefined}
         />
         <RecordRow
-          label={ee("ticketDetail.text055")}
+          label={caseLabel("engineer")}
           value={assignment.assignee_name || ee("ticketDetail.text056")}
           meta={
             assignment.accepted_at
@@ -632,7 +637,7 @@ export function EnterpriseTicketDetailContent({
               tone="neutral"
               className={cn("h-6 px-2 text-xs", ticketStatusClassName(ticket.status))}
             >
-              {ticketStatusLabel(ticket.status)}
+              {ticketStatusLabel(displayTicketStatus(ticket))}
             </StatusTag>
           </div>
         </div>

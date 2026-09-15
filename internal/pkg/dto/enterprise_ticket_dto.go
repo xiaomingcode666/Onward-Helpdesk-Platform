@@ -11,6 +11,7 @@ type EnterpriseListResponse[T any] struct {
 
 type EnterpriseTicketListItemDTO struct {
 	TicketIntakeDTO
+	TicketCaseSummaryDTO
 	ID                        int64                       `json:"id"`
 	TicketNo                  string                      `json:"ticket_no"`
 	Title                     string                      `json:"title"`
@@ -66,6 +67,7 @@ type EnterpriseTicketInvitationDraftDTO struct {
 
 type TicketHeaderDTO struct {
 	TicketIntakeDTO
+	TicketCaseSummaryDTO
 	DeviceID        int64  `json:"device_id"`
 	ServiceRegion   string `json:"service_region"`
 	ID              int64  `json:"id"`
@@ -230,6 +232,7 @@ type TicketActionPermissionsDTO struct {
 
 type TicketAggregateDTO struct {
 	Ticket               TicketHeaderDTO              `json:"ticket"`
+	CaseLifecycle        *TicketCaseLifecycleDTO      `json:"case_lifecycle"`
 	Customer             CustomerSummaryDTO           `json:"customer"`
 	DeviceContext        DeviceContextSnapshotDTO     `json:"device_context"`
 	ConversationSnapshot *ConversationSnapshotDTO     `json:"conversation_snapshot,omitempty"`

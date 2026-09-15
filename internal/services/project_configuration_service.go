@@ -193,7 +193,7 @@ func saveProjectConfigurationDraftDB(sourceDB *gorm.DB, tenantID int64, input Pr
 	if err := projectconfig.ValidateDraftShape(input.Document); err != nil {
 		return nil, errorsx.InvalidParam(err.Error())
 	}
-	if input.Document.Runtime != nil {
+	if input.Document.Runtime != nil || len(input.Document.TicketWorkflows) > 0 {
 		if err := RequireProjectRuntimeOperator(op); err != nil {
 			return nil, err
 		}
@@ -216,6 +216,9 @@ func saveProjectConfigurationDraftDB(sourceDB *gorm.DB, tenantID int64, input Pr
 	err = sourceDB.Transaction(func(db *gorm.DB) error {
 		tenant, s, err := lockProjectScope(db, tenantID)
 		if err != nil {
+			return err
+		}
+		if err := requireExistingWorkflowAdministratorDB(db, s.ActiveVersionID, op); err != nil {
 			return err
 		}
 		var existing models.ProjectConfigurationVersion
@@ -284,6 +287,9 @@ func applyProjectConfigurationDB(sourceDB *gorm.DB, tenantID, versionID int64, o
 		if err != nil {
 			return err
 		}
+		if err := requireExistingWorkflowAdministratorDB(db, s.ActiveVersionID, op); err != nil {
+			return err
+		}
 		var v models.ProjectConfigurationVersion
 		if err := db.Where("id = ? AND tenant_id = ? AND environment = ?", versionID, tenantID, s.Environment).First(&v).Error; err != nil {
 			return errorsx.InvalidParam("配置版本不存在或不属于当前公司及环境")
@@ -292,7 +298,7 @@ func applyProjectConfigurationDB(sourceDB *gorm.DB, tenantID, versionID int64, o
 		if err != nil {
 			return err
 		}
-		if result.Document.Runtime != nil {
+		if result.Document.Runtime != nil || len(result.Document.TicketWorkflows) > 0 {
 			if err := RequireProjectRuntimeOperator(op); err != nil {
 				return err
 			}

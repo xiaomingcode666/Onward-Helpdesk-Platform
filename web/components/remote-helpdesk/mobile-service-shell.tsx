@@ -1,5 +1,7 @@
 "use client"
 
+import { displayTicketStatus, isCaseStatus } from "@/lib/ticket-lifecycle"
+
 import {
   VideoIcon,
   ClipboardListIcon,
@@ -134,6 +136,7 @@ function formatShortDate(value?: string) {
 }
 
 function ticketStatusLabel(status: string, t: I18nT) {
+  if (isCaseStatus(status)) return t(`ticketCase.status.${status}`)
   const labels: Record<string, string> = {
     pending_acceptance: t("portalExtract.customerMobile.status.pendingAcceptance"),
     accepted: t("portalExtract.customerMobile.status.accepted"),
@@ -534,8 +537,8 @@ function ChatPanel({
 								{renderMobileTicketTitle(featuredTicket.title, t)}
 							</span>
 					</span>
-					<Badge variant={ticketStatusVariant(featuredTicket.status)}>
-						{ticketStatusLabel(featuredTicket.status, t)}
+					<Badge variant={ticketStatusVariant(displayTicketStatus(featuredTicket))}>
+						{ticketStatusLabel(displayTicketStatus(featuredTicket), t)}
 					</Badge>
 				</button>
           ) : null}
@@ -716,8 +719,8 @@ function TicketsPanel({
                   {ticket.ticketNo}
                 </p>
               </div>
-              <Badge variant={ticketStatusVariant(ticket.status)}>
-                {ticketStatusLabel(ticket.status, t)}
+              <Badge variant={ticketStatusVariant(displayTicketStatus(ticket))}>
+                {ticketStatusLabel(displayTicketStatus(ticket), t)}
               </Badge>
             </div>
             <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
@@ -852,8 +855,8 @@ function TicketDetailPanel({
             {ticket.ticketNo}
           </p>
         </div>
-        <Badge variant={ticketStatusVariant(ticket.status)}>
-          {ticketStatusLabel(ticket.status, t)}
+        <Badge variant={ticketStatusVariant(displayTicketStatus(ticket))}>
+          {ticketStatusLabel(displayTicketStatus(ticket), t)}
         </Badge>
       </div>
       <div className="mt-4 space-y-3 text-sm">

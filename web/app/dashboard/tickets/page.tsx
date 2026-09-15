@@ -34,6 +34,7 @@ import { formatDateTime } from "@/lib/utils"
 import { EditDialog } from "./_components/edit"
 import { TicketDetailDialog } from "./_components/ticket-detail-dialog"
 import { TicketStatusBadge } from "./_components/ticket-status-badge"
+import { displayTicketStatus } from "@/lib/ticket-lifecycle"
 
 type QuickViewKey =
   | "all"
@@ -284,7 +285,7 @@ export default function TicketsPage() {
         key: "status",
         label: t("ticket.columnStatus"),
         className: "w-28",
-        render: (ticket) => <TicketStatusBadge status={ticket.status} />,
+        render: (ticket) => <TicketStatusBadge status={displayTicketStatus(ticket)} />,
       },
       {
         key: "assignee",

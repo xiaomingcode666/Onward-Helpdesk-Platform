@@ -1,6 +1,7 @@
 package services
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/eventbus"
 	"remotehelpdesk/internal/pkg/i18nx"
+	"remotehelpdesk/internal/pkg/ticketpolicy"
 	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/repositories"
 
@@ -30,6 +32,17 @@ import (
 )
 
 var TicketService = newTicketService()
+
+var ErrTicketIdempotencyConflict = errors.New("same idempotency key was used with a different payload")
+
+func ticketCreatePayloadHash(req request.CreateTicketRequest, tenantID int64) string {
+	b, _ := json.Marshal(struct {
+		TenantID int64
+		Request  request.CreateTicketRequest
+	}{tenantID, req})
+	sum := sha256.Sum256(b)
+	return fmt.Sprintf("%x", sum[:])
+}
 
 var conversationTicketFaultCodePattern = regexp.MustCompile(`(?i)\b(?:[A-Z][A-Z0-9]{0,15}(?:-[A-Z0-9]{1,16})+|[A-Z]{1,8}[0-9]{2,8})\b`)
 var conversationTicketLabeledFaultCodePattern = regexp.MustCompile(`(?i)(?:故障码|错误码|报警码|告警码|报错|报码|报)\s*[:：#]?\s*([A-Z][A-Z0-9]{0,15}(?:-[A-Z0-9]{1,16})+|[A-Z]{1,8}[0-9]{2,8})\b`)
@@ -73,11 +86,14 @@ type ticketService struct {
 }
 
 type preparedTicketCreate struct {
-	ticket              *models.Ticket
-	tagIDs              []int64
-	tenantID            int64
-	idempotencyKey      *string
-	idempotencyKeyValue string
+	initialPriorityChange map[string]any
+	initialPriorityReason string
+	ticket                *models.Ticket
+	tagIDs                []int64
+	tenantID              int64
+	idempotencyKey        *string
+	idempotencyKeyValue   string
+	payloadHash           string
 }
 
 func normalizeTicketStaleHours(staleHours int) int {
@@ -282,12 +298,16 @@ func (s *ticketService) prepareTicketCreate(db *gorm.DB, req request.CreateTicke
 		}
 	}
 	idempotencyKeyValue := strings.TrimSpace(req.IdempotencyKey)
+	payloadHash := ticketCreatePayloadHash(req, tenantID)
 	var idempotencyKey *string
 	if idempotencyKeyValue != "" {
 		idempotencyKey = &idempotencyKeyValue
 		if existing := repositories.TicketRepository.FindOne(db, sqls.NewCnd().
 			Eq("tenant_id", tenantID).
 			Eq("idempotency_key", idempotencyKeyValue)); existing != nil {
+			if existing.IdempotencyPayloadHash != "" && existing.IdempotencyPayloadHash != payloadHash {
+				return nil, nil, ErrTicketIdempotencyConflict
+			}
 			return nil, existing, nil
 		}
 	}
@@ -345,6 +365,7 @@ func (s *ticketService) prepareTicketCreate(db *gorm.DB, req request.CreateTicke
 	}
 	ticket := &models.Ticket{
 		IdempotencyKey:              idempotencyKey,
+		IdempotencyPayloadHash:      payloadHash,
 		Title:                       title,
 		Description:                 description,
 		Source:                      source,
@@ -353,6 +374,7 @@ func (s *ticketService) prepareTicketCreate(db *gorm.DB, req request.CreateTicke
 		CustomerRegistrationGrantID: req.CustomerRegistrationGrantID,
 		ConversationID:              req.ConversationID,
 		Status:                      initialStatus,
+		CaseStatus:                  "new",
 		PriorityCode:                priorityCode,
 		CurrentTeamID:               currentTeamID,
 		CurrentAssigneeID:           req.CurrentAssigneeID,
@@ -368,7 +390,6 @@ func (s *ticketService) prepareTicketCreate(db *gorm.DB, req request.CreateTicke
 		SymptomSummary:              strings.TrimSpace(req.SymptomSummary),
 		DiagnosisSummary:            strings.TrimSpace(req.DiagnosisSummary),
 		SLADueAt:                    req.SLADueAt,
-		ResolvedAt:                  req.ResolvedAt,
 		AuditFields:                 utils.BuildAuditFields(operator),
 	}
 	if err := prepareTicketIntakeDB(db, ticket, req.TicketIntakeInput); err != nil {
@@ -376,6 +397,35 @@ func (s *ticketService) prepareTicketCreate(db *gorm.DB, req request.CreateTicke
 	}
 	if err := prepareProjectRuntimeTicketDB(db, ticket); err != nil {
 		return nil, nil, err
+	}
+	if err := initializeTicketGovernanceDB(db, ticket, req.CaseType, req.PriorityFacts); err != nil {
+		return nil, nil, err
+	}
+	var initialPriorityChange map[string]any
+	initialPriorityReason := strings.TrimSpace(req.PriorityReason)
+	if req.PriorityLevel != "" {
+		if !canManageTicketGovernance(ticket, operator) {
+			return nil, nil, errorsx.Forbidden("新建时修改紧急程度需要工单管理权限")
+		}
+		if !ticketpolicy.ValidPriority(req.PriorityLevel) || initialPriorityReason == "" || len([]rune(initialPriorityReason)) > 2000 {
+			return nil, nil, errorsx.InvalidParam("请选择 P1–P4 并填写修改原因（最多 2000 字）")
+		}
+		before := ticket.TicketGovernance
+		previousDeadline := ticket.SLADueAt
+		ticket.PriorityLevel = req.PriorityLevel
+		ticket.PriorityCode = ticketpolicy.LegacyCode(req.PriorityLevel)
+		ticket.PriorityOverridden = true
+		ticket.PriorityExplanation = "人工调整"
+		ticket.GovernanceRevision++
+		if err := refreshGovernanceDeadlineDB(db, ticket); err != nil {
+			return nil, nil, err
+		}
+		initialPriorityChange = map[string]any{"before": before, "after": ticket.TicketGovernance, "previous_sla_deadline": previousDeadline, "sla_deadline": ticket.SLADueAt}
+	}
+	ticket.CreateParentTicketID = req.ParentTicketID
+	ticket.CreateRelationReason = strings.TrimSpace(req.RelationReason)
+	if req.ParentTicketID < 0 || (req.ParentTicketID > 0 && (ticket.CreateRelationReason == "" || len([]rune(ticket.CreateRelationReason)) > 2000)) {
+		return nil, nil, errorsx.InvalidParam("创建子工单需要说明关联原因")
 	}
 	if ticket.CurrentAssigneeID > 0 && ticket.Status != enums.TicketStatusDraft {
 		assignedAt := ticket.CreatedAt
@@ -387,11 +437,14 @@ func (s *ticketService) prepareTicketCreate(db *gorm.DB, req request.CreateTicke
 		ticket.AcceptDeadlineAt = &deadline
 	}
 	return &preparedTicketCreate{
-		ticket:              ticket,
-		tagIDs:              tagIDs,
-		tenantID:            tenantID,
-		idempotencyKey:      idempotencyKey,
-		idempotencyKeyValue: idempotencyKeyValue,
+		initialPriorityChange: initialPriorityChange,
+		initialPriorityReason: initialPriorityReason,
+		ticket:                ticket,
+		tagIDs:                tagIDs,
+		tenantID:              tenantID,
+		idempotencyKey:        idempotencyKey,
+		idempotencyKeyValue:   idempotencyKeyValue,
+		payloadHash:           payloadHash,
 	}, nil, nil
 }
 
@@ -409,6 +462,17 @@ func (s *ticketService) createTicketPreparedTx(ctx *sqls.TxContext, prepared *pr
 	}
 	if err := repositories.TicketRepository.Create(ctx.Tx, ticket); err != nil {
 		return err
+	}
+	if ticket.CreateParentTicketID > 0 {
+		if !canManageTicketGovernance(ticket, operator) {
+			return errorsx.Forbidden("创建关联子工单需要工单管理权限")
+		}
+		if err := repositories.LockTicketGraphDB(ctx.Tx, ticket.TenantID); err != nil {
+			return err
+		}
+		if err := mutateTicketRelationDB(ctx.Tx, ticket, TicketGovernanceCommand{Action: "link", RelationKind: "child_of", TargetID: ticket.CreateParentTicketID, Reason: ticket.CreateRelationReason}, operator); err != nil {
+			return err
+		}
 	}
 	if err := TicketTagService.ReplaceTicketTags(ctx.Tx, ticket.ID, prepared.tagIDs, operator); err != nil {
 		return err
@@ -437,8 +501,23 @@ func (s *ticketService) createTicketPreparedTx(ctx *sqls.TxContext, prepared *pr
 		}
 		createdProgress.MetadataJSON = string(metadata)
 	}
+	creationMetadata := map[string]any{}
+	if err := json.Unmarshal([]byte(createdProgress.MetadataJSON), &creationMetadata); err != nil {
+		return err
+	}
+	creationMetadata["governance"] = map[string]any{"action": "created", "after": ticket.TicketGovernance, "sla_deadline": ticket.SLADueAt}
+	creationJSON, err := json.Marshal(creationMetadata)
+	if err != nil {
+		return err
+	}
+	createdProgress.MetadataJSON = string(creationJSON)
 	if err := repositories.TicketProgressRepository.Create(ctx.Tx, createdProgress); err != nil {
 		return err
+	}
+	if prepared.initialPriorityChange != nil {
+		if err := recordGovernanceDB(ctx.Tx, ticket, operator, "override", prepared.initialPriorityReason, prepared.initialPriorityChange); err != nil {
+			return err
+		}
 	}
 	if ticket.Status == enums.TicketStatusDraft {
 		return nil
@@ -767,30 +846,31 @@ func (s *ticketService) buildCreateTicketRequestFromConversationDB(db *gorm.DB, 
 		}
 	}
 	return request.CreateTicketRequest{
-		IdempotencyKey:         req.IdempotencyKey,
-		Title:                  title,
-		Description:            description,
-		PriorityCode:           req.PriorityCode,
-		Source:                 string(enums.TicketSourceConversation),
-		Channel:                s.resolveConversationChannelDB(db, conversation),
-		CustomerID:             conversation.CustomerID,
-		ConversationID:         conversation.ID,
-		TagIDs:                 req.TagIDs,
-		CurrentTeamID:          firstTicketPositiveInt64(req.CurrentTeamID, conversation.CurrentTeamID),
-		CurrentAssigneeID:      req.CurrentAssigneeID,
-		TenantID:               tenantID,
-		ProductID:              productID,
-		ProductModelID:         productModelID,
-		ProductModuleID:        productModuleID,
-		DeviceID:               deviceID,
-		ServiceCodeID:          serviceCodeID,
-		CustomerEntrySessionID: customerEntrySessionID,
-		ServiceRegion:          serviceRegion,
-		FaultCode:              faultCode,
-		SymptomSummary:         symptomSummary,
-		DiagnosisSummary:       diagnosisSummary,
-		SLADueAt:               req.SLADueAt,
-		ResolvedAt:             req.ResolvedAt,
+		TicketClassificationInput: req.TicketClassificationInput,
+		IdempotencyKey:            req.IdempotencyKey,
+		Title:                     title,
+		Description:               description,
+		PriorityCode:              req.PriorityCode,
+		Source:                    string(enums.TicketSourceConversation),
+		Channel:                   s.resolveConversationChannelDB(db, conversation),
+		CustomerID:                conversation.CustomerID,
+		ConversationID:            conversation.ID,
+		TagIDs:                    req.TagIDs,
+		CurrentTeamID:             firstTicketPositiveInt64(req.CurrentTeamID, conversation.CurrentTeamID),
+		CurrentAssigneeID:         req.CurrentAssigneeID,
+		TenantID:                  tenantID,
+		ProductID:                 productID,
+		ProductModelID:            productModelID,
+		ProductModuleID:           productModuleID,
+		DeviceID:                  deviceID,
+		ServiceCodeID:             serviceCodeID,
+		CustomerEntrySessionID:    customerEntrySessionID,
+		ServiceRegion:             serviceRegion,
+		FaultCode:                 faultCode,
+		SymptomSummary:            symptomSummary,
+		DiagnosisSummary:          diagnosisSummary,
+		SLADueAt:                  req.SLADueAt,
+		ResolvedAt:                req.ResolvedAt,
 	}
 }
 
@@ -835,6 +915,13 @@ func conversationTicketCreateLockKey(tenantID, conversationID int64) string {
 func (s *ticketService) findActiveConversationTicket(db *gorm.DB, tenantID, conversationID int64) *models.Ticket {
 	if db == nil || tenantID <= 0 || conversationID <= 0 {
 		return nil
+	}
+	var merged models.Ticket
+	if db.Where("tenant_id = ? AND conversation_id = ? AND merged_into_id > 0", tenantID, conversationID).Order("id DESC").First(&merged).Error == nil {
+		var main models.Ticket
+		if db.Where("tenant_id = ? AND customer_id = ? AND id = ?", tenantID, merged.CustomerID, merged.MergedIntoID).First(&main).Error == nil {
+			return &main
+		}
 	}
 	return repositories.TicketRepository.FindOne(db, sqls.NewCnd().
 		Eq("tenant_id", tenantID).
@@ -961,12 +1048,17 @@ func (s *ticketService) SyncConversationDispatchTx(
 	if tx == nil || conversationID <= 0 {
 		return nil
 	}
-	ticket := repositories.TicketRepository.FindOne(tx, sqls.NewCnd().
-		Eq("conversation_id", conversationID).
-		Where("status NOT IN ?", []enums.TicketStatus{enums.TicketStatusClosed, enums.TicketStatusDone, enums.TicketStatusCancelled}).
-		Desc("id"))
-	if ticket == nil {
-		return nil
+	ticket := &models.Ticket{}
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("conversation_id = ? AND status NOT IN ?", conversationID, []enums.TicketStatus{enums.TicketStatusClosed, enums.TicketStatusDone, enums.TicketStatusCancelled}).
+		Order("id DESC").First(ticket).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	if ticket.CurrentAssigneeID != assigneeID && !canAssignTicketCase(ticket) {
+		return errorsx.InvalidParam("请先重新打开已解决的工单，再改派工程师")
 	}
 	if teamID <= 0 && ticket.ProductID > 0 {
 		if team := ProductSupportOrganizationService.FindProductRepairTeam(tx, ticket.TenantID, ticket.ProductID); team != nil {
@@ -991,10 +1083,10 @@ func (s *ticketService) SyncConversationDispatchTx(
 		"update_user_id":      auditOperatorID(operator),
 		"update_user_name":    auditOperatorName(operator),
 	}
-	if assigneeID > 0 {
+	if assigneeID > 0 && fromUserID != assigneeID {
 		updates["status"] = ticketAssignmentStatus(ticket.Status)
 		addTicketAssignmentTrackingForTicketDB(updates, tx, ticket, now)
-	} else if canAssignTicketStatus(ticket.Status) {
+	} else if assigneeID <= 0 && canAssignTicketStatus(ticket.Status) {
 		updates["status"] = enums.TicketStatusPendingDispatch
 		addTicketDispatchPoolUpdates(updates)
 	}
@@ -1051,6 +1143,18 @@ func (s *ticketService) SyncConversationDispatchTx(
 		return err
 	}
 	return nil
+}
+
+func canAssignTicketCase(ticket *models.Ticket) bool {
+	if ticket == nil || !canAssignTicketStatus(ticket.Status) {
+		return false
+	}
+	switch ticket.CaseStatus {
+	case "resolved", "closure_pending", "closed", "cancelled":
+		return false
+	default:
+		return true
+	}
 }
 
 func firstTicketPositiveInt64(values ...int64) int64 {
@@ -1171,7 +1275,18 @@ func (s *ticketService) UpdateTicket(req request.UpdateTicketRequest, operator *
 	}
 	now := time.Now()
 	return sqls.WithTransaction(func(ctx *sqls.TxContext) error {
-		if err := repositories.TicketRepository.Updates(ctx.Tx, ticket.ID, map[string]any{
+		locked := loadTicketForUpdate(ctx.Tx, ticket.ID)
+		if locked == nil {
+			return errorsx.InvalidParamI18n("error.e0178")
+		}
+		if locked.PriorityLevel != "" {
+			if strings.TrimSpace(req.PriorityCode) != "" && priorityCode != locked.PriorityCode {
+				return errorsx.InvalidParam("请通过等级调整操作填写原因后修改优先级")
+			}
+			priorityCode = locked.PriorityCode
+			slaDueAt = locked.SLADueAt
+		}
+		columns := map[string]any{
 			"title":                     title,
 			"description":               description,
 			"priority_code":             priorityCode,
@@ -1193,7 +1308,13 @@ func (s *ticketService) UpdateTicket(req request.UpdateTicketRequest, operator *
 			"updated_at":                now,
 			"update_user_id":            operator.UserID,
 			"update_user_name":          operator.Username,
-		}); err != nil {
+		}
+		// Lifecycle timestamps belong to the resolution workflow. A stale edit
+		// form must neither fabricate resolution nor overwrite a later reopen.
+		if locked.CaseStatus != "" {
+			delete(columns, "resolved_at")
+		}
+		if err := repositories.TicketRepository.Updates(ctx.Tx, ticket.ID, columns); err != nil {
 			return err
 		}
 		return TicketTagService.ReplaceTicketTags(ctx.Tx, ticket.ID, tagIDs, operator)
@@ -1270,6 +1391,9 @@ func (s *ticketService) ChangeStatus(req request.ChangeTicketStatusRequest, oper
 	if newStatus == enums.TicketStatusCancelled {
 		return TicketLifecycleService.Cancel(ticket.ID, req.Resolution, operator)
 	}
+	if ticket.CaseStatus != "" {
+		return errorsx.InvalidParam("请使用工单主状态操作，不能直接指定内部处理状态")
+	}
 	// 校验合法状态流转
 	if !enums.IsValidTicketStatusTransition(string(ticket.Status), status) && !enums.IsValidAfterSalesTransition(string(ticket.Status), status) {
 		return errorsx.InvalidParamI18n("error.e0182")
@@ -1285,6 +1409,20 @@ func (s *ticketService) ChangeStatus(req request.ChangeTicketStatusRequest, oper
 
 	now := time.Now()
 	return sqls.WithTransaction(func(ctx *sqls.TxContext) error {
+		locked := loadTicketForUpdate(ctx.Tx, ticket.ID)
+		if locked == nil {
+			return errorsx.InvalidParamI18n("error.e0178")
+		}
+		if locked.Status != ticket.Status {
+			return ErrTicketCaseConflict
+		}
+		if locked.CaseStatus != "" {
+			return ErrTicketCaseConflict
+		}
+		if err := requireTicketMutationAccess(locked, operator); err != nil {
+			return err
+		}
+		ticket = locked
 		updates := map[string]any{
 			"status":           newStatus,
 			"updated_at":       now,
@@ -1323,6 +1461,9 @@ func (s *ticketService) Transition(req request.TransitionTicketRequest, operator
 	if ticket == nil {
 		return nil, errorsx.InvalidParamI18n("error.e0178")
 	}
+	if ticket.CaseStatus != "" {
+		return nil, errorsx.InvalidParam("请使用标准工单处理操作，不能直接指定内部处理状态")
+	}
 	if err := requireTicketTenantAccess(ticket, operator); err != nil {
 		return nil, err
 	}
@@ -1358,6 +1499,16 @@ func (s *ticketService) Transition(req request.TransitionTicketRequest, operator
 		content += "，备注：" + remark
 	}
 	if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
+		locked := loadTicketForUpdate(ctx.Tx, ticket.ID)
+		if locked == nil {
+			return errorsx.InvalidParamI18n("error.e0178")
+		}
+		if locked.Status != ticket.Status || locked.CaseStatus != "" {
+			return ErrTicketCaseConflict
+		}
+		if err := requireTicketMutationAccess(locked, operator); err != nil {
+			return err
+		}
 		if err := repositories.TicketRepository.Updates(ctx.Tx, ticket.ID, updates); err != nil {
 			return err
 		}
@@ -1461,6 +1612,11 @@ func (s *ticketService) CreateRepairRecord(req request.CreateTicketRepairRecordR
 		if err := requireTicketMutationAccess(lockedTicket, operator); err != nil {
 			return err
 		}
+		// Dispatch authority does not reopen a closed or cancelled case. Check
+		// after locking so a concurrent closure cannot be undone by a repair form.
+		if req.MarkResolved && (!canAssignTicketStatus(lockedTicket.Status) || lockedTicket.CaseStatus == "closed" || lockedTicket.CaseStatus == "cancelled") {
+			return errorsx.InvalidParam("请先重新打开工单，再提交新的处理结论；已取消的工单不能继续处理")
+		}
 		if req.MarkResolved && enums.NormalizeTicketStatus(string(lockedTicket.Status)) == enums.TicketStatusResolved {
 			if resolveRepairFaultCode(lockedTicket.FaultCode, req.FaultCode) != strings.TrimSpace(lockedTicket.FaultCode) {
 				return errorsx.InvalidParam("a different repair conclusion has already been submitted for this resolution")
@@ -1476,6 +1632,9 @@ func (s *ticketService) CreateRepairRecord(req request.CreateTicketRepairRecordR
 			return errorsx.InvalidParam("ticket must be accepted before submitting a repair conclusion")
 		}
 		if req.MarkResolved {
+			if err := ensureTicketCaseAcknowledgedDB(ctx.Tx, lockedTicket, operator); err != nil {
+				return err
+			}
 			if err := s.resolveSupplierCollaborationsForRepairConclusionTx(ctx.Tx, lockedTicket, record, operator, now); err != nil {
 				return err
 			}
@@ -1819,6 +1978,7 @@ func (s *ticketService) GetDetail(id int64) (*TicketDetailAggregate, error) {
 		userIDs = append(userIDs, userID)
 	}
 	addUserID(ticket.CurrentAssigneeID)
+	addUserID(ticket.CaseOwnerID)
 	for i := range aggregate.Progresses {
 		addUserID(aggregate.Progresses[i].AuthorID)
 	}
@@ -1885,6 +2045,12 @@ func (s *ticketService) buildTicketListAggregate(db *gorm.DB, list []models.Tick
 			if _, ok := userSeen[item.CurrentAssigneeID]; !ok {
 				userSeen[item.CurrentAssigneeID] = struct{}{}
 				userIDs = append(userIDs, item.CurrentAssigneeID)
+			}
+		}
+		if item.CaseOwnerID > 0 {
+			if _, ok := userSeen[item.CaseOwnerID]; !ok {
+				userSeen[item.CaseOwnerID] = struct{}{}
+				userIDs = append(userIDs, item.CaseOwnerID)
 			}
 		}
 	}
@@ -2243,8 +2409,14 @@ func requireTicketTenantAccess(ticket *models.Ticket, operator *dto.AuthPrincipa
 }
 
 func requireTicketMutationAccess(ticket *models.Ticket, operator *dto.AuthPrincipal) error {
+	if ticket != nil && ticket.MergedIntoID > 0 {
+		return errorsx.InvalidParam("该工单已合并，请在主工单继续处理")
+	}
 	if err := requireTicketTenantAccess(ticket, operator); err != nil {
 		return err
+	}
+	if ticket != nil && operator != nil && ticket.CaseOwnerID > 0 && ticket.CaseOwnerID == operator.UserID {
+		return nil
 	}
 	if operator == nil || operator.IsPlatform() || !operator.HasRole(EnterpriseRoleEngineer) || canManageTicketDispatch(operator) {
 		return nil

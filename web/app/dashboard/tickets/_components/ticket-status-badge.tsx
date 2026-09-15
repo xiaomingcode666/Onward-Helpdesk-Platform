@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge"
 import { useI18n } from "@/i18n/provider"
 import type { TicketStatus } from "@/lib/api/ticket"
+import { isCaseStatus } from "@/lib/ticket-lifecycle"
 
 const statusMap = {
   pending: { labelKey: "ticket.statusPending", className: "border-amber-200 bg-amber-50 text-amber-700" },
@@ -24,7 +25,7 @@ export function TicketStatusBadge({ status }: { status: string }) {
 
   return (
     <Badge variant="outline" className={option?.className ?? "border-border bg-muted text-muted-foreground"}>
-      {option ? t(option.labelKey) : status}
+      {isCaseStatus(status) ? t(`ticketCase.status.${status}`) : option ? t(option.labelKey) : status}
     </Badge>
   )
 }

@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"errors"
 	"remotehelpdesk/internal/pkg/httpx"
 	"strings"
 
@@ -200,6 +201,10 @@ func TicketPostCreate(ctx *gin.Context) {
 	}
 	item, err := services.TicketService.CreateTicket(req, operator)
 	if err != nil {
+		if errors.Is(err, services.ErrTicketIdempotencyConflict) {
+			httpx.WriteHttpStatusJSON(ctx, 409, errorsx.InvalidParam("请求内容与此前相同请求编号不一致"))
+			return
+		}
 		httpx.WriteJSON(ctx, err)
 		return
 	}
@@ -223,6 +228,10 @@ func TicketPostCreate_from_conversation(ctx *gin.Context) {
 	}
 	item, err := services.TicketService.CreateFromConversation(req, operator)
 	if err != nil {
+		if errors.Is(err, services.ErrTicketIdempotencyConflict) {
+			httpx.WriteHttpStatusJSON(ctx, 409, errorsx.InvalidParam("请求内容与此前相同请求编号不一致"))
+			return
+		}
 		httpx.WriteJSON(ctx, err)
 		return
 	}

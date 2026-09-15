@@ -41,6 +41,10 @@ export type TicketProgress = {
 }
 
 export type TicketItem = {
+  case_status?: string
+  case_status_recorded?: boolean
+  case_owner_id?: number
+  case_owner_name?: string
   id: number
   ticketNo: string
   title: string

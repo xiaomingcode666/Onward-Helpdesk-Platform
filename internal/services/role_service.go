@@ -156,11 +156,15 @@ func (s *roleService) UpdateStatus(id int64, status enums.Status, operator *dto.
 	if !slices.Contains(enums.StatusValues, status) {
 		return errorsx.InvalidParamI18n("error.e0254")
 	}
-	if err := s.Updates(id, map[string]any{
-		"status":           status,
-		"update_user_id":   operator.UserID,
-		"update_user_name": operator.Username,
-		"updated_at":       time.Now(),
+	if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
+		return withCaseOwnerLegacyRoleGuardDB(ctx.Tx, id, func() error {
+			return repositories.RoleRepository.Updates(ctx.Tx, id, map[string]any{
+				"status":           status,
+				"update_user_id":   operator.UserID,
+				"update_user_name": operator.Username,
+				"updated_at":       time.Now(),
+			})
+		})
 	}); err != nil {
 		return err
 	}
@@ -178,23 +182,25 @@ func (s *roleService) AssignPermissions(roleID int64, permissionIDs []int64, ope
 
 func (s *roleService) replaceRolePermissions(roleID int64, permissionIDs []int64, operator *dto.AuthPrincipal) error {
 	return sqls.WithTransaction(func(ctx *sqls.TxContext) error {
-		if err := ctx.Tx.Where("role_id = ?", roleID).Delete(&models.RolePermission{}).Error; err != nil {
-			return err
-		}
-		for _, permissionID := range permissionIDs {
-			permission := PermissionService.Get(permissionID)
-			if permission == nil {
-				return errorsx.InvalidParamI18n("error.e0236")
-			}
-			relation := &models.RolePermission{
-				RoleID:       roleID,
-				PermissionID: permissionID,
-				AuditFields:  utils.BuildAuditFields(operator),
-			}
-			if err := ctx.Tx.Create(relation).Error; err != nil {
+		return withCaseOwnerLegacyRoleGuardDB(ctx.Tx, roleID, func() error {
+			if err := ctx.Tx.Where("role_id = ?", roleID).Delete(&models.RolePermission{}).Error; err != nil {
 				return err
 			}
-		}
-		return nil
+			for _, permissionID := range permissionIDs {
+				permission := PermissionService.Get(permissionID)
+				if permission == nil {
+					return errorsx.InvalidParamI18n("error.e0236")
+				}
+				relation := &models.RolePermission{
+					RoleID:       roleID,
+					PermissionID: permissionID,
+					AuditFields:  utils.BuildAuditFields(operator),
+				}
+				if err := ctx.Tx.Create(relation).Error; err != nil {
+					return err
+				}
+			}
+			return nil
+		})
 	})
 }

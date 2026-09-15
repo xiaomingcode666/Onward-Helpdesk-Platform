@@ -382,6 +382,9 @@ func (s *dsarService) deletePersonalDataDB(db *gorm.DB, tenantID, subjectType, s
 		}
 
 		if !s.hasOtherActiveUserContextDB(db, customerUser.UserID, customerUserID) {
+			if err := requireNoActiveCaseOwnershipDB(db, customerUser.UserID); err != nil {
+				return deletedCount, err
+			}
 			anonymizedUsername := fmt.Sprintf("deleted_%d_%s", customerUser.UserID, uuid.NewString()[:8])
 			if err := db.Model(&models.User{}).Where("id = ?", customerUser.UserID).Updates(map[string]any{
 				"username": anonymizedUsername, "nickname": "Deleted account", "avatar": "", "mobile": nil, "email": nil,
@@ -520,6 +523,9 @@ func (s *dsarService) deleteCustomerAccountDataDB(db *gorm.DB, subjectID string)
 	var user models.User
 	if err := db.Where("id = ? AND status = ?", userID, enums.StatusOk).First(&user).Error; err != nil {
 		return 0, errorsx.InvalidParam("customer account subject not found")
+	}
+	if err := requireNoActiveCaseOwnershipDB(db, userID); err != nil {
+		return 0, err
 	}
 
 	now := time.Now()

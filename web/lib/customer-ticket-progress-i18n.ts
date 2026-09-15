@@ -1,4 +1,5 @@
 import type { CustomerPortalTicketProgress } from "@/lib/api/customer-portal-types"
+import { isCaseStatus } from "@/lib/ticket-lifecycle"
 
 type TicketProgressTranslator = (key: string, values?: Record<string, string | number>) => string
 
@@ -10,6 +11,8 @@ export function customerTicketProgressLabel(
   t: TicketProgressTranslator,
   item: CustomerPortalTicketProgress,
 ) {
+  const caseStatus = item.metadata?.case_status
+  if (item.event_type === "case_status_changed" && caseStatus && isCaseStatus(caseStatus)) return t(`ticketCase.status.${caseStatus}`)
   const content = stripTerminalPeriod(item.content)
   if (content.startsWith("取消工单") || content === "工单已取消") {
     return t("customerTickets.progressCancelled")
@@ -49,6 +52,8 @@ export function customerTicketProgressContent(
   item: CustomerPortalTicketProgress,
   options: TicketProgressRenderOptions = {},
 ) {
+  const caseStatus = item.metadata?.case_status
+  if (item.event_type === "case_status_changed" && caseStatus && isCaseStatus(caseStatus)) return t(`ticketCase.progress.${caseStatus}`)
   const rawContent = item.content.trim()
   if (!rawContent) return t("customerTickets.progressUpdated")
 

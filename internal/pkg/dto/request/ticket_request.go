@@ -6,6 +6,7 @@ import (
 )
 
 type CreateTicketRequest struct {
+	dto.TicketClassificationInput
 	dto.TicketIntakeInput
 	IdempotencyKey              string     `json:"idempotencyKey"`
 	Title                       string     `json:"title"`
@@ -35,6 +36,7 @@ type CreateTicketRequest struct {
 }
 
 type CreateTicketFromConversationRequest struct {
+	dto.TicketClassificationInput
 	IdempotencyKey         string     `json:"idempotencyKey"`
 	ConversationID         int64      `json:"conversationId"`
 	Title                  string     `json:"title"`

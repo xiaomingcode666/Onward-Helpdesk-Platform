@@ -24,6 +24,7 @@ type CustomerEntryDeviceDTO struct {
 }
 
 type CustomerEntryTicketDTO struct {
+	TicketCaseSummaryDTO
 	ID             int64                           `json:"id"`
 	ConversationID int64                           `json:"conversationId"`
 	TicketNo       string                          `json:"ticketNo"`

@@ -17,6 +17,7 @@ type TicketProgressResponse struct {
 
 type TicketResponse struct {
 	dto.TicketIntakeDTO
+	dto.TicketCaseSummaryDTO
 	ID                     int64              `json:"id"`
 	TicketNo               string             `json:"ticketNo"`
 	Title                  string             `json:"title"`

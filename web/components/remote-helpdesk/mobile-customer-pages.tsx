@@ -1,5 +1,7 @@
 "use client"
 
+import { displayTicketStatus, isCaseStatus } from "@/lib/ticket-lifecycle"
+
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
@@ -195,7 +197,7 @@ function StatusPill({ status }: { status: string }) {
         pending && "bg-[#e28a28]",
         !active && !pending && "bg-[#9aa3b2]",
       )} />
-      {statusLabel(status, t)}
+      {isCaseStatus(status) ? t(`ticketCase.status.${status}`) : statusLabel(status, t)}
     </span>
   )
 }
@@ -502,7 +504,7 @@ export function MobileCustomerTicketsPage({ navigate }: { navigate: MobileCustom
         <div className="space-y-5 px-4 py-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0"><h2 className="text-lg font-semibold leading-7 text-[#172033]">{selectedTitle}</h2>{hasDeviceConcept ? <p className="mt-1 font-mono text-xs text-[#778195]">{selected.device_no || t("portalExtract.customerMobile.common.noLinkedDevice")}</p> : null}</div>
-            <StatusPill status={selected.status} />
+            <StatusPill status={displayTicketStatus(selected)} />
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-4 border-y border-[#edf0f4] py-4 text-xs">
             {hasDeviceConcept ? <div><dt className="text-[#939dab]">{t("portalExtract.customerMobile.common.product")}</dt><dd className="mt-1 truncate font-medium text-[#303b4d]">{selected.product_name || "--"}</dd></div> : null}
@@ -629,7 +631,7 @@ export function MobileCustomerTicketsPage({ navigate }: { navigate: MobileCustom
       <div className="space-y-2 px-3 pb-4">
         {ticketInitialLoading ? <MobileListLoading label={t("portalExtract.customerMobile.ticket.readingTickets")} rows={5} tone="indigo" toolbar="none" /> : visibleTickets.map((item) => (
             <button key={item.id} type="button" className="min-h-[96px] w-full rounded-lg border border-[#e3e7ed] bg-white px-4 py-3 text-left active:bg-[#f8f9fb]" onClick={() => setSelectedId(item.id)}>
-              <span className="flex items-center justify-between gap-3"><strong className="truncate text-sm font-semibold text-[#172033]">{item.ticket_no}</strong><StatusPill status={item.status} /></span>
+              <span className="flex items-center justify-between gap-3"><strong className="truncate text-sm font-semibold text-[#172033]">{item.ticket_no}</strong><StatusPill status={displayTicketStatus(item)} /></span>
               <span className="mt-1.5 block truncate text-sm text-[#3f4a5d]">{renderMobileTicketTitle(item.title, t)}</span>
               <span className="mt-2 flex items-center justify-between gap-3 text-rhd-2xs text-[#939dab]">{hasDeviceConcept ? <span className="truncate font-mono">{item.device_no || t("portalExtract.customerMobile.common.noLinkedDevice")}</span> : <span />}<span className="shrink-0">{formatDate(item.updated_at, locale)}</span></span>
             </button>

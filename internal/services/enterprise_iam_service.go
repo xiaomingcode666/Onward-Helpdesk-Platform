@@ -20,6 +20,7 @@ import (
 
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var EnterpriseIAMService = &enterpriseIAMService{}
@@ -201,13 +202,21 @@ func (s *enterpriseIAMService) UpdateMember(tenantID, memberID int64, req reques
 	var result EnterpriseIAMMemberInviteResult
 	revokeSessions := false
 	err := sqls.DB().Transaction(func(tx *gorm.DB) error {
+		if err := lockCaseOwnerIAMChangesDB(tx); err != nil {
+			return err
+		}
 		member := repositories.EnterpriseIAMRepository.GetTenantMemberAnyStatus(tx, tenantID, memberID)
 		if member == nil {
 			return errorsx.InvalidParam("enterprise member not found")
 		}
-		user := repositories.UserRepository.Get(tx, member.UserID)
-		if user == nil {
+		var user models.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", member.UserID).First(&user).Error; err != nil {
 			return errorsx.InvalidParam("enterprise member user not found")
+		}
+		if status != nil && *status != enums.StatusOk {
+			if err := requireNoActiveCaseOwnershipDB(tx, user.ID); err != nil {
+				return err
+			}
 		}
 		now := time.Now()
 		userColumns := map[string]any{}
@@ -287,6 +296,9 @@ func (s *enterpriseIAMService) UpdateMember(tenantID, memberID int64, req reques
 		roleCodes := normalizeIAMRoleCodes(req.RoleCodes)
 		if len(roleCodes) > 0 {
 			if err := replaceIAMRoleBindingsDB(tx, tenantID, models.DomainTypeEnterprise, models.SubjectTypeTenantMember, memberID, roleCodes, EnterpriseRoleViewer, operator); err != nil {
+				return err
+			}
+			if err := validateOwnedCasesAfterPermissionChangeDB(tx, tenantID, user.ID); err != nil {
 				return err
 			}
 		} else {
@@ -393,13 +405,13 @@ func (s *enterpriseIAMService) UpdateMember(tenantID, memberID int64, req reques
 		}
 
 		member = repositories.EnterpriseIAMRepository.GetTenantMemberAnyStatus(tx, tenantID, memberID)
-		user = repositories.UserRepository.Get(tx, member.UserID)
+		persistedUser := repositories.UserRepository.Get(tx, member.UserID)
 		department := repositories.EnterpriseIAMRepository.GetDepartment(tx, tenantID, member.DepartmentID)
 		engineer, _ = repositories.EnterpriseIAMRepository.FindEngineerProfileByMemberID(tx, tenantID, memberID)
 		if len(roleCodes) == 0 {
 			roleCodes = []string{EnterpriseRoleViewer}
 		}
-		result = EnterpriseIAMMemberInviteResult{Member: member, User: user, Department: department, Engineer: engineer, Roles: roleCodes}
+		result = EnterpriseIAMMemberInviteResult{Member: member, User: persistedUser, Department: department, Engineer: engineer, Roles: roleCodes}
 		return nil
 	})
 	if err != nil {
@@ -527,6 +539,11 @@ func (s *enterpriseIAMService) UpdateCustomerUser(tenantID, customerUserID int64
 		user := repositories.UserRepository.Get(tx, customerUser.UserID)
 		if user == nil {
 			return errorsx.InvalidParam("customer login account not found")
+		}
+		if status != nil && *status != enums.StatusOk {
+			if err := requireNoActiveCaseOwnershipDB(tx, user.ID); err != nil {
+				return err
+			}
 		}
 		now := time.Now()
 		org := repositories.EnterpriseIAMRepository.GetCustomerOrg(tx, tenantID, customerUser.CustomerOrgID)

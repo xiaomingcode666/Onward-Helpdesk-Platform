@@ -30,7 +30,8 @@ func TestTicketAfterSalesTransitionAllowsDefinedFlowAndRejectsIllegalJumps(t *te
 		t.Fatalf("CreateTicket() error = %v", err)
 	}
 	if err := repositories.TicketRepository.Updates(sqls.DB(), ticket.ID, map[string]any{
-		"status": enums.TicketStatusPendingAcceptance,
+		"status":      enums.TicketStatusPendingAcceptance,
+		"case_status": "", // This test exercises the historical technical workflow.
 	}); err != nil {
 		t.Fatalf("seed pending_acceptance status: %v", err)
 	}

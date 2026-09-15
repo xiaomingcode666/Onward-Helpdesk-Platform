@@ -16,6 +16,7 @@ import (
 	"remotehelpdesk/internal/ai/workflow/dsl"
 	workflowregistry "remotehelpdesk/internal/ai/workflow/registry"
 	"remotehelpdesk/internal/pkg/utils"
+	"remotehelpdesk/internal/services"
 )
 
 const RuntimeEngineEinoGraph = "eino_graph"
@@ -325,6 +326,17 @@ func (e *GraphExecutor) executeNode(ctx context.Context, execution *graphExecuti
 			var output map[string]any
 			if err := json.Unmarshal([]byte(effectLease.ResultData), &output); err != nil {
 				return fmt.Errorf("invalid completed workflow effect result: %w", err)
+			}
+			if (node.Type == workflowregistry.NodeTypeCreateTicket || node.Type == workflowregistry.NodeTypeHandoffToHuman) && toInt64(output["ticketId"]) > 0 {
+				ticket, err := services.ResolveWorkflowTicket(local.input.Conversation.TenantID, toInt64(output["ticketId"]))
+				if err != nil {
+					return err
+				}
+				output["ticketId"], output["ticketNo"] = ticket.ID, ticket.TicketNo
+				if node.Type == workflowregistry.NodeTypeCreateTicket {
+					output["caseType"], output["priority"] = ticket.CaseType, ticket.PriorityLevel
+					output["message"] = "已关联工单，工单号：" + ticket.TicketNo + "。"
+				}
 			}
 			local.setNodeVars(node.ID, output)
 		}

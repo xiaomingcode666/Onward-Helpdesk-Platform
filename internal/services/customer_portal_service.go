@@ -248,7 +248,7 @@ func (s *customerPortalService) GetProfile(external openidentity.ExternalUser) (
 	}
 	openTickets := 0
 	for _, item := range tickets {
-		if isOpenTicketStatus(item.Status) {
+		if !ticketCaseClosed(item) {
 			openTickets++
 		}
 	}
@@ -451,7 +451,7 @@ func (s *customerPortalService) ListDevices(external openidentity.ExternalUser) 
 	warrantyByDeviceID := loadCustomerPortalLatestWarrantyByDeviceID(scope.deviceIDs)
 	openTicketCount := make(map[int64]int)
 	for _, item := range tickets {
-		if item.DeviceID > 0 && isOpenTicketStatus(item.Status) {
+		if item.DeviceID > 0 && !ticketCaseClosed(item) {
 			openTicketCount[item.DeviceID]++
 		}
 	}
@@ -745,6 +745,9 @@ func (s *customerPortalService) ListTickets(external openidentity.ExternalUser) 
 		if tickets[i].CurrentAssigneeID > 0 {
 			userIDs = append(userIDs, tickets[i].CurrentAssigneeID)
 		}
+		if tickets[i].CaseOwnerID > 0 {
+			userIDs = append(userIDs, tickets[i].CaseOwnerID)
+		}
 	}
 	products := loadCustomerPortalProductsByID(productIDs)
 	users := loadCustomerPortalUsersByID(userIDs)
@@ -780,25 +783,30 @@ func (s *customerPortalService) ListTickets(external openidentity.ExternalUser) 
 			meetingID = meeting.ID
 		}
 		canConfirm, canReopen, canRate := customerTicketActionFlags(&item, nil)
+		ownerName := ""
+		if user := users[item.CaseOwnerID]; user != nil {
+			ownerName = customerPortalFirstNonEmptyString(user.Nickname, user.Username)
+		}
 		result = append(result, dto.CustomerPortalTicketDTO{
-			ID:               item.ID,
-			TicketNo:         item.TicketNo,
-			Title:            item.Title,
-			Status:           mapCustomerTicketStatus(item.Status),
-			Priority:         DeriveTicketPriority(item),
-			DeviceID:         item.DeviceID,
-			DeviceNo:         deviceNo,
-			ProductName:      productName,
-			AssigneeName:     assigneeName,
-			CreatedAt:        formatCustomerTime(item.CreatedAt),
-			UpdatedAt:        formatCustomerTime(item.UpdatedAt),
-			CurrentMeetingID: meetingID,
-			RepairSummary:    "",
-			Progress:         []dto.CustomerPortalTicketProgressDTO{},
-			Feedback:         nil,
-			CanConfirm:       canConfirm,
-			CanReopen:        canReopen,
-			CanRate:          canRate,
+			TicketCaseSummaryDTO: ticketCaseSummaryWithOwner(item, ownerName),
+			ID:                   item.ID,
+			TicketNo:             item.TicketNo,
+			Title:                item.Title,
+			Status:               mapCustomerTicketStatus(item.Status),
+			Priority:             DeriveTicketPriority(item),
+			DeviceID:             item.DeviceID,
+			DeviceNo:             deviceNo,
+			ProductName:          productName,
+			AssigneeName:         assigneeName,
+			CreatedAt:            formatCustomerTime(item.CreatedAt),
+			UpdatedAt:            formatCustomerTime(item.UpdatedAt),
+			CurrentMeetingID:     meetingID,
+			RepairSummary:        "",
+			Progress:             []dto.CustomerPortalTicketProgressDTO{},
+			Feedback:             nil,
+			CanConfirm:           canConfirm,
+			CanReopen:            canReopen,
+			CanRate:              canRate,
 		})
 	}
 	return result, nil
@@ -872,7 +880,7 @@ func (s *customerPortalService) resolveVisibleTicket(external openidentity.Exter
 			return scope, &items[i], nil
 		}
 	}
-	return nil, nil, errorsx.Unauthorized("ticket is not visible to current customer")
+	return nil, nil, errorsx.Forbidden("工单不存在或当前账号无权查看，请返回工单列表")
 }
 
 func (s *customerPortalService) findTicketDTO(external openidentity.ExternalUser, ticketID int64) (*dto.CustomerPortalTicketDTO, error) {
@@ -1384,8 +1392,8 @@ func chooseCustomerPortalConversationTicket(current *models.Ticket, candidate *m
 	if current == nil {
 		return candidate
 	}
-	currentOpen := isOpenTicketStatus(current.Status)
-	candidateOpen := isOpenTicketStatus(candidate.Status)
+	currentOpen := !ticketCaseClosed(*current)
+	candidateOpen := !ticketCaseClosed(*candidate)
 	if !currentOpen && candidateOpen {
 		return candidate
 	}
@@ -1541,24 +1549,25 @@ func (s *customerPortalService) buildCustomerPortalTicketDetail(external openide
 		}
 	}
 	return &dto.CustomerPortalTicketDTO{
-		ID:               ticket.ID,
-		TicketNo:         ticket.TicketNo,
-		Title:            ticket.Title,
-		Status:           mapCustomerTicketStatus(ticket.Status),
-		Priority:         DeriveTicketPriority(*ticket),
-		DeviceID:         ticket.DeviceID,
-		DeviceNo:         deviceNo,
-		ProductName:      productName,
-		AssigneeName:     assigneeName,
-		CreatedAt:        formatCustomerTime(ticket.CreatedAt),
-		UpdatedAt:        formatCustomerTime(ticket.UpdatedAt),
-		CurrentMeetingID: meetingID,
-		RepairSummary:    repairSummary,
-		Progress:         progressDTO,
-		Feedback:         buildCustomerPortalFeedback(feedback),
-		CanConfirm:       canConfirm,
-		CanReopen:        canReopen,
-		CanRate:          canRate,
+		TicketCaseSummaryDTO: buildTicketCaseSummary(*ticket),
+		ID:                   ticket.ID,
+		TicketNo:             ticket.TicketNo,
+		Title:                ticket.Title,
+		Status:               mapCustomerTicketStatus(ticket.Status),
+		Priority:             DeriveTicketPriority(*ticket),
+		DeviceID:             ticket.DeviceID,
+		DeviceNo:             deviceNo,
+		ProductName:          productName,
+		AssigneeName:         assigneeName,
+		CreatedAt:            formatCustomerTime(ticket.CreatedAt),
+		UpdatedAt:            formatCustomerTime(ticket.UpdatedAt),
+		CurrentMeetingID:     meetingID,
+		RepairSummary:        repairSummary,
+		Progress:             progressDTO,
+		Feedback:             buildCustomerPortalFeedback(feedback),
+		CanConfirm:           canConfirm,
+		CanReopen:            canReopen,
+		CanRate:              canRate,
 	}, nil
 }
 
@@ -1823,6 +1832,26 @@ func mapCustomerTicketStatus(status enums.TicketStatus) string {
 func buildCustomerTicketProgressFallback(item models.Ticket, assigneeName string, progress []dto.CustomerPortalTicketProgressDTO) []dto.CustomerPortalTicketProgressDTO {
 	if len(progress) > 0 {
 		return progress
+	}
+	// Old waiting_customer and unresolved pending_customer_confirm records do
+	// not prove a repair was completed. Keep their fallback explicit.
+	caseContent := ""
+	switch models.EffectiveTicketCaseStatus(item) {
+	case "waiting":
+		caseContent = "正在等待补充资料或处理条件，问题仍未解决。"
+	case "restored":
+		caseContent = "服务已恢复，工程师仍在继续确认和解决问题。"
+	case "acknowledged":
+		if item.CaseStatus != "" {
+			caseContent = "客服已确认受理，正在安排后续处理。"
+		}
+	case "in_triage":
+		if item.CaseStatus != "" {
+			caseContent = "正在排查问题并确认处理办法。"
+		}
+	}
+	if caseContent != "" {
+		return []dto.CustomerPortalTicketProgressDTO{{EventType: "progress", Content: caseContent, CreatedAt: formatCustomerTime(firstNonZeroTime(item.UpdatedAt, item.CreatedAt))}}
 	}
 	content := ""
 	eventType := enums.TicketProgressEventCreated
@@ -2185,6 +2214,10 @@ func filterCustomerPortalTickets(items []dto.CustomerPortalTicketDTO, req reques
 		if filter != "" {
 			closed := item.Status == "closed" || item.Status == "done" || item.Status == "cancelled"
 			actionRequired := item.Status == "action_required" || item.Status == "pending_confirmation"
+			if item.CaseStatus != "" {
+				closed = item.CaseStatus == "closed" || item.CaseStatus == "cancelled"
+				actionRequired = item.CaseStatus == "waiting" || item.CaseStatus == "resolved" || item.CaseStatus == "closure_pending"
+			}
 			switch filter {
 			case "open":
 				if closed {
@@ -2281,7 +2314,11 @@ func firstActiveCustomerConversation(items []dto.CustomerPortalConversationDTO) 
 func firstPendingPortalTickets(items []dto.CustomerPortalTicketDTO, limit int) []dto.CustomerPortalTicketDTO {
 	result := make([]dto.CustomerPortalTicketDTO, 0, min(len(items), limit))
 	for i := range items {
-		if items[i].Status == "closed" || items[i].Status == "cancelled" {
+		status := items[i].Status
+		if items[i].CaseStatus != "" {
+			status = items[i].CaseStatus
+		}
+		if status == "closed" || status == "cancelled" {
 			continue
 		}
 		result = append(result, items[i])

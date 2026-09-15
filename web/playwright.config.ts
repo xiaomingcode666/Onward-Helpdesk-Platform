@@ -3,6 +3,9 @@ import { defineConfig } from "@playwright/test"
 export default defineConfig({
   testDir: "./e2e",
   testMatch: [
+    "ticket-status-workflow.spec.ts",
+    "ticket-governance.spec.ts",
+    "ticket-case-lifecycle.spec.ts",
     "project-configuration.spec.ts",
     "product-showcase.spec.ts",
     "aftersales-closed-loop.live.spec.ts",

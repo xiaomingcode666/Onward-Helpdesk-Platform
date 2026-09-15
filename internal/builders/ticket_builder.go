@@ -28,6 +28,10 @@ func BuildTicketWithContext(item *models.Ticket, ctx *TicketBuildContext) *respo
 	if item == nil {
 		return nil
 	}
+	ownerName := ""
+	if ctx != nil && ctx.Users != nil && item.CaseOwnerID > 0 {
+		ownerName = buildTicketUserDisplayName(ctx.Users[item.CaseOwnerID])
+	}
 	ret := &response.TicketResponse{
 		ID:                     item.ID,
 		TicketNo:               item.TicketNo,
@@ -36,6 +40,7 @@ func BuildTicketWithContext(item *models.Ticket, ctx *TicketBuildContext) *respo
 		Source:                 item.Source,
 		Channel:                item.Channel,
 		TicketIntakeDTO:        services.BuildTicketIntakeDTO(item),
+		TicketCaseSummaryDTO:   services.BuildTicketCaseSummary(*item, ownerName),
 		CustomerID:             item.CustomerID,
 		ConversationID:         item.ConversationID,
 		Status:                 item.Status,
@@ -101,7 +106,7 @@ func BuildTicketProgress(item *models.TicketProgress) *response.TicketProgressRe
 }
 
 func BuildTicketProgressWithContext(item *models.TicketProgress, ctx *TicketDetailBuildContext) *response.TicketProgressResponse {
-	if item == nil {
+	if item == nil || item.EventType == "ticket_governance" {
 		return nil
 	}
 	ret := &response.TicketProgressResponse{

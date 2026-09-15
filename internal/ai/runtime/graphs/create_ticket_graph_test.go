@@ -41,3 +41,17 @@ func TestCreateTicketGraphBuildRequestLimitsFallbackTitle(t *testing.T) {
 		t.Fatalf("description should preserve the full fallback summary")
 	}
 }
+
+func TestCreateTicketGraphUsesRuntimeTenantWithoutPriorityOverride(t *testing.T) {
+	graph := NewCreateTicketGraph(models.Conversation{ID: 17, TenantID: 91}, models.AIAgent{})
+	req, err := graph.buildCreateRequest(`{"title":"服务不可用","description":"无法登录","tenant_id":999,"priority_level":"p1","case_type":"major_incident"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.TenantID != 91 || graph.buildAIPrincipal().EffectiveTenantID() != 91 || graph.buildAIPrincipal().UserID != 0 {
+		t.Fatal("AI ticket principal lost runtime scope")
+	}
+	if req.CaseType != "" || req.PriorityLevel != "" {
+		t.Fatal("untrusted tool arguments changed default classification")
+	}
+}

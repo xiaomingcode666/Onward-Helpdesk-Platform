@@ -17,6 +17,7 @@ import (
 // engineers. Product repair team membership grants product access; the tenant
 // technical repair root remains a queue for records without a product.
 type enterpriseProductAccessScope struct {
+	TenantID   int64
 	Restricted bool
 	UserID     int64
 	TeamIDs    []int64
@@ -25,10 +26,10 @@ type enterpriseProductAccessScope struct {
 
 func resolveEnterpriseProductAccessScope(tenantID int64, operator *dto.AuthPrincipal) enterpriseProductAccessScope {
 	if operator == nil || operator.IsPlatform() || !operator.HasRole(EnterpriseRoleEngineer) || canManageTicketDispatch(operator) {
-		return enterpriseProductAccessScope{}
+		return enterpriseProductAccessScope{TenantID: tenantID}
 	}
 
-	scope := enterpriseProductAccessScope{Restricted: true, UserID: operator.UserID}
+	scope := enterpriseProductAccessScope{TenantID: tenantID, Restricted: true, UserID: operator.UserID}
 	scope.TeamIDs = AgentTeamMemberService.FindTeamIDsByUserID(sqls.DB(), tenantID, operator.UserID)
 	for _, team := range AgentTeamService.FindByIds(scope.TeamIDs) {
 		if team.TenantID != tenantID || team.TeamType != AgentTeamTypeProductRepair || team.Status != enums.StatusOk || team.ProductID <= 0 {
@@ -57,7 +58,10 @@ func (scope enterpriseProductAccessScope) canAccessTicket(ticket *models.Ticket)
 	if ticket == nil {
 		return false
 	}
-	if !scope.Restricted || ticket.CurrentAssigneeID == scope.UserID {
+	if scope.TenantID > 0 && ticket.TenantID != scope.TenantID {
+		return false
+	}
+	if !scope.Restricted || (scope.UserID > 0 && (ticket.CurrentAssigneeID == scope.UserID || ticket.CaseOwnerID == scope.UserID)) {
 		return true
 	}
 	if ticket.ProductID > 0 {
