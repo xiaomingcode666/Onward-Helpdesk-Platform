@@ -1310,7 +1310,7 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     ])
     await supplier.getByRole("button", { name: "发送回复" }).click()
     await expect(engineer.getByText(supplierReply).first()).toBeVisible()
-    await expect(customer.getByText(supplierReply).first()).toBeVisible()
+    await expect(customer.locator('[data-sender-type="partner"]').getByText(supplierReply, { exact: true })).toBeVisible()
 
     await engineer.getByRole("button", { name: "发起视频协作", exact: true }).click()
     const meetingDialog = engineer.getByRole("dialog", { name: "发起视频协作", exact: true })
