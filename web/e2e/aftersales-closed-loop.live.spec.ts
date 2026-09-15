@@ -1153,10 +1153,10 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     const queueItem = engineer.locator("button").filter({ hasText: runTag }).first()
     await expect(queueItem).toBeVisible({ timeout: 60_000 })
     await queueItem.click()
-    const acceptButton = engineer.getByRole("button", { name: /^(重新)?接单$/ }).first()
-    if (await acceptButton.isVisible()) {
-      await acceptButton.click()
-    }
+    const acceptButton = engineer.getByRole("button", { name: "工程师接单", exact: true }).first()
+    await expect(acceptButton).toBeVisible()
+    await acceptButton.click()
+    await expect(engineer.getByRole("textbox", { name: "回复客户会话", exact: true })).toBeEnabled()
 
     await expect(engineer.getByText("客户在线", { exact: true })).toBeVisible({ timeout: 15_000 })
     await expect(customer.getByText(/工程师在线/)).toBeVisible({ timeout: 15_000 })
@@ -1428,7 +1428,8 @@ test("客户、工程师和供应商完成真实售后闭环", async ({ browser 
     expect(reopenPayload.success).toBe(true)
     expect(["reopened", "pending_dispatch", "pending_assignee_accept"]).toContain(reopenPayload.data?.status)
     await expect(customer.getByText("工单已重新打开", { exact: true }).last()).toBeVisible({ timeout: 30_000 })
-    await expect(customer.getByTestId("customer-selected-ticket-status")).toHaveText(/已重新打开|待派单|待工程师接单/)
+    // Reopening returns to triage; asynchronous dispatch may already assign it.
+    await expect(customer.getByTestId("customer-selected-ticket-status")).toHaveText(/^(分析中|已派单)$/)
     await customer.goto(`${frontendUrl}/customer/chat?conversationId=${conversationId}`)
     await expect(customer.locator('[contenteditable="true"]').last()).toBeVisible()
     await expect(
