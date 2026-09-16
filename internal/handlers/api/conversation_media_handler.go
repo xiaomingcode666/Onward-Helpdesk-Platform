@@ -37,16 +37,21 @@ func ConversationMediaGetForOperator(ctx *gin.Context) {
 var errInvalidMediaRange = errors.New("invalid media range")
 
 func streamConversationMedia(ctx *gin.Context, asset *models.Asset) {
-	streamAsset(ctx, asset, "private, max-age=300")
+	streamAsset(ctx, asset)
 }
 
-func streamPublicImmutableAsset(ctx *gin.Context, asset *models.Asset) {
-	streamAsset(ctx, asset, "public, max-age=31536000, immutable")
+func streamPublicScannedAsset(ctx *gin.Context, asset *models.Asset) {
+	streamAsset(ctx, asset)
 }
 
-func streamAsset(ctx *gin.Context, asset *models.Asset, cacheControl string) {
+func streamAsset(ctx *gin.Context, asset *models.Asset) {
+	ctx.Header("Cache-Control", "private, no-store")
+	// Validate before 304/Range handling so old cached attachments cannot bypass scanning.
+	if !asset.Usable() {
+		ctx.AbortWithStatus(http.StatusNotFound)
+		return
+	}
 	etag := strconv.Quote(asset.AssetID)
-	ctx.Header("Cache-Control", cacheControl)
 	ctx.Header("X-Content-Type-Options", "nosniff")
 	ctx.Header("Accept-Ranges", "bytes")
 	ctx.Header("ETag", etag)

@@ -40,6 +40,15 @@ customerSession:
 storage:
   default: minio
   maxUploadSizeMB: 20
+  quarantineRoot: /app/data/quarantine
+  uploadSecurity:
+    enabled: true
+    clamav:
+      enabled: true
+      address: clamav:3310
+      timeoutSeconds: 10
+      failClosed: true
+      maxDatabaseAgeHours: 168
   local:
     root: /app/data/storage
     baseUrl: /storage
@@ -53,14 +62,14 @@ storage:
     signedUrlExpireSeconds: 600
   minio:
     endpoint: minio:9000
-    publicEndpoint: ""
+    publicEndpoint: "http://localhost:9000"
     bucket: remotehelpdesk-assets
     accessKeyId: remotehelpdesk
     accessKeySecret: remotehelpdesk123
     baseUrl: http://localhost:9000/remotehelpdesk-assets
     region: us-east-1
     useSsl: false
-    private: false
+    private: true
     signedUrlExpireSeconds: 600
 
 vectorDB:

@@ -1,14 +1,8 @@
 package services
 
 import (
-	"archive/zip"
-	"bufio"
 	"bytes"
-	"context"
-	"encoding/binary"
 	"io"
-	"log/slog"
-	"net"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -90,71 +84,13 @@ func inspectUpload(reader io.Reader, info storage.UploadInfo, cfg config.Storage
 		if err := validateUploadArchive(data, info, security); err != nil {
 			return nil, info, err
 		}
-		if security.ClamAV.Enabled {
-			if err := scanUploadWithClamAV(data, security.ClamAV); err != nil {
-				if security.ClamAV.FailClosedOrDefault() {
-					return nil, info, err
-				}
-				slog.Warn("asset upload antivirus scan failed open", "error", err)
-			}
-		}
 	}
 
 	return data, info, nil
 }
 
 func validateUploadArchive(data []byte, info storage.UploadInfo, security config.UploadSecurityConfig) error {
-	ext := strings.ToLower(filepath.Ext(info.Filename))
-	isZip := bytes.HasPrefix(data, []byte("PK\x03\x04")) || bytes.HasPrefix(data, []byte("PK\x05\x06")) || bytes.HasPrefix(data, []byte("PK\x07\x08"))
-	if !isZip && ext != ".zip" && ext != ".docx" && ext != ".xlsx" && ext != ".pptx" {
-		return nil
-	}
-
-	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		return errorsx.InvalidParamI18n("error.upload.dangerous")
-	}
-	if len(reader.File) > security.ArchiveEntriesLimit() {
-		return errorsx.InvalidParamI18n("error.upload.dangerous")
-	}
-
-	var expandedSize uint64
-	expandedLimit := uint64(security.ArchiveExpandedSizeLimit())
-	ratioLimit := uint64(security.ArchiveCompressionRatioLimit())
-	for _, entry := range reader.File {
-		if entry.Flags&0x1 != 0 {
-			return errorsx.InvalidParamI18n("error.upload.dangerous")
-		}
-		cleanName := strings.ReplaceAll(entry.Name, "\\", "/")
-		if strings.HasPrefix(cleanName, "/") || cleanName == ".." || strings.HasPrefix(cleanName, "../") || strings.Contains(cleanName, "/../") {
-			return errorsx.InvalidParamI18n("error.upload.dangerous")
-		}
-		entryExt := strings.ToLower(filepath.Ext(cleanName))
-		if _, blocked := builtInBlockedUploadExtensions[entryExt]; blocked {
-			return errorsx.InvalidParamI18n("error.upload.dangerous")
-		}
-		for _, configured := range security.BlockedExtensions {
-			configured = strings.ToLower(strings.TrimSpace(configured))
-			if configured != "" && !strings.HasPrefix(configured, ".") {
-				configured = "." + configured
-			}
-			if entryExt == configured {
-				return errorsx.InvalidParamI18n("error.upload.dangerous")
-			}
-		}
-
-		if entry.UncompressedSize64 > expandedLimit-expandedSize {
-			return errorsx.InvalidParamI18n("error.upload.dangerous")
-		}
-		expandedSize += entry.UncompressedSize64
-		if entry.UncompressedSize64 >= 1<<20 {
-			compressedSize := entry.CompressedSize64
-			if compressedSize == 0 || entry.UncompressedSize64/compressedSize > ratioLimit {
-				return errorsx.InvalidParamI18n("error.upload.dangerous")
-			}
-		}
-	}
-	return nil
+	return checkArchiveContents(data, info.Filename, security)
 }
 
 func sanitizeUploadFilename(filename string) (string, error) {
@@ -243,52 +179,4 @@ func uploadIsDangerous(data []byte, info storage.UploadInfo, security config.Upl
 	}
 	upper := bytes.ToUpper(data)
 	return bytes.Contains(upper, []byte("EICAR-STANDARD-ANTIVIRUS-TEST-FILE"))
-}
-
-func scanUploadWithClamAV(data []byte, cfg config.ClamAVSecurityConfig) error {
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.TimeoutOrDefault())
-	defer cancel()
-
-	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", cfg.AddressOrDefault())
-	if err != nil {
-		return errorsx.InvalidParamI18n("error.upload.scannerUnavailable")
-	}
-	defer func() { _ = conn.Close() }()
-	if deadline, ok := ctx.Deadline(); ok {
-		_ = conn.SetDeadline(deadline)
-	}
-
-	if _, err := conn.Write([]byte("zINSTREAM\x00")); err != nil {
-		return errorsx.InvalidParamI18n("error.upload.scannerUnavailable")
-	}
-	for offset := 0; offset < len(data); {
-		end := offset + 32*1024
-		if end > len(data) {
-			end = len(data)
-		}
-		if err := binary.Write(conn, binary.BigEndian, uint32(end-offset)); err != nil {
-			return errorsx.InvalidParamI18n("error.upload.scannerUnavailable")
-		}
-		if _, err := conn.Write(data[offset:end]); err != nil {
-			return errorsx.InvalidParamI18n("error.upload.scannerUnavailable")
-		}
-		offset = end
-	}
-	if err := binary.Write(conn, binary.BigEndian, uint32(0)); err != nil {
-		return errorsx.InvalidParamI18n("error.upload.scannerUnavailable")
-	}
-
-	response, err := bufio.NewReader(conn).ReadString(0)
-	if err != nil && err != io.EOF {
-		return errorsx.InvalidParamI18n("error.upload.scannerUnavailable")
-	}
-	response = strings.TrimSpace(strings.TrimSuffix(response, "\x00"))
-	if strings.Contains(response, " FOUND") {
-		return errorsx.InvalidParamI18n("error.upload.dangerous")
-	}
-	if !strings.HasSuffix(response, " OK") {
-		slog.Warn("clamav returned an unexpected response", "response", response)
-		return errorsx.InvalidParamI18n("error.upload.scannerUnavailable")
-	}
-	return nil
 }

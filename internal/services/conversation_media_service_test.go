@@ -63,17 +63,17 @@ func TestConversationMediaOperatorAccessAndLegacyReference(t *testing.T) {
 		{
 			TenantID: 41, ConversationID: conversations[0].ID, AssetID: "media-current",
 			Provider: enums.AssetProviderLocal, StorageKey: "images/current.png", Filename: "current.png",
-			FileSize: 7, MimeType: "image/png", Status: enums.AssetStatusSuccess,
+			FileSize: 7, MimeType: "image/png", ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 		},
 		{
 			TenantID: 41, AssetID: "media-legacy", Provider: enums.AssetProviderLocal,
 			StorageKey: "audio/legacy.webm", Filename: "legacy.webm", FileSize: 6,
-			MimeType: "audio/webm", Status: enums.AssetStatusSuccess,
+			MimeType: "audio/webm", ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 		},
 		{
 			TenantID: 41, AssetID: "media-near-match", Provider: enums.AssetProviderLocal,
 			StorageKey: "audio/near.webm", Filename: "near.webm", FileSize: 4,
-			MimeType: "audio/webm", Status: enums.AssetStatusSuccess,
+			MimeType: "audio/webm", ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 		},
 	}
 	if err := db.Create(&assets).Error; err != nil {

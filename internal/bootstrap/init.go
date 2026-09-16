@@ -69,6 +69,7 @@ func Init(configPath string) error {
 	}
 	services.StartMQTTConnectorWorkers(context.Background())
 	services.StartAIReplyJobWorker(context.Background())
+	services.StartAssetScanRecovery(context.Background())
 	services.WsService.StartBroker(context.Background())
 	if err := services.SyncDefaultIAMRolePoliciesDB(sqls.DB()); err != nil {
 		slog.Error("sync default IAM role policies failed", "error", err)

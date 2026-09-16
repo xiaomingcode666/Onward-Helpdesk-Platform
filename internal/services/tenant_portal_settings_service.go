@@ -91,7 +91,7 @@ func (s *tenantPortalSettingsService) saveBrandingDB(db *gorm.DB, tenantID int64
 	defaultLocale = defaultString(defaultLocale, "en-US")
 	if logoAssetID > 0 {
 		asset := repositories.AssetRepository.Get(db, logoAssetID)
-		if asset == nil || asset.Status != enums.AssetStatusSuccess || !strings.HasPrefix(strings.ToLower(asset.MimeType), "image/") {
+		if !asset.Usable() || !strings.HasPrefix(strings.ToLower(asset.MimeType), "image/") {
 			return nil, errorsx.InvalidParam("tenant logo asset is invalid")
 		}
 		if asset.TenantID != 0 && asset.TenantID != tenantID {
@@ -159,7 +159,7 @@ func (s *tenantPortalSettingsService) ResolvePublicLogoAssetDB(db *gorm.DB, asse
 		return nil
 	}
 	asset := repositories.AssetRepository.GetByAssetID(db, strings.TrimSpace(assetID))
-	if asset == nil || asset.Status != enums.AssetStatusSuccess || !strings.HasPrefix(strings.ToLower(asset.MimeType), "image/") {
+	if !asset.Usable() || !strings.HasPrefix(strings.ToLower(asset.MimeType), "image/") {
 		return nil
 	}
 	branding := repositories.PlatformIAMRepository.FindActiveTenantBrandingByLogoAssetID(db, asset.ID)

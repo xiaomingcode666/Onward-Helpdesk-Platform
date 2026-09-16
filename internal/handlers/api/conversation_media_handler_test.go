@@ -72,7 +72,7 @@ func TestStreamConversationMediaSupportsByteRanges(t *testing.T) {
 
 	asset := &models.Asset{
 		AssetID: "range-asset", Provider: enums.AssetProviderLocal, StorageKey: key,
-		Filename: "demo.mp4", FileSize: 10, MimeType: "video/mp4", Status: enums.AssetStatusSuccess,
+		Filename: "demo.mp4", FileSize: 10, MimeType: "video/mp4", ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 	}
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
@@ -113,7 +113,7 @@ func TestStreamConversationMediaServesFullAudioWithPlaybackHeaders(t *testing.T)
 
 	asset := &models.Asset{
 		AssetID: "audio-asset", Provider: enums.AssetProviderLocal, StorageKey: key,
-		Filename: "voice.webm", FileSize: int64(len(content)), MimeType: "audio/webm", Status: enums.AssetStatusSuccess,
+		Filename: "voice.webm", FileSize: int64(len(content)), MimeType: "audio/webm", ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 	}
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
@@ -136,20 +136,20 @@ func TestStreamConversationMediaServesFullAudioWithPlaybackHeaders(t *testing.T)
 	if got := recorder.Header().Get("Accept-Ranges"); got != "bytes" {
 		t.Fatalf("Accept-Ranges=%q", got)
 	}
-	if got := recorder.Header().Get("Cache-Control"); got != "private, max-age=300" {
+	if got := recorder.Header().Get("Cache-Control"); got != "private, no-store" {
 		t.Fatalf("Cache-Control=%q", got)
 	}
 }
 
-func TestStreamPublicImmutableAssetSupportsBrowserRevalidation(t *testing.T) {
+func TestStreamPublicScannedAssetSupportsBrowserRevalidation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	asset := &models.Asset{AssetID: "tenant-logo-asset", FileSize: 10}
+	asset := &models.Asset{AssetID: "tenant-logo-asset", FileSize: 10, Status: enums.AssetStatusSuccess, ScanStatus: models.AssetScanClean}
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/tenant-branding/logo/tenant-logo-asset", nil)
 	ctx.Request.Header.Set("If-None-Match", `W/"tenant-logo-asset"`)
 
-	streamPublicImmutableAsset(ctx, asset)
+	streamPublicScannedAsset(ctx, asset)
 
 	if recorder.Code != http.StatusNotModified {
 		t.Fatalf("status=%d want %d", recorder.Code, http.StatusNotModified)
@@ -157,7 +157,7 @@ func TestStreamPublicImmutableAssetSupportsBrowserRevalidation(t *testing.T) {
 	if got := recorder.Header().Get("ETag"); got != `"tenant-logo-asset"` {
 		t.Fatalf("ETag=%q", got)
 	}
-	if got := recorder.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
+	if got := recorder.Header().Get("Cache-Control"); got != "private, no-store" {
 		t.Fatalf("Cache-Control=%q", got)
 	}
 }
@@ -169,12 +169,26 @@ func TestStreamConversationMediaRejectsInvalidRangeBeforeOpeningStorage(t *testi
 	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/media/missing", nil)
 	ctx.Request.Header.Set("Range", "bytes=99-")
 
-	streamConversationMedia(ctx, &models.Asset{AssetID: "missing", FileSize: 10})
+	streamConversationMedia(ctx, &models.Asset{AssetID: "missing", FileSize: 10, Status: enums.AssetStatusSuccess, ScanStatus: models.AssetScanClean})
 
 	if recorder.Code != http.StatusRequestedRangeNotSatisfiable {
 		t.Fatalf("status=%d want %d", recorder.Code, http.StatusRequestedRangeNotSatisfiable)
 	}
 	if got := recorder.Header().Get("Content-Range"); got != "bytes */10" {
 		t.Fatalf("Content-Range=%q", got)
+	}
+}
+
+func TestStreamAssetRejectsUnscannedCacheRevalidation(t *testing.T) {
+	for _, status := range []string{models.AssetScanUnscanned, models.AssetScanPending, models.AssetScanQuarantined} {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/api/tenant-branding/logo/old", nil)
+		ctx.Request.Header.Set("If-None-Match", `"old"`)
+		ctx.Request.Header.Set("Range", "bytes=0-2")
+		streamPublicScannedAsset(ctx, &models.Asset{AssetID: "old", FileSize: 10, Status: enums.AssetStatusSuccess, ScanStatus: status})
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("%s returned %d instead of blocking cached content", status, recorder.Code)
+		}
 	}
 }

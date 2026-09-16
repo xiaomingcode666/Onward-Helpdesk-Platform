@@ -21,7 +21,10 @@ func InitMigrations() error {
 	if err := migration.Migrate(); err != nil {
 		return err
 	}
-	return EnsurePlatformBuiltInWorkflows(sqls.DB())
+	if err := EnsurePlatformBuiltInWorkflows(sqls.DB()); err != nil {
+		return err
+	}
+	return ensurePlatformNotificationTemplates(sqls.DB())
 }
 
 func EnsurePlatformBuiltInWorkflows(db *gorm.DB) error {
@@ -35,6 +38,18 @@ func EnsurePlatformBuiltInWorkflows(db *gorm.DB) error {
 	}
 	if err := services.AIWorkflowService.EnsurePlatformBuiltInWorkflowsDB(db); err != nil {
 		return fmt.Errorf("materialize embedded platform workflows: %w", err)
+	}
+	return nil
+}
+
+// ensurePlatformNotificationTemplates 保证平台基线通知模板存在且已批准，
+// 这样任何租户的通知都能由「已批准模板」生成。
+func ensurePlatformNotificationTemplates(db *gorm.DB) error {
+	if db == nil {
+		return fmt.Errorf("database is required to materialize platform notification templates")
+	}
+	if _, err := services.NotificationTemplateService.EnsurePlatformDefaultsDB(db); err != nil {
+		return fmt.Errorf("materialize platform notification templates: %w", err)
 	}
 	return nil
 }

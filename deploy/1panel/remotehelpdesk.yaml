@@ -48,6 +48,13 @@ storage:
   maxUploadSizeMB: 20
   uploadSecurity:
     enabled: true
+    maxArchiveDepth: 5
+    clamav:
+      enabled: true
+      address: clamav:3310
+      timeoutSeconds: 10
+      failClosed: true
+      maxDatabaseAgeHours: 168
   local:
     root: /app/data/storage
     baseUrl: /storage

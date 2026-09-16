@@ -84,9 +84,14 @@ func (s *notificationService) create(req request.CreateNotificationRequest) (*mo
 		Category:         category,
 		Level:            level,
 		Channels:         normalizeNotificationChannels(req.Channels),
+		TemplateCode:     strings.TrimSpace(req.TemplateCode),
 		DeliveryStatus:   "sent",
 		Status:           int(enums.StatusOk),
 		CreatedAt:        now,
+	}
+	// 存在已批准模板时按接收人语言渲染；没有模板时保持调用方原文。
+	if err := NotificationTemplateService.ApplyToNotification(item, req.RecipientUserID, req.TemplateVariables); err != nil {
+		return nil, false, err
 	}
 	if idempotencyKey != "" {
 		item.IdempotencyKey = &idempotencyKey
@@ -130,6 +135,47 @@ func (s *notificationService) CreateAndPush(req request.CreateNotificationReques
 	return item, nil
 }
 
+// renderNotificationStatusUpdate 用「已批准」的站内信模板渲染通知状态更新文案。
+// 命中敏感信息规则或没有可用模板时返回 ok=false，调用方保留兜底文案。
+func (s *notificationService) renderNotificationStatusUpdate(item *models.Notification, code string, variables map[string]string) (string, string, bool) {
+	if item == nil || item.TenantID <= 0 {
+		return "", "", false
+	}
+	language := strings.TrimSpace(item.Language)
+	if language == "" {
+		language = NotificationTemplateService.RecipientLanguage(item.TenantID, item.RecipientUserID)
+	}
+	tpl := NotificationTemplateService.ResolveApproved(item.TenantID, code, NotificationTemplateChannelInApp, language)
+	if tpl == nil {
+		return "", "", false
+	}
+	data := map[string]string{
+		"Title":         item.Title,
+		"Content":       item.Content,
+		"RecipientName": item.RecipientName,
+		"ActionURL":     item.ActionURL,
+		"Language":      tpl.Language,
+	}
+	for key, value := range variables {
+		data[key] = value
+	}
+	title := strings.TrimSpace(RenderNotificationTemplateText(tpl.TitleTemplate, data))
+	content := strings.TrimSpace(RenderNotificationTemplateText(tpl.ContentTemplate, data))
+	if title == "" || content == "" {
+		return "", "", false
+	}
+	if finding := ScanNotificationSensitiveContent(title + "\n" + content); finding != nil {
+		NotificationDeliveryAttemptService.RecordBlockedWithReason(item, NotificationTemplateChannelInApp,
+			"sensitive_rule:"+finding.Code,
+			"模板 "+tpl.Code+"（"+tpl.Language+"）："+DescribeNotificationSensitiveFinding(finding))
+		return "", "", false
+	}
+	item.TemplateID = tpl.ID
+	item.TemplateCode = tpl.Code
+	item.Language = tpl.Language
+	return title, content, true
+}
+
 // ReconcileTicketCreatedAfterAssignment removes stale "unassigned" wording
 // when ticket creation and automatic assignment notifications race each other.
 func (s *notificationService) ReconcileTicketCreatedAfterAssignment(ticket *models.Ticket) error {
@@ -157,11 +203,22 @@ func (s *notificationService) ReconcileTicketCreatedAfterAssignment(ticket *mode
 	}
 	content += fmt.Sprintf("已分配给 %s，请按当前负责人继续处理。", assigneeName)
 	for i := range items {
-		if err := repositories.NotificationRepository.Updates(sqls.DB(), items[i].ID, map[string]any{
+		updates := map[string]any{
 			"title":   fmt.Sprintf("工单 %s 已分配", ticketNo),
 			"content": content,
 			"level":   "info",
-		}); err != nil {
+		}
+		// 改写后的文案同样取自「已批准」模板；没有可用模板时保留上面的兜底文案。
+		if title, rendered, ok := s.renderNotificationStatusUpdate(&items[i], NotificationTemplateCodeTicketCreatedAssigned, map[string]string{
+			"TicketNo": ticketNo, "TicketTitle": strings.TrimSpace(ticket.Title), "Assignee": assigneeName,
+		}); ok {
+			updates["title"] = title
+			updates["content"] = rendered
+			updates["template_id"] = items[i].TemplateID
+			updates["template_code"] = items[i].TemplateCode
+			updates["language"] = items[i].Language
+		}
+		if err := repositories.NotificationRepository.Updates(sqls.DB(), items[i].ID, updates); err != nil {
 			return err
 		}
 	}
@@ -202,6 +259,15 @@ func (s *notificationService) ReconcileTicketAssignedAfterReassignment(ticket *m
 			"title":   fmt.Sprintf("工单 %s 已转派", ticketNo),
 			"content": content,
 			"level":   "info",
+		}
+		if title, rendered, ok := s.renderNotificationStatusUpdate(&items[i], NotificationTemplateCodeTicketAssignedTransferred, map[string]string{
+			"TicketNo": ticketNo, "TicketTitle": strings.TrimSpace(ticket.Title), "Assignee": assigneeName,
+		}); ok {
+			updates["title"] = title
+			updates["content"] = rendered
+			updates["template_id"] = items[i].TemplateID
+			updates["template_code"] = items[i].TemplateCode
+			updates["language"] = items[i].Language
 		}
 		if items[i].ReadAt == nil {
 			updates["read_at"] = now
@@ -247,6 +313,15 @@ func (s *notificationService) ReconcileTicketAssignedAfterAcceptance(ticket *mod
 			"content": content,
 			"level":   "info",
 		}
+		if title, rendered, ok := s.renderNotificationStatusUpdate(&items[i], NotificationTemplateCodeTicketAssignedAccepted, map[string]string{
+			"TicketNo": ticketNo, "TicketTitle": strings.TrimSpace(ticket.Title),
+		}); ok {
+			updates["title"] = title
+			updates["content"] = rendered
+			updates["template_id"] = items[i].TemplateID
+			updates["template_code"] = items[i].TemplateCode
+			updates["language"] = items[i].Language
+		}
 		if items[i].ReadAt == nil {
 			updates["read_at"] = now
 		}
@@ -290,6 +365,15 @@ func (s *notificationService) ReconcileTicketAssignedAfterCancellation(ticket *m
 			"title":   fmt.Sprintf("工单 %s 已取消", ticketNo),
 			"content": content,
 			"level":   "info",
+		}
+		if title, rendered, ok := s.renderNotificationStatusUpdate(&items[i], NotificationTemplateCodeTicketAssignedCancelled, map[string]string{
+			"TicketNo": ticketNo, "TicketTitle": strings.TrimSpace(ticket.Title),
+		}); ok {
+			updates["title"] = title
+			updates["content"] = rendered
+			updates["template_id"] = items[i].TemplateID
+			updates["template_code"] = items[i].TemplateCode
+			updates["language"] = items[i].Language
 		}
 		if items[i].ReadAt == nil {
 			updates["read_at"] = now
@@ -339,6 +423,15 @@ func (s *notificationService) ReconcileTicketAssignedAfterRecovery(ticket *model
 			"title":   fmt.Sprintf("工单 %s 已回收", ticketNo),
 			"content": content,
 			"level":   "info",
+		}
+		if title, rendered, ok := s.renderNotificationStatusUpdate(&items[i], NotificationTemplateCodeTicketAssignedRecovered, map[string]string{
+			"TicketNo": ticketNo, "TicketTitle": strings.TrimSpace(ticket.Title), "Reason": reason,
+		}); ok {
+			updates["title"] = title
+			updates["content"] = rendered
+			updates["template_id"] = items[i].TemplateID
+			updates["template_code"] = items[i].TemplateCode
+			updates["language"] = items[i].Language
 		}
 		if items[i].ReadAt == nil {
 			updates["read_at"] = now

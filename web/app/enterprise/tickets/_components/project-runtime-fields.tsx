@@ -8,6 +8,8 @@ import { replaceProjectRuntime } from "@/lib/project-configuration-editing"
 export function ProjectRuntimeFields({ document, onChange, disabled = false }: { document: ProjectConfiguration; onChange: (document: ProjectConfiguration) => void; disabled?: boolean }) {
   const r = document.runtime
   if (!r) return null
+  const imap = r.mail.imap ?? { enabled: false, host: "", port: 993, username: "", password_ref: "", project_key: "", ticket_type: "" }
+  const setIMAP = (patch: Partial<typeof imap>) => set({ mail: { ...r.mail, imap: { ...imap, ...patch } } })
   const set = (patch: Partial<ProjectRuntime>) => onChange(replaceProjectRuntime(document, { ...r, ...patch }))
   const field = (name: string, value: string, update: (value: string) => void) => <FormField label={name}><Input aria-label={name} value={value} onChange={e => update(e.target.value)} /></FormField>
   const number = (name: string, value: number, update: (value: number) => void) => <FormField label={name}><InputNumber aria-label={name} min={0} className="!w-full" value={value} onChange={v => update(v ?? 0)} /></FormField>
@@ -58,6 +60,14 @@ export function ProjectRuntimeFields({ document, onChange, disabled = false }: {
       {field("回复邮箱", r.mail.reply_to, reply_to => set({ mail: { ...r.mail, reply_to } }))}
       <FormField label="发信失败重试"><Select className="w-full" value={r.mail.retry_policy} options={[{value:"retry_3_10m",label:"重试3次，间隔10分钟"},{value:"retry_1_5m",label:"重试1次，间隔5分钟"},{value:"no_retry",label:"不重试"}]} onChange={retry_policy=>set({mail:{...r.mail,retry_policy}})} /></FormField>
       <p className="text-sm sm:col-span-2">密钥引用填写工程师提供的 secret://名称，不填密码。旧邮箱密码不会导出，迁移时需要准备对应密钥文件。</p>
+    </div></details>
+    <details><summary className="font-medium">邮件自动建单（IMAP）</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <Checkbox checked={imap.enabled} onChange={e => setIMAP({ enabled: e.target.checked })}>启用自动收件</Checkbox>
+      <p className="text-sm sm:col-span-2">同时启用“邮件入站”来源。首次连接只建立收件起点，此后新邮件才会建单。固定使用 TLS 加密；附件暂不导入。</p>
+      {field("IMAP 地址", imap.host, host => setIMAP({ host }))}{number("IMAP 端口", imap.port, port => setIMAP({ port }))}
+      {field("收件邮箱账号", imap.username, username => setIMAP({ username }))}{field("收件密钥引用", imap.password_ref, password_ref => setIMAP({ password_ref }))}
+      <FormField label="邮件所属服务项目"><Select allowClear className="w-full" value={imap.project_key || undefined} options={document.projects.map(p => ({ value: p.key, label: p.name }))} onChange={project_key => setIMAP({ project_key: project_key ?? "" })} /></FormField>
+      {field("默认工单类型（可留空待客服补充）", imap.ticket_type, ticket_type => setIMAP({ ticket_type }))}
     </div></details>
     <details><summary className="font-medium">外部系统接入</summary><div className="mt-3 grid gap-3">
       {(r.integrations ?? []).map((c, i) => {

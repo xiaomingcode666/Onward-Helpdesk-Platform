@@ -239,6 +239,15 @@ jobs:
           cat .tmp/fake-openai.log
           exit 1
 
+      - name: Start antivirus and verify attachment quarantine
+        env:
+          TKT007_CLAMAV_TEST_ADDRESS: 127.0.0.1:3310
+        run: |
+          set -euo pipefail
+          mkdir -p .tmp
+          docker compose -f deploy/clamav/compose.yml up -d --wait --wait-timeout 300
+          go test ./internal/services -run '^TestAssetQuarantineRealClamAV$' -count=1 -v 2>&1 | tee .tmp/attachment-scan.log
+
       - name: Seed acceptance fixture
         env:
           RHD_E2E_ALLOW_SEED: "1"
@@ -279,6 +288,10 @@ jobs:
             .tmp/*.log
             web/test-results
             web/playwright-report
+
+      - name: Stop acceptance antivirus
+        if: always()
+        run: docker compose -f deploy/clamav/compose.yml down --volumes
 
   secret-scan:
     name: Secret Scan

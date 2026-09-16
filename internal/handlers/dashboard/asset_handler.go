@@ -17,7 +17,8 @@ import (
 )
 
 func AssetAnyList(ctx *gin.Context) {
-	if _, err := services.AuthService.RequirePermission(ctx, constants.PermissionAssetView); err != nil {
+	operator, err := services.AuthService.RequirePermission(ctx, constants.PermissionAssetView)
+	if err != nil {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
@@ -28,6 +29,7 @@ func AssetAnyList(ctx *gin.Context) {
 		params.QueryFilter{ParamName: "createUserId"},
 		params.QueryFilter{ParamName: "filename", Op: params.Like},
 	).Desc("id")
+	cnd = cnd.Eq("tenant_id", operator.EffectiveTenantID())
 	if strings.TrimSpace(ctx.Query("status")) == "" {
 		cnd = cnd.Eq("status", enums.AssetStatusSuccess)
 	}
@@ -45,12 +47,13 @@ func AssetGetBy(ctx *gin.Context) {
 	if !ok {
 		return
 	}
-	if _, err := services.AuthService.RequirePermission(ctx, constants.PermissionAssetView); err != nil {
+	operator, err := services.AuthService.RequirePermission(ctx, constants.PermissionAssetView)
+	if err != nil {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
 	item := services.AssetService.Get(id)
-	if item == nil {
+	if item == nil || item.TenantID != operator.EffectiveTenantID() {
 		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0214"))
 		return
 	}

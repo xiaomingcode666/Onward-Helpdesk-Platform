@@ -554,7 +554,7 @@ func (s *knowledgeRetrievalService) hydrateResults(searchResults []vectordb.Sear
 		}
 		if chunk.DocumentID > 0 {
 			doc := documentByID[chunk.DocumentID]
-			if doc == nil || doc.TenantID != scope.Context.TenantID || doc.Status != enums.StatusOk || doc.ReviewStatus != "published" {
+			if doc == nil || doc.TenantID != scope.Context.TenantID || doc.Status != enums.StatusOk || doc.ReviewStatus != "published" || !knowledgeDocumentAssetUsable(doc) {
 				continue
 			}
 			item.DocumentTitle = doc.Title
@@ -664,6 +664,9 @@ func (s *knowledgeRetrievalService) searchLexicalResults(_ context.Context, req 
 		}
 		if chunk.DocumentID > 0 {
 			if doc := documentByID[chunk.DocumentID]; doc != nil {
+				if !knowledgeDocumentAssetUsable(doc) {
+					continue
+				}
 				item.DocumentTitle = doc.Title
 			}
 		}

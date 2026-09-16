@@ -40,6 +40,7 @@ export default function nextConfig(): NextConfig {
   const config: NextConfig = {
     // Keep contributor guidance in the repository's existing root AGENTS.md.
     agentRules: false,
+    distDir: process.env.NEXT_DIST_DIR?.trim() || ".next",
     ...(staticExport ? { output: "export" as const } : {}),
     basePath: productionBasePath,
     assetPrefix: `${productionBasePath}/`,

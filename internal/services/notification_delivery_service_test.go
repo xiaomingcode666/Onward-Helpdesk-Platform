@@ -234,10 +234,14 @@ func setupNotificationDeliveryTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&models.User{}, &models.TenantMember{}, &models.Notification{}, &models.DeliveryLog{}, &models.TenantMailSetting{}, &models.NotificationRecipientSetting{}, &models.MobilePushToken{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.TenantMember{}, &models.Notification{}, &models.DeliveryLog{}, &models.TenantMailSetting{}, &models.NotificationRecipientSetting{}, &models.MobilePushToken{}, &models.NotificationTemplate{}, &models.NotificationDeliveryAttempt{}); err != nil {
 		t.Fatalf("migrate notification delivery models: %v", err)
 	}
 	sqls.SetDB(db)
+	// 通知必须来自「已批准」模板，测试环境同样先落平台基线模板。
+	if _, err := NotificationTemplateService.EnsurePlatformDefaultsDB(db); err != nil {
+		t.Fatalf("seed platform notification templates: %v", err)
+	}
 	return db
 }
 

@@ -202,6 +202,7 @@ async function scopedApiFetch<T>(
   path: string,
   body?: unknown,
   params?: Record<string, unknown>,
+  timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
 ): Promise<ApiResponse<T>> {
   const session = readSession()
   const tenantId = getRequestTenantId()
@@ -230,7 +231,7 @@ async function scopedApiFetch<T>(
     headers["Idempotency-Key"] = generateIdempotencyKey()
   }
 
-  const { signal, timer } = createTimeoutSignal(DEFAULT_REQUEST_TIMEOUT_MS)
+  const { signal, timer } = createTimeoutSignal(timeoutMs)
   try {
     const response = await fetch(`${url}${qs}`, {
       method,
@@ -312,8 +313,8 @@ export async function apiGet<T>(url: string, params?: Record<string, unknown>): 
   return scopedApiFetch<T>("/api/enterprise/v1", "GET", url, undefined, params)
 }
 
-export async function apiPost<T>(url: string, body?: unknown): Promise<ApiResponse<T>> {
-  return scopedApiFetch<T>("/api/enterprise/v1", "POST", url, body)
+export async function apiPost<T>(url: string, body?: unknown, timeoutMs?: number): Promise<ApiResponse<T>> {
+  return scopedApiFetch<T>("/api/enterprise/v1", "POST", url, body, undefined, timeoutMs)
 }
 
 export async function apiPatch<T>(url: string, body?: unknown): Promise<ApiResponse<T>> {

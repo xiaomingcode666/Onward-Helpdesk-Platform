@@ -102,6 +102,7 @@ web/ios/App/App.xcodeproj/xcuserdata/
 .codex/
 web/node_modules/
 web/.next/
+web/.next-*/
 web/out/
 web/test-results/
 web/tmp/

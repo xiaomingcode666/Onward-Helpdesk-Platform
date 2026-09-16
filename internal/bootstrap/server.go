@@ -45,7 +45,12 @@ func NewServer() (*gin.Engine, error) {
 	addRouter(app)
 
 	if baseURL := strings.TrimRight(cfg.Storage.Local.BaseURL, "/"); baseURL != "" {
-		app.StaticFS(baseURL, ginx.StaticFiles(cfg.Storage.Local.Root))
+		files := app.Group(baseURL, func(ctx *gin.Context) {
+			ctx.Header("Cache-Control", "private, no-store")
+			ctx.Header("X-Content-Type-Options", "nosniff")
+			ctx.Next()
+		})
+		files.StaticFS("/", scannedAssetFS{fs: ginx.StaticFiles(cfg.Storage.Local.Root)})
 	}
 	app.NoRoute(func(ctx *gin.Context) {
 		httpx.WriteHttpStatusJSON(ctx, http.StatusNotFound, web.JsonErrorCode(http.StatusNotFound, i18nx.T(ctx, "error.notFound")))
@@ -157,7 +162,22 @@ func maxBodySizeMiddleware() gin.HandlerFunc {
 	limit := config.Current().Storage.MaxRequestBodySizeBytes()
 	return func(ctx *gin.Context) {
 		ctx.Request.Body = http.MaxBytesReader(ctx.Writer, ctx.Request.Body, limit)
+		var observed *attachmentRequestBody
+		if strings.HasPrefix(strings.ToLower(ctx.GetHeader("Content-Type")), "multipart/form-data") {
+			observed = &attachmentRequestBody{ReadCloser: ctx.Request.Body}
+			ctx.Request.Body = observed
+		}
 		ctx.Next()
+		if observed != nil && observed.exceeded {
+			op := services.AuthService.GetAuthPrincipal(ctx)
+			if op != nil {
+				if err := services.AssetService.RecordRejectedAttachment(op, "http:"+ctx.FullPath()); err != nil {
+					slog.Error("record rejected attachment failed", "error", err)
+				}
+			} else {
+				slog.Warn("unauthenticated multipart reception limit exceeded", "route", ctx.FullPath(), "request_id", ctx.GetHeader("X-Request-ID"))
+			}
+		}
 	}
 }
 
@@ -239,6 +259,7 @@ func addRouter(app *gin.Engine) {
 
 	platformGroup := app.Group("/api/platform", middleware.AuthMiddleware, middleware.TenantContextMiddleware(), middleware.PlatformOnlyMiddleware())
 	registerPlatformRoutes(platformGroup)
+	registerAssetQuarantineRoutes(platformGroup)
 
 	enterpriseGroup := app.Group("/api/enterprise/v1", middleware.AuthMiddleware, middleware.TenantContextMiddleware(), middleware.EnterpriseOnlyMiddleware())
 	registerEnterpriseSLARoutes(enterpriseGroup)

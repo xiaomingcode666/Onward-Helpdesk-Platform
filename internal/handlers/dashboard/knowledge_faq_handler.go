@@ -77,7 +77,12 @@ func KnowledgeFAQPostImport(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.e0327"))
 		return
 	}
-	file, err := header.Open()
+	asset, err := services.AssetService.UploadFile(header, "knowledge-faq-import", operator)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	file, err := services.AssetService.OpenReader(asset)
 	if err != nil {
 		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.e0176"))
 		return

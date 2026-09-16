@@ -875,7 +875,7 @@ func TestTicketSupplierCollaborationInviteIsScopedAndIdempotent(t *testing.T) {
 		Filename:   "partner-voice.webm",
 		FileSize:   1024,
 		MimeType:   "audio/webm",
-		Status:     enums.AssetStatusSuccess,
+		ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 		AuditFields: models.AuditFields{
 			CreatedAt: now,
 			UpdatedAt: now,
@@ -910,7 +910,7 @@ func TestTicketSupplierCollaborationInviteIsScopedAndIdempotent(t *testing.T) {
 		Filename:   "foreign-partner-voice.webm",
 		FileSize:   1024,
 		MimeType:   "audio/webm",
-		Status:     enums.AssetStatusSuccess,
+		ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 		AuditFields: models.AuditFields{
 			CreatedAt: now,
 			UpdatedAt: now,

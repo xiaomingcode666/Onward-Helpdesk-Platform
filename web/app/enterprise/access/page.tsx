@@ -50,6 +50,9 @@ import {
 } from "@/lib/api/access-connector"
 import {
   fetchNotificationMailSettings,
+  fetchMailReceiveStatus,
+  receiveMailNow,
+  type MailReceiveStatus,
   sendNotificationTestMail,
   updateNotificationMailSettings,
 } from "@/lib/api/enterprise-notifications"
@@ -84,6 +87,12 @@ type MailForm = {
   replyTo: string
   retryPolicy: string
   useTls: boolean
+  imapHost: string
+  imapPort: string
+  imapUsername: string
+  imapPassword: string
+  imapUseTls: boolean
+  imapEnabled: boolean
 }
 
 type FeishuRegion = "china" | "global"
@@ -127,6 +136,12 @@ const EMPTY_MAIL_FORM: MailForm = {
   replyTo: "",
   retryPolicy: "retry_3_10m",
   useTls: true,
+  imapHost: "",
+  imapPort: "993",
+  imapUsername: "",
+  imapPassword: "",
+  imapUseTls: true,
+  imapEnabled: false,
 }
 
 const EMPTY_FEISHU_FORM: FeishuForm = {
@@ -198,6 +213,12 @@ function mailSettingToForm(setting: NotificationMailSetting): MailForm {
     replyTo: setting.reply_to,
     retryPolicy: setting.retry_policy || "retry_3_10m",
     useTls: setting.use_tls,
+    imapHost: setting.imap_host || "",
+    imapPort: String(setting.imap_port || 993),
+    imapUsername: setting.imap_username || "",
+    imapPassword: "",
+    imapUseTls: true,
+    imapEnabled: setting.imap_enabled,
   }
 }
 
@@ -240,6 +261,20 @@ export default function EnterpriseAccessPage() {
   const [connectorError, setConnectorError] = useState("")
   const [savingMail, setSavingMail] = useState(false)
   const [testingMail, setTestingMail] = useState(false)
+  const [receivingMail, setReceivingMail] = useState(false)
+  const [receiveStatus, setReceiveStatus] = useState<MailReceiveStatus | null>(null)
+  const [receiveMessage, setReceiveMessage] = useState("")
+
+  const receiveMail = async () => {
+    setReceivingMail(true)
+    try {
+      const result = await receiveMailNow()
+      setReceiveMessage(result.success && result.data ? `${result.data.message}；本次处理 ${result.data.processed} 封。` : result.error?.message || "收件失败")
+      const status = await fetchMailReceiveStatus()
+      if (status.success && status.data) setReceiveStatus(status.data)
+    } catch { setReceiveMessage("收件检查失败，请稍后重试") }
+    finally { setReceivingMail(false) }
+  }
   const [testingConnector, setTestingConnector] = useState<number | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -343,6 +378,12 @@ export default function EnterpriseAccessPage() {
       replyTo: mailForm.replyTo.trim(),
       retryPolicy: mailForm.retryPolicy,
       useTls: mailForm.useTls,
+      imapHost: mailForm.imapHost.trim(),
+      imapPort: Number(mailForm.imapPort) || 993,
+      imapUsername: mailForm.imapUsername.trim(),
+      imapPassword: mailForm.imapPassword,
+      imapUseTls: mailForm.imapUseTls,
+      imapEnabled: mailForm.imapEnabled,
     })
     setSavingMail(false)
     if (!result.success || !result.data) {
@@ -582,6 +623,7 @@ export default function EnterpriseAccessPage() {
               ) : (
                 <div className="grid xl:grid-cols-[minmax(0,1fr)_320px]">
                   <div className="grid gap-4 p-4 sm:grid-cols-2">
+                    {mailSetting?.managed_by_project && <p className="text-sm sm:col-span-2">邮箱已由版本化配置管理，请在工单页面的“项目配置”中修改并应用。这里可以检查收件连接。</p>}
                     <FormField label={ee("access.text064")}>
                       <Input value={mailForm.fromAddress} onChange={(event) => setMailForm((value) => ({ ...value, fromAddress: event.target.value }))} placeholder="service@example.com" />
                     </FormField>
@@ -603,6 +645,22 @@ export default function EnterpriseAccessPage() {
                     <FormField label={ee("access.text073")}>
                       <Input value={mailForm.replyTo} onChange={(event) => setMailForm((value) => ({ ...value, replyTo: event.target.value }))} placeholder="support@example.com" />
                     </FormField>
+                    <FormField label="IMAP 收件服务器">
+                      <Input value={mailForm.imapHost} onChange={(event) => setMailForm((value) => ({ ...value, imapHost: event.target.value }))} placeholder="imap.example.com" />
+                    </FormField>
+                    <FormField label="IMAP 端口">
+                      <Input inputMode="numeric" value={mailForm.imapPort} onChange={(event) => setMailForm((value) => ({ ...value, imapPort: event.target.value }))} placeholder="993" />
+                    </FormField>
+                    <FormField label="IMAP 账号">
+                      <Input autoComplete="username" value={mailForm.imapUsername} onChange={(event) => setMailForm((value) => ({ ...value, imapUsername: event.target.value }))} placeholder="support@example.com" />
+                    </FormField>
+                    <FormField label="IMAP 授权码">
+                      <Input type="password" autoComplete="new-password" value={mailForm.imapPassword} onChange={(event) => setMailForm((value) => ({ ...value, imapPassword: event.target.value }))} placeholder={mailSetting?.has_imap_password ? "已配置，留空保持不变" : "请输入授权码"} />
+                    </FormField>
+                    <div className="flex items-center justify-between rounded-md border border-border bg-muted px-3 py-2.5 sm:col-span-2">
+                      <div><div className="text-sm font-medium text-foreground">启用自动收件</div><div className="mt-0.5 text-xs text-muted-foreground">首次连接只建立起点，不导入旧邮件；随后每分钟收取新邮件并建单。附件暂不导入，请在原邮箱查看。</div></div>
+                      <Switch checked={mailForm.imapEnabled} onCheckedChange={(checked) => setMailForm((value) => ({ ...value, imapEnabled: checked }))} aria-label="启用自动收件" />
+                    </div>
                     <SelectField
                       label={ee("access.text074")}
                       style={{ marginBottom: 0 }}
@@ -621,10 +679,13 @@ export default function EnterpriseAccessPage() {
                       <RailopsButton onClick={() => void testMail()} disabled={testingMail || !mailSetting?.connected}>
                         <SendIcon className="size-4" />{testingMail ? ee("access.text077") : ee("access.text078")}
                       </RailopsButton>
-                      <RailopsButton onClick={() => void saveMail()} disabled={savingMail}>
+                      <RailopsButton onClick={() => void receiveMail()} disabled={receivingMail || !mailSetting?.imap_enabled}>{receivingMail ? "正在连接收件…" : "连接并收取"}</RailopsButton>
+                      <RailopsButton onClick={() => void saveMail()} disabled={savingMail || mailSetting?.managed_by_project}>
                         <ServerCogIcon className="size-4" />{savingMail ? ee("access.text079") : ee("access.text080")}
                       </RailopsButton>
                     </div>
+                    {receiveMessage && <p role="status" className="text-sm sm:col-span-2">{receiveMessage}</p>}
+                    {receiveStatus && <p className="text-sm sm:col-span-2">待人工检查：{receiveStatus.pending_count} 封（请到原邮箱查看，避免误关联工单）。{receiveStatus.mailboxes.map(m => m.last_error).filter(Boolean).join("；")}</p>}
                   </div>
                   <aside className="border-t border-border bg-muted/60 p-4 xl:border-l xl:border-t-0">
                     <h3 className="text-xs font-semibold text-foreground">{ee("access.text081")}</h3>

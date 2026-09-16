@@ -33,6 +33,9 @@ test("configuration editing preserves immutable history and only carries runtime
   const removed = replaceProjectRuntime(changed, { ...changed.runtime!, integrations: [] })
   expect(removed.secret_refs).toEqual(["secret://unavailable-unused", "secret://config-mail"])
   expect(current.runtime!.mail.password_ref).toBe("secret://config-shared")
+  const withIMAP = replaceProjectRuntime(current, { ...current.runtime!, mail: { ...current.runtime!.mail, imap: { enabled: true, host: "imap.example.test", port: 993, username: "mail@example.test", password_ref: "secret://imap", project_key: "", ticket_type: "" } } })
+  expect(withIMAP.secret_refs).toContain("secret://imap")
+  expect(restoreProjectConfiguration(historical, withIMAP).secret_refs).toContain("secret://imap")
 })
 
 test.afterAll(async ({ request }) => {

@@ -376,7 +376,7 @@ func migrateMeetingTranscriptTestSchema(t *testing.T, db *gorm.DB) {
 func TestValidateMeetingFrameAssetRequiresCurrentMeetingFrame(t *testing.T) {
 	meeting := &models.MeetingRoomJitsi{ID: "meeting-1", TenantID: 9}
 	valid := &models.Asset{
-		TenantID: 9, Status: enums.AssetStatusSuccess,
+		TenantID: 9, ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 		StorageKey: "development/meeting-frames/meeting-1/2026/07/30/frame.png",
 	}
 	if err := validateMeetingFrameAsset(meeting, valid); err != nil {
@@ -385,9 +385,9 @@ func TestValidateMeetingFrameAssetRequiresCurrentMeetingFrame(t *testing.T) {
 
 	invalid := []*models.Asset{
 		nil,
-		{TenantID: 10, Status: enums.AssetStatusSuccess, StorageKey: valid.StorageKey},
+		{TenantID: 10, ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess, StorageKey: valid.StorageKey},
 		{TenantID: 9, Status: enums.AssetStatusPending, StorageKey: valid.StorageKey},
-		{TenantID: 9, Status: enums.AssetStatusSuccess, StorageKey: "development/meeting-frames/other-meeting/frame.png"},
+		{TenantID: 9, ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess, StorageKey: "development/meeting-frames/other-meeting/frame.png"},
 	}
 	for index, asset := range invalid {
 		if err := validateMeetingFrameAsset(meeting, asset); err == nil {

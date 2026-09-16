@@ -90,6 +90,12 @@ func handleTicketCreatedInAppNotification(ctx context.Context, event events.Tick
 		Level:            level,
 		Channels:         "in_app",
 		IdempotencyKey:   firstEventID(event.EventID, fmt.Sprintf("ticket.created:%d", ticket.ID)),
+		// 模板变量：已批准模板按接收人语言渲染时使用，避免出现未替换的占位符。
+		TemplateCode: "ticket_created",
+		TemplateVariables: map[string]string{
+			"TicketNo":    ticketNo,
+			"TicketTitle": strings.TrimSpace(ticket.Title),
+		},
 	})
 }
 
@@ -130,6 +136,13 @@ func handleTicketAssignedInAppNotification(ctx context.Context, event events.Tic
 		Level:            "info",
 		Channels:         "in_app",
 		IdempotencyKey:   firstEventID(event.EventID, ""),
+		// 模板变量：已批准模板按接收人语言渲染时使用，避免出现未替换的占位符。
+		TemplateCode: "ticket_assigned",
+		TemplateVariables: map[string]string{
+			"TicketNo":    strs.DefaultIfBlank(ticket.TicketNo, fmt.Sprintf("#%d", ticket.ID)),
+			"TicketTitle": strings.TrimSpace(ticket.Title),
+			"Reason":      strings.TrimSpace(event.Reason),
+		},
 	})
 }
 

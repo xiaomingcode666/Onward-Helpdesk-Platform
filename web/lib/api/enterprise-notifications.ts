@@ -46,6 +46,14 @@ export async function sendNotificationTestMail(to: string): Promise<ApiResponse<
   return apiPost<void>("/notifications/mail-settings/_test", { to })
 }
 
+export type MailReceiveStatus = { mailboxes: { initialized: boolean; last_error: string; last_uid: number }[]; pending_count: number }
+export function fetchMailReceiveStatus() {
+  return apiGet<MailReceiveStatus>("/notifications/mail-settings/receive-status")
+}
+export function receiveMailNow() {
+  return apiPost<{ processed: number; message: string }>("/notifications/mail-settings/receive", undefined, 70000)
+}
+
 export async function fetchNotificationRecipientSetting(): Promise<ApiResponse<NotificationRecipientSetting>> {
   return apiGet<NotificationRecipientSetting>("/notifications/preferences")
 }

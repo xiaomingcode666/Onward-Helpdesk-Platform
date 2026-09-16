@@ -23,6 +23,7 @@ import (
 	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/repositories"
 	"remotehelpdesk/internal/services"
+	"remotehelpdesk/internal/testutil"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -85,6 +86,7 @@ func setupEnterpriseContractDB(t *testing.T) *gorm.DB {
 		&models.Conversation{},
 		&models.Message{},
 		&models.Asset{},
+		&models.AssetScanAttempt{},
 		&models.Ticket{},
 		&models.TicketProgress{},
 		&models.TicketRepairRecord{},
@@ -2204,7 +2206,7 @@ func TestEnterpriseTicketWorkbenchUsesTenantScopedStoredContext(t *testing.T) {
 		Filename:   "controller-log.pdf",
 		FileSize:   2048,
 		MimeType:   "application/pdf",
-		Status:     enums.AssetStatusSuccess,
+		ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 		AuditFields: models.AuditFields{
 			CreatedAt:      now,
 			UpdatedAt:      now,
@@ -3525,6 +3527,7 @@ func TestEnterpriseProductManualFileUploadListAndDelete(t *testing.T) {
 	config.SetCurrent(&config.Config{
 		Storage: config.StorageConfig{
 			Default:         enums.AssetProviderLocal,
+			UploadSecurity:  config.UploadSecurityConfig{ClamAV: testutil.CleanClamAV(t)},
 			MaxUploadSizeMB: 20,
 			Local: config.LocalStorageConfig{
 				Root:    storageRoot,
@@ -3670,6 +3673,7 @@ func TestEnterpriseManualAndKnowledgeDocumentUploadsKeepDistinctSources(t *testi
 	config.SetCurrent(&config.Config{
 		Storage: config.StorageConfig{
 			Default:         enums.AssetProviderLocal,
+			UploadSecurity:  config.UploadSecurityConfig{ClamAV: testutil.CleanClamAV(t)},
 			MaxUploadSizeMB: 20,
 			Local: config.LocalStorageConfig{
 				Root:    storageRoot,

@@ -1,15 +1,18 @@
 package services
 
 import (
+	"bytes"
 	"encoding/json"
 	"log/slog"
 	"strings"
 	"time"
 
 	"remotehelpdesk/internal/models"
+	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/openidentity"
+	"remotehelpdesk/internal/services/storage"
 	"remotehelpdesk/internal/wxwork"
 
 	"github.com/mlogclub/simple/common/strs"
@@ -524,7 +527,14 @@ func (s *wxWorkKFInboundService) buildInboundAssetPayload(conversationID int64, 
 	if err != nil {
 		return "", "", err
 	}
-	asset, err := AssetService.UploadBytes(data, "", "", nil)
+	conversation := ConversationService.Get(conversationID)
+	if conversation == nil || conversation.TenantID <= 0 {
+		return "", "", errorsx.InvalidParamI18n("error.e0116")
+	}
+	asset, err := AssetService.upload(bytes.NewReader(data), storage.UploadInfo{
+		Filename: AssetService.buildFilenameFromMime(detectedUploadMIME(data, "", "")), FileSize: int64(len(data)),
+		Source: "wxwork", Prefix: "wxwork", Principal: &dto.AuthPrincipal{TenantID: conversation.TenantID, Username: wxWorkKFSystemOperatorName, DomainType: "service_account"},
+	}, conversationID)
 	if err != nil {
 		return "", "", err
 	}

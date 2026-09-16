@@ -12,6 +12,12 @@ import (
 
 func Init() {
 	c := cron.New()
+	addNonOverlappingFunc(c, "@every 1m", func() {
+		if _, err := services.PollEnabledInboundMail(); err != nil {
+			slog.Warn("inbound email polling incomplete", "error", err)
+		}
+	})
+	addNonOverlappingFunc(c, "@every 5s", services.ProcessTicketEmailReplies)
 
 	addFunc(c, "15 0 * * *", func() {
 		if err := services.MeteringService.AggregateDailyUsage(); err != nil {

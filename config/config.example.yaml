@@ -171,6 +171,10 @@ storage:
   default: local
   # Maximum size of a single uploaded file, in MB. Values <= 0 fall back to the backend default.
   maxUploadSizeMB: 20
+  # Files above the upload limit are retained privately up to this hard reception cap.
+  maxReceiveSizeMB: 64
+  quarantineRoot: data/quarantine
+  maxQuarantineSizeMB: 1024
   uploadSecurity:
     # Built-in validation blocks executable/script payloads, unsafe browser-active content,
     # suspicious file signatures, and the EICAR antivirus test signature.
@@ -183,12 +187,14 @@ storage:
     maxArchiveEntries: 1000
     maxArchiveExpandedSizeMB: 100
     maxArchiveCompressionRatio: 100
+    maxArchiveDepth: 5
     clamav:
-      # Enable for production deployments that provide a ClamAV clamd service.
-      enabled: false
+      # Required for all inbound attachments. Disabled/unavailable means quarantine.
+      enabled: true
       address: 127.0.0.1:3310
       timeoutSeconds: 10
-      # When ClamAV is enabled, reject uploads if the scanner is unavailable.
+      maxDatabaseAgeHours: 168
+      # Compatibility setting: failures are always quarantined, including when false.
       failClosed: true
   local:
     # Files are written under this directory, relative to the process working directory unless an absolute path is used.
@@ -208,7 +214,7 @@ storage:
     # If empty, public buckets use the default bucket endpoint URL; private buckets use signed URLs.
     baseUrl: ""
     # Set to true for private buckets. Private buckets return temporary signed URLs for reads.
-    private: false
+    private: true
     # Expiration for generated OSS signed GET URLs, in seconds. Values <= 0 fall back to 600.
     signedUrlExpireSeconds: 600
   minio:

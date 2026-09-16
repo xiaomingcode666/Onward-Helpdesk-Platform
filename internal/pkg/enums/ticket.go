@@ -204,11 +204,13 @@ type TicketSource string
 const (
 	TicketSourceManual       TicketSource = "manual"
 	TicketSourceConversation TicketSource = "conversation"
+	TicketSourceEmail        TicketSource = "email"
 )
 
 var TicketSourceValues = []TicketSource{
 	TicketSourceManual,
 	TicketSourceConversation,
+	TicketSourceEmail,
 }
 
 func IsValidTicketSource(source string) bool {

@@ -111,7 +111,7 @@ func TestTenantPortalSettingsPersistsUploadedLogoAsset(t *testing.T) {
 		Filename:   "logo.png",
 		FileSize:   16,
 		MimeType:   "image/png",
-		Status:     enums.AssetStatusSuccess,
+		ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 		AuditFields: models.AuditFields{
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),

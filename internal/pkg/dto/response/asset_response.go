@@ -3,6 +3,8 @@ package response
 import "remotehelpdesk/internal/pkg/enums"
 
 type AssetResponse struct {
+	ScanStatus     string              `json:"scanStatus"`
+	ScanReason     string              `json:"scanReason"`
 	ID             int64               `json:"id"`
 	AssetID        string              `json:"assetId"`
 	Provider       enums.AssetProvider `json:"provider"`

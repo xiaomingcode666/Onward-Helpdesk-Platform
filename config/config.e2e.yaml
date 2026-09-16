@@ -53,7 +53,9 @@ storage:
     blockedExtensions: []
     blockedMimeTypes: []
     clamav:
-      enabled: false
+      enabled: true
+      address: 127.0.0.1:3310
+      timeoutSeconds: 10
   local:
     root: .tmp/e2e-storage
     baseUrl: /storage

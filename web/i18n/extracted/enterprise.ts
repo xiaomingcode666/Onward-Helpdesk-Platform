@@ -872,7 +872,8 @@ export const enterpriseMessages = {
         "text101": "未绑定产品",
         "text102": "当前",
         "text103": "待处理",
-        "text104": "客户"
+        "text104": "客户",
+        "text105": "邮件自动建单"
       },
       "access": {
         "text001": "最多 3 次 · 间隔 10 分钟",
@@ -2626,7 +2627,8 @@ export const enterpriseMessages = {
         "text101": "No product bound",
         "text102": "Current",
         "text103": "Pending",
-        "text104": "Customer"
+        "text104": "Customer",
+        "text105": "Created from email"
       },
       "access": {
         "text001": "access text 001",
@@ -4380,7 +4382,8 @@ export const enterpriseMessages = {
         "text101": "Sin producto vinculado",
         "text102": "Actual",
         "text103": "Pendiente",
-        "text104": "Cliente"
+        "text104": "Cliente",
+        "text105": "Creado desde correo"
       },
       "access": {
         "text001": "texto access 001",

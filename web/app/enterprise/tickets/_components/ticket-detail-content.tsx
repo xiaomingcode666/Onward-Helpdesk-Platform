@@ -1,4 +1,5 @@
 "use client"
+import { TicketEmailPanel } from "./ticket-email-panel"
 
 import { translateCurrentMessage } from "@/i18n/messages"
 import {
@@ -125,6 +126,7 @@ export function sourceLabel(source: string) {
   const map: Record<string, string> = {
     manual: ee("ticketDetail.text023"),
     conversation: ee("ticketDetail.text024"),
+    email: ee("ticketDetail.text105"),
   }
   return map[source] ?? (source || "-")
 }
@@ -648,6 +650,12 @@ export function EnterpriseTicketDetailContent({
           <InfoTile key={label} label={label} value={fieldValue(value)} />
         ))}
       </section>
+
+      {ticket.channel === "email" ? (
+        <div className="mb-3">
+          <TicketEmailPanel key={ticket.id} ticketID={ticket.id} />
+        </div>
+      ) : null}
 
       <div className="rhd-railops-ticket-detail-tabs">
         <UnderlineTabs

@@ -353,7 +353,7 @@ func TestTenantIsolation_FileDownload(t *testing.T) {
 		StorageKey: "reports/report-a.pdf",
 		Filename:   "report-a.pdf",
 		FileSize:   1024,
-		Status:     enums.AssetStatusSuccess,
+		ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 		AuditFields: models.AuditFields{
 			CreatedAt: now, CreateUserID: f.OperatorA.UserID, CreateUserName: f.OperatorA.Username,
 			UpdatedAt: now, UpdateUserID: f.OperatorA.UserID, UpdateUserName: f.OperatorA.Username,
@@ -368,7 +368,7 @@ func TestTenantIsolation_FileDownload(t *testing.T) {
 		StorageKey: "reports/report-b.pdf",
 		Filename:   "report-b.pdf",
 		FileSize:   2048,
-		Status:     enums.AssetStatusSuccess,
+		ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 		AuditFields: models.AuditFields{
 			CreatedAt: now, CreateUserID: f.OperatorB.UserID, CreateUserName: f.OperatorB.Username,
 			UpdatedAt: now, UpdateUserID: f.OperatorB.UserID, UpdateUserName: f.OperatorB.Username,

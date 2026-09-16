@@ -67,7 +67,7 @@ func TestBuildMessageHTMLForResponseUsesAssetIDWithoutSignedURL(t *testing.T) {
 		StorageKey: "attachments/demo.png",
 		Filename:   "demo.png",
 		MimeType:   "image/png",
-		Status:     enums.AssetStatusSuccess,
+		ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 	})
 	html := `<p><img data-asset-id="asset_html_1" data-provider="local" data-storage-key="attachments/demo.png" alt="demo"></p>`
 	got := BuildMessageHTMLForResponse(html)
@@ -164,7 +164,7 @@ func TestNormalizeMessageHTMLAssetsKeepsValidAttrsAndRemovesSrc(t *testing.T) {
 		Filename:   "demo.png",
 		FileSize:   123,
 		MimeType:   "image/png",
-		Status:     enums.AssetStatusSuccess,
+		ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 	})
 
 	got, err := NormalizeMessageHTMLAssets(`<p><img src="https://files.example.com/images/demo.png" data-asset-id="asset_local_1" data-provider="local" data-storage-key="images/demo.png" alt="demo"></p>`)
@@ -195,7 +195,7 @@ func TestNormalizeMessageHTMLAssetsAcceptsAssetIDOnly(t *testing.T) {
 		Filename:   "id-only.png",
 		FileSize:   321,
 		MimeType:   "image/png",
-		Status:     enums.AssetStatusSuccess,
+		ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 	})
 
 	got, err := NormalizeMessageHTMLAssets(`<p><img data-asset-id="asset_id_only" alt="demo"></p>`)
@@ -265,7 +265,7 @@ func TestNormalizeMessageHTMLAssetsRejectsMismatchedAttrs(t *testing.T) {
 		Filename:   "real.png",
 		FileSize:   456,
 		MimeType:   "image/png",
-		Status:     enums.AssetStatusSuccess,
+		ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 	})
 
 	_, err := NormalizeMessageHTMLAssets(`<p><img data-asset-id="asset_local_2" data-provider="local" data-storage-key="images/wrong.png" alt="demo"></p>`)

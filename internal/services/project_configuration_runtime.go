@@ -188,6 +188,15 @@ func UpgradeProjectConfiguration(tenantID int64) (*projectconfig.Document, error
 		if m.ID > 0 && m.Status == int(enums.StatusOk) {
 			resolved := EmailNotificationService.resolveMailConfig(tenantID)
 			r.Mail = projectconfig.Mail{Enabled: resolved.SMTPHost != "", Host: resolved.SMTPHost, Port: resolved.SMTPPort, Username: resolved.Username, FromAddress: resolved.FromAddress, FromName: resolved.FromName, UseTLS: resolved.UseTLS, ReplyTo: m.ReplyTo, RetryPolicy: defaultString(m.RetryPolicy, "retry_3_10m")}
+			if m.IMAPEnabled {
+				r.Mail.IMAP = &projectconfig.IMAP{Enabled: true, Host: m.IMAPHost, Port: m.IMAPPort, Username: m.IMAPUsername, PasswordRef: "secret://imap-password"}
+				doc.SecretRefs = append(doc.SecretRefs, r.Mail.IMAP.PasswordRef)
+				for i := range r.Channels {
+					if r.Channels[i].Name == "email" {
+						r.Channels[i].Enabled = true
+					}
+				}
+			}
 		}
 	}
 	if r.Mail.Enabled {

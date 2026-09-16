@@ -40,6 +40,21 @@ func (r *notificationDeliveryRepository) FindByIdempotencyKey(db *gorm.DB, tenan
 	return &item
 }
 
+func (r *notificationDeliveryRepository) FindByIDs(db *gorm.DB, ids []int64) map[int64]models.DeliveryLog {
+	ret := make(map[int64]models.DeliveryLog)
+	if db == nil || len(ids) == 0 {
+		return ret
+	}
+	var items []models.DeliveryLog
+	if err := db.Where("id IN ?", ids).Find(&items).Error; err != nil {
+		return ret
+	}
+	for i := range items {
+		ret[items[i].ID] = items[i]
+	}
+	return ret
+}
+
 func (r *notificationDeliveryRepository) Create(db *gorm.DB, item *models.DeliveryLog) error {
 	return db.Create(item).Error
 }

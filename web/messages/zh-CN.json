@@ -1,4 +1,111 @@
 {
+  "notificationTemplates": {
+    "title": "通知模板",
+    "description": "所有通知都由已批准的模板生成：平台基线模板默认已批准，租户模板批准后覆盖基线；系统按收件人语言选择模板，发送前做敏感信息检查，并保留每次发送尝试。没有可用模板时通知会被拦截。",
+    "refresh": "刷新",
+    "seed": "初始化推荐模板",
+    "newTemplate": "新建模板",
+    "search": "搜索名称或 code",
+    "channel": "渠道",
+    "language": "语言",
+    "approval": "批准状态",
+    "allChannels": "全部渠道",
+    "allLanguages": "全部语言",
+    "allStatuses": "全部状态",
+    "tabs": {
+      "templates": "模板",
+      "attempts": "发送记录"
+    },
+    "columns": {
+      "code": "Code",
+      "name": "名称",
+      "channel": "渠道",
+      "language": "语言",
+      "approval": "批准状态",
+      "updatedAt": "更新时间",
+      "actions": "操作"
+    },
+    "channels": {
+      "in_app": "站内信",
+      "email": "邮件",
+      "wxwork": "企业微信",
+      "sms": "短信"
+    },
+    "languages": {
+      "zh-CN": "简体中文",
+      "en-US": "English",
+      "es-ES": "Español"
+    },
+    "statuses": {
+      "draft": "草稿",
+      "approved": "已批准",
+      "retired": "已停用"
+    },
+    "attemptStatuses": {
+      "sent": "发送成功",
+      "failed": "发送失败",
+      "blocked": "敏感信息拦截",
+      "skipped": "已跳过"
+    },
+    "attemptColumns": {
+      "time": "时间",
+      "channel": "渠道",
+      "status": "结果",
+      "reason": "原因",
+      "detail": "说明",
+      "template": "模板/通知"
+    },
+    "attemptStatus": "发送结果",
+    "edit": "编辑",
+    "approve": "批准",
+    "retire": "停用",
+    "delete": "删除",
+    "readOnly": "平台内置模板，只读",
+    "platformTemplate": "平台内置",
+    "tenantTemplate": "租户自定义",
+    "loading": "正在加载…",
+    "empty": "暂无模板，可先点击“初始化推荐模板”",
+    "emptyAttempts": "暂无发送记录",
+    "total": "共 {total} 条",
+    "previous": "上一页",
+    "next": "下一页",
+    "loadFailed": "加载失败",
+    "formTitle": "通知模板编辑",
+    "formCreateTitle": "新建通知模板",
+    "formEditTitle": "编辑通知模板",
+    "code": "模板 Code",
+    "name": "模板名称",
+    "titleTemplate": "标题模板",
+    "contentTemplate": "内容模板",
+    "titlePlaceholder": "工单 {{TicketNo}} 已分配给你",
+    "contentPlaceholder": "{{TicketTitle}}\\n{{Reason}}",
+    "variableHint": "可用变量：{{Title}} {{Content}} {{RecipientName}} {{ActionURL}} {{TicketNo}} {{TicketTitle}} {{Reason}} {{Assignee}}",
+    "saveDraft": "保存为草稿",
+    "preview": "预览并检查",
+    "cancel": "取消",
+    "approvalHint": "保存或修改后回到草稿状态，必须批准后才会用于发送；未批准时该模板不生效，系统继续使用平台基线模板。",
+    "codeRequired": "请填写模板 Code",
+    "saved": "模板已保存，需重新批准",
+    "created": "模板已创建为草稿，批准后生效",
+    "saveFailed": "保存失败",
+    "previewFailed": "预览失败",
+    "approved": "模板已批准，可用于发送",
+    "retired": "模板已停用",
+    "deleted": "模板已删除",
+    "actionFailed": "操作失败",
+    "seeded": "已生成 {count} 个草稿模板",
+    "previewBlocked": "敏感信息检查未通过：命中 {rule}，发送会被阻断",
+    "previewSafe": "敏感信息检查通过，可以发送",
+    "notDelivered": "未发送"
+  },
+  "assetQuarantine": {
+    "title": "附件隔离", "description": "附件扫描通过后才能使用。隔离附件可查看原因，重新扫描通过后恢复使用。",
+    "refresh": "刷新", "search": "搜索文件名", "status": "扫描状态", "file": "文件", "source": "来源", "uploadedBy": "上传人", "time": "接收时间", "reason": "隔离原因", "actions": "操作",
+    "history": "扫描记录", "rescan": "重新扫描", "scanning": "扫描中…", "released": "扫描通过，附件已恢复使用", "loading": "正在加载…", "empty": "暂无附件记录", "total": "共 {total} 个附件", "previous": "上一页", "next": "下一页", "more": "更早记录",
+    "incomplete": "文件未完整接收，请重新上传", "noHistory": "尚无扫描记录，历史附件需要补扫", "database": "病毒库", "notPerformed": "未完成引擎扫描",
+    "statuses": { "quarantined": "已隔离", "pending": "待扫描", "unscanned": "历史待补扫", "clean": "扫描通过", "all": "全部" },
+    "reasons": { "infected": "发现病毒", "limit_exceeded": "超过大小或扫描限制", "archive_error": "压缩包损坏、加密或无法完整解压", "scan_failed": "扫描或文件接收失败", "policy_blocked": "文件类型或内容不允许" }
+  },
   "ticketCase": {
     "transition": "工单阶段：{from} → {to}",
     "progress": {
@@ -88,7 +195,7 @@
     "service_region": "服务区域",
     "customer_id": "客户身份",
     "projectPolicy": "已确认的项目规则",
-    "incomplete": "Context Incomplete（上下文待补全）",
+    "incomplete": "上下文待补全",
     "complete": "上下文完整",
     "policy": "受理规则",
     "addRule": "添加规则",
@@ -4768,6 +4875,7 @@
       "audit": "审计日志",
       "usage": "用量中心",
       "notifications": "消息中心",
+      "notificationTemplates": "通知模板",
       "labels": "设备管理",
       "iam-audit": "审计日志"
     },

@@ -7,7 +7,6 @@ import (
 
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/dto"
-	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/openidentity"
 	"remotehelpdesk/internal/pkg/utils"
@@ -66,7 +65,7 @@ func (s *conversationMediaService) authorize(assetID string, canAccess func(*mod
 	if asset == nil {
 		return nil, errorsx.InvalidParamI18n("error.e0214")
 	}
-	if asset.Status != enums.AssetStatusSuccess {
+	if !asset.Usable() {
 		return nil, errorsx.InvalidParamI18n("error.e0213")
 	}
 

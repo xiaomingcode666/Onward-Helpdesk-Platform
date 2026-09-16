@@ -13,26 +13,29 @@ import (
 )
 
 var environmentBindings = map[string][]string{
-	"encryptionKey":             {"RHD_ENCRYPTIONKEY", "ENCRYPTION_KEY"},
-	"encryptionKeyFallbacks":    {"RHD_ENCRYPTIONKEY_FALLBACKS", "ENCRYPTION_KEY_FALLBACKS"},
-	"public.baseUrl":            {"RHD_PUBLIC_BASEURL", "RHD_PUBLIC_URL", "PUBLIC_APP_URL", "APP_PUBLIC_URL", "NEXT_PUBLIC_APP_BASE_URL", "SERVER_PUBLIC_URL"},
-	"mcp.serverToken":           {"RHD_MCP_SERVERTOKEN", "MCP_SERVER_TOKEN"},
-	"jitsi.url":                 {"RHD_JITSI_URL", "JITSI_URL"},
-	"jitsi.appId":               {"RHD_JITSI_APP_ID", "JITSI_APP_ID"},
-	"jitsi.appSecret":           {"RHD_JITSI_APP_SECRET", "JITSI_APP_SECRET"},
-	"jitsi.webhookSecret":       {"RHD_JITSI_WEBHOOK_SECRET", "JITSI_WEBHOOK_SECRET"},
-	"jitsi.jitsiDomain":         {"RHD_JITSI_DOMAIN", "JITSI_DOMAIN"},
-	"jitsi.tokenTTLMinutes":     {"RHD_JITSI_TOKEN_TTL_MINUTES", "JITSI_TOKEN_TTL_MINUTES"},
-	"jitsi.requireAuth":         {"RHD_JITSI_REQUIRE_AUTH", "JITSI_REQUIRE_AUTH"},
-	"speech.provider":           {"RHD_SPEECH_PROVIDER", "SPEECH_PROVIDER"},
-	"speech.xfyun.appId":        {"RHD_XFYUN_RTASR_APP_ID", "XFYUN_RTASR_APP_ID"},
-	"speech.xfyun.apiKey":       {"RHD_XFYUN_RTASR_API_KEY", "XFYUN_RTASR_API_KEY"},
-	"speech.xfyun.endpoint":     {"RHD_XFYUN_RTASR_ENDPOINT", "XFYUN_RTASR_ENDPOINT"},
-	"speech.xfyun.domain":       {"RHD_XFYUN_RTASR_DOMAIN", "XFYUN_RTASR_DOMAIN"},
-	"speech.aliyun.apiKey":      {"RHD_ALIYUN_ASR_API_KEY", "ALIYUN_ASR_API_KEY", "DASHSCOPE_API_KEY"},
-	"speech.aliyun.workspaceId": {"RHD_ALIYUN_ASR_WORKSPACE_ID", "ALIYUN_ASR_WORKSPACE_ID"},
-	"speech.aliyun.endpoint":    {"RHD_ALIYUN_ASR_ENDPOINT", "ALIYUN_ASR_ENDPOINT"},
-	"speech.aliyun.model":       {"RHD_ALIYUN_ASR_MODEL", "ALIYUN_ASR_MODEL"},
+	"storage.uploadSecurity.clamav.enabled": {"RHD_STORAGE_UPLOADSECURITY_CLAMAV_ENABLED"},
+	"storage.uploadSecurity.clamav.address": {"RHD_STORAGE_UPLOADSECURITY_CLAMAV_ADDRESS"},
+	"storage.quarantineRoot":                {"RHD_STORAGE_QUARANTINEROOT"},
+	"encryptionKey":                         {"RHD_ENCRYPTIONKEY", "ENCRYPTION_KEY"},
+	"encryptionKeyFallbacks":                {"RHD_ENCRYPTIONKEY_FALLBACKS", "ENCRYPTION_KEY_FALLBACKS"},
+	"public.baseUrl":                        {"RHD_PUBLIC_BASEURL", "RHD_PUBLIC_URL", "PUBLIC_APP_URL", "APP_PUBLIC_URL", "NEXT_PUBLIC_APP_BASE_URL", "SERVER_PUBLIC_URL"},
+	"mcp.serverToken":                       {"RHD_MCP_SERVERTOKEN", "MCP_SERVER_TOKEN"},
+	"jitsi.url":                             {"RHD_JITSI_URL", "JITSI_URL"},
+	"jitsi.appId":                           {"RHD_JITSI_APP_ID", "JITSI_APP_ID"},
+	"jitsi.appSecret":                       {"RHD_JITSI_APP_SECRET", "JITSI_APP_SECRET"},
+	"jitsi.webhookSecret":                   {"RHD_JITSI_WEBHOOK_SECRET", "JITSI_WEBHOOK_SECRET"},
+	"jitsi.jitsiDomain":                     {"RHD_JITSI_DOMAIN", "JITSI_DOMAIN"},
+	"jitsi.tokenTTLMinutes":                 {"RHD_JITSI_TOKEN_TTL_MINUTES", "JITSI_TOKEN_TTL_MINUTES"},
+	"jitsi.requireAuth":                     {"RHD_JITSI_REQUIRE_AUTH", "JITSI_REQUIRE_AUTH"},
+	"speech.provider":                       {"RHD_SPEECH_PROVIDER", "SPEECH_PROVIDER"},
+	"speech.xfyun.appId":                    {"RHD_XFYUN_RTASR_APP_ID", "XFYUN_RTASR_APP_ID"},
+	"speech.xfyun.apiKey":                   {"RHD_XFYUN_RTASR_API_KEY", "XFYUN_RTASR_API_KEY"},
+	"speech.xfyun.endpoint":                 {"RHD_XFYUN_RTASR_ENDPOINT", "XFYUN_RTASR_ENDPOINT"},
+	"speech.xfyun.domain":                   {"RHD_XFYUN_RTASR_DOMAIN", "XFYUN_RTASR_DOMAIN"},
+	"speech.aliyun.apiKey":                  {"RHD_ALIYUN_ASR_API_KEY", "ALIYUN_ASR_API_KEY", "DASHSCOPE_API_KEY"},
+	"speech.aliyun.workspaceId":             {"RHD_ALIYUN_ASR_WORKSPACE_ID", "ALIYUN_ASR_WORKSPACE_ID"},
+	"speech.aliyun.endpoint":                {"RHD_ALIYUN_ASR_ENDPOINT", "ALIYUN_ASR_ENDPOINT"},
+	"speech.aliyun.model":                   {"RHD_ALIYUN_ASR_MODEL", "ALIYUN_ASR_MODEL"},
 	"speech.mock.segmentDurationMs": {
 		"RHD_SPEECH_MOCK_SEGMENT_DURATION_MS", "SPEECH_MOCK_SEGMENT_DURATION_MS",
 	},
@@ -249,23 +252,26 @@ func (c CustomerSessionConfig) RefreshThreshold() int {
 }
 
 type StorageConfig struct {
-	Default         enums.AssetProvider  `yaml:"default"`
-	MaxUploadSizeMB int64                `yaml:"maxUploadSizeMB"`
-	UploadSecurity  UploadSecurityConfig `yaml:"uploadSecurity"`
-	Local           LocalStorageConfig   `yaml:"local"`
-	OSS             OSSStorageConfig     `yaml:"oss"`
-	MinIO           MinIOStorageConfig   `yaml:"minio"`
+	Default             enums.AssetProvider  `yaml:"default"`
+	MaxUploadSizeMB     int64                `yaml:"maxUploadSizeMB"`
+	MaxReceiveSizeMB    int64                `yaml:"maxReceiveSizeMB"`
+	QuarantineRoot      string               `yaml:"quarantineRoot"`
+	MaxQuarantineSizeMB int64                `yaml:"maxQuarantineSizeMB"`
+	UploadSecurity      UploadSecurityConfig `yaml:"uploadSecurity"`
+	Local               LocalStorageConfig   `yaml:"local"`
+	OSS                 OSSStorageConfig     `yaml:"oss"`
+	MinIO               MinIOStorageConfig   `yaml:"minio"`
 }
 
 type UploadSecurityConfig struct {
-	// Enabled defaults to true when omitted. Set it explicitly to false only for
-	// isolated development environments.
+	// Kept for configuration compatibility. Disabling checks cannot release uploads.
 	Enabled                    *bool                `yaml:"enabled"`
 	BlockedExtensions          []string             `yaml:"blockedExtensions"`
 	BlockedMIMETypes           []string             `yaml:"blockedMimeTypes"`
 	MaxArchiveEntries          int                  `yaml:"maxArchiveEntries"`
 	MaxArchiveExpandedSizeMB   int64                `yaml:"maxArchiveExpandedSizeMB"`
 	MaxArchiveCompressionRatio int64                `yaml:"maxArchiveCompressionRatio"`
+	MaxArchiveDepth            int                  `yaml:"maxArchiveDepth"`
 	ClamAV                     ClamAVSecurityConfig `yaml:"clamav"`
 }
 
@@ -295,10 +301,43 @@ func (c UploadSecurityConfig) ArchiveCompressionRatioLimit() int64 {
 }
 
 type ClamAVSecurityConfig struct {
-	Enabled        bool   `yaml:"enabled"`
-	Address        string `yaml:"address"`
-	TimeoutSeconds int    `yaml:"timeoutSeconds"`
-	FailClosed     *bool  `yaml:"failClosed"`
+	Enabled             bool   `yaml:"enabled"`
+	Address             string `yaml:"address"`
+	TimeoutSeconds      int    `yaml:"timeoutSeconds"`
+	FailClosed          *bool  `yaml:"failClosed"`
+	MaxDatabaseAgeHours int    `yaml:"maxDatabaseAgeHours"`
+}
+
+func (c ClamAVSecurityConfig) DatabaseMaxAge() time.Duration {
+	if c.MaxDatabaseAgeHours <= 0 {
+		return 7 * 24 * time.Hour
+	}
+	return time.Duration(c.MaxDatabaseAgeHours) * time.Hour
+}
+
+func (s StorageConfig) MaxReceiveSizeBytes() int64 {
+	limit := s.MaxReceiveSizeMB << 20
+	if limit <= 0 {
+		limit = 64 << 20
+	}
+	if limit < s.MaxUploadSizeBytes() {
+		limit = s.MaxUploadSizeBytes()
+	}
+	return limit
+}
+
+func (s StorageConfig) QuarantineCapacity() int64 {
+	if s.MaxQuarantineSizeMB <= 0 {
+		return 1024 << 20
+	}
+	return s.MaxQuarantineSizeMB << 20
+}
+
+func (c UploadSecurityConfig) ArchiveDepthLimit() int {
+	if c.MaxArchiveDepth <= 0 {
+		return 5
+	}
+	return c.MaxArchiveDepth
 }
 
 func (c ClamAVSecurityConfig) AddressOrDefault() string {
@@ -327,7 +366,7 @@ func (s StorageConfig) MaxUploadSizeBytes() int64 {
 }
 
 func (s StorageConfig) MaxRequestBodySizeBytes() int64 {
-	limit := s.MaxUploadSizeBytes()
+	limit := s.MaxReceiveSizeBytes()
 	return limit + (1 << 20)
 }
 

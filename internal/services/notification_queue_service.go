@@ -108,6 +108,12 @@ func isNonRetryableNotificationCreateError(err error) bool {
 	if !errors.As(err, &codeErr) {
 		return false
 	}
+	if codeErr.Code == errorsx.CodeInvalidParam &&
+		(strings.Contains(codeErr.Message, notificationSensitiveBlockedPrefix) ||
+			strings.Contains(codeErr.Message, notificationTemplateMissingPrefix)) {
+		// 敏感信息拦截、缺少已批准模板都已经写入发送尝试记录，重试不会改变结果。
+		return true
+	}
 	return codeErr.Code == errorsx.CodeAuthForbidden &&
 		strings.Contains(strings.ToLower(codeErr.Message), "notification recipient is outside the tenant or inactive")
 }

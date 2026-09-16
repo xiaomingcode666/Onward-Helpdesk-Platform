@@ -17,6 +17,7 @@ import (
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/openidentity"
 	"remotehelpdesk/internal/repositories"
+	"remotehelpdesk/internal/testutil"
 
 	"github.com/glebarez/sqlite"
 	"github.com/mlogclub/simple/sqls"
@@ -98,22 +99,22 @@ func TestValidateConversationAssetEnforcesTenantAndMediaType(t *testing.T) {
 		t.Fatalf("create conversation: %v", err)
 	}
 
-	audio := &models.Asset{TenantID: 21, ConversationID: conversation.ID, Status: enums.AssetStatusSuccess, MimeType: "audio/webm"}
+	audio := &models.Asset{TenantID: 21, ConversationID: conversation.ID, ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess, MimeType: "audio/webm"}
 	if err := validateConversationAsset(audio, conversation.ID, enums.IMMessageTypeAudio); err != nil {
 		t.Fatalf("same-tenant audio asset rejected: %v", err)
 	}
 
-	otherConversationAsset := &models.Asset{TenantID: 21, ConversationID: conversation.ID + 1, Status: enums.AssetStatusSuccess, MimeType: "audio/webm"}
+	otherConversationAsset := &models.Asset{TenantID: 21, ConversationID: conversation.ID + 1, ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess, MimeType: "audio/webm"}
 	if err := validateConversationAsset(otherConversationAsset, conversation.ID, enums.IMMessageTypeAudio); err == nil {
 		t.Fatal("asset belonging to another conversation unexpectedly passed validation")
 	}
 
-	foreignAudio := &models.Asset{TenantID: 22, Status: enums.AssetStatusSuccess, MimeType: "audio/webm"}
+	foreignAudio := &models.Asset{TenantID: 22, ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess, MimeType: "audio/webm"}
 	if err := validateConversationAsset(foreignAudio, conversation.ID, enums.IMMessageTypeAudio); err == nil {
 		t.Fatal("cross-tenant audio asset unexpectedly accepted")
 	}
 
-	notAudio := &models.Asset{TenantID: 21, Status: enums.AssetStatusSuccess, MimeType: "image/png"}
+	notAudio := &models.Asset{TenantID: 21, ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess, MimeType: "image/png"}
 	if err := validateConversationAsset(notAudio, conversation.ID, enums.IMMessageTypeAudio); err == nil {
 		t.Fatal("non-audio asset unexpectedly accepted as an audio message")
 	}
@@ -137,8 +138,9 @@ func TestForwardAgentImageClonesIntoTargetConversationAndIsIdempotent(t *testing
 	storageRoot := t.TempDir()
 	previousConfig := config.CurrentOrDefault()
 	config.SetCurrent(&config.Config{Storage: config.StorageConfig{
-		Default: enums.AssetProviderLocal,
-		Local:   config.LocalStorageConfig{Root: storageRoot},
+		Default:        enums.AssetProviderLocal,
+		UploadSecurity: config.UploadSecurityConfig{ClamAV: testutil.CleanClamAV(t)},
+		Local:          config.LocalStorageConfig{Root: storageRoot},
 	}})
 	t.Cleanup(func() { config.SetCurrent(&previousConfig) })
 	png, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
@@ -149,7 +151,7 @@ func TestForwardAgentImageClonesIntoTargetConversationAndIsIdempotent(t *testing
 	sourceAsset := &models.Asset{
 		TenantID: 31, ConversationID: conversations[0].ID, AssetID: "forward-source-asset",
 		Provider: enums.AssetProviderLocal, StorageKey: "images/source.png", Filename: "source.png",
-		FileSize: int64(len(png)), MimeType: "image/png", Status: enums.AssetStatusSuccess,
+		FileSize: int64(len(png)), MimeType: "image/png", ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 	}
 	if err := db.Create(sourceAsset).Error; err != nil {
 		t.Fatalf("create source asset: %v", err)
@@ -258,6 +260,7 @@ func setupMessageWelcomeTestDB(t *testing.T) *gorm.DB {
 		&models.AIWorkflow{},
 		&models.AIWorkflowVersion{},
 		&models.Asset{},
+		&models.AssetScanAttempt{},
 		&models.Channel{},
 		&models.ChannelMessageOutbox{},
 		&models.Customer{},
@@ -296,7 +299,7 @@ func TestNormalizeHTMLMessageRejectsAssetFromAnotherConversation(t *testing.T) {
 	asset := &models.Asset{
 		TenantID: 21, ConversationID: conversations[1].ID, AssetID: "other-conversation-image",
 		Provider: enums.AssetProviderLocal, StorageKey: "images/other.png", Filename: "other.png",
-		FileSize: 10, MimeType: "image/png", Status: enums.AssetStatusSuccess,
+		FileSize: 10, MimeType: "image/png", ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess,
 		AuditFields: models.AuditFields{CreatedAt: now, UpdatedAt: now},
 	}
 	if err := db.Create(asset).Error; err != nil {

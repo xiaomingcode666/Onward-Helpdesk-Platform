@@ -16,7 +16,7 @@ export type ProjectRuntime = {
   calendars: Array<{ key: string; timezone: string; work_days: number[]; start: string; end: string; holidays: string[] }>
   targets: Array<{ project_key: string; profile: string; priority: string; calendar_key: string; response_minutes: number; assignment_minutes: number; resolution_minutes: number }>
   channels: Array<{ name: string; enabled: boolean }>
-  mail: { enabled: boolean; host: string; port: number; username: string; password_ref: string; from_address: string; from_name: string; use_tls: boolean; reply_to: string; retry_policy: string }
+  mail: { enabled: boolean; host: string; port: number; username: string; password_ref: string; from_address: string; from_name: string; use_tls: boolean; reply_to: string; retry_policy: string; imap?: { enabled: boolean; host: string; port: number; username: string; password_ref: string; project_key: string; ticket_type: string } }
   integrations: Array<{ provider: string; enabled: boolean; base_url: string; app_id: string; secret_ref: string; key_ref: string; metadata_json: string }>
   retention: { data_region: string; days: number; archive_after_days: number; auto_delete: boolean; legal_hold: boolean; gdpr_region: boolean; ccpa_region: boolean }
   auto_close: { enabled: boolean; days: number }

@@ -736,6 +736,9 @@ func (s *knowledgeIndexSyncService) processInternalUpsert(ctx context.Context, t
 		if current == nil || current.TenantID != task.TenantID {
 			return fmt.Errorf("knowledge document not found")
 		}
+		if !knowledgeDocumentAssetUsable(current) {
+			return errorsx.InvalidParamI18n("error.upload.notScanned")
+		}
 		snapshot := *current
 		snapshot.Title = revision.Title
 		snapshot.Content = revision.Content

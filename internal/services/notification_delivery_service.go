@@ -100,6 +100,9 @@ func (s *notificationDeliveryService) scheduleEmail(item *models.Notification) e
 		TenantID:            item.TenantID,
 		IdempotencyKey:      &key,
 		NotificationID:      item.ID,
+		TemplateID:          item.TemplateID,
+		TemplateCode:        strings.TrimSpace(item.TemplateCode),
+		Language:            strings.TrimSpace(item.Language),
 		Channel:             "email",
 		RecipientID:         logprivacy.Value(recipient),
 		RecipientCiphertext: ciphertext,
@@ -295,6 +298,7 @@ func (s *notificationDeliveryService) retryOrFailPush(delivery *models.DeliveryL
 	errorMessage := truncateNotificationDeliveryError(cause)
 	if retryCount <= delivery.MaxRetries {
 		nextAttemptAt := now.Add(time.Duration(retryCount) * time.Minute)
+		NotificationDeliveryAttemptService.Record(delivery, NotificationDeliveryAttemptStatusFailed, "retry_scheduled", errorMessage)
 		if err := repositories.NotificationDeliveryRepository.Updates(sqls.DB(), delivery.ID, map[string]any{
 			"status":          notificationDeliveryStatusWaitingRetry,
 			"retry_count":     retryCount,
@@ -314,6 +318,14 @@ func (s *notificationDeliveryService) retryOrFailPush(delivery *models.DeliveryL
 }
 
 func (s *notificationDeliveryService) finishPushDelivery(delivery *models.DeliveryLog, status, errorMessage string, sentAt *time.Time, providerMessageID string) error {
+	attemptStatus := NotificationDeliveryAttemptStatusFailed
+	switch status {
+	case notificationDeliveryStatusSent:
+		attemptStatus = NotificationDeliveryAttemptStatusSent
+	case notificationDeliveryStatusSkipped:
+		attemptStatus = NotificationDeliveryAttemptStatusSkipped
+	}
+	NotificationDeliveryAttemptService.Record(delivery, attemptStatus, errorMessage, providerMessageID)
 	now := s.now()
 	columns := map[string]any{
 		"status":          status,
@@ -340,6 +352,7 @@ func (s *notificationDeliveryService) markPushUnavailable(item *models.Notificat
 }
 
 func (s *notificationDeliveryService) skipPushDelivery(delivery *models.DeliveryLog, item *models.Notification, reason string) error {
+	NotificationDeliveryAttemptService.Record(delivery, NotificationDeliveryAttemptStatusSkipped, "push_unavailable", reason)
 	now := s.now()
 	return sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 		if delivery != nil && delivery.ID > 0 {
@@ -398,9 +411,14 @@ func (s *notificationDeliveryService) processEmailDelivery(delivery *models.Deli
 	if s.emailTransport == nil {
 		return s.retryOrFail(delivery, item, fmt.Errorf("email transport is unavailable"))
 	}
-	err := s.emailTransport.SendNotificationEmail(item.TenantID, recipient, "", "notification_generic", map[string]interface{}{
-		"Title":     item.Title,
-		"Content":   item.Content,
+	subject, content, blocked := s.renderEmailContent(delivery, item)
+	if blocked != nil {
+		message := "blocked by sensitive rule: " + DescribeNotificationSensitiveFinding(blocked)
+		return s.finishDeliveryWithAttempt(delivery, item, notificationDeliveryStatusFailed, notificationEmailStatusUnavailable, message, nil, NotificationDeliveryAttemptStatusBlocked)
+	}
+	err := s.emailTransport.SendNotificationEmail(item.TenantID, recipient, subject, "notification_generic", map[string]interface{}{
+		"Title":     subject,
+		"Content":   content,
 		"ActionURL": item.ActionURL,
 	})
 	if err != nil {
@@ -417,6 +435,7 @@ func (s *notificationDeliveryService) retryOrFail(delivery *models.DeliveryLog, 
 	if retryCount <= delivery.MaxRetries {
 		_, retryDelay := notificationMailRetryPolicy(delivery.TenantID)
 		nextAttemptAt := now.Add(retryDelay)
+		NotificationDeliveryAttemptService.Record(delivery, NotificationDeliveryAttemptStatusFailed, "retry_scheduled", errorMessage)
 		if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 			if err := repositories.NotificationDeliveryRepository.Updates(ctx.Tx, delivery.ID, map[string]any{
 				"status":          notificationDeliveryStatusWaitingRetry,
@@ -443,6 +462,22 @@ func (s *notificationDeliveryService) retryOrFail(delivery *models.DeliveryLog, 
 }
 
 func (s *notificationDeliveryService) finishDelivery(delivery *models.DeliveryLog, item *models.Notification, deliveryStatus, emailStatus, errorMessage string, sentAt *time.Time) error {
+	return s.finishDeliveryWithAttempt(delivery, item, deliveryStatus, emailStatus, errorMessage, sentAt, "")
+}
+
+// finishDeliveryWithAttempt 结束一次投递；attemptStatus 为空时按最终状态推断本次尝试结果。
+func (s *notificationDeliveryService) finishDeliveryWithAttempt(delivery *models.DeliveryLog, item *models.Notification, deliveryStatus, emailStatus, errorMessage string, sentAt *time.Time, attemptStatus string) error {
+	if attemptStatus == "" {
+		switch deliveryStatus {
+		case notificationDeliveryStatusSent:
+			attemptStatus = NotificationDeliveryAttemptStatusSent
+		case notificationDeliveryStatusSkipped:
+			attemptStatus = NotificationDeliveryAttemptStatusSkipped
+		default:
+			attemptStatus = NotificationDeliveryAttemptStatusFailed
+		}
+	}
+	NotificationDeliveryAttemptService.Record(delivery, attemptStatus, emailStatus, errorMessage)
 	now := s.now()
 	return sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 		columns := map[string]any{
@@ -467,6 +502,65 @@ func (s *notificationDeliveryService) finishDelivery(delivery *models.DeliveryLo
 			"external_channel_status": emailStatus,
 		})
 	})
+}
+
+// renderEmailContent 优先使用「已批准」的邮件模板按接收人语言渲染，没有模板时沿用通知正文。
+func (s *notificationDeliveryService) renderEmailContent(delivery *models.DeliveryLog, item *models.Notification) (string, string, *NotificationSensitiveFinding) {
+	subject := strings.TrimSpace(item.Title)
+	content := strings.TrimSpace(item.Content)
+	code := strings.TrimSpace(delivery.TemplateCode)
+	if code == "" {
+		code = strings.TrimSpace(item.NotificationType)
+	}
+	if code == "" {
+		return subject, content, nil
+	}
+	language := strings.TrimSpace(delivery.Language)
+	if language == "" {
+		language = strings.TrimSpace(item.Language)
+	}
+	tpl := NotificationTemplateService.ResolveApproved(item.TenantID, code, NotificationTemplateChannelEmail, language)
+	if tpl == nil && code != NotificationTemplateCodeGeneric {
+		tpl = NotificationTemplateService.ResolveApproved(item.TenantID, NotificationTemplateCodeGeneric, NotificationTemplateChannelEmail, language)
+	}
+	if tpl == nil {
+		return subject, content, nil
+	}
+	data := map[string]string{
+		"Title":            item.Title,
+		"Content":          item.Content,
+		"RecipientName":    item.RecipientName,
+		"ActionURL":        item.ActionURL,
+		"NotificationType": item.NotificationType,
+		"Category":         item.Category,
+		"Level":            item.Level,
+		"Language":         tpl.Language,
+	}
+	if item.BizID > 0 {
+		data["BizID"] = strconv.FormatInt(item.BizID, 10)
+	}
+	renderedTitle := strings.TrimSpace(notificationTemplateVariablePattern.ReplaceAllString(RenderNotificationTemplateText(tpl.TitleTemplate, data), ""))
+	renderedContent := strings.TrimSpace(RenderNotificationTemplateText(tpl.ContentTemplate, data))
+	if renderedTitle != "" {
+		subject = renderedTitle
+	}
+	if renderedContent != "" {
+		content = renderedContent
+	}
+	delivery.TemplateID = tpl.ID
+	delivery.TemplateCode = tpl.Code
+	delivery.Language = tpl.Language
+	if err := repositories.NotificationDeliveryRepository.Updates(sqls.DB(), delivery.ID, map[string]any{
+		"template_id":   tpl.ID,
+		"template_code": tpl.Code,
+		"language":      tpl.Language,
+	}); err != nil {
+		slog.Warn("update delivery template info failed", "deliveryId", delivery.ID, "error", err)
+	}
+	if finding := ScanNotificationSensitiveContent(subject + "\n" + content); finding != nil {
+		return subject, content, finding
+	}
+	return subject, content, nil
 }
 
 func notificationHasChannel(channels, target string) bool {

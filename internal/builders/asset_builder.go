@@ -15,7 +15,8 @@ func BuildAsset(item *models.Asset) response.AssetResponse {
 		Filename:       item.Filename,
 		FileSize:       item.FileSize,
 		MimeType:       item.MimeType,
-		StorageKey:     item.StorageKey,
+		ScanStatus:     item.ScanStatus,
+		ScanReason:     item.ScanReason,
 		Status:         item.Status,
 		CreatedAt:      item.CreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt:      item.UpdatedAt.Format("2006-01-02 15:04:05"),
@@ -25,6 +26,10 @@ func BuildAsset(item *models.Asset) response.AssetResponse {
 		UpdateUserName: item.UpdateUserName,
 	}
 
+	if !item.Usable() {
+		return ret
+	}
+	ret.StorageKey = item.StorageKey
 	if provider, err := storage.GetProvider(item.Provider); err != nil {
 		slog.Error("get storage provider failed", "provider", item.Provider, "error", err)
 	} else {

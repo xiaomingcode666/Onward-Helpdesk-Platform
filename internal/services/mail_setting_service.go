@@ -45,7 +45,15 @@ func (s *mailSettingService) Get(tenantID int64) (*dto.EnterpriseNotificationMai
 	}
 	if r != nil {
 		m := r.Mail
-		return &dto.EnterpriseNotificationMailSettingDTO{SMTPHost: m.Host, SMTPPort: m.Port, Username: m.Username, FromAddress: m.FromAddress, FromName: m.FromName, UseTLS: m.UseTLS, Connected: m.Enabled, HasPassword: m.PasswordRef != "", ReplyTo: m.ReplyTo, RetryPolicy: m.RetryPolicy}, nil
+		result := &dto.EnterpriseNotificationMailSettingDTO{SMTPHost: m.Host, SMTPPort: m.Port, Username: m.Username, FromAddress: m.FromAddress, FromName: m.FromName, UseTLS: m.UseTLS, Connected: m.Enabled, HasPassword: m.PasswordRef != "", ReplyTo: m.ReplyTo, RetryPolicy: m.RetryPolicy, ManagedByProject: true, IMAPUseTLS: true, IMAPPort: 993}
+		if i := m.IMAP; i != nil {
+			result.IMAPHost = i.Host
+			result.IMAPPort = i.Port
+			result.IMAPUsername = i.Username
+			result.IMAPEnabled = i.Enabled
+			result.HasIMAPPassword = i.PasswordRef != ""
+		}
+		return result, nil
 	}
 	setting := repositories.TenantMailSettingRepository.GetByTenantID(sqls.DB(), tenantID)
 	if setting == nil {
@@ -80,6 +88,19 @@ func (s *mailSettingService) Save(tenantID int64, req request.UpdateMailSettingR
 	}
 
 	now := time.Now()
+	req.IMAPHost = strings.TrimSpace(req.IMAPHost)
+	req.IMAPUsername = strings.TrimSpace(req.IMAPUsername)
+	if req.IMAPPort == 0 {
+		req.IMAPPort = 993
+	}
+	if req.IMAPEnabled {
+		if req.IMAPHost == "" || strings.ContainsAny(req.IMAPHost, "/\r\n ") || req.IMAPPort < 1 || req.IMAPPort > 65535 || !req.IMAPUseTLS {
+			return nil, errorsx.InvalidParam("收件需填写有效 IMAP 地址、端口并使用 TLS")
+		}
+		if _, err := emailAddress(req.IMAPUsername); err != nil {
+			return nil, errorsx.InvalidParam("IMAP 账号必须是邮箱地址")
+		}
+	}
 	existing := repositories.TenantMailSettingRepository.GetByTenantID(sqls.DB(), tenantID)
 	password := strings.TrimSpace(req.Password)
 	if password != "" {
@@ -98,6 +119,19 @@ func (s *mailSettingService) Save(tenantID int64, req request.UpdateMailSettingR
 			}
 		}
 	}
+	imapPassword := strings.TrimSpace(req.IMAPPassword)
+	if imapPassword != "" {
+		var err error
+		imapPassword, err = secretstore.Encrypt(imapPassword)
+		if err != nil {
+			return nil, err
+		}
+	} else if existing != nil {
+		imapPassword = existing.IMAPPassword
+	}
+	if req.IMAPEnabled && imapPassword == "" {
+		return nil, errorsx.InvalidParam("请填写 IMAP 授权码")
+	}
 	item := &models.TenantMailSetting{
 		TenantID:    tenantID,
 		FromAddress: strings.TrimSpace(req.FromAddress),
@@ -109,9 +143,11 @@ func (s *mailSettingService) Save(tenantID int64, req request.UpdateMailSettingR
 		ReplyTo:     strings.TrimSpace(req.ReplyTo),
 		RetryPolicy: retryPolicy,
 		UseTLS:      req.UseTLS,
-		Status:      int(enums.StatusOk),
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		IMAPHost:    req.IMAPHost, IMAPPort: req.IMAPPort, IMAPUsername: req.IMAPUsername,
+		IMAPPassword: imapPassword, IMAPUseTLS: req.IMAPUseTLS, IMAPEnabled: req.IMAPEnabled,
+		Status:    int(enums.StatusOk),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 	if err := legacyProjectSettingsWrite(tenantID, func(db *gorm.DB) error { return repositories.TenantMailSettingRepository.Upsert(db, item) }); err != nil {
 		return nil, err
@@ -153,6 +189,8 @@ func buildMailSettingDTO(setting *models.TenantMailSetting) *dto.EnterpriseNotif
 		ReplyTo:     setting.ReplyTo,
 		RetryPolicy: setting.RetryPolicy,
 		UseTLS:      setting.UseTLS,
+		IMAPHost:    setting.IMAPHost, IMAPPort: setting.IMAPPort, IMAPUsername: setting.IMAPUsername,
+		HasIMAPPassword: setting.IMAPPassword != "", IMAPUseTLS: setting.IMAPUseTLS, IMAPEnabled: setting.IMAPEnabled,
 		Connected:   setting.Status == int(enums.StatusOk) && strings.TrimSpace(setting.SMTPHost) != "" && strings.TrimSpace(setting.FromAddress) != "",
 		HasPassword: setting.Password != "",
 	}

@@ -696,6 +696,7 @@ export interface EnterpriseNotificationListResponse {
 }
 
 export interface NotificationMailSetting {
+  managed_by_project?: boolean
   from_address: string
   from_name: string
   smtp_host: string
@@ -706,6 +707,12 @@ export interface NotificationMailSetting {
   use_tls: boolean
   connected: boolean
   has_password: boolean
+  imap_host: string
+  imap_port: number
+  imap_username: string
+  has_imap_password: boolean
+  imap_use_tls: boolean
+  imap_enabled: boolean
 }
 
 export interface UpdateNotificationMailSettingPayload {
@@ -718,6 +725,12 @@ export interface UpdateNotificationMailSettingPayload {
   replyTo: string
   retryPolicy: string
   useTls: boolean
+  imapHost?: string
+  imapPort?: number
+  imapUsername?: string
+  imapPassword?: string
+  imapUseTls?: boolean
+  imapEnabled?: boolean
 }
 
 export interface NotificationRecipientSetting {

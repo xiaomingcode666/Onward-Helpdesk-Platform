@@ -7,6 +7,7 @@ import (
 
 type UploadInfo struct {
 	Prefix    string
+	Source    string
 	Filename  string
 	FileSize  int64
 	MimeType  string

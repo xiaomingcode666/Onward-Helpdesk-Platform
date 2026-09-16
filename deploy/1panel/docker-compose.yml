@@ -7,6 +7,14 @@ x-logging: &default-logging
     max-file: "3"
 
 services:
+  clamav:
+    extends:
+      file: ../clamav/compose.yml
+      service: clamav
+    ports: !reset []
+    volumes: !override
+      - ${RHD_DATA_DIR:-./volumes}/clamav:/var/lib/clamav
+
   postgres:
     image: ${POSTGRES_IMAGE:-postgres:16}
     restart: unless-stopped
@@ -108,6 +116,7 @@ services:
         mc alias set storage http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
         mc mb --ignore-existing "storage/$$MINIO_BUCKET"
         mc version enable "storage/$$MINIO_BUCKET"
+        mc anonymous set none "storage/$$MINIO_BUCKET"
 
   api:
     build:
@@ -127,6 +136,8 @@ services:
       - no-new-privileges:true
     logging: *default-logging
     depends_on:
+      clamav:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:
@@ -167,6 +178,9 @@ services:
       RHD_ENCRYPTIONKEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
       RHD_ENCRYPTIONKEY_FALLBACKS: ${ENCRYPTION_KEY_FALLBACKS:-}
       RHD_STORAGE_DEFAULT: minio
+      RHD_STORAGE_UPLOADSECURITY_CLAMAV_ENABLED: "true"
+      RHD_STORAGE_UPLOADSECURITY_CLAMAV_ADDRESS: clamav:3310
+      RHD_STORAGE_QUARANTINEROOT: /app/data/quarantine
       RHD_STORAGE_MINIO_ENDPOINT: minio:9000
       RHD_STORAGE_MINIO_PUBLICENDPOINT: ${MINIO_PUBLIC_ENDPOINT:?MINIO_PUBLIC_ENDPOINT is required}
       RHD_STORAGE_MINIO_BUCKET: ${MINIO_BUCKET:-remotehelpdesk-assets}

@@ -65,5 +65,8 @@ func handleTicketClosedEvent(ctx context.Context, event events.TicketClosedEvent
 		Level:            "info",
 		Channels:         "in_app",
 		IdempotencyKey:   eventID + ":notification",
+		// 模板变量：已批准模板按接收人语言渲染时使用，避免出现未替换的占位符。
+		TemplateCode:      "ticket_closed",
+		TemplateVariables: map[string]string{"TicketNo": ticketNo, "TicketTitle": strings.TrimSpace(ticket.Title)},
 	})
 }

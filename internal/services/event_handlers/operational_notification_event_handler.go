@@ -195,7 +195,13 @@ func handleSLAWarningInAppNotification(ctx context.Context, event events.SLAWarn
 		Category:         "sla",
 		Level:            level,
 		Channels:         "in_app,email",
-		IdempotencyKey:   firstEventID(event.EventID, fmt.Sprintf("sla:%d:%s:%s:%d", ticket.ID, event.ViolationType, event.Severity, event.ActualMinutes)),
+		// 模板变量：已批准模板按接收人语言渲染时使用，避免出现未替换的占位符。
+		TemplateCode: "sla_warning",
+		TemplateVariables: map[string]string{
+			"TicketNo":    notificationTicketNo(ticket.ID, ticket.TicketNo),
+			"TicketTitle": strings.TrimSpace(ticket.Title),
+		},
+		IdempotencyKey: firstEventID(event.EventID, fmt.Sprintf("sla:%d:%s:%s:%d", ticket.ID, event.ViolationType, event.Severity, event.ActualMinutes)),
 	})
 }
 

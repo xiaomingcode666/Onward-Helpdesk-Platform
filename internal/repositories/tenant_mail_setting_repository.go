@@ -32,17 +32,23 @@ func (r *tenantMailSettingRepository) Upsert(db *gorm.DB, item *models.TenantMai
 	return db.Model(&models.TenantMailSetting{}).
 		Where("id = ?", existing.ID).
 		Updates(map[string]any{
-			"from_address": item.FromAddress,
-			"from_name":    item.FromName,
-			"smtp_host":    item.SMTPHost,
-			"smtp_port":    item.SMTPPort,
-			"username":     item.Username,
-			"password":     item.Password,
-			"reply_to":     item.ReplyTo,
-			"retry_policy": item.RetryPolicy,
-			"use_tls":      item.UseTLS,
-			"status":       item.Status,
-			"updated_at":   item.UpdatedAt,
+			"from_address":  item.FromAddress,
+			"from_name":     item.FromName,
+			"smtp_host":     item.SMTPHost,
+			"smtp_port":     item.SMTPPort,
+			"username":      item.Username,
+			"password":      item.Password,
+			"reply_to":      item.ReplyTo,
+			"retry_policy":  item.RetryPolicy,
+			"use_tls":       item.UseTLS,
+			"imap_host":     item.IMAPHost,
+			"imap_port":     item.IMAPPort,
+			"imap_username": item.IMAPUsername,
+			"imap_password": item.IMAPPassword,
+			"imap_use_tls":  item.IMAPUseTLS,
+			"imap_enabled":  item.IMAPEnabled,
+			"status":        item.Status,
+			"updated_at":    item.UpdatedAt,
 		}).Error
 }
 

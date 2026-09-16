@@ -57,6 +57,16 @@ type Mail struct {
 	UseTLS      bool   `json:"use_tls"`
 	ReplyTo     string `json:"reply_to"`
 	RetryPolicy string `json:"retry_policy"`
+	IMAP        *IMAP  `json:"imap,omitempty"`
+}
+type IMAP struct {
+	Enabled     bool   `json:"enabled"`
+	Host        string `json:"host"`
+	Port        int    `json:"port"`
+	Username    string `json:"username"`
+	PasswordRef string `json:"password_ref"`
+	ProjectKey  string `json:"project_key"`
+	TicketType  string `json:"ticket_type"`
 }
 type Integration struct {
 	Provider     string `json:"provider"`
@@ -178,6 +188,24 @@ func validateRuntime(doc Document, add func(string, string, string)) {
 		bad("mail.retry_policy", "请选择有效的邮件重试策略")
 	}
 	checkRef("mail.password_ref", m.PasswordRef)
+	if m.IMAP != nil {
+		i := m.IMAP
+		checkRef("mail.imap.password_ref", i.PasswordRef)
+		if i.Enabled {
+			if strings.TrimSpace(i.Host) == "" || strings.ContainsAny(i.Host, "/\r\n ") || i.Port < 1 || i.Port > 65535 || i.PasswordRef == "" {
+				bad("mail.imap", "请填写 IMAP 地址、端口和密钥引用")
+			}
+			if _, err := mail.ParseAddress(i.Username); err != nil || strings.ContainsAny(i.Username, "\r\n") {
+				bad("mail.imap.username", "收件账号必须是邮箱地址")
+			}
+			if !channels["email"] {
+				bad("mail.imap", "启用收件前必须启用 email 渠道")
+			}
+			if i.ProjectKey != "" && !projects[i.ProjectKey] {
+				bad("mail.imap.project_key", "服务项目不存在")
+			}
+		}
+	}
 	if m.Enabled {
 		if strings.TrimSpace(m.Host) == "" || strings.ContainsAny(m.Host, "/\r\n ") || m.Port < 1 || m.Username == "" || m.PasswordRef == "" {
 			bad("mail", "启用发信需填写 SMTP 地址、端口、账号和密钥引用")

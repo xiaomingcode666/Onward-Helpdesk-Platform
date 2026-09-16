@@ -9,6 +9,7 @@ configuration schema, policy, digest, and secret-reference verification.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -16,6 +17,13 @@ import re
 import secrets
 import sys
 from urllib.parse import urlsplit
+
+# The test suite loads this file by path, while deployment runs it as a script.
+# Make the sibling provenance module available in both modes.
+_SCRIPT_DIR = str(Path(__file__).resolve().parent)
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+from data_provenance import default_synthetic
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -164,6 +172,7 @@ def load_targets(inventory_path: Path | str) -> list[dict]:
             "RHD_PROJECT_CONFIG_DIR": root + "/project-config",
             "RHD_PROJECT_CONFIG_FILE": root + "/project-config/current.json",
             "RHD_PROJECT_SECRET_DIR": root + "/project-secrets",
+            "RHD_TEST_DATA_PROVENANCE_FILE": root + "/data-provenance.json",
             "RHD_ALERTMANAGER_CONFIG_FILE": root + "/alertmanager.yml",
             "RHD_RESTORE_DATA_DIR": root + "/backups",
         }
@@ -275,9 +284,13 @@ def render(inventory_path: Path | str, output_path: Path | str) -> dict:
         if target["config_bundle"]:
             bundle, bundle_bytes = read_bundle(Path(target["config_bundle"]), target["tenant_id"], target["environment"])
             require(bundle["digest"] == target["config_digest"], "Configuration export changed during preparation")
-        prepared.append((target, environment_values(target), bundle_bytes))
+        provenance_bytes = None
+        if target["environment"] in ("integration", "staging"):
+            now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            provenance_bytes = (json.dumps(default_synthetic(target["environment"], now), ensure_ascii=False, indent=2) + "\n").encode()
+        prepared.append((target, environment_values(target), bundle_bytes, provenance_bytes))
     output.mkdir(parents=True, exist_ok=True)
-    for target, env, bundle_bytes in prepared:
+    for target, env, bundle_bytes, provenance_bytes in prepared:
         destination = output / target["instance_id"]
         destination.mkdir(mode=0o700)  # Exclusive even if another process races the precheck.
         write_exclusive(destination / ".env", ("# Generated FND-003 instance; contains private credentials.\n" +
@@ -288,6 +301,8 @@ def render(inventory_path: Path | str, output_path: Path | str) -> dict:
         # The non-root container user must be able to read the mounted settings.
         write_exclusive(destination / "remotehelpdesk.yaml", runtime_yaml, 0o644)
         write_exclusive(destination / "alertmanager.yml", alertmanager_yaml, 0o644)
+        if provenance_bytes is not None:
+            write_exclusive(destination / "data-provenance.json", provenance_bytes, 0o644)
         (destination / "project-config").mkdir(mode=0o755)
         os.chmod(destination / "project-config", 0o755)
         (destination / "project-secrets" / str(target["tenant_id"]) / target["environment"]).mkdir(mode=0o700, parents=True)

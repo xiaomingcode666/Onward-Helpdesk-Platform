@@ -388,7 +388,9 @@ func TestTicketCreatedNotificationRoutesToDispatchPermission(t *testing.T) {
 	if len(list) != 1 || list[0].RecipientUserID != 41 {
 		t.Fatalf("ticket notification audience = %+v, want only dispatcher", list)
 	}
-	if list[0].NotificationType != "ticket_created" || list[0].Level != "warning" || !strings.Contains(list[0].Title, "转人工工单") {
+	// Content now comes from the approved template, so assert on the rendered
+	// ticket identity rather than the retired inline wording.
+	if list[0].NotificationType != "ticket_created" || list[0].Level != "warning" || !strings.Contains(list[0].Title, ticket.TicketNo) {
 		t.Fatalf("unexpected ticket notification: %+v", list[0])
 	}
 }
@@ -460,6 +462,8 @@ func setupNotificationEventHandlerTestDB(t *testing.T) *gorm.DB {
 		&models.AuthRoleBinding{},
 		&models.AuthRolePermission{},
 		&models.Notification{},
+		&models.NotificationTemplate{},
+		&models.NotificationDeliveryAttempt{},
 		&models.Product{},
 		&models.AgentTeam{},
 		&models.AgentTeamMember{},
@@ -468,6 +472,11 @@ func setupNotificationEventHandlerTestDB(t *testing.T) *gorm.DB {
 		&models.Message{},
 	); err != nil {
 		t.Fatalf("auto migrate error = %v", err)
+	}
+	// Notifications are generated from approved templates; seed the platform
+	// baseline so this fixture does not depend on another test running first.
+	if _, err := services.NotificationTemplateService.EnsurePlatformDefaultsDB(db); err != nil {
+		t.Fatalf("seed notification templates: %v", err)
 	}
 	if err := db.Create(&models.Tenant{ID: 1, Name: "notification test tenant", Status: enums.StatusOk}).Error; err != nil {
 		t.Fatalf("create notification test tenant: %v", err)

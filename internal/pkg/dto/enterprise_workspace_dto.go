@@ -269,16 +269,23 @@ type EnterpriseNotificationListDTO struct {
 
 // EnterpriseNotificationMailSettingDTO 租户邮箱发送配置。Password 永远不回传明文。
 type EnterpriseNotificationMailSettingDTO struct {
-	FromAddress string `json:"from_address"`
-	FromName    string `json:"from_name"`
-	SMTPHost    string `json:"smtp_host"`
-	SMTPPort    int    `json:"smtp_port"`
-	Username    string `json:"username"`
-	ReplyTo     string `json:"reply_to"`
-	RetryPolicy string `json:"retry_policy"`
-	UseTLS      bool   `json:"use_tls"`
-	Connected   bool   `json:"connected"`
-	HasPassword bool   `json:"has_password"`
+	ManagedByProject bool   `json:"managed_by_project"`
+	FromAddress      string `json:"from_address"`
+	FromName         string `json:"from_name"`
+	SMTPHost         string `json:"smtp_host"`
+	SMTPPort         int    `json:"smtp_port"`
+	Username         string `json:"username"`
+	ReplyTo          string `json:"reply_to"`
+	RetryPolicy      string `json:"retry_policy"`
+	UseTLS           bool   `json:"use_tls"`
+	Connected        bool   `json:"connected"`
+	HasPassword      bool   `json:"has_password"`
+	IMAPHost         string `json:"imap_host"`
+	IMAPPort         int    `json:"imap_port"`
+	IMAPUsername     string `json:"imap_username"`
+	HasIMAPPassword  bool   `json:"has_imap_password"`
+	IMAPUseTLS       bool   `json:"imap_use_tls"`
+	IMAPEnabled      bool   `json:"imap_enabled"`
 }
 
 // EnterpriseNotificationRecipientSettingDTO is the current user's effective

@@ -4,6 +4,7 @@ function runtimeSecretRefs(runtime?: ProjectRuntime): string[] {
   if (!runtime) return []
   return [...new Set([
     runtime.mail.password_ref,
+    runtime.mail.imap?.password_ref ?? "",
     ...runtime.integrations.flatMap(integration => [integration.secret_ref, integration.key_ref]),
   ].filter(Boolean))]
 }

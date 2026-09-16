@@ -94,6 +94,7 @@ var Models = []any{
 	&LoginSession{},
 	&LoginCredentialLog{},
 	&Asset{},
+	&AssetScanAttempt{},
 	&Tag{},
 	&Conversation{},
 	&ConversationParticipant{},
@@ -120,6 +121,9 @@ var Models = []any{
 	&TicketNoSequence{},
 	&DeviceServiceRecord{},
 	&Notification{},
+	&InboundEmail{},
+	&MailboxSyncState{},
+	&TicketEmailReply{},
 	&AIAgent{},
 	&AIAgentRelease{},
 	&Channel{},
@@ -199,6 +203,7 @@ var Models = []any{
 	&BudgetAlert{},
 	&SyncRun{},
 	&NotificationTemplate{},
+	&NotificationDeliveryAttempt{},
 	&NotificationPreference{},
 	&NotificationRecipientSetting{},
 	&MobilePushToken{},
@@ -272,6 +277,8 @@ type Notification struct {
 	BizID                 int64      `gorm:"type:bigint;not null;default:0;index"`
 	ActionURL             string     `gorm:"type:varchar(255);not null;default:''"`
 	TemplateID            int64      `gorm:"type:bigint;not null;default:0;index"`
+	TemplateCode          string     `gorm:"type:varchar(64);not null;default:'';index"`
+	Language              string     `gorm:"type:varchar(16);not null;default:''"`
 	DeliveryStatus        string     `gorm:"type:varchar(20);not null;default:'pending';index"` // pending / sent / failed / read
 	ExternalChannelStatus string     `gorm:"type:varchar(20);not null;default:'';index"`        // wxwork_sent / email_sent / sms_sent
 	Level                 string     `gorm:"type:varchar(20);not null;default:'info';index"`    // urgent / warning / info
@@ -284,18 +291,24 @@ type Notification struct {
 }
 
 // NotificationTemplate 通知模板定义。
+// TenantID 为 0 表示平台内置模板，大于 0 表示租户自定义覆盖模板。
+// 只有 ApprovalStatus 为 approved 的模板才能用于发送。
 type NotificationTemplate struct {
-	ID              int64     `gorm:"primaryKey;autoIncrement"`
-	TenantID        int64     `gorm:"type:bigint;not null;default:0;index"`
-	Code            string    `gorm:"type:varchar(64);not null;uniqueIndex;default:''"`
-	Name            string    `gorm:"type:varchar(128);not null;default:'';index"`
-	Channel         string    `gorm:"type:varchar(32);not null;default:'';index"` // in_app / wxwork / email / sms
-	TitleTemplate   string    `gorm:"type:varchar(255);not null;default:''"`
-	ContentTemplate string    `gorm:"type:text"`
-	VariablesJSON   string    `gorm:"column:variables_json;type:text;not null;default:'[]'"` // JSON array of variable names
-	Status          int       `gorm:"type:int;not null;default:0;index"`
-	CreatedAt       time.Time `gorm:"type:timestamp;not null;index"`
-	UpdatedAt       time.Time `gorm:"type:timestamp;not null;index"`
+	ID              int64      `gorm:"primaryKey;autoIncrement"`
+	TenantID        int64      `gorm:"type:bigint;not null;default:0;uniqueIndex:uk_notification_template_scope,priority:1"`
+	Code            string     `gorm:"type:varchar(64);not null;default:'';uniqueIndex:uk_notification_template_scope,priority:2"`
+	Name            string     `gorm:"type:varchar(128);not null;default:'';index"`
+	Channel         string     `gorm:"type:varchar(32);not null;default:'';index;uniqueIndex:uk_notification_template_scope,priority:3"` // in_app / wxwork / email / sms
+	Language        string     `gorm:"type:varchar(16);not null;default:'zh-CN';index;uniqueIndex:uk_notification_template_scope,priority:4"`
+	TitleTemplate   string     `gorm:"type:varchar(255);not null;default:''"`
+	ContentTemplate string     `gorm:"type:text"`
+	VariablesJSON   string     `gorm:"column:variables_json;type:text;not null;default:'[]'"` // JSON array of variable names
+	ApprovalStatus  string     `gorm:"type:varchar(20);not null;default:'draft';index"`       // draft / approved / retired
+	ApprovedBy      int64      `gorm:"type:bigint;not null;default:0"`
+	ApprovedAt      *time.Time `gorm:"type:timestamp"`
+	Status          int        `gorm:"type:int;not null;default:0;index"`
+	CreatedAt       time.Time  `gorm:"type:timestamp;not null;index"`
+	UpdatedAt       time.Time  `gorm:"type:timestamp;not null;index"`
 }
 
 // TableName 设置 NotificationTemplate 表名
@@ -342,20 +355,26 @@ func (NotificationPreference) TableName() string {
 // TenantMailSetting 租户邮箱发送配置。铃铛消息需要发邮件时使用这里的发信账号,
 // 未配置的字段回退全局 config.yaml 的 Email 配置。
 type TenantMailSetting struct {
-	ID          int64     `gorm:"primaryKey;autoIncrement"`
-	TenantID    int64     `gorm:"type:bigint;not null;default:0;uniqueIndex"`
-	FromAddress string    `gorm:"type:varchar(128);not null;default:''"`           // 发信邮箱
-	FromName    string    `gorm:"type:varchar(128);not null;default:''"`           // 发信名称
-	SMTPHost    string    `gorm:"type:varchar(128);not null;default:''"`           // SMTP 主机
-	SMTPPort    int       `gorm:"type:int;not null;default:465"`                   // SMTP 端口
-	Username    string    `gorm:"type:varchar(128);not null;default:''"`           // SMTP 账号
-	Password    string    `gorm:"type:varchar(512);not null;default:''"`           // SMTP 密码密文
-	ReplyTo     string    `gorm:"type:varchar(128);not null;default:''"`           // 回复地址
-	RetryPolicy string    `gorm:"type:varchar(30);not null;default:'retry_3_10m'"` // retry_3_10m / retry_1_5m / no_retry
-	UseTLS      bool      `gorm:"not null;default:true"`
-	Status      int       `gorm:"type:int;not null;default:0;index"`
-	CreatedAt   time.Time `gorm:"type:timestamp;not null;index"`
-	UpdatedAt   time.Time `gorm:"type:timestamp;not null;index"`
+	ID           int64     `gorm:"primaryKey;autoIncrement"`
+	TenantID     int64     `gorm:"type:bigint;not null;default:0;uniqueIndex"`
+	FromAddress  string    `gorm:"type:varchar(128);not null;default:''"`           // 发信邮箱
+	FromName     string    `gorm:"type:varchar(128);not null;default:''"`           // 发信名称
+	SMTPHost     string    `gorm:"type:varchar(128);not null;default:''"`           // SMTP 主机
+	SMTPPort     int       `gorm:"type:int;not null;default:465"`                   // SMTP 端口
+	Username     string    `gorm:"type:varchar(128);not null;default:''"`           // SMTP 账号
+	Password     string    `gorm:"type:varchar(512);not null;default:''"`           // SMTP 密码密文
+	ReplyTo      string    `gorm:"type:varchar(128);not null;default:''"`           // 回复地址
+	RetryPolicy  string    `gorm:"type:varchar(30);not null;default:'retry_3_10m'"` // retry_3_10m / retry_1_5m / no_retry
+	UseTLS       bool      `gorm:"not null;default:true"`
+	IMAPHost     string    `gorm:"type:varchar(128);not null;default:''"`
+	IMAPPort     int       `gorm:"type:int;not null;default:993"`
+	IMAPUsername string    `gorm:"type:varchar(128);not null;default:''"`
+	IMAPPassword string    `gorm:"type:varchar(512);not null;default:''" json:"-"`
+	IMAPUseTLS   bool      `gorm:"not null;default:true"`
+	IMAPEnabled  bool      `gorm:"not null;default:false"`
+	Status       int       `gorm:"type:int;not null;default:0;index"`
+	CreatedAt    time.Time `gorm:"type:timestamp;not null;index"`
+	UpdatedAt    time.Time `gorm:"type:timestamp;not null;index"`
 }
 
 // TableName 设置 TenantMailSetting 表名
@@ -369,6 +388,9 @@ type DeliveryLog struct {
 	TenantID            int64      `gorm:"type:bigint;not null;default:0;index;uniqueIndex:uk_delivery_tenant_idempotency,priority:1"`
 	IdempotencyKey      *string    `gorm:"type:varchar(180);uniqueIndex:uk_delivery_tenant_idempotency,priority:2"`
 	NotificationID      int64      `gorm:"type:bigint;not null;index"`
+	TemplateID          int64      `gorm:"type:bigint;not null;default:0;index"`
+	TemplateCode        string     `gorm:"type:varchar(64);not null;default:'';index"`
+	Language            string     `gorm:"type:varchar(16);not null;default:''"`
 	Channel             string     `gorm:"type:varchar(32);not null;default:'';index"` // in_app / wxwork / email / sms
 	RecipientID         string     `gorm:"type:varchar(128);not null;default:'';index"`
 	RecipientCiphertext string     `gorm:"type:text" json:"-"`                                // Only pending email delivery needs the encrypted destination.
@@ -388,6 +410,25 @@ type DeliveryLog struct {
 // TableName 设置 DeliveryLog 表名
 func (DeliveryLog) TableName() string {
 	return "delivery_logs"
+}
+
+// NotificationDeliveryAttempt 记录通知每一次发送尝试的结果。
+// DeliveryLog 保留当前最终状态，每次尝试在这里追加一条，不会被后续尝试覆盖。
+type NotificationDeliveryAttempt struct {
+	ID         int64     `gorm:"primaryKey;autoIncrement"`
+	TenantID   int64     `gorm:"type:bigint;not null;default:0;index"`
+	DeliveryID int64     `gorm:"type:bigint;not null;default:0;index"`
+	AttemptNo  int       `gorm:"type:int;not null;default:0"`
+	Channel    string    `gorm:"type:varchar(32);not null;default:'';index"`
+	Status     string    `gorm:"type:varchar(20);not null;default:'';index"` // sent / failed / blocked / skipped
+	Reason     string    `gorm:"type:varchar(64);not null;default:''"`
+	Detail     string    `gorm:"type:text"`
+	CreatedAt  time.Time `gorm:"type:timestamp;not null;index"`
+}
+
+// TableName 设置 NotificationDeliveryAttempt 表名
+func (NotificationDeliveryAttempt) TableName() string {
+	return "notification_delivery_attempts"
 }
 
 // WebhookEndpoint Webhook 端点配置。
@@ -637,16 +678,24 @@ type LoginCredentialLog struct {
 
 // Asset 存储的文件资源，如上传的附件等。
 type Asset struct {
-	ID             int64               `gorm:"primaryKey;autoIncrement"`
-	TenantID       int64               `gorm:"type:bigint;not null;default:0;index"`
-	ConversationID int64               `gorm:"type:bigint;not null;default:0;index"`
-	AssetID        string              `gorm:"type:varchar(64);not null;uniqueIndex"`
-	Provider       enums.AssetProvider `gorm:"type:varchar(50);not null;default:'';index"`
-	StorageKey     string              `gorm:"type:varchar(255);not null;default:'';uniqueIndex:uk_storage_key"`
-	Filename       string              `gorm:"type:varchar(255);not null;default:''"`
-	FileSize       int64               `gorm:"type:bigint;not null;default:0;check:ck_asset_file_size_nonnegative,file_size >= 0"`
-	MimeType       string              `gorm:"type:varchar(100);not null;default:''"`
-	Status         enums.AssetStatus   `gorm:"type:int;not null;default:1;index"`
+	ID              int64               `gorm:"primaryKey;autoIncrement"`
+	TenantID        int64               `gorm:"type:bigint;not null;default:0;index"`
+	ConversationID  int64               `gorm:"type:bigint;not null;default:0;index"`
+	AssetID         string              `gorm:"type:varchar(64);not null;uniqueIndex"`
+	Provider        enums.AssetProvider `gorm:"type:varchar(50);not null;default:'';index"`
+	StorageKey      string              `gorm:"type:varchar(255);not null;default:'';uniqueIndex:uk_storage_key"`
+	Filename        string              `gorm:"type:varchar(255);not null;default:''"`
+	FileSize        int64               `gorm:"type:bigint;not null;default:0;check:ck_asset_file_size_nonnegative,file_size >= 0"`
+	MimeType        string              `gorm:"type:varchar(100);not null;default:''"`
+	Status          enums.AssetStatus   `gorm:"type:int;not null;default:1;index"`
+	ScanStatus      string              `gorm:"type:varchar(24);not null;default:'unscanned';index"`
+	ScanReason      string              `gorm:"type:varchar(40);not null;default:''"`
+	SHA256          string              `gorm:"type:varchar(64);not null;default:''"`
+	QuarantineKey   string              `gorm:"type:varchar(255);not null;default:''" json:"-"`
+	ReceiveComplete bool                `gorm:"not null;default:false"`
+	Source          string              `gorm:"type:varchar(100);not null;default:''"`
+	ScanToken       string              `gorm:"type:varchar(64);not null;default:''" json:"-"`
+	ScanStartedAt   *time.Time          `gorm:"index"`
 	AuditFields
 }
 

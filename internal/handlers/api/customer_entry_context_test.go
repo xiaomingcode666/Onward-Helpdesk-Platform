@@ -251,7 +251,7 @@ func TestCustomerEntryContextReturnsStoredServiceData(t *testing.T) {
 	if err := db.Create(&models.ProductKnowledgeLink{TenantID: tenant.ID, ProductID: product.ID, ProductModelID: model.ID, KnowledgeBaseID: kb.ID, KnowledgeEntryID: doc.ID, LinkType: "manual", Language: "en-US", Visibility: "customer", PublishStatus: "published", Status: enums.StatusOk, AuditFields: models.AuditFields{CreatedAt: now, UpdatedAt: now}}).Error; err != nil {
 		t.Fatalf("create knowledge link: %v", err)
 	}
-	asset := models.Asset{TenantID: tenant.ID, AssetID: "customer-manual-asset", Provider: enums.AssetProviderLocal, StorageKey: "product-manuals/manual.pdf", Filename: "manual.pdf", FileSize: 1024, MimeType: "application/pdf", Status: enums.AssetStatusSuccess, AuditFields: models.AuditFields{CreatedAt: now, UpdatedAt: now}}
+	asset := models.Asset{TenantID: tenant.ID, AssetID: "customer-manual-asset", Provider: enums.AssetProviderLocal, StorageKey: "product-manuals/manual.pdf", Filename: "manual.pdf", FileSize: 1024, MimeType: "application/pdf", ScanStatus: models.AssetScanClean, Status: enums.AssetStatusSuccess, AuditFields: models.AuditFields{CreatedAt: now, UpdatedAt: now}}
 	if err := db.Create(&asset).Error; err != nil {
 		t.Fatalf("create manual asset: %v", err)
 	}

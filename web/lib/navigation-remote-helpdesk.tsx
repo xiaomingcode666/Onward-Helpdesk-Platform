@@ -9,6 +9,7 @@ import {
   CircleUserRoundIcon,
   CpuIcon,
   DatabaseZapIcon,
+  FileTextIcon,
   // Globe2Icon,
   HeadphonesIcon,
   HistoryIcon,
@@ -64,6 +65,7 @@ export type RemoteHelpdeskRouteGroup = {
 }
 
 export const platformNavItems: RemoteHelpdeskNavItem[] = [
+  { key: "asset-quarantine", titleKey: "assetQuarantine.title", href: "/platform/asset-quarantine", domain: "platform", icon: ShieldCheckIcon, requiredPermission: "tenant.update" },
   {
     key: "overview",
     titleKey: "remoteNav.platform.overview",
@@ -157,6 +159,7 @@ export const platformNavItems: RemoteHelpdeskNavItem[] = [
 ]
 
 export const enterpriseNavItems: RemoteHelpdeskNavItem[] = [
+  { key: "asset-quarantine", titleKey: "assetQuarantine.title", href: "/enterprise/asset-quarantine", domain: "enterprise", icon: ShieldCheckIcon, requiredPermission: "tenant.update" },
   {
     key: "workbench",
     titleKey: "remoteNav.enterprise.workbench",
@@ -341,6 +344,14 @@ export const enterpriseNavItems: RemoteHelpdeskNavItem[] = [
     domain: "enterprise",
     icon: BellIcon,
     requiredPermission: "notification.view",
+  },
+  {
+    key: "notification-templates",
+    titleKey: "remoteNav.enterprise.notificationTemplates",
+    href: "/enterprise/notifications/templates",
+    domain: "enterprise",
+    icon: FileTextIcon,
+    requiredPermission: "notification.update",
   },
 ]
 
@@ -880,7 +891,7 @@ export function getEnterpriseSidebarSections(): RemoteHelpdeskSidebarSection[] {
     {
       labelKey: "remoteSidebar.management",
       icon: UsersIcon,
-      items: ["server-console", "people", "customer-users", "partners", "org", "permissions", "audit"]
+      items: ["server-console", "people", "customer-users", "partners", "org", "permissions", "asset-quarantine", "access", "notification-templates", "audit"]
         .map((k) => items.get(k))
         .filter(Boolean) as RemoteHelpdeskNavItem[],
     },
@@ -919,7 +930,7 @@ export function getPlatformSidebarSections(): RemoteHelpdeskSidebarSection[] {
     {
       labelKey: "remoteSidebar.management",
       icon: UsersIcon,
-      items: ["staff", "tenants", "permissions", "audit"]
+      items: ["staff", "tenants", "permissions", "asset-quarantine", "audit"]
         .map((k) => items.get(k))
         .filter(Boolean) as RemoteHelpdeskNavItem[],
     },

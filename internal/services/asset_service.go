@@ -9,7 +9,6 @@ import (
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
-	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/repositories"
 	"remotehelpdesk/internal/services/storage"
 	"strings"
@@ -45,6 +44,14 @@ func (s *assetService) FindPageByCnd(cnd *sqls.Cnd) (list []models.Asset, paging
 }
 
 func (s *assetService) OpenReader(asset *models.Asset) (io.ReadCloser, error) {
+	if err := requireScannedAsset(asset); err != nil {
+		return nil, err
+	}
+	return s.openStoredReader(asset)
+}
+
+// openStoredReader is restricted to the scan pipeline and guarded public readers.
+func (s *assetService) openStoredReader(asset *models.Asset) (io.ReadCloser, error) {
 	cfg := config.Current()
 	if asset == nil {
 		return nil, errorsx.InvalidParamI18n("error.e0146")
@@ -62,6 +69,9 @@ func (s *assetService) OpenReader(asset *models.Asset) (io.ReadCloser, error) {
 }
 
 func (s *assetService) OpenRange(asset *models.Asset, offset, length int64) (io.ReadCloser, error) {
+	if err := requireScannedAsset(asset); err != nil {
+		return nil, err
+	}
 	if asset == nil {
 		return nil, errorsx.InvalidParamI18n("error.e0146")
 	}
@@ -103,7 +113,7 @@ func (s *assetService) UploadConversationFile(file *multipart.FileHeader, prefix
 }
 
 func (s *assetService) CloneConversationAsset(source *models.Asset, prefix string, conversationID int64, principal *dto.AuthPrincipal) (*models.Asset, error) {
-	if source == nil || source.Status != enums.AssetStatusSuccess {
+	if !source.Usable() {
 		return nil, errorsx.InvalidParamI18n("error.e0343")
 	}
 	if conversationID <= 0 || principal == nil {
@@ -131,7 +141,7 @@ func (s *assetService) claimLegacyConversationAsset(asset *models.Asset, convers
 	if asset == nil {
 		return nil, errorsx.InvalidParamI18n("error.e0342")
 	}
-	if asset.Status != enums.AssetStatusSuccess {
+	if !asset.Usable() {
 		return nil, errorsx.InvalidParamI18n("error.e0343")
 	}
 	conversation := ConversationService.Get(conversationID)
@@ -173,74 +183,31 @@ func (s *assetService) uploadFile(file *multipart.FileHeader, prefix string, con
 		return nil, errorsx.InvalidParamI18n("error.e0323")
 	}
 
-	cfg := config.Current()
-	if file.Size > cfg.Storage.MaxUploadSizeBytes() {
-		return nil, errorsx.InvalidParamI18n("error.e0079")
+	info := storage.UploadInfo{
+		Prefix: prefix, Filename: file.Filename, FileSize: file.Size,
+		MimeType: file.Header.Get("Content-Type"), Principal: principal,
 	}
-
 	src, err := file.Open()
 	if err != nil {
-		return nil, err
+		// Multipart temporary files can disappear or become unreadable before ingestion.
+		// Record the failed reception through the same quarantine pipeline.
+		return s.upload(attachmentReadError{err}, info, conversationID)
 	}
 	defer func() { _ = src.Close() }()
 
-	return s.upload(src, storage.UploadInfo{
-		Prefix:    prefix,
-		Filename:  file.Filename,
-		FileSize:  file.Size,
-		MimeType:  file.Header.Get("Content-Type"),
-		Principal: principal,
-	}, conversationID)
+	return s.upload(src, info, conversationID)
 }
+
+type attachmentReadError struct{ err error }
+
+func (r attachmentReadError) Read([]byte) (int, error) { return 0, r.err }
 
 func (s *assetService) Upload(reader io.Reader, info storage.UploadInfo) (*models.Asset, error) {
 	return s.upload(reader, info, 0)
 }
 
 func (s *assetService) upload(reader io.Reader, info storage.UploadInfo, conversationID int64) (*models.Asset, error) {
-	data, sanitizedInfo, err := inspectUpload(reader, info, config.Current().Storage)
-	if err != nil {
-		return nil, err
-	}
-	info = sanitizedInfo
-
-	provider, err := storage.GetDefault()
-	if err != nil {
-		return nil, err
-	}
-
-	assetID, key := storage.GenerateStorageKey(info)
-	item := &models.Asset{
-		TenantID:       principalTenantID(info.Principal),
-		ConversationID: conversationID,
-		AssetID:        assetID,
-		Provider:       provider.ProviderType(),
-		StorageKey:     key,
-		Filename:       info.Filename,
-		FileSize:       info.FileSize,
-		MimeType:       info.MimeType,
-		Status:         enums.AssetStatusPending,
-		AuditFields:    utils.BuildAuditFields(info.Principal),
-	}
-	if err := repositories.AssetRepository.Create(sqls.DB(), item); err != nil {
-		return nil, err
-	}
-
-	if _, err := provider.Upload(bytes.NewReader(data), key, storage.UploadInfo{
-		Prefix:    info.Prefix,
-		Filename:  info.Filename,
-		FileSize:  info.FileSize,
-		MimeType:  info.MimeType,
-		Principal: info.Principal,
-	}); err != nil {
-		_ = s.markAssetStatus(item.ID, enums.AssetStatusFailed, info.Principal)
-		return nil, err
-	}
-
-	item.Status = enums.AssetStatusSuccess
-	_ = repositories.AssetRepository.UpdateColumn(sqls.DB(), item.ID, "status", enums.AssetStatusSuccess)
-
-	return item, nil
+	return s.receiveAndScan(reader, info, conversationID)
 }
 
 func (s *assetService) GetSignedURL(id int64) (string, error) {
@@ -248,7 +215,7 @@ func (s *assetService) GetSignedURL(id int64) (string, error) {
 	if item == nil {
 		return "", errorsx.InvalidParamI18n("error.e0214")
 	}
-	if item.Status != enums.AssetStatusSuccess {
+	if !item.Usable() {
 		return "", errorsx.InvalidParamI18n("error.e0213")
 	}
 

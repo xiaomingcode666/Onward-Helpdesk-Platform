@@ -11,6 +11,22 @@ and production instances use the same company ID in their separate databases.
 The shared integration instance uses its own company ID and synthetic test data.
 This tool does not create company records or copy production data.
 
+Integration and staging packages also contain `data-provenance.json`. The file
+must state `synthetic` or `approved_sanitized` data, and must include a passed
+verification. Approved sanitized data additionally records an approval reference,
+approver and UTC approval time. `environmentctl` and deployment preflight reject
+missing, invalid, unapproved or failed attestations before an environment is
+started. Validate an attestation before any manual test-data import with:
+
+```sh
+python scripts/validate-test-data.py --manifest /path/data-provenance.json --environment staging
+```
+
+The gate records evidence; it does not claim to transform production data. A
+data owner must run the approved sanitization process first and then replace the
+generated synthetic attestation with the approved-sanitized record. Production
+packages do not carry this non-production attestation.
+
 ```sh
 python scripts/environmentctl.py validate --inventory /path/inventory.json
 python scripts/environmentctl.py list --inventory /path/inventory.json

@@ -14,7 +14,6 @@ import (
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/repositories"
-	"remotehelpdesk/internal/services/storage"
 
 	"github.com/mlogclub/simple/sqls"
 )
@@ -180,8 +179,8 @@ func buildSystemIntroDocResponse(item *models.SystemIntroDoc, asset *models.Asse
 		if result.Title == "" {
 			result.Title = asset.Filename
 		}
-		if provider, err := storage.GetProvider(asset.Provider); err == nil {
-			result.URL = provider.GetSignedURL(asset.StorageKey)
+		if url, err := AssetService.GetSignedURL(asset.ID); err == nil {
+			result.URL = url
 		} else {
 			slog.Error("get storage provider failed for system intro doc", "asset_id", asset.ID, "error", err)
 		}

@@ -111,7 +111,7 @@ func validateConversationAsset(asset *models.Asset, conversationID int64, messag
 	if asset == nil {
 		return errorsx.InvalidParamI18n("error.e0342")
 	}
-	if asset.Status != enums.AssetStatusSuccess {
+	if !asset.Usable() {
 		return errorsx.InvalidParamI18n("error.e0343")
 	}
 	conversation := ConversationService.Get(conversationID)

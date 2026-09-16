@@ -123,6 +123,46 @@ services:
       retries: 5
 
   # ============================================================================
+  # ClamAV — Mandatory inbound attachment scanner
+  # ============================================================================
+  clamav:
+    image: clamav/clamav:1.4.3@sha256:75fb5fd95fcbe1d7e6d240c369c1572b686ee2c95949d1042b5148de8eddebb4
+    <<: *restart-policy
+    logging: *default-logging
+    environment:
+      TZ: UTC
+      FRESHCLAM_CHECKS: "12"
+      CLAMD_CONF_AlertExceedsMax: "yes"
+      CLAMD_CONF_AlertEncrypted: "yes"
+      CLAMD_CONF_AlertBrokenMedia: "yes"
+      CLAMD_CONF_AlertBrokenExecutables: "yes"
+      CLAMD_CONF_MaxScanSize: "100M"
+      CLAMD_CONF_MaxFileSize: "20M"
+      CLAMD_CONF_StreamMaxLength: "25M"
+      CLAMD_CONF_MaxRecursion: "5"
+      CLAMD_CONF_MaxFiles: "1000"
+      CLAMD_CONF_MaxScanTime: "10000"
+      CLAMD_CONF_MaxThreads: "4"
+      CLAMD_CONF_MaxQueue: "8"
+      CLAMD_CONF_ConcurrentDatabaseReload: "no"
+    volumes:
+      - clamav-data:/var/lib/clamav
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+
+  # ============================================================================
   # MinIO — Private chat media and knowledge document storage
   # ============================================================================
   minio:
@@ -174,6 +214,7 @@ services:
         mc alias set storage http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
         mc mb --ignore-existing "storage/$$MINIO_BUCKET"
         mc version enable "storage/$$MINIO_BUCKET"
+        mc anonymous set none "storage/$$MINIO_BUCKET"
 
   # ============================================================================
   # RemoteHelpDesk Go Backend Application
@@ -189,6 +230,8 @@ services:
       qdrant:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      clamav:
         condition: service_healthy
       minio:
         condition: service_healthy
@@ -217,6 +260,9 @@ services:
       RHD_CUSTOMERSESSION_SECRET: ${CUSTOMER_SESSION_SECRET:?CUSTOMER_SESSION_SECRET is required}
       RHD_MCP_SERVERTOKEN: ${MCP_SERVER_TOKEN:?MCP_SERVER_TOKEN is required}
       RHD_STORAGE_DEFAULT: minio
+      RHD_STORAGE_UPLOADSECURITY_CLAMAV_ENABLED: "true"
+      RHD_STORAGE_UPLOADSECURITY_CLAMAV_ADDRESS: clamav:3310
+      RHD_STORAGE_QUARANTINEROOT: /app/data/quarantine
       RHD_STORAGE_MINIO_ENDPOINT: minio:9000
       RHD_STORAGE_MINIO_PUBLICENDPOINT: ${MINIO_PUBLIC_ENDPOINT:?MINIO_PUBLIC_ENDPOINT is required}
       RHD_STORAGE_MINIO_BUCKET: ${MINIO_BUCKET:-remotehelpdesk-assets}
@@ -527,6 +573,12 @@ volumes:
     driver_opts:
       type: none
       device: /data/remotehelpdesk/minio
+      o: bind
+  clamav-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /data/remotehelpdesk/clamav
       o: bind
   agent-desk-data:
     driver: local

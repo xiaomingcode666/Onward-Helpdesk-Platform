@@ -127,6 +127,20 @@ if [[ -n "${RHD_INSTANCE_ID:-}" ]]; then
       fail "${key} must be an existing directory, not a symlink; prepare the instance package before preflight"
     fi
   done
+
+  if [[ "$RHD_PROJECT_ENVIRONMENT" == "integration" || "$RHD_PROJECT_ENVIRONMENT" == "staging" ]]; then
+    provenance_file="$(rhd_env_value RHD_TEST_DATA_PROVENANCE_FILE)"
+    provenance_checker="$RHD_REPO_ROOT/scripts/validate-test-data.py"
+    if [[ -z "$provenance_file" || ! -f "$provenance_file" || -L "$provenance_file" ]]; then
+      fail "non-production data provenance file is missing or is a symlink"
+    elif [[ ! -f "$provenance_checker" ]]; then
+      fail "non-production data provenance checker is missing"
+    elif command -v python3 >/dev/null 2>&1 && python3 "$provenance_checker" --manifest "$provenance_file" --environment "$RHD_PROJECT_ENVIRONMENT" >/dev/null; then
+      pass "non-production data provenance is synthetic or approved and verified"
+    else
+      fail "non-production data provenance must be synthetic or approved sanitized data with a passed verification"
+    fi
+  fi
 fi
 
 if [[ ! -f "$RHD_COMPOSE_FILE" ]]; then

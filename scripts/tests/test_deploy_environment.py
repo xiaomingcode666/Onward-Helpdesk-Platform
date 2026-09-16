@@ -70,6 +70,23 @@ class DeployEnvironmentTests(unittest.TestCase):
             self.assertNotIn(env[key], output.getvalue())
             self.assertNotIn(key, output.getvalue())
 
+    def test_non_production_package_requires_data_provenance_before_any_action(self):
+        provenance = self.package / "data-provenance.json"
+        original = provenance.read_bytes()
+        provenance.unlink()
+        with patch.object(deploy.subprocess, "run") as run:
+            with self.assertRaisesRegex(environmentctl.InventoryError, "data provenance"):
+                deploy.operate(self.package, self.instance, self.host, "check")
+            run.assert_not_called()
+        provenance.write_bytes(original)
+        document = json.loads(original)
+        document["verification"]["pii_scan"] = "failed"
+        provenance.write_text(json.dumps(document), encoding="utf-8")
+        with patch.object(deploy.subprocess, "run") as run:
+            with self.assertRaisesRegex(environmentctl.InventoryError, "data provenance"):
+                deploy.operate(self.package, self.instance, self.host, "check")
+            run.assert_not_called()
+
     def test_wrong_instance_and_host_are_rejected_before_any_command(self):
         for instance, host, message in (("onward-alpha-production", self.host, "Selected instance"),
                                         (self.instance, "another-host", "Selected host")):

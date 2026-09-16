@@ -665,7 +665,14 @@ func registerEnterpriseAIWorkflowRoutes(group *gin.RouterGroup) {
 	group.PATCH("/ai-agents/:id/workflow-binding", require(constants.PermissionAIAgentUpdate), requireAI, enterprise.AIAgentWorkflowBindingUpdate)
 }
 
+func registerAssetQuarantineRoutes(group *gin.RouterGroup) {
+	group.GET("/asset-quarantine", enterprise.AssetQuarantineList)
+	group.GET("/asset-quarantine/:id/attempts", enterprise.AssetQuarantineAttempts)
+	group.POST("/asset-quarantine/:id/rescan", enterprise.AssetQuarantineRescan)
+}
+
 func registerEnterpriseTicketRoutes(group *gin.RouterGroup) {
+	registerAssetQuarantineRoutes(group)
 	require := middleware.RequirePermissionMiddleware
 	group.GET("/ticket-settings/intake", require(constants.PermissionTicketCreate), enterprise.TicketIntakePolicyGet)
 	group.GET("/ticket-settings/configuration", require(constants.PermissionTicketUpdate), enterprise.ProjectConfigurationGet)
@@ -694,6 +701,8 @@ func registerEnterpriseTicketRoutes(group *gin.RouterGroup) {
 	group.POST("/tickets/:id/governance", require(constants.PermissionTicketView), enterprise.TicketGovernance)
 	group.GET("/tickets/:id/case-owner-options", require(constants.PermissionTicketView), enterprise.TicketCaseOwnerOptions)
 	group.POST("/tickets/:id/progress", require(constants.PermissionTicketProgress), enterprise.TicketProgressCreate)
+	group.GET("/tickets/:id/emails", require(constants.PermissionTicketView), enterprise.TicketEmailHistory)
+	group.POST("/tickets/:id/email-replies", require(constants.PermissionTicketProgress), enterprise.TicketEmailReply)
 	group.POST("/tickets/:id/repair", require(constants.PermissionTicketUpdate), enterprise.TicketRepairCreate)
 	group.GET("/tickets/:id/knowledge-candidates", require(constants.PermissionTicketView), enterprise.TicketKnowledgeCandidateList)
 	group.POST("/tickets/:id/knowledge-candidates", require(constants.PermissionTicketUpdate), enterprise.TicketKnowledgeCandidateCreate)
@@ -817,6 +826,15 @@ func registerEnterpriseMeetingRoutes(group *gin.RouterGroup) {
 func registerEnterpriseNotificationRoutes(group *gin.RouterGroup) {
 	require := middleware.RequirePermissionMiddleware
 	group.GET("/notifications", require(constants.PermissionNotificationView), enterprise.NotificationList)
+	group.GET("/notifications/templates", require(constants.PermissionNotificationView), enterprise.NotificationTemplateList)
+	group.POST("/notifications/templates", require(constants.PermissionNotificationUpdate), enterprise.NotificationTemplateCreate)
+	group.POST("/notifications/templates/_preview", require(constants.PermissionNotificationView), enterprise.NotificationTemplatePreview)
+	group.POST("/notifications/templates/_seed-defaults", require(constants.PermissionNotificationUpdate), enterprise.NotificationTemplateSeedDefaults)
+	group.POST("/notifications/templates/:id/update", require(constants.PermissionNotificationUpdate), enterprise.NotificationTemplateUpdate)
+	group.POST("/notifications/templates/:id/_approve", require(constants.PermissionNotificationUpdate), enterprise.NotificationTemplateApprove)
+	group.POST("/notifications/templates/:id/_retire", require(constants.PermissionNotificationUpdate), enterprise.NotificationTemplateRetire)
+	group.POST("/notifications/templates/:id/_delete", require(constants.PermissionNotificationUpdate), enterprise.NotificationTemplateDelete)
+	group.GET("/notifications/delivery-attempts", require(constants.PermissionNotificationView), enterprise.NotificationDeliveryAttemptList)
 	group.POST("/notifications/:id/_read", require(constants.PermissionNotificationUpdate), enterprise.NotificationMarkRead)
 	group.POST("/notifications/_mark_all_read", require(constants.PermissionNotificationUpdate), enterprise.NotificationMarkAllRead)
 	group.GET("/notifications/preferences", require(constants.PermissionNotificationView), enterprise.NotificationRecipientSettingGet)
@@ -825,6 +843,8 @@ func registerEnterpriseNotificationRoutes(group *gin.RouterGroup) {
 	group.POST("/notifications/push-tokens", require(constants.PermissionNotificationUpdate), enterprise.MobilePushTokenRegister)
 	group.POST("/notifications/push-tokens/:id/_revoke", require(constants.PermissionNotificationUpdate), enterprise.MobilePushTokenRevoke)
 	group.GET("/notifications/mail-settings", require(constants.PermissionNotificationChannelManage), enterprise.NotificationMailSettingGet)
+	group.POST("/notifications/mail-settings/receive", require(constants.PermissionNotificationChannelManage), enterprise.MailReceivePoll)
+	group.GET("/notifications/mail-settings/receive-status", require(constants.PermissionNotificationChannelManage), enterprise.MailReceiveStatus)
 	group.POST("/notifications/mail-settings", require(constants.PermissionNotificationChannelManage), enterprise.NotificationMailSettingSave)
 	group.POST("/notifications/mail-settings/_test", require(constants.PermissionNotificationChannelManage), enterprise.NotificationMailSettingTest)
 }

@@ -15,5 +15,5 @@ func TenantBrandingLogoGet(ctx *gin.Context) {
 		ctx.AbortWithStatus(http.StatusNotFound)
 		return
 	}
-	streamPublicImmutableAsset(ctx, asset)
+	streamPublicScannedAsset(ctx, asset)
 }

@@ -15,6 +15,7 @@ from environmentctl import (
     InventoryError, PORT_KEYS, ROOT, deployment_root, identifier,
     positive_int, public_origin, read_bundle, read_json, require,
 )
+from data_provenance import ProvenanceError, read as read_data_provenance
 
 
 ACTIONS = ("check", "initialize-config", "sync-config-digest", "preflight", "install", "upgrade", "status", "doctor", "backup", "restore-drill")
@@ -25,6 +26,7 @@ PATH_SUFFIXES = {
     "RHD_PROJECT_CONFIG_DIR": "/project-config",
     "RHD_PROJECT_CONFIG_FILE": "/project-config/current.json",
     "RHD_PROJECT_SECRET_DIR": "/project-secrets",
+    "RHD_TEST_DATA_PROVENANCE_FILE": "/data-provenance.json",
     "RHD_ALERTMANAGER_CONFIG_FILE": "/alertmanager.yml",
     "RHD_RESTORE_DATA_DIR": "/backups",
 }
@@ -101,6 +103,13 @@ def inspect_package(package: Path, instance: str, host: str, allow_digest_sync: 
         item = package / relative
         require(item.exists() and item.resolve().is_relative_to(package.resolve()) and not item.is_symlink(),
                 "Package configuration and secret paths must stay inside the instance directory")
+    provenance_summary = None
+    if environment in ("integration", "staging"):
+        provenance = package / "data-provenance.json"
+        try:
+            provenance_summary = read_data_provenance(provenance, environment)
+        except (ProvenanceError, OSError) as exc:
+            raise InventoryError(f"non-production data provenance check failed: {exc}") from exc
     bundle_path = package / "project-config/current.json"
     if bundle_path.exists():
         require(not bundle_path.is_symlink(), "Project configuration cannot be a symbolic link")
@@ -114,7 +123,8 @@ def inspect_package(package: Path, instance: str, host: str, allow_digest_sync: 
         config_status = "pending_config"
     return {"instance_id": instance, "deployment_project_id": project, "environment": environment,
             "tenant_id": tenant, "host_id": host, "deploy_root": root,
-            "public_url": public, "config_status": config_status}, env
+            "public_url": public, "config_status": config_status,
+            "data_provenance": provenance_summary}, env
 
 
 def operate(package: Path, instance: str, host: str, action: str,
