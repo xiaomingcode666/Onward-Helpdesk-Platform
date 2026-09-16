@@ -245,7 +245,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .tmp
-          docker compose -f deploy/clamav/compose.yml up -d --wait --wait-timeout 300
+          # Pull separately so the image download is not charged against the
+          # health wait: the image health check alone allows 180s start period
+          # plus three 30s retries while freshclam fetches signatures.
+          docker compose -f deploy/clamav/compose.yml pull
+          docker compose -f deploy/clamav/compose.yml up -d --wait --wait-timeout 900
           go test ./internal/services -run '^TestAssetQuarantineRealClamAV$' -count=1 -v 2>&1 | tee .tmp/attachment-scan.log
 
       - name: Seed acceptance fixture
