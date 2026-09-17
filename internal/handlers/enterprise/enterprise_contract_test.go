@@ -3092,6 +3092,40 @@ func TestEnterpriseProductCreateUpdatePersistsAllFields(t *testing.T) {
 		t.Fatalf("product team leader_user_id = %d, want owner user %d", productTeam.LeaderUserID, owner.UserID)
 	}
 	nextOwner := seedEnterpriseProductOwner(t, db, tenantID, 1200102, "Next Product Owner")
+	serviceManagerRole := models.AuthRole{
+		TenantID:    tenantID,
+		DomainType:  models.DomainTypeEnterprise,
+		Code:        services.EnterpriseRoleServiceManager,
+		Name:        "Service Manager",
+		Status:      enums.StatusOk,
+		AuditFields: models.AuditFields{CreatedAt: now, UpdatedAt: now},
+	}
+	if err := db.Where(
+		"tenant_id = ? AND domain_type = ? AND code = ?",
+		tenantID,
+		models.DomainTypeEnterprise,
+		services.EnterpriseRoleServiceManager,
+	).FirstOrCreate(&serviceManagerRole).Error; err != nil {
+		t.Fatalf("create service manager role: %v", err)
+	}
+	if err := db.Where(
+		"tenant_id = ? AND domain_type = ? AND role_id = ? AND subject_type = ? AND subject_id = ?",
+		tenantID,
+		models.DomainTypeEnterprise,
+		serviceManagerRole.ID,
+		models.SubjectTypeTenantMember,
+		nextOwner.ID,
+	).FirstOrCreate(&models.AuthRoleBinding{
+		TenantID:    tenantID,
+		DomainType:  models.DomainTypeEnterprise,
+		RoleID:      serviceManagerRole.ID,
+		SubjectType: models.SubjectTypeTenantMember,
+		SubjectID:   nextOwner.ID,
+		Status:      enums.StatusOk,
+		AuditFields: models.AuditFields{CreatedAt: now, UpdatedAt: now},
+	}).Error; err != nil {
+		t.Fatalf("bind service manager role: %v", err)
+	}
 	if err := services.AgentTeamService.UpdateAgentTeam(request.UpdateAgentTeamRequest{
 		ID:             productTeam.ID,
 		Name:           productTeam.Name,
