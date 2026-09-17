@@ -196,14 +196,10 @@ func setupNotificationTestDB(t *testing.T) *gorm.DB {
 			_ = sqlDB.Close()
 		}
 	})
-	if err := db.AutoMigrate(&models.User{}, &models.TenantMember{}, &models.Notification{}, &models.NotificationTemplate{}, &models.NotificationDeliveryAttempt{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.TenantMember{}, &models.Notification{}, &models.NotificationDeliveryAttempt{}); err != nil {
 		t.Fatalf("auto migrate error = %v", err)
 	}
 	sqls.SetDB(db)
-	// 通知必须来自「已批准」模板，测试环境同样先落平台基线模板。
-	if _, err := services.NotificationTemplateService.EnsurePlatformDefaultsDB(db); err != nil {
-		t.Fatalf("seed platform notification templates: %v", err)
-	}
 	return db
 }
 

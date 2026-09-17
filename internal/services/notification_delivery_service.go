@@ -504,7 +504,7 @@ func (s *notificationDeliveryService) finishDeliveryWithAttempt(delivery *models
 	})
 }
 
-// renderEmailContent 优先使用「已批准」的邮件模板按接收人语言渲染，没有模板时沿用通知正文。
+// renderEmailContent 使用代码内置邮件模板按接收人语言渲染。
 func (s *notificationDeliveryService) renderEmailContent(delivery *models.DeliveryLog, item *models.Notification) (string, string, *NotificationSensitiveFinding) {
 	subject := strings.TrimSpace(item.Title)
 	content := strings.TrimSpace(item.Content)

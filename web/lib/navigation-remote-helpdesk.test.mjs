@@ -160,7 +160,6 @@ test("enterprise sidebar sections match the prototype menu hierarchy", async () 
           "permissions",
           "asset-quarantine",
           "access",
-          "notification-templates",
           "audit",
         ],
       },

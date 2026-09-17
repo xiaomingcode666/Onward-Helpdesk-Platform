@@ -9,7 +9,6 @@ import {
   CircleUserRoundIcon,
   CpuIcon,
   DatabaseZapIcon,
-  FileTextIcon,
   // Globe2Icon,
   HeadphonesIcon,
   HistoryIcon,
@@ -344,14 +343,6 @@ export const enterpriseNavItems: RemoteHelpdeskNavItem[] = [
     domain: "enterprise",
     icon: BellIcon,
     requiredPermission: "notification.view",
-  },
-  {
-    key: "notification-templates",
-    titleKey: "remoteNav.enterprise.notificationTemplates",
-    href: "/enterprise/notifications/templates",
-    domain: "enterprise",
-    icon: FileTextIcon,
-    requiredPermission: "notification.update",
   },
 ]
 
@@ -891,7 +882,7 @@ export function getEnterpriseSidebarSections(): RemoteHelpdeskSidebarSection[] {
     {
       labelKey: "remoteSidebar.management",
       icon: UsersIcon,
-      items: ["server-console", "people", "customer-users", "partners", "org", "permissions", "asset-quarantine", "access", "notification-templates", "audit"]
+      items: ["server-console", "people", "customer-users", "partners", "org", "permissions", "asset-quarantine", "access", "audit"]
         .map((k) => items.get(k))
         .filter(Boolean) as RemoteHelpdeskNavItem[],
     },
