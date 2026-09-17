@@ -29,13 +29,12 @@ func TestProjectConfigurationHTTPContract(t *testing.T) {
 	if err := db.Create(&models.Tenant{ID: 8001, Name: "Synthetic configuration tenant", Status: enums.StatusOk}).Error; err != nil {
 		t.Fatal(err)
 	}
-	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 8001, Environment: "development", Projects: []projectconfig.Project{{Key: "support", Name: "知识服务"}}, Intake: projectconfig.IntakePolicy{Rules: []projectconfig.Rule{}}, SecretRefs: []string{}}
+	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 8001, Environment: "development", Projects: []projectconfig.Project{{Key: "support", Name: "知识服务"}}, SecretRefs: []string{}}
 	input := services.ProjectConfigDraft{Document: doc, Note: "test", RequestKey: "http-configuration-draft"}
 	// A previously accepted draft with omitted/null arrays must not be persisted.
 	for _, rawDocument := range []string{
 		`{"schema_version":1,"tenant_id":8001,"environment":"development"}`,
-		`{"schema_version":1,"tenant_id":8001,"environment":"development","projects":[],"intake":{"rules":null},"secret_refs":[]}`,
-		`{"schema_version":1,"tenant_id":8001,"environment":"development","projects":[],"intake":{"rules":[{"project_key":"support","channel":"phone","ticket_type":"incident"}]},"secret_refs":[]}`,
+		`{"schema_version":1,"tenant_id":8001,"environment":"development","projects":null,"secret_refs":[]}`,
 	} {
 		ctx, rec := newEnterpriseContractJSONContext(http.MethodPost, "/configuration/drafts", 8001, `{"base_version_id":0,"request_key":"invalid-draft-arrays","note":"test","document":`+rawDocument+`}`)
 		ProjectConfigurationDraft(ctx)
@@ -136,7 +135,6 @@ func TestProjectConfigurationBrowserFixture(t *testing.T) {
 	router.POST("/api/enterprise/v1/ticket-settings/configuration/drafts", ProjectConfigurationDraft)
 	router.POST("/api/enterprise/v1/ticket-settings/configuration/validate", ProjectConfigurationValidate)
 	router.POST("/api/enterprise/v1/ticket-settings/configuration/:version/apply", ProjectConfigurationApply)
-	router.GET("/api/enterprise/v1/ticket-settings/intake", TicketIntakePolicyGet)
 	router.POST("/__test/stop", func(ctx *gin.Context) {
 		ctx.Status(204)
 		select {

@@ -6,7 +6,7 @@ import (
 )
 
 func TestTicketWorkflowConfigurationSchemaAndPolicy(t *testing.T) {
-	doc := Document{SchemaVersion: 1, TenantID: 91, Environment: "development", Projects: []Project{}, Intake: IntakePolicy{Rules: []Rule{}}, SecretRefs: []string{}, TicketWorkflows: map[string]ticketpolicy.Workflow{"*": ticketpolicy.DefaultWorkflow()}}
+	doc := Document{SchemaVersion: 1, TenantID: 91, Environment: "development", Projects: []Project{}, SecretRefs: []string{}, TicketWorkflows: map[string]ticketpolicy.Workflow{"*": ticketpolicy.DefaultWorkflow()}}
 	if report := Validate(doc, 91, "development", nil); !report.Valid {
 		t.Fatal(report)
 	}

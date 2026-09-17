@@ -9,7 +9,7 @@ import (
 )
 
 func testDocument() Document {
-	return Document{SchemaVersion: 1, TenantID: 7, Environment: "staging", Projects: []Project{{Key: "support", Name: "知识服务"}}, Intake: IntakePolicy{Rules: []Rule{{ProjectKey: "support", Channel: "phone", TicketType: "incident", RequiredFields: []string{"caller_phone"}}}}, SecretRefs: []string{}}
+	return Document{SchemaVersion: 1, TenantID: 7, Environment: "staging", Projects: []Project{{Key: "support", Name: "知识服务"}}, SecretRefs: []string{}}
 }
 
 func TestConfigurationSchemaPolicyAndSecrets(t *testing.T) {
@@ -23,10 +23,8 @@ func TestConfigurationSchemaPolicyAndSecrets(t *testing.T) {
 		kind   string
 	}{
 		{"schema version", func(d *Document) { d.SchemaVersion = 2 }, "schema"},
-		{"unknown field", func(d *Document) { d.Intake.Rules[0].RequiredFields = []string{"password"} }, "schema"},
-		{"duplicate field", func(d *Document) { d.Intake.Rules[0].RequiredFields = []string{"caller_phone", "caller_phone"} }, "schema"},
-		{"unknown project", func(d *Document) { d.Projects = []Project{} }, "policy"},
-		{"duplicate rule", func(d *Document) { d.Intake.Rules = append(d.Intake.Rules, d.Intake.Rules[0]) }, "policy"},
+		{"blank project name", func(d *Document) { d.Projects = []Project{{Key: "support", Name: " "}} }, "policy"},
+		{"duplicate project", func(d *Document) { d.Projects = append(d.Projects, d.Projects[0]) }, "policy"},
 		{"tenant isolation", func(d *Document) { d.TenantID = 8 }, "policy"},
 		{"environment isolation", func(d *Document) { d.Environment = "production" }, "policy"},
 		{"missing resolver", func(d *Document) { d.SecretRefs = []string{"secret://mail"} }, "secret"},
@@ -92,7 +90,7 @@ func TestDeploymentRejectsTamperingScopeAndTrailingData(t *testing.T) {
 			t.Fatal("incorrect deployment identity accepted")
 		}
 	}
-	bundle.Document.Intake.Rules[0].RequiredFields = []string{}
+	bundle.Document.Projects = append(bundle.Document.Projects, Project{Key: "tampered", Name: "Tampered"})
 	write(bundle)
 	if _, err := ReadDeployment(path, 7, "staging", bundle.Digest, ""); err == nil {
 		t.Fatal("tampered document accepted")

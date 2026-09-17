@@ -1,5 +1,20 @@
 import type { ProjectConfiguration, ProjectRuntime } from "./api/project-configuration"
 
+export type ServiceSLADefaults = Pick<
+  ProjectRuntime["targets"][number],
+  "response_minutes" | "assignment_minutes" | "resolution_minutes"
+>
+
+export const SERVICE_SLA_DEFAULTS: Record<string, ServiceSLADefaults> = {
+  standard: { response_minutes: 15, assignment_minutes: 15, resolution_minutes: 480 },
+  enhanced: { response_minutes: 5, assignment_minutes: 5, resolution_minutes: 240 },
+  mission_critical: { response_minutes: 1, assignment_minutes: 1, resolution_minutes: 60 },
+}
+
+export function serviceSLADefaults(profile: string): ServiceSLADefaults {
+  return SERVICE_SLA_DEFAULTS[profile] ?? SERVICE_SLA_DEFAULTS.standard
+}
+
 function runtimeSecretRefs(runtime?: ProjectRuntime): string[] {
   if (!runtime) return []
   return [...new Set([
@@ -13,8 +28,9 @@ function runtimeSecretRefs(runtime?: ProjectRuntime): string[] {
 // must remain unchanged, including old drafts with null arrays.
 export function editableProjectConfiguration(document: ProjectConfiguration): ProjectConfiguration {
   const copy = structuredClone(document)
+  // 受理规则已移除：历史版本里仍带着 intake 字段，载入时丢掉，避免新草稿被旧字段卡住。
+  delete (copy as { intake?: unknown }).intake
   copy.projects ??= []
-  copy.intake = { rules: (copy.intake?.rules ?? []).map(rule => ({ ...rule, required_fields: rule.required_fields ?? [] })) }
   copy.secret_refs ??= []
   return copy
 }

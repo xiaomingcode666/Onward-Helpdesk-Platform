@@ -64,26 +64,13 @@ func requireProjectConfigOperator(tenantID int64, op *dto.AuthPrincipal) error {
 }
 
 func legacyProjectDocument(tenant *models.Tenant) (projectconfig.Document, error) {
-	policy := dto.TicketIntakePolicy{Rules: []dto.TicketIntakeRule{}}
-	if strings.TrimSpace(tenant.TicketIntakePolicyJSON) != "" {
-		if err := json.Unmarshal([]byte(tenant.TicketIntakePolicyJSON), &policy); err != nil {
-			return projectconfig.Document{}, errorsx.InvalidParam("现有受理配置无法读取，请先修正原配置")
-		}
-	}
-	if err := ValidateTicketIntakePolicy(policy); err != nil {
-		return projectconfig.Document{}, err
-	}
-	doc := projectconfig.Document{SchemaVersion: 1, TenantID: tenant.ID, Environment: projectconfig.Environment(), Projects: []projectconfig.Project{}, Intake: projectconfig.IntakePolicy{Rules: []projectconfig.Rule{}}, SecretRefs: []string{}}
-	seen := map[string]bool{}
-	for _, r := range policy.Rules {
-		if !seen[r.ProjectKey] {
-			doc.Projects = append(doc.Projects, projectconfig.Project{Key: r.ProjectKey, Name: r.ProjectKey})
-			seen[r.ProjectKey] = true
-		}
-		fields := append([]string{}, r.RequiredFields...)
-		doc.Intake.Rules = append(doc.Intake.Rules, projectconfig.Rule{ProjectKey: r.ProjectKey, Channel: r.Channel, TicketType: r.TicketType, RequiredFields: fields})
-	}
-	return doc, nil
+	return projectconfig.Document{
+		SchemaVersion: 1,
+		TenantID:      tenant.ID,
+		Environment:   projectconfig.Environment(),
+		Projects:      []projectconfig.Project{},
+		SecretRefs:    []string{},
+	}, nil
 }
 
 func decodeProjectVersion(v models.ProjectConfigurationVersion) (ProjectConfigVersion, error) {
@@ -333,11 +320,6 @@ func applyProjectConfigurationDB(sourceDB *gorm.DB, tenantID, versionID int64, o
 		if err := applyProjectRuntimeDB(db, result.Document, op); err != nil {
 			return err
 		}
-		policyJSON, _ := json.Marshal(result.Document.Intake)
-		// The old column remains a compatibility projection, never a second writer.
-		if err := db.Model(&models.Tenant{}).Where("id = ?", tenantID).Updates(map[string]any{"ticket_intake_policy_json": string(policyJSON), "updated_at": time.Now(), "update_user_id": op.UserID, "update_user_name": op.Username}).Error; err != nil {
-			return err
-		}
 		updated := db.Model(&models.ProjectConfigurationState{}).Where("id = ? AND active_version_id = ?", s.ID, s.ActiveVersionID).Update("active_version_id", versionID)
 		if updated.Error != nil {
 			return updated.Error
@@ -355,24 +337,4 @@ func applyProjectConfigurationDB(sourceDB *gorm.DB, tenantID, versionID int64, o
 		return err
 	})
 	return &result, err
-}
-
-func intakeFromProjectDocument(doc projectconfig.Document) *dto.TicketIntakePolicy {
-	p := &dto.TicketIntakePolicy{Rules: []dto.TicketIntakeRule{}}
-	for _, r := range doc.Intake.Rules {
-		p.Rules = append(p.Rules, dto.TicketIntakeRule{ProjectKey: r.ProjectKey, Channel: r.Channel, TicketType: r.TicketType, RequiredFields: r.RequiredFields})
-	}
-	return p
-}
-
-func versionedIntakePolicyDB(db *gorm.DB, tenantID, versionID int64) (*dto.TicketIntakePolicy, error) {
-	var v models.ProjectConfigurationVersion
-	if err := db.Where("id = ? AND tenant_id = ? AND environment = ?", versionID, tenantID, projectconfig.Environment()).First(&v).Error; err != nil {
-		return nil, fmt.Errorf("无法读取工单使用的配置版本")
-	}
-	parsed, err := decodeProjectVersion(v)
-	if err != nil {
-		return nil, err
-	}
-	return intakeFromProjectDocument(parsed.Document), nil
 }

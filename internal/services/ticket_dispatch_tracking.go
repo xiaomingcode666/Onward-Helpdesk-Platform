@@ -104,7 +104,7 @@ func ticketAssignmentSLADeadlineDB(db *gorm.DB, ticket *models.Ticket) (time.Tim
 		if err != nil || r == nil {
 			return time.Time{}, false
 		}
-		t, c, ok := projectTicketTarget(r, ticket.ProjectKey, ticketSLAPriority(*ticket))
+		t, c, ok := projectTicketTarget(r, ticket.ProjectKey)
 		if !ok || t.AssignmentMinutes <= 0 {
 			return time.Time{}, false
 		}

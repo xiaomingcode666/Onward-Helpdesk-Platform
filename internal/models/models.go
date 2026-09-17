@@ -76,6 +76,7 @@ var Models = []any{
 	&ProductModuleModelLink{},
 	&TicketSupplierCollaboration{},
 	&TicketSupplierCollaborationParticipant{},
+	&TicketClockPause{},
 	&ProductFaultStatsDaily{},
 	&ProductManualFile{},
 	&SystemIntroDoc{},
@@ -1191,6 +1192,12 @@ type Ticket struct {
 	AcceptedAt *time.Time `gorm:"type:timestamp;index"`
 	// AcceptDeadlineAt 接单截止时间：负责人需在此之前确认接单，逾期回收重派。
 	AcceptDeadlineAt *time.Time `gorm:"type:timestamp;index"`
+	// DaypopClockPausedAt 标记责任时钟当前供应商等待暂停的起点。
+	DaypopClockPausedAt *time.Time `gorm:"type:timestamp;index"`
+	// DaypopClockPausedSeconds 记录已完成的责任时钟暂停总时长。
+	DaypopClockPausedSeconds int64 `gorm:"type:bigint;not null;default:0"`
+	// DaypopClockPausedRemainingSeconds 记录暂停开始时责任 SLA 剩余秒数，可小于 0。
+	DaypopClockPausedRemainingSeconds int64 `gorm:"type:bigint;not null;default:0"`
 	// DispatchAttempts 接单超时回收重派的累计次数，达到上限后升级主管。
 	DispatchAttempts int `gorm:"type:int;not null;default:0;index"`
 	// DispatchDeferredUntil 自动派单失败后的下一次重试时间，避免永久不可派工单阻塞扫描窗口。

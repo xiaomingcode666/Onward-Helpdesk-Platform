@@ -63,13 +63,19 @@ func TestProjectConfigurationLifecycleAndPinnedIntake(t *testing.T) {
 	op := createTestOperator(t, "config-editor")
 	op.TenantID = tenant.ID
 	op.Permissions = []string{constants.PermissionTicketUpdate.Code, constants.PermissionTicketCreate.Code, constants.PermissionTicketView.Code}
+	op.Roles = []string{services.EnterpriseRoleAdmin}
 	view, err := services.GetProjectConfiguration(tenant.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc := view.Document
+	upgraded, err := services.UpgradeProjectConfiguration(tenant.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := *upgraded
+	doc.Runtime.Mail = projectconfig.Mail{RetryPolicy: "no_retry"}
+	doc.SecretRefs = []string{}
 	doc.Projects = []projectconfig.Project{{Key: "support", Name: "知识服务"}}
-	doc.Intake.Rules = []projectconfig.Rule{{ProjectKey: "support", Channel: "phone", TicketType: "incident", RequiredFields: []string{"caller_phone"}}}
 	input := services.ProjectConfigDraft{Document: doc, BaseVersionID: 0, RequestKey: "test-create-draft-1", Note: "联系电话必填"}
 	v1, err := services.SaveProjectConfigurationDraft(tenant.ID, input, op)
 	if err != nil {
@@ -83,12 +89,9 @@ func TestProjectConfigurationLifecycleAndPinnedIntake(t *testing.T) {
 	if _, err := services.SaveProjectConfigurationDraft(tenant.ID, input, op); !errors.Is(err, services.ErrProjectConfigConflict) {
 		t.Fatalf("payload conflict: %v", err)
 	}
-	before, err := services.GetTicketIntakePolicy(tenant.ID)
-	if err != nil || len(before.Rules) != 0 {
+	live, err := services.GetProjectConfiguration(tenant.ID)
+	if err != nil || live.ActiveVersionID != 0 || len(live.Document.Projects) != 0 {
 		t.Fatalf("draft affected live settings: %v", err)
-	}
-	if err := services.UpdateTicketIntakePolicy(tenant.ID, dto.TicketIntakePolicy{}, op); err == nil {
-		t.Fatal("legacy writer bypassed version control")
 	}
 	if _, err := services.ApplyProjectConfiguration(tenant.ID, v1.ID, op); err != nil {
 		t.Fatal(err)
@@ -100,14 +103,14 @@ func TestProjectConfigurationLifecycleAndPinnedIntake(t *testing.T) {
 	if err := sqls.DB().Model(&models.ProjectConfigurationActivation{}).Where("version_id = ?", v1.ID).Count(&count).Error; err != nil || count != 1 {
 		t.Fatalf("duplicate activation: %d %v", count, err)
 	}
-	ticket, err := services.TicketService.CreateTicket(request.CreateTicketRequest{Title: "Configuration version phone test", Description: "Synthetic phone support request", Source: "manual", Channel: "phone", TicketIntakeInput: dto.TicketIntakeInput{ProjectKey: "support", TicketType: "incident"}}, op)
+	ticket, err := services.TicketService.CreateTicket(request.CreateTicketRequest{Title: "Configuration version test", Description: "Synthetic support request", Source: "manual", Channel: "enterprise", TicketIntakeInput: dto.TicketIntakeInput{ProjectKey: "support", TicketType: "incident"}}, op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ticket.IntakeConfigVersionID != v1.ID || ticket.ContextStatus != "context_incomplete" {
+	if ticket.ProjectConfigVersionID != v1.ID {
 		t.Fatalf("ticket not pinned: %+v", ticket)
 	}
-	doc.Intake.Rules[0].RequiredFields = []string{"caller_name"}
+	doc.Projects[0].Name = "知识服务（改）"
 	v2, err := services.SaveProjectConfigurationDraft(tenant.ID, services.ProjectConfigDraft{Document: doc, BaseVersionID: v1.ID, RequestKey: "test-create-draft-2", Note: "来电人必填"}, op)
 	if err != nil {
 		t.Fatal(err)
@@ -122,16 +125,8 @@ func TestProjectConfigurationLifecycleAndPinnedIntake(t *testing.T) {
 	if _, err := services.ApplyProjectConfiguration(tenant.ID, v3.ID, op); !errors.Is(err, services.ErrProjectConfigConflict) {
 		t.Fatalf("stale apply: %v", err)
 	}
-	if err := services.CompleteTicketIntake(ticket.ID, dto.CompleteTicketIntakeRequest{ProjectKey: "support", TicketType: "incident", CallerPhone: "000-test-only"}, op); err != nil {
-		t.Fatal(err)
-	}
-	ticket = services.TicketService.Get(ticket.ID)
-	if ticket.ContextStatus != "complete" || ticket.IntakeConfigVersionID != v1.ID {
-		t.Fatal("old ticket used new rule")
-	}
-	bound, err := services.GetTicketBoundIntakePolicy(ticket.ID, op)
-	if err != nil || bound.Rules[0].RequiredFields[0] != "caller_phone" {
-		t.Fatalf("UI bound policy mismatch: %v", err)
+	if refreshed := services.TicketService.Get(ticket.ID); refreshed == nil || refreshed.ProjectConfigVersionID != v1.ID {
+		t.Fatal("old ticket switched to the new version")
 	}
 	if _, err := services.ApplyProjectConfiguration(tenant.ID, v1.ID, op); err != nil {
 		t.Fatal(err)
@@ -230,7 +225,7 @@ func TestProjectConfigurationLifecycleAndPinnedIntake(t *testing.T) {
 	if err := sqls.DB().Model(&models.ProjectConfigurationVersion{}).Where("id = ?", v1.ID).Update("document_json", "{}").Error; err != nil {
 		t.Fatal(err)
 	}
-	if _, err := services.GetTicketBoundIntakePolicy(ticket.ID, op); err == nil {
+	if _, err := services.GetProjectConfiguration(tenant.ID); err == nil {
 		t.Fatal("tampered historical configuration silently used or replaced")
 	}
 }

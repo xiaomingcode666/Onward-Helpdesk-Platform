@@ -20,12 +20,9 @@ type TicketCaseLifecycleDTO struct {
 	WorkflowError     string   `json:"workflow_error,omitempty"`
 	Revision          int64    `json:"revision"`
 	Status            string   `json:"status"`
-	OwnerID           int64    `json:"owner_id"`
-	OwnerName         string   `json:"owner_name"`
 	AcknowledgedAt    string   `json:"acknowledged_at"`
 	RestoredAt        string   `json:"restored_at"`
 	WaitingReason     string   `json:"waiting_reason"`
 	AllowedActions    []string `json:"allowed_actions"`
-	CanTransferOwner  bool     `json:"can_transfer_owner"`
 	LegacyRecord      bool     `json:"legacy_record"`
 }

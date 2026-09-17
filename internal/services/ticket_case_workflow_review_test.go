@@ -9,6 +9,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/dto/request"
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/ticketpolicy"
 	"remotehelpdesk/internal/repositories"
 )
 
@@ -16,7 +17,7 @@ func TestTicketCaseWorkflowRepairCannotReactivateTerminalCase(t *testing.T) {
 	for _, status := range []enums.TicketStatus{enums.TicketStatusClosed, enums.TicketStatusCancelled} {
 		t.Run(string(status), func(t *testing.T) {
 			db, op, ticket := setupCaseLifecycle(t)
-			runCaseAction(t, db, ticket.ID, "acknowledge", "实际受理", op)
+			runCaseAction(t, db, ticket.ID, "triage", "工程师开始处理", op)
 			op.Roles = []string{EnterpriseRoleAdmin}
 			now := time.Now().Add(-time.Hour)
 			if err := db.Model(&models.Ticket{}).Where("id = ?", ticket.ID).Updates(map[string]any{
@@ -46,7 +47,7 @@ func TestTicketCaseWorkflowRepairCannotReactivateTerminalCase(t *testing.T) {
 
 func TestTicketCaseWorkflowConversationTeamChangeRetainsAcceptance(t *testing.T) {
 	db, op, ticket := setupCaseLifecycle(t)
-	runCaseAction(t, db, ticket.ID, "acknowledge", "实际受理", op)
+	runCaseAction(t, db, ticket.ID, "triage", "工程师开始处理", op)
 	acceptedAt := time.Now().Add(-30 * time.Minute)
 	assignedAt := acceptedAt.Add(-time.Minute)
 	if err := db.Model(&models.Ticket{}).Where("id = ?", ticket.ID).Updates(map[string]any{
@@ -63,6 +64,38 @@ func TestTicketCaseWorkflowConversationTeamChangeRetainsAcceptance(t *testing.T)
 	after := repositories.TicketRepository.Get(db, ticket.ID)
 	if after.CurrentTeamID != 2 || after.CaseStatus != "assigned" || after.Status != enums.TicketStatusProcessing || after.AcceptedAt == nil || !after.AcceptedAt.Equal(acceptedAt) || after.AssignedAt == nil || !after.AssignedAt.Equal(assignedAt) || after.AcceptDeadlineAt != nil {
 		t.Fatalf("team-only synchronization reset engineer acceptance: %+v", after)
+	}
+}
+
+func TestTicketCaseAcceptanceFallsBackToWorkflowAllowedAcknowledged(t *testing.T) {
+	db, op := setupStatusWorkflow(t)
+	workflow := ticketpolicy.DefaultWorkflow()
+	workflow.Transitions["new"] = []string{"acknowledged", "cancelled"}
+	draft, err := SaveTicketStatusWorkflow(91, TicketWorkflowDraft{
+		ProjectKey: "*",
+		Workflow:   workflow,
+		RequestKey: "workflow-accept-fallback",
+		Note:       "不允许直接接单",
+	}, op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PublishTicketStatusWorkflow(91, draft.ID, op); err != nil {
+		t.Fatal(err)
+	}
+	ticket := newWorkflowTicket(t, db, "")
+	if err := repositories.TicketRepository.Updates(db, ticket.ID, map[string]any{"current_assignee_id": op.UserID}); err != nil {
+		t.Fatal(err)
+	}
+	ticket = *repositories.TicketRepository.Get(db, ticket.ID)
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		return ensureTicketCaseOwnershipDB(tx, &ticket, op, op.UserID)
+	}); err != nil {
+		t.Fatalf("accept ticket under restricted workflow: %v", err)
+	}
+	after := repositories.TicketRepository.Get(db, ticket.ID)
+	if after.CaseStatus != "acknowledged" {
+		t.Fatalf("case status = %q, want acknowledged", after.CaseStatus)
 	}
 }
 

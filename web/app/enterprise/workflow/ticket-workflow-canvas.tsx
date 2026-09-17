@@ -6,7 +6,7 @@ import {
   Background, BaseEdge, Controls, Handle, MarkerType, Position, ReactFlow, getSmoothStepPath,
   type Edge, type EdgeProps, type Node, type NodeProps, type ReactFlowInstance, type XYPosition,
 } from "@xyflow/react"
-import { ArrowDown, Check, CircleCheck, Headphones, LockKeyhole, Maximize2, Minimize2, Network, RotateCcw, Wrench, X } from "lucide-react"
+import { ArrowDown, Check, CircleCheck, LockKeyhole, Maximize2, Minimize2, Network, RotateCcw, Wrench, X } from "lucide-react"
 import { RailopsButton } from "@railops/ui"
 import { caseStatusLabel } from "@/lib/ticket-case-labels"
 
@@ -17,16 +17,16 @@ type Props = {
   onChangeTransition: (from: string, to: string, enabled: boolean) => void
 }
 const details: Record<string, { role: string; action: string; group: string; hint: string }> = {
-  new: { role: "系统", action: "收到客户问题，建立工单", group: "受理", hint: "工单刚进入系统，等待客服确认受理。" },
-  acknowledged: { role: "客服", action: "确认受理，持续跟进", group: "受理", hint: "客服确认已收到问题，并负责跟进后续处理。" },
-  in_triage: { role: "客服 / 工程师", action: "分析原因，判断处理方向", group: "处理", hint: "分析客户问题，确定需要哪位工程师或哪个支持组处理。" },
+  new: { role: "系统", action: "收到客户问题，建立工单", group: "受理", hint: "工单刚进入系统，等待工程师接单。" },
+  acknowledged: { role: "工程师", action: "已接单，持续跟进", group: "受理", hint: "历史阶段：工程师接单后负责跟进后续处理。" },
+  in_triage: { role: "工程师", action: "分析原因，判断处理方向", group: "处理", hint: "分析客户问题，确定处理方式和需要的支持。" },
   assigned: { role: "工程师", action: "已分配工程师，推进处理", group: "处理", hint: "通过工单的分配操作指定工程师后，进入此状态。" },
-  waiting: { role: "客服 / 工程师", action: "等待客户资料或外部协助", group: "等待分支", hint: "处理暂时需要等待。结束等待时返回等待前的阶段；是否暂停计时由时限规则决定。" },
+  waiting: { role: "工程师", action: "等待客户资料或外部协助", group: "等待分支", hint: "处理暂时需要等待。结束等待时返回等待前的阶段；是否暂停计时由时限规则决定。" },
   restored: { role: "工程师", action: "服务恢复，继续确认解决", group: "处理", hint: "服务已经能使用，但可能还需要验证修复结果或继续处理根因。" },
   resolved: { role: "工程师", action: "确认解决，留下处理结果", group: "收尾", hint: "问题已解决或请求已完成，需要保留解决说明。设备工单通过处理记录确认解决。" },
-  closure_pending: { role: "客服", action: "等待最终确认关闭", group: "收尾", hint: "完成解决后，核对是否满足关闭条件。" },
-  closed: { role: "客服 / 系统", action: "处理结束，保留完整记录", group: "收尾", hint: "满足关闭条件后结束工单。是否允许重新打开，以此流程配置为准。" },
-  cancelled: { role: "客服", action: "撤回或不再处理本次请求", group: "取消分支", hint: "记录取消原因并结束本次请求，不等同于问题已解决。" },
+  closure_pending: { role: "工程师", action: "等待最终确认关闭", group: "收尾", hint: "完成解决后，核对是否满足关闭条件。" },
+  closed: { role: "工程师 / 系统", action: "处理结束，保留完整记录", group: "收尾", hint: "满足关闭条件后结束工单。是否允许重新打开，以此流程配置为准。" },
+  cancelled: { role: "工程师", action: "撤回或不再处理本次请求", group: "取消分支", hint: "记录取消原因并结束本次请求，不等同于问题已解决。" },
 }
 const mainPath = ["new", "acknowledged", "in_triage", "assigned", "restored", "resolved", "closure_pending", "closed"]
 function initialPosition(state: string): XYPosition {
@@ -38,7 +38,7 @@ type StatusNode = Node<{ status: string; count: number; muted: boolean }, "statu
 function StatusWorkflowNode({ data, selected, isConnectable }: NodeProps<StatusNode>) {
   const detail = details[data.status]
   const Icon = data.status === "cancelled" ? X : data.status === "waiting" ? RotateCcw
-    : data.status === "closed" ? CircleCheck : detail.role.includes("工程师") ? Wrench : detail.role === "系统" ? Network : Headphones
+    : data.status === "closed" ? CircleCheck : detail.role === "系统" ? Network : Wrench
   return <div className={`w-[216px] rounded-lg border border-t-[3px] bg-card shadow-sm transition-[border-color,box-shadow,opacity] ${selected ? "border-blue-500 ring-2 ring-blue-500/15" : data.status === "waiting" ? "border-border border-t-amber-500" : data.status === "cancelled" || data.status === "closed" ? "border-border border-t-slate-400" : "border-border border-t-blue-500"} ${data.muted ? "opacity-40" : ""}`}>
     <Handle id="in" type="target" position={Position.Top} isConnectable={isConnectable} className="!size-2.5 !border-2 !border-background !bg-blue-500" />
     <Handle id="in-left" type="target" position={Position.Left} isConnectable={false} style={{ top: "30%" }} className="!size-1.5 !border-0 !bg-slate-400" />

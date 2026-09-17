@@ -233,6 +233,7 @@ type TicketActionPermissionsDTO struct {
 type TicketAggregateDTO struct {
 	Ticket               TicketHeaderDTO              `json:"ticket"`
 	CaseLifecycle        *TicketCaseLifecycleDTO      `json:"case_lifecycle"`
+	Clocks               *TicketClockDTO              `json:"clocks,omitempty"`
 	Customer             CustomerSummaryDTO           `json:"customer"`
 	DeviceContext        DeviceContextSnapshotDTO     `json:"device_context"`
 	ConversationSnapshot *ConversationSnapshotDTO     `json:"conversation_snapshot,omitempty"`
@@ -246,4 +247,15 @@ type TicketAggregateDTO struct {
 	Assets               []AssetRefDTO                `json:"assets"`
 	AuditRefs            []AuditRefDTO                `json:"audit_refs"`
 	Actions              TicketActionPermissionsDTO   `json:"actions"`
+}
+
+type TicketClockDTO struct {
+	E2EStartAt          string `json:"e2e_start_at"`
+	E2EEndAt            string `json:"e2e_end_at"`
+	E2ESeconds          int64  `json:"e2e_seconds"`
+	PausedSeconds       int64  `json:"paused_seconds"`
+	AccountableSeconds  int64  `json:"accountable_seconds"`
+	ExternalWaitSeconds int64  `json:"external_wait_seconds"`
+	PauseActive         bool   `json:"pause_active"`
+	PauseReason         string `json:"pause_reason,omitempty"`
 }

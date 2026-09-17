@@ -22,7 +22,7 @@ func TestDeploymentAdministratorRepairRetryAndConflicts(t *testing.T) {
 	db := setupSLATenantTestDB(t)
 	require.NoError(t, db.AutoMigrate(models.Models...))
 	require.NoError(t, db.AutoMigrate(&deploymentidentity.Record{}))
-	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 27, Environment: "staging", Projects: []projectconfig.Project{}, Intake: projectconfig.IntakePolicy{Rules: []projectconfig.Rule{}}, SecretRefs: []string{}}
+	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 27, Environment: "staging", Projects: []projectconfig.Project{}, SecretRefs: []string{}}
 	options := ProjectDeploymentInitialization{TenantName: "Repair fixture"}
 	_, err := InitializeProjectConfigurationDocumentWithOptions(doc, options)
 	require.ErrorContains(t, err, "公司缺少企业管理员")
@@ -85,7 +85,7 @@ func TestDeploymentAdministratorExplicitExistingAccountAndTenantBoundary(t *test
 	require.NoError(t, db.AutoMigrate(&deploymentidentity.Record{}))
 	standalone, _, err := UserService.CreateUserDB(db, request.CreateUserRequest{Username: "standalone", Password: "Standalone-fixture-2026!"}, nil)
 	require.NoError(t, err)
-	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 27, Environment: "integration", Projects: []projectconfig.Project{}, Intake: projectconfig.IntakePolicy{Rules: []projectconfig.Rule{}}, SecretRefs: []string{}}
+	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 27, Environment: "integration", Projects: []projectconfig.Project{}, SecretRefs: []string{}}
 	options := ProjectDeploymentInitialization{TenantName: "Shared fixture", Administrator: ProjectDeploymentAdministrator{Username: standalone.Username, Password: "Must-not-reset-fixture-2026!"}}
 	_, err = InitializeProjectConfigurationDocumentWithOptions(doc, options)
 	require.ErrorContains(t, err, "账号名称已存在")

@@ -204,7 +204,7 @@ func refreshGovernanceDeadlineDB(db *gorm.DB, t *models.Ticket) error {
 	}
 	var policy SLAPolicy
 	if r != nil {
-		target, cal, ok := projectTicketTarget(r, t.ProjectKey, t.PriorityCode)
+		target, cal, ok := projectTicketTarget(r, t.ProjectKey)
 		if !ok || target.ResolutionMinutes <= 0 {
 			t.SLADueAt = nil
 			return nil
@@ -427,7 +427,11 @@ func ExecuteTicketGovernance(ticketID int64, cmd TicketGovernanceCommand, op *dt
 				t.AcceptDeadlineAt = oldAcceptDeadline
 			}
 			t.GovernanceRevision++
-			if err := db.Model(&models.Ticket{}).Where("id = ? AND tenant_id = ?", t.ID, t.TenantID).Updates(map[string]any{"case_type": t.CaseType, "priority_level": t.PriorityLevel, "priority_suggested": t.PrioritySuggested, "priority_review_required": t.PriorityReviewRequired, "priority_overridden": t.PriorityOverridden, "priority_facts_json": t.PriorityFactsJSON, "priority_policy_json": t.PriorityPolicyJSON, "priority_explanation": t.PriorityExplanation, "priority_config_version_id": t.PriorityConfigVersionID, "governance_revision": t.GovernanceRevision, "priority_code": t.PriorityCode, "sla_due_at": t.SLADueAt, "accept_deadline_at": t.AcceptDeadlineAt, "updated_at": time.Now(), "update_user_id": op.UserID, "update_user_name": op.Username}).Error; err != nil {
+			updates := map[string]any{"case_type": t.CaseType, "priority_level": t.PriorityLevel, "priority_suggested": t.PrioritySuggested, "priority_review_required": t.PriorityReviewRequired, "priority_overridden": t.PriorityOverridden, "priority_facts_json": t.PriorityFactsJSON, "priority_policy_json": t.PriorityPolicyJSON, "priority_explanation": t.PriorityExplanation, "priority_config_version_id": t.PriorityConfigVersionID, "governance_revision": t.GovernanceRevision, "priority_code": t.PriorityCode, "sla_due_at": t.SLADueAt, "accept_deadline_at": t.AcceptDeadlineAt, "updated_at": time.Now(), "update_user_id": op.UserID, "update_user_name": op.Username}
+			if t.DaypopClockPausedAt != nil && t.SLADueAt != nil {
+				updates["daypop_clock_paused_remaining_seconds"] = int64(t.SLADueAt.Sub(*t.DaypopClockPausedAt) / time.Second)
+			}
+			if err := db.Model(&models.Ticket{}).Where("id = ? AND tenant_id = ?", t.ID, t.TenantID).Updates(updates).Error; err != nil {
 				return err
 			}
 			details["after"] = t.TicketGovernance

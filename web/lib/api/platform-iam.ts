@@ -410,6 +410,32 @@ export function fetchEnterpriseIAMMembers(query?: IAMListQuery, tenantId?: numbe
   )
 }
 
+export async function fetchAllEnterpriseIAMMembers(query?: IAMListQuery, tenantId?: number) {
+  const rest = { ...(query ?? {}) }
+  delete rest.page
+  delete rest.limit
+  const results: EnterpriseIAMMember[] = []
+  let page = 1
+
+  for (;;) {
+    const response = await fetchEnterpriseIAMMembers(
+      {
+        ...rest,
+        page,
+        limit: ENTERPRISE_IAM_CATALOG_PAGE_SIZE,
+      },
+      tenantId
+    )
+    results.push(...response.results)
+
+    const total = response.page?.total ?? results.length
+    if (results.length >= total || response.results.length < ENTERPRISE_IAM_CATALOG_PAGE_SIZE) {
+      return results
+    }
+    page += 1
+  }
+}
+
 export function inviteEnterpriseMember(payload: EnterpriseMemberInvitePayload, tenantId?: number) {
   return request<{ member: EnterpriseIAMMember; initialPassword: string }>(
     "/api/enterprise/v1/iam/members/invite",
@@ -518,7 +544,9 @@ export function fetchEnterpriseIAMDepartments(query?: IAMListQuery, tenantId?: n
 const ENTERPRISE_IAM_CATALOG_PAGE_SIZE = 100
 
 export async function fetchAllEnterpriseIAMDepartments(query?: IAMListQuery, tenantId?: number) {
-  const { page: _page, limit: _limit, ...rest } = query ?? {}
+  const rest = { ...(query ?? {}) }
+  delete rest.page
+  delete rest.limit
   const results: EnterpriseIAMDepartment[] = []
   let page = 1
 

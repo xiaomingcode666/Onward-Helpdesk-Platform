@@ -49,13 +49,12 @@ func TestTicketStatusWorkflowHTTPPublishAndExecute(t *testing.T) {
 	fresh.TicketNo = "WORKFLOW-HTTP-PUBLISHED"
 	require.NoError(t, repositories.TicketRepository.Create(f.db, &fresh))
 	f.ticket = fresh
-	f.aggregateAfterCommand(t, f.command(t, "owner", "acknowledge", "new", 0, "wf-ack", "客服受理"), "acknowledged", 1)
-	aggregate := f.aggregateAfterCommand(t, f.command(t, "owner", "triage", "acknowledged", 1, "wf-triage", ""), "in_triage", 2)
+	aggregate := f.aggregateAfterCommand(t, f.command(t, "owner", "triage", "new", 0, "wf-triage", "工程师开始分析"), "in_triage", 1)
 	require.Equal(t, saved.ID, aggregate.CaseLifecycle.WorkflowVersionID)
 	require.NotContains(t, aggregate.CaseLifecycle.AllowedActions, "resolve")
-	assertEnterpriseEnvelopeError(t, f.command(t, "owner", "resolve", "in_triage", 2, "wf-block", "尝试跳过恢复"))
-	f.aggregateAfterCommand(t, f.command(t, "owner", "restore", "in_triage", 2, "wf-restore", "验证服务可用"), "restored", 3)
-	f.aggregateAfterCommand(t, f.command(t, "owner", "resolve", "restored", 3, "wf-resolve", "问题修复验证通过"), "resolved", 4)
+	assertEnterpriseEnvelopeError(t, f.command(t, "owner", "resolve", "in_triage", 1, "wf-block", "尝试跳过恢复"))
+	f.aggregateAfterCommand(t, f.command(t, "owner", "restore", "in_triage", 1, "wf-restore", "验证服务可用"), "restored", 2)
+	f.aggregateAfterCommand(t, f.command(t, "owner", "resolve", "restored", 2, "wf-resolve", "问题修复验证通过"), "resolved", 3)
 	decodeEnterpriseData(t, f.request(t, "owner", http.MethodGet, path, nil), &view)
 	require.Equal(t, saved.ID, view.ActiveVersionID)
 	// API returns only lifecycle settings, not mail credentials or unrelated config.

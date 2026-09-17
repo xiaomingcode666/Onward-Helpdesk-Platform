@@ -128,7 +128,7 @@ func TestTicketDispatchAssignsIndependentTicketAndTracksDeadline(t *testing.T) {
 	}
 }
 
-func TestTicketCanonicalDispatchAndReassignmentPreserveCaseOwner(t *testing.T) {
+func TestTicketCanonicalDispatchAndReassignmentFollowTheHandlingEngineer(t *testing.T) {
 	previousWS := WsService
 	WsService = newWsService()
 	t.Cleanup(func() { WsService = previousWS })
@@ -147,8 +147,8 @@ func TestTicketCanonicalDispatchAndReassignmentPreserveCaseOwner(t *testing.T) {
 		t.Fatalf("automatic dispatch = (%d, %v), want (1, nil)", count, err)
 	}
 	dispatched := repositoriesTicket(t, ticket.ID)
-	if dispatched.CurrentAssigneeID != 101 || dispatched.CaseStatus != "new" || dispatched.CaseOwnerID != 0 || dispatched.AcknowledgedAt != nil || dispatched.AcceptedAt != nil {
-		t.Fatalf("automatic assignment must not invent reception: %+v", dispatched)
+	if dispatched.CurrentAssigneeID != 101 || dispatched.CaseStatus != "new" || dispatched.CaseOwnerID != 101 || dispatched.AcknowledgedAt != nil || dispatched.AcceptedAt != nil {
+		t.Fatalf("automatic assignment must record the dispatched engineer without inventing acceptance: %+v", dispatched)
 	}
 	operator := &dto.AuthPrincipal{UserID: 101, Username: "agent-101", TenantID: 1, Roles: []string{EnterpriseRoleEngineer}, Status: enums.StatusOk}
 	if err := TicketLifecycleService.Accept(ticket.ID, 101, operator); err != nil {
@@ -164,11 +164,11 @@ func TestTicketCanonicalDispatchAndReassignmentPreserveCaseOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	assigned := repositoriesTicket(t, ticket.ID)
-	if assigned.CurrentAssigneeID != 102 || assigned.CaseOwnerID != 101 || assigned.AcknowledgedAt == nil || !assigned.AcknowledgedAt.Equal(acknowledgedAt) || assigned.AcceptedAt != nil || assigned.CaseStatus != "assigned" {
-		t.Fatalf("technical reassignment must retain reception ownership and reset only engineer acceptance: %+v", assigned)
+	if assigned.CurrentAssigneeID != 102 || assigned.CaseOwnerID != 102 || assigned.AcknowledgedAt == nil || !assigned.AcknowledgedAt.Equal(acknowledgedAt) || assigned.AcceptedAt != nil || assigned.CaseStatus != "assigned" {
+		t.Fatalf("reassignment must move handling ownership to the new engineer and reset only acceptance: %+v", assigned)
 	}
-	// Keep the original customer-service owner enabled, while excluding them
-	// from automatic engineering assignment so recovery remains in the pool.
+	// Keep the first engineer enabled, while excluding them from automatic
+	// engineering assignment so the recovery stays in the dispatch pool.
 	if err := db.Model(&models.AgentProfile{}).Where("tenant_id = ? AND user_id = ?", 1, 101).Update("auto_assign_enabled", false).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -176,8 +176,8 @@ func TestTicketCanonicalDispatchAndReassignmentPreserveCaseOwner(t *testing.T) {
 		t.Fatalf("recover unavailable engineer = (%d, %v), want (1, nil)", count, err)
 	}
 	recovered := repositoriesTicket(t, ticket.ID)
-	if recovered.CurrentAssigneeID != 0 || recovered.CaseOwnerID != 101 || recovered.AcknowledgedAt == nil || !recovered.AcknowledgedAt.Equal(acknowledgedAt) || recovered.CaseStatus != "in_triage" || recovered.CaseRevision <= assigned.CaseRevision {
-		t.Fatalf("returning to dispatch pool must preserve owner and version the changed lifecycle stage: %+v", recovered)
+	if recovered.CurrentAssigneeID != 0 || recovered.CaseOwnerID != 0 || recovered.AcknowledgedAt == nil || !recovered.AcknowledgedAt.Equal(acknowledgedAt) || recovered.CaseStatus != "in_triage" || recovered.CaseRevision <= assigned.CaseRevision {
+		t.Fatalf("returning to dispatch pool must clear the handler and version the changed lifecycle stage: %+v", recovered)
 	}
 }
 

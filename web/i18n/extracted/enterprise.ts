@@ -461,7 +461,12 @@ export const enterpriseMessages = {
         "text325": "处理组：{value0}",
         "text326": "选择供应商",
         "text327": "暂无可参与协作的已启用供应商账号",
-        "text328": "邀请供应商"
+        "text328": "邀请供应商",
+        "text329": "工单时钟",
+        "text330": "总处理时间",
+        "text331": "供应商等待",
+        "text332": "供应商等待中",
+        "text333": "责任处理时间"
       },
       "reports": {
         "pageTitle": "售后服务报表",
@@ -2216,7 +2221,12 @@ export const enterpriseMessages = {
         "text325": "Handling team: {value0}",
         "text326": "Select supplier",
         "text327": "No enabled supplier account is available for collaboration",
-        "text328": "Invite supplier"
+        "text328": "Invite supplier",
+        "text329": "Ticket clocks",
+        "text330": "End-to-end",
+        "text331": "Supplier wait",
+        "text332": "Waiting for supplier",
+        "text333": "Accountable"
       },
       "reports": {
         "pageTitle": "After-sales reports",
@@ -3971,7 +3981,12 @@ export const enterpriseMessages = {
         "text325": "Equipo responsable: {value0}",
         "text326": "Seleccionar proveedor",
         "text327": "No hay una cuenta de proveedor habilitada para colaborar",
-        "text328": "Invitar proveedor"
+        "text328": "Invitar proveedor",
+        "text329": "Relojes del ticket",
+        "text330": "Tiempo total",
+        "text331": "Espera de proveedor",
+        "text332": "Esperando proveedor",
+        "text333": "Tiempo responsable"
       },
       "reports": {
         "pageTitle": "Informes de posventa",

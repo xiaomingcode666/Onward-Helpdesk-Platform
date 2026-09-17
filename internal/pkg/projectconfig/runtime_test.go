@@ -6,7 +6,7 @@ import (
 )
 
 func runtimeTestDocument() Document {
-	return Document{SchemaVersion: 2, TenantID: 1, Environment: "development", Projects: []Project{{Key: "support", Name: "Support"}}, Intake: IntakePolicy{Rules: []Rule{}}, SecretRefs: []string{}, Runtime: &Runtime{
+	return Document{SchemaVersion: 2, TenantID: 1, Environment: "development", Projects: []Project{{Key: "support", Name: "Support"}}, SecretRefs: []string{}, Runtime: &Runtime{
 		Timezone: "UTC", Locale: "zh-CN", Locales: []string{"zh-CN"}, ServiceScene: "knowledge_support",
 		Calendars: []Calendar{{Key: "office", Timezone: "UTC", WorkDays: []int{1, 2, 3, 4, 5}, Start: "09:00", End: "18:00", Holidays: []string{}}},
 		Targets:   []Target{{ProjectKey: "*", Profile: "standard", Priority: "p2", CalendarKey: "office", ResponseMinutes: 30}}, Channels: []Channel{{Name: "manual", Enabled: true}}, Mail: Mail{RetryPolicy: "retry_3_10m"}, Integrations: []Integration{}, Retention: Retention{DataRegion: "global", Days: 365, ArchiveAfterDays: 180}, AutoClose: AutoClose{Days: 7}}}
@@ -18,21 +18,26 @@ func TestRuntimeValidation(t *testing.T) {
 		t.Fatalf("valid document: %+v", r)
 	}
 	tests := map[string]func(*Document){
-		"invalid timezone":           func(d *Document) { d.Runtime.Timezone = "Invalid/City" },
-		"empty weekdays":             func(d *Document) { d.Runtime.Calendars[0].WorkDays = []int{} },
-		"unknown calendar":           func(d *Document) { d.Runtime.Targets[0].CalendarKey = "missing" },
-		"duplicate targets":          func(d *Document) { d.Runtime.Targets = append(d.Runtime.Targets, d.Runtime.Targets[0]) },
-		"default locale unavailable": func(d *Document) { d.Runtime.Locale = "en" },
-		"unknown locale":             func(d *Document) { d.Runtime.Locales = []string{"not-supported"} },
-		"inconsistent channel": func(d *Document) {
-			d.Intake.Rules = []Rule{{ProjectKey: "support", Channel: "phone", TicketType: "incident", RequiredFields: []string{}}}
-		},
+		"invalid timezone":              func(d *Document) { d.Runtime.Timezone = "Invalid/City" },
+		"empty weekdays":                func(d *Document) { d.Runtime.Calendars[0].WorkDays = []int{} },
+		"unknown calendar":              func(d *Document) { d.Runtime.Targets[0].CalendarKey = "missing" },
+		"duplicate targets":             func(d *Document) { d.Runtime.Targets = append(d.Runtime.Targets, d.Runtime.Targets[0]) },
+		"default locale unavailable":    func(d *Document) { d.Runtime.Locale = "en" },
+		"unknown locale":                func(d *Document) { d.Runtime.Locales = []string{"not-supported"} },
 		"plaintext secret":              func(d *Document) { d.Runtime.Mail.PasswordRef = "plaintext-password" },
 		"undeclared secret":             func(d *Document) { d.Runtime.Mail.PasswordRef = "secret://smtp" },
 		"missing mail credentials":      func(d *Document) { d.Runtime.Mail.Enabled = true },
 		"retention order":               func(d *Document) { d.Runtime.Retention.ArchiveAfterDays = 365 },
 		"negative minutes":              func(d *Document) { d.Runtime.Targets[0].ResponseMinutes = -1 },
 		"unusable integration metadata": func(d *Document) { d.Runtime.Integrations = []Integration{{Provider: "test", MetadataJSON: "[]"}} },
+		"reversed holiday range":        func(d *Document) { d.Runtime.Calendars[0].Holidays = []string{"2026-10-07..2026-10-01"} },
+		"malformed holiday":             func(d *Document) { d.Runtime.Calendars[0].Holidays = []string{"2026/10/01"} },
+		"duplicate profile targets": func(d *Document) {
+			first := d.Runtime.Targets[0]
+			first.Priority = ""
+			d.Runtime.Targets = []Target{first, first}
+		},
+		"unsupported project profile": func(d *Document) { d.Projects[0].Profile = "gold" },
 	}
 	for name, change := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -48,6 +53,12 @@ func TestRuntimeValidation(t *testing.T) {
 	d.Runtime.Calendars[0].End = "24:00"
 	if r := Validate(d, 1, "development", nil); !r.Valid {
 		t.Fatalf("24 hour calendar rejected: %+v", r)
+	}
+	// 时限规则不再要求工单优先级：留空表示该项目所有优先级共用一组时限。
+	d = runtimeTestDocument()
+	d.Runtime.Targets[0].Priority = ""
+	if r := Validate(d, 1, "development", nil); !r.Valid {
+		t.Fatalf("priority-free target rejected: %+v", r)
 	}
 }
 
@@ -89,5 +100,44 @@ func TestRuntimeCalendarBoundaries(t *testing.T) {
 	}
 	if got := c.AddMinutes(from, 23*60); !got.Equal(to) {
 		t.Fatalf("DST deadline %s", got)
+	}
+}
+
+func TestRuntimeCalendarHolidayRangeAndAllDay(t *testing.T) {
+	parse := func(s string) time.Time {
+		v, e := time.Parse(time.RFC3339, s)
+		if e != nil {
+			t.Fatal(e)
+		}
+		return v
+	}
+	if got, ok := NormalizeHolidayEntry(" 2026-10-01..2026-10-07 "); !ok || got != "2026-10-01..2026-10-07" {
+		t.Fatalf("normalize range %q ok=%v", got, ok)
+	}
+	if got, ok := NormalizeHolidayEntry("2026-10-01"); !ok || got != "2026-10-01" {
+		t.Fatalf("normalize day %q ok=%v", got, ok)
+	}
+	for _, invalid := range []string{"", "2026-10-07..2026-10-01", "2026/10/01", "2026-10-01.."} {
+		if _, ok := NormalizeHolidayEntry(invalid); ok {
+			t.Fatalf("invalid holiday accepted: %q", invalid)
+		}
+	}
+
+	// 长假区间：9/30 17:30 起算 60 分钟，必须跳过 10/1-10/7，落到 10/8 09:30。
+	office := Calendar{Timezone: "UTC", WorkDays: []int{0, 1, 2, 3, 4, 5, 6}, Start: "09:00", End: "18:00", Holidays: []string{"2026-10-01..2026-10-07"}}
+	if got := office.AddMinutes(parse("2026-09-30T17:30:00Z"), 60); !got.Equal(parse("2026-10-08T09:30:00Z")) {
+		t.Fatalf("holiday range deadline %s", got)
+	}
+	if got := office.WorkingMinutes(parse("2026-09-30T00:00:00Z"), parse("2026-10-08T00:00:00Z")); got != 9*60 {
+		t.Fatalf("holiday range elapsed %d", got)
+	}
+
+	// 24x7：全天候日历不因为跨零点而少算。
+	allDay := Calendar{Timezone: "Asia/Shanghai", WorkDays: []int{0, 1, 2, 3, 4, 5, 6}, Start: "00:00", End: "24:00", Holidays: []string{}}
+	if got := allDay.AddMinutes(parse("2026-09-16T23:30:00+08:00"), 60); !got.Equal(parse("2026-09-17T00:30:00+08:00")) {
+		t.Fatalf("24x7 deadline %s", got)
+	}
+	if got := allDay.WorkingMinutes(parse("2026-09-16T00:00:00+08:00"), parse("2026-09-17T00:00:00+08:00")); got != 24*60 {
+		t.Fatalf("24x7 elapsed %d", got)
 	}
 }

@@ -345,8 +345,8 @@ func (s *reportService) GetDashboardOverview(ctx interface{}, tenantID string) (
 		db.Model(&models.Ticket{}).Where("tenant_id = ? AND status IN ?", tenantID, enterpriseStatusFilterToDB("processing")).Count(&overview.InProgressTickets)
 	})
 	run(func() { // SLA 风险工单
-		db.Model(&models.Ticket{}).Where("tenant_id = ? AND sla_due_at IS NOT NULL AND sla_due_at < ?", tenantID, now).
-			Where(ticketResolutionSLARunningSQL).Count(&overview.SLAAtRisk)
+		db.Model(&models.Ticket{}).Where("tenant_id = ?", tenantID).
+			Where(ticketDaypopSLABreachedSQL, now).Count(&overview.SLAAtRisk)
 	})
 	run(func() { // 今日新增工单
 		db.Model(&models.Ticket{}).Where("tenant_id = ? AND created_at >= ?", tenantID, todayStart).Count(&overview.NewToday)
@@ -424,7 +424,7 @@ func (s *reportService) GetDashboardOverview(ctx interface{}, tenantID string) (
 			State:    string(t.Status),
 		}
 		// 判断紧急级别
-		if t.SLADueAt != nil && t.SLADueAt.Before(now.Add(2*time.Hour)) {
+		if enterpriseTicketSLAAtRisk(t) {
 			qt.Level = "紧急"
 		}
 		// 映射状态文本

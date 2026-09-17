@@ -63,7 +63,6 @@ func TestTicketGovernanceInteractiveDemo(t *testing.T) {
 	f.router.GET("/api/enterprise/v1/tickets/:id/governance", TicketGovernance)
 	f.router.POST("/api/enterprise/v1/tickets/:id/governance", TicketGovernance)
 	f.router.GET("/api/enterprise/v1/ticket-settings/classification", TicketClassificationPolicy)
-	f.router.GET("/api/enterprise/v1/ticket-settings/intake", TicketIntakePolicyGet)
 	profile := func(actor string) map[string]any {
 		op := manager
 		name := "管理负责人（隔离演示）"

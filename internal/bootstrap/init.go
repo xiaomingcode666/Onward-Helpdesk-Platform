@@ -37,6 +37,11 @@ func Init(configPath string) error {
 		return err
 	}
 	i18nx.SetDefaultLocale(cfg.LanguageOrDefault())
+	if err := services.ConfigureEngineerScheduleTimezone(cfg.Server.TimezoneOrDefault()); err != nil {
+		slog.Error("init engineer schedule timezone failed", "error", err, "timezone", cfg.Server.TimezoneOrDefault())
+		return err
+	}
+	slog.Info("engineer schedule timezone configured", "timezone", services.EngineerScheduleTimezone)
 
 	logx.Init(logx.Config{
 		Level:     cfg.Logger.Level,

@@ -24,7 +24,8 @@ import (
 var AgentScheduleExceptionService = newAgentScheduleExceptionService()
 
 const (
-	EngineerScheduleTimezone = "Asia/Shanghai"
+	// DefaultEngineerScheduleTimezone 是排班/请假/值班计算的兜底时区。
+	DefaultEngineerScheduleTimezone = "Asia/Shanghai"
 
 	AgentScheduleExceptionTypeLeave = "leave"
 
@@ -33,6 +34,35 @@ const (
 	AgentScheduleApprovalRejected  = "rejected"
 	AgentScheduleApprovalCancelled = "cancelled"
 )
+
+var (
+	engineerScheduleTimezoneMu sync.RWMutex
+	// EngineerScheduleTimezone 是当前进程使用的排班时区，启动时由配置注入，
+	// 未配置时保持历史默认值，避免改变既有部署的时间口径。
+	EngineerScheduleTimezone = DefaultEngineerScheduleTimezone
+)
+
+// ConfigureEngineerScheduleTimezone 在校验 IANA 时区名后设置排班时区。
+// 传空值时回退默认时区，保证配置缺失不会让启动失败。
+func ConfigureEngineerScheduleTimezone(value string) error {
+	timezone := strings.TrimSpace(value)
+	if timezone == "" {
+		timezone = DefaultEngineerScheduleTimezone
+	}
+	if _, err := time.LoadLocation(timezone); err != nil {
+		return errorsx.InvalidParam("invalid server timezone: " + timezone)
+	}
+	engineerScheduleTimezoneMu.Lock()
+	EngineerScheduleTimezone = timezone
+	engineerScheduleTimezoneMu.Unlock()
+	return nil
+}
+
+func currentEngineerScheduleTimezone() string {
+	engineerScheduleTimezoneMu.RLock()
+	defer engineerScheduleTimezoneMu.RUnlock()
+	return EngineerScheduleTimezone
+}
 
 type agentScheduleExceptionService struct {
 	writeMu sync.Mutex
@@ -43,8 +73,12 @@ func newAgentScheduleExceptionService() *agentScheduleExceptionService {
 }
 
 func engineerScheduleLocation() *time.Location {
-	location, err := time.LoadLocation(EngineerScheduleTimezone)
+	timezone := currentEngineerScheduleTimezone()
+	location, err := time.LoadLocation(timezone)
 	if err != nil {
+		if fallback, fallbackErr := time.LoadLocation(DefaultEngineerScheduleTimezone); fallbackErr == nil {
+			return fallback
+		}
 		return time.FixedZone("CST", 8*60*60)
 	}
 	return location
@@ -79,7 +113,7 @@ func (s *agentScheduleExceptionService) BuildEnterpriseWeeklyScheduleDB(db *gorm
 			Weekday:       weekday,
 			StartMinute:   startMinute,
 			EndMinute:     endMinute,
-			Timezone:      EngineerScheduleTimezone,
+			Timezone:      currentEngineerScheduleTimezone(),
 			PublishStatus: AgentTeamSchedulePublishPublished,
 			Version:       1,
 			StartAt:       startAt,

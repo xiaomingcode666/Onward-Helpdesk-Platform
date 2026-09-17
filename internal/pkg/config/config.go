@@ -13,6 +13,7 @@ import (
 )
 
 var environmentBindings = map[string][]string{
+	"server.timezone":                       {"RHD_SERVER_TIMEZONE"},
 	"storage.uploadSecurity.clamav.enabled": {"RHD_STORAGE_UPLOADSECURITY_CLAMAV_ENABLED"},
 	"storage.uploadSecurity.clamav.address": {"RHD_STORAGE_UPLOADSECURITY_CLAMAV_ADDRESS"},
 	"storage.quarantineRoot":                {"RHD_STORAGE_QUARANTINEROOT"},
@@ -168,8 +169,11 @@ type WxWorkNotifyConfig struct {
 }
 
 type ServerConfig struct {
-	Port int        `yaml:"port" mapstructure:"port"`
-	CORS CORSConfig `yaml:"cors" mapstructure:"cors"`
+	Port int `yaml:"port" mapstructure:"port"`
+	// Timezone 是服务端计算工程师排班、请假和值班可用性的默认时区（IANA 名称）。
+	// 留空时沿用历史默认值 Asia/Shanghai。
+	Timezone string     `yaml:"timezone" mapstructure:"timezone"`
+	CORS     CORSConfig `yaml:"cors" mapstructure:"cors"`
 }
 
 func (s ServerConfig) Address() string {
@@ -177,6 +181,17 @@ func (s ServerConfig) Address() string {
 		return ":8080"
 	}
 	return fmt.Sprintf(":%d", s.Port)
+}
+
+// DefaultServerTimezone 是服务端排班相关计算的兜底时区。
+const DefaultServerTimezone = "Asia/Shanghai"
+
+// TimezoneOrDefault 返回配置的 IANA 时区名，未配置时返回默认值。
+func (s ServerConfig) TimezoneOrDefault() string {
+	if value := strings.TrimSpace(s.Timezone); value != "" {
+		return value
+	}
+	return DefaultServerTimezone
 }
 
 type CORSConfig struct {

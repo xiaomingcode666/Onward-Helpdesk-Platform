@@ -26,7 +26,6 @@ async function fixture(page: Page, manager = true, failRefresh = false) {
     else if (path.includes("capabilities")) data = { service_scene: "knowledge_support", features: {} }
     else if (path.endsWith("/tickets/summary")) data = { total: 1, pending: 1, processing: 0, awaiting_customer: 0, sla_risk: 0, urgent: 1, done: 0 }
     else if (path.endsWith("/tickets/customer-options")) data = [{ customer_id: 8002, display_name: "测试客户" }]
-    else if (path.endsWith("/ticket-settings/intake")) data = { rules: [] }
     else if (path.endsWith("/tickets") && route.request().method() === "POST") {
       const body = route.request().postDataJSON(); creationRequests.push(body)
       data = { ...aggregate.ticket, id: 84002, ticket_no: "GOV-CREATED-002", priority_level: body.priority_level || policy.defaults[body.case_type as keyof typeof policy.defaults] }
