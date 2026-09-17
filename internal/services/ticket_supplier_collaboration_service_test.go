@@ -131,6 +131,17 @@ func TestTicketSupplierCollaborationConcurrentInviteReusesActiveCollaboration(t 
 		Count(&eventCount).Error; err != nil || eventCount != 1 {
 		t.Fatalf("supplier conversation event count=%d err=%v", eventCount, err)
 	}
+	var activeClockPauses int64
+	if err := sqls.DB().Model(&models.TicketClockPause{}).
+		Where("tenant_id = ? AND ticket_id = ? AND ended_at IS NULL", tenant.ID, ticket.ID).
+		Count(&activeClockPauses).Error; err != nil || activeClockPauses != 1 {
+		t.Fatalf("active supplier clock pauses=%d err=%v", activeClockPauses, err)
+	}
+	clockedTicket := repositories.TicketRepository.Get(sqls.DB(), ticket.ID)
+	clocks := services.TicketClockService.Compute(*clockedTicket, time.Now())
+	if !clocks.PauseActive || clocks.PauseReason != services.TicketClockPauseReasonExternalExpert {
+		t.Fatalf("supplier wait did not pause accountable clock: %+v", clocks)
+	}
 
 	partner := &dto.AuthPrincipal{
 		UserID:           account.UserID,

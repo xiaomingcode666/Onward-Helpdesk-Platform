@@ -94,7 +94,7 @@ func (s *ticketLifecycleService) accept(ticketID int64, assigneeID int64, operat
 			return errorsx.Forbidden("operators can only accept tickets for themselves")
 		}
 		if isTicketAlreadyAcceptedByAssignee(ticket, operator.UserID) {
-			return ensureTicketCaseAcknowledgedDB(ctx.Tx, ticket, operator)
+			return ensureTicketCaseOwnershipDB(ctx.Tx, ticket, operator, operator.UserID)
 		}
 		now := time.Now()
 		takingOver := ticket.CurrentAssigneeID > 0 && ticket.CurrentAssigneeID != operator.UserID
@@ -165,7 +165,7 @@ func (s *ticketLifecycleService) accept(ticketID int64, assigneeID int64, operat
 				return err
 			}
 		}
-		if err := ensureTicketCaseAcknowledgedDB(ctx.Tx, ticket, operator); err != nil {
+		if err := ensureTicketCaseOwnershipDB(ctx.Tx, ticket, operator, effectiveAssigneeID); err != nil {
 			return err
 		}
 		updates := map[string]any{
@@ -178,6 +178,9 @@ func (s *ticketLifecycleService) accept(ticketID int64, assigneeID int64, operat
 			"updated_at":                   now,
 			"update_user_id":               operator.UserID,
 			"update_user_name":             operator.Username,
+		}
+		if ticket.CaseOwnerID > 0 {
+			updates["case_owner_id"] = ticket.CaseOwnerID
 		}
 		if effectiveTeamID > 0 && ticket.CurrentTeamID != effectiveTeamID {
 			updates["current_team_id"] = effectiveTeamID
@@ -869,7 +872,7 @@ func (s *ticketLifecycleService) Assign(ticketID int64, assigneeID int64, reason
 		if err != nil {
 			return err
 		}
-		if err := ensureTicketCaseAcknowledgedDB(ctx.Tx, ticket, operator); err != nil {
+		if err := ensureTicketCaseOwnershipDB(ctx.Tx, ticket, operator, assigneeID); err != nil {
 			return err
 		}
 		fromUserID := ticket.CurrentAssigneeID
@@ -950,6 +953,9 @@ func (s *ticketLifecycleService) closeCollaborationResources(db *gorm.DB, ticket
 	if err := repositories.TicketSupplierCollaborationRepository.ResolveActiveByTicket(
 		db, ticket.TenantID, ticket.ID, supplierResolution, closedAt, operator.UserID, operator.Username,
 	); err != nil {
+		return err
+	}
+	if err := TicketClockService.CloseAllForTicketTx(db, ticket.TenantID, ticket.ID, closedAt, operator); err != nil {
 		return err
 	}
 	if err := repositories.TicketSupplierCollaborationRepository.DisableAllTicketAuthorizationScopes(db, ticket.TenantID, ticket.ID, closedAt); err != nil {
@@ -1039,7 +1045,7 @@ func (s *ticketLifecycleService) Repair(record *models.TicketRepairRecord, opera
 		}
 		record.TenantID = ticket.TenantID
 		if ticket.CaseStatus != "" {
-			if err := ensureTicketCaseAcknowledgedDB(ctx.Tx, ticket, operator); err != nil {
+			if err := ensureTicketCaseOwnershipDB(ctx.Tx, ticket, operator, operator.UserID); err != nil {
 				return err
 			}
 		}
@@ -1780,8 +1786,8 @@ func (s *ticketLifecycleService) reopen(ticketID int64, reason string, operator 
 			if strings.TrimSpace(reason) == "" {
 				return errorsx.InvalidParam("请填写重新打开的原因")
 			}
-			if err := RequireTicketCaseOwnerDB(ctx.Tx, ticket); err != nil {
-				return err
+			if ticket.CaseOwnerID <= 0 && ticket.CurrentAssigneeID <= 0 {
+				return errorsx.InvalidParam("请先由工程师接单，再重新打开工单")
 			}
 		}
 		if ticket.CaseStatus != "" && ticket.CaseStatus != "resolved" && ticket.CaseStatus != "closure_pending" && ticket.CaseStatus != "closed" {

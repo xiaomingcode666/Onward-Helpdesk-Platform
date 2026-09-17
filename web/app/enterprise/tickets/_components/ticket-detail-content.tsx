@@ -21,7 +21,6 @@ import type { TicketAggregateDTO, TicketFlowStepDTO } from "@/lib/api/types"
 import { displayTicketStatus, isCaseStatus, isProcessingTicketStatus, isTerminalTicketStatus } from "@/lib/ticket-lifecycle"
 import { caseLabel, caseStatusLabel, localizeCaseTimelineContent } from "@/lib/ticket-case-labels"
 import { cn, formatDateTime } from "@/lib/utils"
-import { intakeLabel } from "./ticket-intake"
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
     return translateCurrentMessage(`enterpriseExtract.${key}`)
@@ -60,6 +59,18 @@ function buildDetailTabs(): RailopsTabItem[] {
     { label: ee("ticketDetail.text003"), value: "context" },
     { label: ee("ticketDetail.text004"), value: "records" },
   ]
+}
+
+function formatClockDuration(seconds: number) {
+  const totalSeconds = Math.max(0, Math.floor(seconds))
+  const totalMinutes = Math.floor(totalSeconds / 60)
+  const days = Math.floor(totalMinutes / 1440)
+  const hours = Math.floor((totalMinutes % 1440) / 60)
+  const minutes = totalMinutes % 60
+  const remainderSeconds = totalSeconds % 60
+  if (days > 0) return `${days}d ${hours}h ${minutes}m ${remainderSeconds}s`
+  if (hours > 0) return `${hours}h ${minutes}m ${remainderSeconds}s`
+  return `${minutes}m ${remainderSeconds}s`
 }
 
 export function ticketStatusLabel(status: string) {
@@ -450,18 +461,15 @@ export function EnterpriseTicketDetailContent({
     ] as Array<[string, string]> : []),
     [ee("ticketDetail.text054"), sourceLabel(ticket.source)],
     ...(ticket.source_record_id ? [
-      [intakeLabel("channel"), channelLabel(ticket.channel)],
-      [intakeLabel("source_record_id"), ticket.source_record_id],
-	  ["受理规则版本", ticket.intake_config_version_id ? `V${ticket.intake_config_version_id}` : "历史版本未记录"],
-	  ["运营配置版本", ticket.project_config_version_id ? `V${ticket.project_config_version_id}` : "未绑定运营配置"],
-      [intakeLabel("project_key"), ticket.project_key || "-"],
-      [intakeLabel("ticket_type"), ticket.ticket_type || "-"],
-      [intakeLabel("caller_name"), ticket.caller_name || "-"],
-      [intakeLabel("caller_phone"), ticket.caller_phone || "-"],
-      [intakeLabel("received_at"), ticket.received_at ? formatDateTime(ticket.received_at) : "-"],
-      [ticket.context_status === "context_incomplete" ? intakeLabel("incomplete") : intakeLabel("complete"), (ticket.missing_context ?? []).map(intakeLabel).join(", ") || "-"],
+      ["受理渠道", channelLabel(ticket.channel)],
+      ["来源记录", ticket.source_record_id],
+      ["运营配置版本", ticket.project_config_version_id ? `V${ticket.project_config_version_id}` : "未绑定运营配置"],
+      ["服务项目", ticket.project_key || "-"],
+      ["工单类型", ticket.ticket_type || "-"],
+      ["来电人", ticket.caller_name || "-"],
+      ["联系电话", ticket.caller_phone || "-"],
+      ["接入时间", ticket.received_at ? formatDateTime(ticket.received_at) : "-"],
     ] as Array<[string, string]> : []),
-    [caseLabel("owner"), ticket.case_owner_name || caseLabel("unowned")],
     [caseLabel("engineer"), assignment.assignee_name || ee("ticketDetail.text056")],
     ["SLA", slaLabel(ticket.sla_deadline, ticket.status)],
     [ee("ticketDetail.text057"), ticketStatusLabel(displayTicketStatus(ticket))],
@@ -650,6 +658,32 @@ export function EnterpriseTicketDetailContent({
           <InfoTile key={label} label={label} value={fieldValue(value)} />
         ))}
       </section>
+
+      {aggregate.clocks ? (
+        <section className="grid gap-3 rounded-md border border-border bg-muted/20 p-3 text-xs sm:grid-cols-3">
+          <div>
+            <div className="text-muted-foreground">{ee("ticketWorkbench.text330")}</div>
+            <div className="mt-1 text-base font-semibold tabular-nums">
+              {formatClockDuration(aggregate.clocks.e2e_seconds)}
+            </div>
+          </div>
+          <div>
+            <div className="text-muted-foreground">{ee("ticketWorkbench.text331")}</div>
+            <div className="mt-1 text-base font-semibold tabular-nums">
+              {formatClockDuration(aggregate.clocks.external_wait_seconds)}
+            </div>
+          </div>
+          <div>
+            <div className="text-muted-foreground">{ee("ticketWorkbench.text333")}</div>
+            <div className="mt-1 text-base font-semibold tabular-nums">
+              {formatClockDuration(aggregate.clocks.accountable_seconds)}
+            </div>
+            {aggregate.clocks.pause_active ? (
+              <div className="mt-1 text-primary">{ee("ticketWorkbench.text332")}</div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       {ticket.channel === "email" ? (
         <div className="mb-3">

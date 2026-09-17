@@ -651,13 +651,13 @@ func (s *enterpriseWorkbenchService) ticketSummaryFromDB(tenantID int64, operato
 		return db.Where(ticketResolutionSLARunningSQL + " AND current_assignee_id <= 0")
 	})
 	ret.SLARiskTickets = s.visibleTicketCount(tenantID, operator, func(db *gorm.DB) *gorm.DB {
-		return db.Where(ticketResolutionSLARunningSQL+" AND sla_due_at IS NOT NULL AND sla_due_at <= ?", now.Add(2*time.Hour))
+		return db.Where(ticketDaypopSLARiskSQL, int64(2*time.Hour/time.Second), now.Add(2*time.Hour))
 	})
 	ret.SLABreachedTickets = s.visibleTicketCount(tenantID, operator, func(db *gorm.DB) *gorm.DB {
-		return db.Where(ticketResolutionSLARunningSQL+" AND sla_due_at IS NOT NULL AND sla_due_at < ?", now)
+		return db.Where(ticketDaypopSLABreachedSQL, now)
 	})
 	ret.UrgentTickets = s.visibleTicketCount(tenantID, operator, func(db *gorm.DB) *gorm.DB {
-		return db.Where(ticketResolutionSLARunningSQL+" AND (LOWER(priority_code) = ? OR (sla_due_at IS NOT NULL AND sla_due_at < ?))", "p0", now)
+		return db.Where(ticketResolutionSLARunningSQL+" AND (LOWER(priority_code) = ? OR "+ticketDaypopSLABreachedSQL+")", "p0", now)
 	})
 	ret.ClosedTodayTickets = s.visibleTicketCount(tenantID, operator, func(db *gorm.DB) *gorm.DB {
 		return db.Where("NOT "+ticketCaseOpenSQL+" AND COALESCE(handled_at, updated_at, created_at) >= ?", startOfDay)
@@ -807,7 +807,7 @@ func (s *enterpriseWorkbenchService) queueCardsFromDB(tenantID int64, operator *
 		{
 			key: "sla_risk", title: "SLA 风险", description: "已超时，或 2 小时内到期", tone: "red", actionURL: "/enterprise/tickets?sla_risk=true",
 			apply: func(db *gorm.DB) *gorm.DB {
-				return db.Where(ticketResolutionSLARunningSQL+" AND sla_due_at IS NOT NULL AND sla_due_at <= ?", now.Add(2*time.Hour))
+				return db.Where(ticketDaypopSLARiskSQL, int64(2*time.Hour/time.Second), now.Add(2*time.Hour))
 			},
 		},
 		{
@@ -837,7 +837,7 @@ func (s *enterpriseWorkbenchService) queueCardsFromDB(tenantID int64, operator *
 		{
 			key: "urgent", title: "P0 紧急", description: "主管需要盯进度", tone: "red", actionURL: "/enterprise/tickets?priority=critical",
 			apply: func(db *gorm.DB) *gorm.DB {
-				return db.Where(ticketResolutionSLARunningSQL+" AND (LOWER(priority_code) = ? OR (sla_due_at IS NOT NULL AND sla_due_at < ?))", "p0", now)
+				return db.Where(ticketResolutionSLARunningSQL+" AND (LOWER(priority_code) = ? OR "+ticketDaypopSLABreachedSQL+")", "p0", now)
 			},
 		},
 	}
@@ -1031,9 +1031,10 @@ func (s *enterpriseWorkbenchService) productTicketLoads(tenantID int64, productI
 			SUM(CASE WHEN status IN ? THEN 1 ELSE 0 END) AS pending_tickets,
 			SUM(CASE WHEN status IN ? THEN 1 ELSE 0 END) AS processing_tickets,
 			SUM(CASE WHEN `+ticketResolutionSLARunningSQL+` AND current_assignee_id <= 0 THEN 1 ELSE 0 END) AS unassigned_tickets,
-			SUM(CASE WHEN `+ticketResolutionSLARunningSQL+` AND sla_due_at IS NOT NULL AND sla_due_at <= ? THEN 1 ELSE 0 END) AS sla_risk_tickets`,
+			SUM(CASE WHEN `+ticketDaypopSLARiskSQL+` THEN 1 ELSE 0 END) AS sla_risk_tickets`,
 			enterpriseStatusFilterToDB("pending"),
 			enterpriseStatusFilterToDB("processing"),
+			int64(2*time.Hour/time.Second),
 			now.Add(2*time.Hour),
 		).
 		Group("product_id").

@@ -533,6 +533,9 @@ func (s *ticketDispatchService) EscalateToSupervisor(ticketID, expectedAssigneeI
 			"update_user_id":               operator.UserID,
 			"update_user_name":             operator.Username,
 		}
+		if locked.CaseOwnerID > 0 {
+			updates["case_owner_id"] = locked.CaseOwnerID
+		}
 		// Automatic escalation assigns an engineer; it is not a human acceptance.
 		if locked.CaseStatus != "" {
 			updates["status"] = enums.TicketStatusPendingAssigneeAccept
@@ -1316,6 +1319,9 @@ func (s *ticketDispatchService) escalateTicketAfterRepeatedTimeout(ticket *model
 			"updated_at":                   now,
 			"update_user_id":               operator.UserID,
 			"update_user_name":             operator.Username,
+		}
+		if locked.CaseOwnerID > 0 {
+			updates["case_owner_id"] = locked.CaseOwnerID
 		}
 		updates["assigned_at"] = now
 		updates["accepted_at"] = now

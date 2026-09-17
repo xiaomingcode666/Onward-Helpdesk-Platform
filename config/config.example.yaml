@@ -8,6 +8,9 @@ public:
 
 server:
   port: 8083
+  # 工程师排班、请假和值班可用性计算的默认时区（IANA 名称）。
+  # 留空时使用 Asia/Shanghai；可用 RHD_SERVER_TIMEZONE 覆盖。
+  timezone: Asia/Shanghai
   cors:
     # Browser CORS allowlist. In production, replace this with the actual frontend or embedded-site domains, such as https://support.example.com.
     # Leave it empty to reject cross-origin browser requests. Same-origin and non-browser calls are still supported.

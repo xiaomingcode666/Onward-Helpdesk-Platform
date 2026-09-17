@@ -1,8 +1,6 @@
 package services
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -41,7 +39,7 @@ func setupCaseOwnerTestDB(t *testing.T) *gorm.DB {
 			_ = conn.Close()
 		}
 	})
-	if err := db.Create(&models.Tenant{ID: 91, Name: "Owner fixture", Status: enums.StatusOk}).Error; err != nil {
+	if err := db.Create(&models.Tenant{ID: 91, Name: "Engineer fixture", Status: enums.StatusOk}).Error; err != nil {
 		t.Fatal(err)
 	}
 	return db
@@ -83,12 +81,23 @@ func seedOwnedTicket(t *testing.T, db *gorm.DB, ownerID int64) models.Ticket {
 	return ticket
 }
 
+// moveCaseToEngineer models an engineer taking over the case. The former
+// support-agent handover endpoint was removed, so tests update the recorded
+// handler directly, exactly like the dispatch/accept path does.
+func moveCaseToEngineer(t *testing.T, db *gorm.DB, ticket models.Ticket, nextUserID int64, reason string) {
+	t.Helper()
+	if err := db.Model(&models.Ticket{}).Where("id = ?", ticket.ID).
+		Updates(map[string]any{"case_owner_id": nextUserID, "case_revision": gorm.Expr("case_revision + 1"), "update_user_name": reason}).Error; err != nil {
+		t.Fatal(err)
+	}
+}
+
 func caseOwnerPrincipal(user models.User) *dto.AuthPrincipal {
 	return &dto.AuthPrincipal{UserID: user.ID, Username: user.Username, TenantID: 91, DomainType: models.DomainTypeEnterprise,
 		Permissions: []string{constants.PermissionTicketView.Code, constants.PermissionTicketUpdate.Code}}
 }
 
-func TestCaseOwnerCandidatesRequireActiveInternalPermission(t *testing.T) {
+func TestCaseOwnerValidationRequiresActiveInternalPermission(t *testing.T) {
 	db := setupCaseOwnerTestDB(t)
 	valid, _, _ := seedCaseOwnerMember(t, db, 91, "valid", constants.PermissionTicketChangeStatus.Code)
 	viewer, _, _ := seedCaseOwnerMember(t, db, 91, "viewer", constants.PermissionTicketView.Code)
@@ -108,150 +117,11 @@ func TestCaseOwnerCandidatesRequireActiveInternalPermission(t *testing.T) {
 	}
 	for _, user := range []models.User{viewer, foreign, disabled, denied, disabledRole} {
 		if err := db.Transaction(func(tx *gorm.DB) error { return ValidateCaseOwnerDB(tx, 91, user.ID) }); err == nil {
-			t.Fatalf("ineligible owner %s was allowed", user.Username)
+			t.Fatalf("ineligible handler %s was allowed", user.Username)
 		}
 	}
 	if err := db.Transaction(func(tx *gorm.DB) error { return ValidateCaseOwnerDB(tx, 91, valid.ID) }); err != nil {
-		t.Fatalf("eligible owner rejected: %v", err)
-	}
-	candidates, err := TicketCaseOwnerService.ListCandidates(91, caseOwnerPrincipal(valid))
-	if err != nil || len(candidates) != 1 || candidates[0].UserID != valid.ID {
-		t.Fatalf("candidates = %+v, err = %v", candidates, err)
-	}
-	if _, err := TicketCaseOwnerService.ListCandidates(92, caseOwnerPrincipal(valid)); err == nil {
-		t.Fatal("cross-tenant candidate listing succeeded")
-	}
-}
-
-func TestCaseOwnerTransferPreservesTechnicalAssignmentAndAudits(t *testing.T) {
-	db := setupCaseOwnerTestDB(t)
-	owner, _, _ := seedCaseOwnerMember(t, db, 91, "owner", constants.PermissionTicketUpdate.Code)
-	next, _, _ := seedCaseOwnerMember(t, db, 91, "next", constants.PermissionTicketAssign.Code)
-	ticket := seedOwnedTicket(t, db, owner.ID)
-	op := caseOwnerPrincipal(owner)
-	op.Permissions = nil // Current owner may hand over without becoming a manager.
-	if err := TicketCaseOwnerService.Transfer(ticket.ID, owner.ID, next.ID, "客服换班，后续由接班客服跟进", op); err != nil {
-		t.Fatal(err)
-	}
-	var stored models.Ticket
-	if err := db.First(&stored, ticket.ID).Error; err != nil {
-		t.Fatal(err)
-	}
-	if stored.CaseOwnerID != next.ID || stored.CaseRevision != 4 || stored.CurrentAssigneeID != ticket.CurrentAssigneeID || stored.CurrentTeamID != ticket.CurrentTeamID || stored.CaseStatus != ticket.CaseStatus {
-		t.Fatalf("transfer changed technical workflow or lost owner: %+v", stored)
-	}
-	var progress models.TicketProgress
-	if err := db.Where("ticket_id = ?", ticket.ID).First(&progress).Error; err != nil {
-		t.Fatal(err)
-	}
-	var metadata map[string]any
-	if err := json.Unmarshal([]byte(progress.MetadataJSON), &metadata); err != nil {
-		t.Fatal(err)
-	}
-	if progress.VisibleToCustomer || progress.EventType != "case_owner_transferred" || progress.AuthorID != owner.ID || metadata["fromOwnerId"] != float64(owner.ID) || metadata["toOwnerId"] != float64(next.ID) {
-		t.Fatalf("invalid handover audit: %+v, %+v", progress, metadata)
-	}
-	if err := TicketCaseOwnerService.Transfer(ticket.ID, owner.ID, next.ID, "旧页面再次提交", caseOwnerPrincipal(owner)); err == nil {
-		t.Fatal("stale owner transfer should fail")
-	}
-}
-
-func TestCaseOwnerTransferRejectsInvalidRequestsWithoutChangingTicket(t *testing.T) {
-	db := setupCaseOwnerTestDB(t)
-	owner, _, _ := seedCaseOwnerMember(t, db, 91, "owner", constants.PermissionTicketUpdate.Code)
-	next, _, _ := seedCaseOwnerMember(t, db, 91, "next", constants.PermissionTicketUpdate.Code)
-	foreign, _, _ := seedCaseOwnerMember(t, db, 92, "foreign", constants.PermissionTicketUpdate.Code)
-	ticket := seedOwnedTicket(t, db, owner.ID)
-	op := caseOwnerPrincipal(owner)
-	foreignOp := *op
-	foreignOp.TenantID = 92
-	unrelatedOp := *op
-	unrelatedOp.UserID = 500
-	unrelatedOp.Permissions = nil
-	for _, test := range []struct {
-		name   string
-		next   int64
-		reason string
-		op     *dto.AuthPrincipal
-	}{
-		{"foreign_operator", next.ID, "正常交接", &foreignOp},
-		{"no_authority", next.ID, "正常交接", &unrelatedOp},
-		{"foreign_owner", foreign.ID, "正常交接", op},
-		{"clear_owner", 0, "正常交接", op},
-		{"missing_reason", next.ID, " ", op},
-	} {
-		if err := TicketCaseOwnerService.Transfer(ticket.ID, owner.ID, test.next, test.reason, test.op); err == nil {
-			t.Errorf("%s succeeded", test.name)
-		}
-	}
-	var stored models.Ticket
-	if err := db.First(&stored, ticket.ID).Error; err != nil {
-		t.Fatal(err)
-	}
-	var count int64
-	if err := db.Model(&models.TicketProgress{}).Count(&count).Error; err != nil {
-		t.Fatal(err)
-	}
-	if stored.CaseOwnerID != owner.ID || stored.CaseRevision != ticket.CaseRevision || count != 0 {
-		t.Fatalf("rejected request changed owner or audit: %+v, progress=%d", stored, count)
-	}
-	for _, status := range []string{"new"} {
-		if err := db.Model(&ticket).Update("case_status", status).Error; err != nil {
-			t.Fatal(err)
-		}
-		if err := TicketCaseOwnerService.Transfer(ticket.ID, owner.ID, next.ID, "正常交接", op); err == nil {
-			t.Errorf("status %s allowed transfer", status)
-		}
-	}
-}
-
-func TestCaseOwnerClosedCaseCanExplicitlyReplaceDisabledOwnerBeforeReopening(t *testing.T) {
-	db := setupCaseOwnerTestDB(t)
-	owner, _, _ := seedCaseOwnerMember(t, db, 91, "owner", constants.PermissionTicketUpdate.Code)
-	next, _, _ := seedCaseOwnerMember(t, db, 91, "next", constants.PermissionTicketUpdate.Code)
-	ticket := seedOwnedTicket(t, db, owner.ID)
-	op := caseOwnerPrincipal(next)
-	if err := db.Model(&ticket).Update("case_status", "closed").Error; err != nil {
-		t.Fatal(err)
-	}
-	if err := UserService.UpdateStatus(owner.ID, int(enums.StatusDisabled), op); err != nil {
-		t.Fatal(err)
-	}
-	if err := RequireTicketCaseOwnerDB(db, &ticket); err == nil {
-		t.Fatal("disabled historical owner cannot own a reopened case")
-	}
-	if err := TicketCaseOwnerService.Transfer(ticket.ID, owner.ID, next.ID, "原客服已离职，重新打开前改由新客服跟进", op); err != nil {
-		t.Fatalf("explicit reassignment should recover the closed case: %v", err)
-	}
-	var stored models.Ticket
-	if err := db.First(&stored, ticket.ID).Error; err != nil {
-		t.Fatal(err)
-	}
-	if stored.CaseStatus != "closed" || stored.CaseOwnerID != next.ID {
-		t.Fatalf("reassignment should retain closure until explicit reopen: %+v", stored)
-	}
-	if err := RequireTicketCaseOwnerDB(db, &stored); err != nil {
-		t.Fatalf("owner must now meet the reopening guard: %v", err)
-	}
-}
-
-func TestCaseOwnerAuditFailureRollsBackTransfer(t *testing.T) {
-	db := setupCaseOwnerTestDB(t)
-	owner, _, _ := seedCaseOwnerMember(t, db, 91, "owner", constants.PermissionTicketUpdate.Code)
-	next, _, _ := seedCaseOwnerMember(t, db, 91, "next", constants.PermissionTicketUpdate.Code)
-	ticket := seedOwnedTicket(t, db, owner.ID)
-	if err := db.Migrator().DropTable(&models.TicketProgress{}); err != nil {
-		t.Fatal(err)
-	}
-	if err := TicketCaseOwnerService.Transfer(ticket.ID, owner.ID, next.ID, "正常交接", caseOwnerPrincipal(owner)); err == nil {
-		t.Fatal("missing audit storage should reject transfer")
-	}
-	var stored models.Ticket
-	if err := db.First(&stored, ticket.ID).Error; err != nil {
-		t.Fatal(err)
-	}
-	if stored.CaseOwnerID != owner.ID || stored.CaseRevision != ticket.CaseRevision {
-		t.Fatal("audit failure did not roll back owner change")
+		t.Fatalf("eligible engineer rejected: %v", err)
 	}
 }
 
@@ -270,29 +140,23 @@ func TestCaseOwnerDisableAndDeleteRequireHandover(t *testing.T) {
 		},
 		func() error { _, err := DSARService.deleteCustomerAccountDataDB(db, fmt.Sprint(owner.ID)); return err },
 	} {
-		if err := operation(); err == nil || !strings.Contains(err.Error(), "交接") {
-			t.Fatalf("active case owner mutation should require handover, got %v", err)
+		if err := operation(); err == nil || !strings.Contains(err.Error(), "转派") {
+			t.Fatalf("active case handler mutation should require reassignment, got %v", err)
 		}
 	}
 	var stored models.User
 	if err := db.First(&stored, owner.ID).Error; err != nil || stored.Status != enums.StatusOk || stored.Username != owner.Username {
 		t.Fatalf("blocked account mutation changed user: %+v, %v", stored, err)
 	}
-	if err := TicketCaseOwnerService.Transfer(ticket.ID, owner.ID, next.ID, "停用前交接", op); err != nil {
-		t.Fatal(err)
-	}
+	moveCaseToEngineer(t, db, ticket, next.ID, "转派给下一位工程师")
 	if err := UserService.UpdateStatus(owner.ID, int(enums.StatusDisabled), op); err != nil {
-		t.Fatalf("owner already handed over should be disableable: %v", err)
+		t.Fatalf("engineer who handed the case over should be disableable: %v", err)
 	}
 	if err := db.Model(&ticket).Update("case_status", "closed").Error; err != nil {
 		t.Fatal(err)
 	}
 	if err := UserService.DeleteUser(next.ID, op); err != nil {
-		t.Fatalf("completed ownership history should permit account deletion: %v", err)
-	}
-	var closed models.Ticket
-	if err := db.First(&closed, ticket.ID).Error; err != nil || closed.CaseOwnerID != next.ID {
-		t.Fatalf("account deletion lost historical owner: %+v, %v", closed, err)
+		t.Fatalf("completed handling history should permit account deletion: %v", err)
 	}
 }
 
@@ -306,20 +170,20 @@ func TestCaseOwnerPermissionRemovalIsRejectedAtomically(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := EnterpriseIAMService.UpdateMember(91, member.ID, request.EnterpriseMemberUpdateRequest{RoleCodes: []string{EnterpriseRoleViewer}}, op); err == nil {
-		t.Fatal("changing active owner to viewer should fail")
+		t.Fatal("changing active handler to viewer should fail")
 	}
 	if _, _, err := PlatformIAMService.SaveAuthPolicy(request.PlatformAuthPolicySaveRequest{TenantID: 91, RoleID: role.ID, Effect: "allow", PermissionCodes: []string{constants.PermissionTicketView.Code}}, op); err == nil {
 		t.Fatal("removing last processing permission should fail")
 	}
 	status := int(enums.StatusDisabled)
 	if _, err := PlatformIAMService.SaveAuthRole(request.PlatformAuthRoleSaveRequest{ID: role.ID, TenantID: 91, DomainType: models.DomainTypeEnterprise, Code: role.Code, Name: role.Name, Status: &status}, op); err == nil {
-		t.Fatal("disabling active owner's role should fail")
+		t.Fatal("disabling active handler's role should fail")
 	}
 	if err := PlatformIAMService.DeleteAuthRole(request.PlatformAuthRoleDeleteRequest{RoleID: role.ID}, op); err == nil {
-		t.Fatal("deleting active owner's only role should fail")
+		t.Fatal("deleting active handler's only role should fail")
 	}
 	if err := db.Transaction(func(tx *gorm.DB) error { return ValidateCaseOwnerDB(tx, 91, owner.ID) }); err != nil {
-		t.Fatalf("rejected edits must leave original owner permissions valid: %v", err)
+		t.Fatalf("rejected edits must leave original handler permissions valid: %v", err)
 	}
 }
 
@@ -333,14 +197,11 @@ func TestCaseOwnerHistoricalMissingOwnerIsNeverInferred(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := RequireTicketCaseOwnerDB(db, &ticket); err == nil {
-		t.Fatal("missing owner must require explicit acceptance")
-	}
-	if err := TicketCaseOwnerService.Transfer(ticket.ID, 0, owner.ID, "正常交接", caseOwnerPrincipal(owner)); err == nil {
-		t.Fatal("ownerless historical ticket must be adopted, not silently transferred")
+		t.Fatal("missing handler must require an explicit engineer acceptance")
 	}
 	var stored models.Ticket
 	if err := db.First(&stored, ticket.ID).Error; err != nil || stored.CaseOwnerID != 0 {
-		t.Fatalf("historical owner was invented: %+v, %v", stored, err)
+		t.Fatalf("historical handler was invented: %+v, %v", stored, err)
 	}
 }
 
@@ -351,7 +212,7 @@ func TestCaseOwnerDefaultRoleRefreshCannotRemoveLastProcessingPermission(t *test
 	ticket := seedOwnedTicket(t, db, owner.ID)
 	op := caseOwnerPrincipal(next)
 	// A different builtin role is processed earlier than the viewer. Its name
-	// must also roll back if a later role would invalidate active ownership.
+	// must also roll back if a later role would invalidate active handling.
 	engineer := models.AuthRole{TenantID: 91, DomainType: models.DomainTypeEnterprise, Code: EnterpriseRoleEngineer,
 		Name: "Existing engineer name", Status: enums.StatusOk, IsBuiltin: true}
 	if err := db.Create(&engineer).Error; err != nil {
@@ -361,11 +222,11 @@ func TestCaseOwnerDefaultRoleRefreshCannotRemoveLastProcessingPermission(t *test
 		t.Fatal(err)
 	}
 	// No caller-owned transaction: the refresh must provide its own rollback.
-	if err := EnsureTenantDefaultIAMRolesDB(db, 91, op); err == nil || !strings.Contains(err.Error(), "交接") {
-		t.Fatalf("default policy refresh must reject removing an active owner's last permission: %v", err)
+	if err := EnsureTenantDefaultIAMRolesDB(db, 91, op); err == nil || !strings.Contains(err.Error(), "转派") {
+		t.Fatalf("default policy refresh must reject removing an active handler's last permission: %v", err)
 	}
 	if err := ValidateCaseOwnerDB(db, 91, owner.ID); err != nil {
-		t.Fatalf("failed refresh removed owner permissions: %v", err)
+		t.Fatalf("failed refresh removed handler permissions: %v", err)
 	}
 	var storedEngineer models.AuthRole
 	if err := db.First(&storedEngineer, engineer.ID).Error; err != nil || storedEngineer.Name != engineer.Name {
@@ -375,20 +236,18 @@ func TestCaseOwnerDefaultRoleRefreshCannotRemoveLastProcessingPermission(t *test
 	if err := db.Model(&models.AuthRole{}).Where("tenant_id = ? AND code = ?", 91, EnterpriseRoleOwner).Count(&inserted).Error; err != nil || inserted != 0 {
 		t.Fatalf("failed refresh retained a newly created role: %d, %v", inserted, err)
 	}
-	// Once responsibility is explicitly handed over, the same refresh can run
+	// Once the case is moved to another engineer, the same refresh can run
 	// inside a caller transaction without touching custom role permissions.
-	if err := TicketCaseOwnerService.Transfer(ticket.ID, owner.ID, next.ID, "角色恢复默认前完成客服交接", op); err != nil {
-		t.Fatal(err)
-	}
+	moveCaseToEngineer(t, db, ticket, next.ID, "转派后恢复默认角色")
 	if err := db.Transaction(func(tx *gorm.DB) error { return EnsureTenantDefaultIAMRolesDB(tx, 91, op) }); err != nil {
-		t.Fatalf("refresh after handover should succeed, including nested transaction use: %v", err)
+		t.Fatalf("refresh after reassignment should succeed, including nested transaction use: %v", err)
 	}
 	permissions, err := caseOwnerPermissionsDB(db, 91, member.ID, owner.ID)
 	if err != nil || hasCaseOwnerPermissions(permissions) {
 		t.Fatalf("viewer should now have default read-only permissions: %+v, %v", permissions, err)
 	}
 	if err := ValidateCaseOwnerDB(db, 91, next.ID); err != nil {
-		t.Fatalf("custom role owner was affected by builtin refresh: %v", err)
+		t.Fatalf("custom role handler was affected by builtin refresh: %v", err)
 	}
 	var storedCustom models.AuthRole
 	if err := db.First(&storedCustom, custom.ID).Error; err != nil || storedCustom.Name != custom.Name || storedCustom.IsBuiltin {
@@ -429,91 +288,11 @@ func TestCaseOwnerLegacyPermissionRemovalAlsoRequiresHandover(t *testing.T) {
 		func() error { return RoleService.AssignPermissions(role.ID, nil, op) },
 		func() error { return RoleService.UpdateStatus(role.ID, enums.StatusDisabled, op) },
 	} {
-		if err := operation(); err == nil || !strings.Contains(err.Error(), "交接") {
-			t.Fatalf("legacy permissions cannot be revoked before handover: %v", err)
+		if err := operation(); err == nil || !strings.Contains(err.Error(), "转派") {
+			t.Fatalf("legacy permissions cannot be revoked before reassignment: %v", err)
 		}
 		if err := ValidateCaseOwnerDB(db, 91, owner.ID); err != nil {
 			t.Fatalf("rejected legacy mutation must roll back permissions: %v", err)
 		}
-	}
-}
-
-func TestCaseOwnerTransferRejectsEngineerOutsideProductScope(t *testing.T) {
-	db := setupCaseOwnerTestDB(t)
-	if err := db.AutoMigrate(&models.AgentTeamMember{}, &models.Product{}); err != nil {
-		t.Fatal(err)
-	}
-	owner, _, _ := seedCaseOwnerMember(t, db, 91, "owner", constants.PermissionTicketUpdate.Code)
-	engineer, _, _ := seedCaseOwnerMember(t, db, 91, "restricted-engineer", constants.PermissionTicketUpdate.Code)
-	ticket := seedOwnedTicket(t, db, owner.ID)
-	if err := db.Model(&ticket).Update("product_id", int64(802)).Error; err != nil {
-		t.Fatal(err)
-	}
-	team := models.AgentTeam{TenantID: 91, ProductID: 801, Name: "Own product", TeamType: AgentTeamTypeProductRepair, Status: enums.StatusOk}
-	if err := db.Create(&team).Error; err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Create(&models.AgentTeamMember{TenantID: 91, TeamID: team.ID, UserID: engineer.ID, Status: enums.StatusOk}).Error; err != nil {
-		t.Fatal(err)
-	}
-	op := caseOwnerPrincipal(engineer)
-	op.Roles = []string{EnterpriseRoleEngineer}
-	if canManageTicketCaseOwner(&ticket, op) {
-		t.Fatal("outside product scope must not expose handover action")
-	}
-	if err := TicketCaseOwnerService.Transfer(ticket.ID, owner.ID, engineer.ID, "尝试越权认领其他产品的工单", op); err == nil {
-		t.Fatal("ticket.update must not bypass product scope")
-	}
-	var stored models.Ticket
-	if err := db.First(&stored, ticket.ID).Error; err != nil || stored.CaseOwnerID != owner.ID || stored.CaseRevision != ticket.CaseRevision {
-		t.Fatalf("out-of-scope handover changed the case: %+v, %v", stored, err)
-	}
-}
-
-func TestCaseOwnerKeyedHandoverReplaysStableReceiptWithoutAuthorityReuse(t *testing.T) {
-	db := setupCaseOwnerTestDB(t)
-	owner, _, _ := seedCaseOwnerMember(t, db, 91, "owner", constants.PermissionTicketChangeStatus.Code)
-	next, _, _ := seedCaseOwnerMember(t, db, 91, "next", constants.PermissionTicketChangeStatus.Code)
-	third, _, _ := seedCaseOwnerMember(t, db, 91, "third", constants.PermissionTicketChangeStatus.Code)
-	ticket := seedOwnedTicket(t, db, owner.ID)
-	op := caseOwnerPrincipal(owner)
-	op.Permissions = []string{constants.PermissionTicketView.Code}
-	const reason = "客服换班"
-	if err := TicketCaseOwnerService.TransferWithKey(ticket.ID, owner.ID, next.ID, reason, "handover-1", op); err != nil {
-		t.Fatal(err)
-	}
-	nextOp := caseOwnerPrincipal(next)
-	nextOp.Permissions = []string{constants.PermissionTicketView.Code}
-	if err := TicketCaseOwnerService.TransferWithKey(ticket.ID, next.ID, third.ID, "再次换班", "handover-2", nextOp); err != nil {
-		t.Fatal(err)
-	}
-	if err := TicketCaseOwnerService.TransferWithKey(ticket.ID, owner.ID, next.ID, reason, "handover-1", op); err != nil {
-		t.Fatalf("original owner must be able to retry a completed handover: %v", err)
-	}
-	result, err := GetTicketCaseCommandResult(91, ticket.ID, "handover-1")
-	if err != nil || result.Revision != ticket.CaseRevision+1 || result.Status != ticket.CaseStatus {
-		t.Fatalf("replay receipt changed after subsequent handover: %+v, %v", result, err)
-	}
-	for _, test := range []struct {
-		key, reason string
-		op          *dto.AuthPrincipal
-	}{
-		{"handover-1", "篡改原来的原因", op},
-		{"handover-1", reason, nextOp},
-	} {
-		if err := TicketCaseOwnerService.TransferWithKey(ticket.ID, owner.ID, next.ID, test.reason, test.key, test.op); !errors.Is(err, ErrTicketCaseConflict) {
-			t.Fatalf("payload or actor changed under the same key: %v", err)
-		}
-	}
-	if err := TicketCaseOwnerService.TransferWithKey(ticket.ID, third.ID, next.ID, reason, "", caseOwnerPrincipal(third)); err == nil {
-		t.Fatal("HTTP-oriented keyed method must reject a missing key")
-	}
-	var stored models.Ticket
-	if err := db.First(&stored, ticket.ID).Error; err != nil || stored.CaseOwnerID != third.ID || stored.CaseRevision != ticket.CaseRevision+2 {
-		t.Fatalf("replay or conflicting request changed latest owner: %+v, %v", stored, err)
-	}
-	var count int64
-	if err := db.Model(&models.TicketProgress{}).Where("ticket_id = ? AND event_type = ?", ticket.ID, "case_owner_transferred").Count(&count).Error; err != nil || count != 2 {
-		t.Fatalf("retries must not duplicate audit entries: %d, %v", count, err)
 	}
 }

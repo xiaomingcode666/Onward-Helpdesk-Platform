@@ -37,7 +37,7 @@ func TestDeploymentIdentityRejectsWrongDatabaseBeforeMigrations(t *testing.T) {
 	settings := fmt.Sprintf("encryptionKey: identity-test-only-long-fixture-key\ndb:\n  type: sqlite\n  dsn: %s\n  autoMigrate: true\n", dbConfig.DSN)
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(settings), 0600))
-	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 7, Environment: "staging", Projects: []projectconfig.Project{}, Intake: projectconfig.IntakePolicy{Rules: []projectconfig.Rule{}}, SecretRefs: []string{}}
+	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 7, Environment: "staging", Projects: []projectconfig.Project{}, SecretRefs: []string{}}
 	bundle := projectconfig.Deployment{VersionID: 1, Digest: projectconfig.Digest(doc), Document: doc}
 	encoded, err := json.Marshal(bundle)
 	require.NoError(t, err)
@@ -85,7 +85,7 @@ func TestDeploymentIdentityFreshInstallCreatesOnlyExplicitMissingCompany(t *test
 	configPath := filepath.Join(dir, "config.yaml")
 	settings := fmt.Sprintf("encryptionKey: identity-test-only-long-fixture-key\ndb:\n  type: sqlite\n  dsn: %s\n  autoMigrate: true\n", dbPath)
 	require.NoError(t, os.WriteFile(configPath, []byte(settings), 0600))
-	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 27, Environment: "staging", Projects: []projectconfig.Project{}, Intake: projectconfig.IntakePolicy{Rules: []projectconfig.Rule{}}, SecretRefs: []string{}}
+	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 27, Environment: "staging", Projects: []projectconfig.Project{}, SecretRefs: []string{}}
 	raw, err := json.Marshal(doc)
 	require.NoError(t, err)
 	inputPath := filepath.Join(dir, "input.json")
@@ -125,7 +125,7 @@ func TestDeploymentIdentityFreshInstallCreatesOnlyExplicitMissingCompany(t *test
 }
 
 func TestDeploymentIdentityRawConfigurationPreflight(t *testing.T) {
-	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 27, Environment: "integration", Projects: []projectconfig.Project{}, Intake: projectconfig.IntakePolicy{Rules: []projectconfig.Rule{}}, SecretRefs: []string{}}
+	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 27, Environment: "integration", Projects: []projectconfig.Project{}, SecretRefs: []string{}}
 	path := filepath.Join(t.TempDir(), "input.json")
 	write := func() {
 		data, err := json.Marshal(doc)

@@ -23,6 +23,16 @@ import (
 //go:embed schema.json
 var SchemaJSON []byte
 
+type Project struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+	// Profile 是该服务项目的服务档次（standard/enhanced/mission_critical）。
+	// 留空按标准档处理，工单的时限规则据此匹配。
+	Profile string `json:"profile,omitempty"`
+}
+
+// Rule 与 IntakePolicy 是已删除的受理规则的历史结构。
+// 保留它们只为让历史配置版本仍能解码并通过摘要校验，新配置不再写入，也不再校验。
 type Rule struct {
 	ProjectKey     string   `json:"project_key"`
 	Channel        string   `json:"channel"`
@@ -33,10 +43,7 @@ type Rule struct {
 type IntakePolicy struct {
 	Rules []Rule `json:"rules"`
 }
-type Project struct {
-	Key  string `json:"key"`
-	Name string `json:"name"`
-}
+
 type Document struct {
 	TicketWorkflows map[string]ticketpolicy.Workflow `json:"ticket_workflows,omitempty"`
 	TicketPriority  *ticketpolicy.Policy             `json:"ticket_priority,omitempty"`
@@ -44,9 +51,10 @@ type Document struct {
 	TenantID        int64                            `json:"tenant_id"`
 	Environment     string                           `json:"environment"`
 	Projects        []Project                        `json:"projects"`
-	Intake          IntakePolicy                     `json:"intake"`
-	SecretRefs      []string                         `json:"secret_refs"`
-	Runtime         *Runtime                         `json:"runtime,omitempty"`
+	// Intake 是历史受理规则字段：只读兼容，不参与校验，界面不再展示。
+	Intake     *IntakePolicy `json:"intake,omitempty"`
+	SecretRefs []string      `json:"secret_refs"`
+	Runtime    *Runtime      `json:"runtime,omitempty"`
 }
 
 type Issue struct {
@@ -105,8 +113,8 @@ func ValidateDraftShape(doc Document) error {
 	if err := validateTicketWorkflows(doc); err != nil {
 		return err
 	}
-	if (doc.SchemaVersion != 1 && doc.SchemaVersion != 2) || doc.Projects == nil || doc.Intake.Rules == nil || doc.SecretRefs == nil {
-		return fmt.Errorf("草稿必须包含 schema_version=1 或 2、projects、intake.rules 和 secret_refs；空列表请填写 []")
+	if (doc.SchemaVersion != 1 && doc.SchemaVersion != 2) || doc.Projects == nil || doc.SecretRefs == nil {
+		return fmt.Errorf("草稿必须包含 schema_version=1 或 2、projects 和 secret_refs；空列表请填写 []")
 	}
 	if doc.SchemaVersion == 2 && doc.Runtime == nil {
 		return fmt.Errorf("版本 2 草稿必须包含运营设置 runtime")
@@ -130,13 +138,8 @@ func ValidateDraftShape(doc Document) error {
 			}
 		}
 	}
-	if len(doc.Projects) > 200 || len(doc.Intake.Rules) > 200 || len(doc.SecretRefs) > 64 {
-		return fmt.Errorf("草稿中的项目、规则或密钥引用数量超限")
-	}
-	for _, rule := range doc.Intake.Rules {
-		if rule.RequiredFields == nil {
-			return fmt.Errorf("每条规则必须包含 required_fields；没有额外必填项请填写 []")
-		}
+	if len(doc.Projects) > 200 || len(doc.SecretRefs) > 64 {
+		return fmt.Errorf("草稿中的项目或密钥引用数量超限")
 	}
 	return nil
 }
@@ -245,21 +248,6 @@ func Validate(doc Document, tenantID int64, environment string, check SecretChec
 			add("policy", fmt.Sprintf("projects[%d]", i), "项目标识不能重复或包含首尾空格，名称不能为空")
 		}
 		projects[p.Key] = true
-	}
-	seen := map[string]bool{}
-	for i, rule := range doc.Intake.Rules {
-		path := fmt.Sprintf("intake.rules[%d]", i)
-		if !projects[rule.ProjectKey] {
-			add("policy", path+".project_key", "请先登记这条规则所属的服务项目")
-		}
-		if rule.TicketType != strings.TrimSpace(rule.TicketType) {
-			add("policy", path+".ticket_type", "工单类型不能包含首尾空格")
-		}
-		key, _ := json.Marshal([]string{rule.ProjectKey, rule.Channel, rule.TicketType})
-		if seen[string(key)] {
-			add("policy", path, "同一项目、渠道和工单类型只能配置一条规则")
-		}
-		seen[string(key)] = true
 	}
 	for i, ref := range doc.SecretRefs {
 		if check == nil {

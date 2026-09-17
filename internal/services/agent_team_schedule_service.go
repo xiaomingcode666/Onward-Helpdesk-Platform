@@ -163,7 +163,7 @@ func (s *agentTeamScheduleService) UpdateTemplate(req request.UpdateAgentTeamSch
 	if err != nil {
 		return nil, err
 	}
-	timezone := EngineerScheduleTimezone
+	timezone := currentEngineerScheduleTimezone()
 	location := engineerScheduleLocation()
 	startClock, err := parseRequiredClockInLocation(req.StartTime, location, "error.agentTeamSchedule.startTimeInvalid", "error.agentTeamSchedule.startTimeInvalidWithFormat")
 	if err != nil {
@@ -204,7 +204,7 @@ func (s *agentTeamScheduleService) resolveTemplateDB(db *gorm.DB, tenantID int64
 		TenantID: tenantID, Workdays: []int{1, 2, 3, 4, 5},
 		StartMinute: defaultAgentTeamScheduleStartMinute,
 		EndMinute:   defaultAgentTeamScheduleEndMinute,
-		Timezone:    EngineerScheduleTimezone,
+		Timezone:    currentEngineerScheduleTimezone(),
 	}
 	if db == nil || !db.Migrator().HasTable(&models.AgentTeamScheduleTemplate{}) {
 		return config
@@ -284,7 +284,7 @@ func (s *agentTeamScheduleService) GetMyWeeklySchedule(operator *dto.AuthPrincip
 		return nil, errorsx.UnauthorizedI18n("error.auth.expired")
 	}
 	tenantID := operator.EffectiveTenantID()
-	result := &EngineerWorkScheduleResult{Timezone: EngineerScheduleTimezone}
+	result := &EngineerWorkScheduleResult{Timezone: currentEngineerScheduleTimezone()}
 	if tenantID <= 0 || operator.UserID <= 0 {
 		return result, nil
 	}

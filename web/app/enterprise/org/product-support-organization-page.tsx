@@ -37,8 +37,10 @@ import {
 } from "@/lib/api/admin"
 import { assignTicket, fetchTickets } from "@/lib/api/enterprise-tickets"
 import {
+  fetchAllEnterpriseIAMMembers,
   fetchAllEnterpriseIAMDepartments,
   type EnterpriseIAMDepartment,
+  type EnterpriseIAMMember,
 } from "@/lib/api/platform-iam"
 import type { TicketListItem } from "@/lib/api/types"
 import { cn } from "@/lib/utils"
@@ -290,6 +292,7 @@ export function ProductSupportOrganizationPage() {
   const requestedTeamId = Number(searchParams.get("teamId")) || 0
   const [teams, setTeams] = useState<AdminAgentTeam[]>([])
   const [departments, setDepartments] = useState<EnterpriseIAMDepartment[]>([])
+  const [serviceManagers, setServiceManagers] = useState<EnterpriseIAMMember[]>([])
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
   const [members, setMembers] = useState<AdminAgentProfile[]>([])
   const [memberAvailability, setMemberAvailability] = useState<AdminAgentTeamMemberAvailability[]>([])
@@ -297,6 +300,7 @@ export function ProductSupportOrganizationPage() {
   const [assigneeByTicket, setAssigneeByTicket] = useState<Record<number, string>>({})
   const [teamsLoading, setTeamsLoading] = useState(true)
   const [departmentsLoading, setDepartmentsLoading] = useState(true)
+  const [serviceManagersLoading, setServiceManagersLoading] = useState(true)
   const [membersLoading, setMembersLoading] = useState(false)
   const [availabilityLoading, setAvailabilityLoading] = useState(false)
   const [ticketsLoading, setTicketsLoading] = useState(false)
@@ -355,6 +359,20 @@ export function ProductSupportOrganizationPage() {
     [selectableTeams, selectedTeamId],
   )
   const isTechnicalTeam = selectedTeam?.teamType === TECHNICAL_TEAM_TYPE
+  const serviceManagerUserIds = useMemo(
+    () => new Set(serviceManagers.map((member) => member.user_id)),
+    [serviceManagers],
+  )
+  const leaderCandidates = useMemo(() => {
+    const eligible = members.filter((member) => serviceManagerUserIds.has(member.userId))
+    if (selectedTeam?.leaderUserId && !eligible.some((member) => member.userId === selectedTeam.leaderUserId)) {
+      const currentLeader = members.find((member) => member.userId === selectedTeam.leaderUserId)
+      if (currentLeader) {
+        return [currentLeader, ...eligible]
+      }
+    }
+    return eligible
+  }, [members, selectedTeam?.leaderUserId, serviceManagerUserIds])
   const activeTickets = useMemo(
     () => tickets.filter((item) => !isClosedTicket(item.status)),
     [tickets],
@@ -384,7 +402,7 @@ export function ProductSupportOrganizationPage() {
     [memberAvailability],
   )
   const activeTicketCount = activeTickets.length
-  const organizationLoading = teamsLoading || departmentsLoading
+  const organizationLoading = teamsLoading || departmentsLoading || serviceManagersLoading
   const teamTreeInitialLoading = teamsLoading && teams.length === 0
   const departmentTreeInitialLoading = departmentsLoading && departments.length === 0
   const detailRefreshing = membersLoading || availabilityLoading || ticketsLoading
@@ -413,12 +431,19 @@ export function ProductSupportOrganizationPage() {
 
   const loadDepartments = useCallback(async () => {
     setDepartmentsLoading(true)
+    setServiceManagersLoading(true)
     try {
-      setDepartments(await fetchAllEnterpriseIAMDepartments())
+      const [departmentRows, memberRows] = await Promise.all([
+        fetchAllEnterpriseIAMDepartments(),
+        fetchAllEnterpriseIAMMembers({ status: "0" }),
+      ])
+      setDepartments(departmentRows)
+      setServiceManagers(memberRows.filter((member) => member.roles.includes("service_manager")))
     } catch (error) {
       toast.error(error instanceof Error ? error.message : ops(t, "toasts.loadDepartmentTreeFailed"))
     } finally {
       setDepartmentsLoading(false)
+      setServiceManagersLoading(false)
     }
   }, [t])
 
@@ -574,6 +599,10 @@ export function ProductSupportOrganizationPage() {
     }
     const leaderUserId = Number(value)
     if (!Number.isFinite(leaderUserId) || leaderUserId <= 0 || selectedTeam.leaderUserId === leaderUserId) {
+      return
+    }
+    if (!serviceManagerUserIds.has(leaderUserId)) {
+      toast.error(ops(t, "toasts.leaderMustBeServiceManager"))
       return
     }
     setSavingLeader(true)
@@ -812,7 +841,7 @@ export function ProductSupportOrganizationPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {!isTechnicalTeam ? <div className="min-w-52">
+                  <div className="min-w-52">
                     <SelectField
                       style={{ marginBottom: 0 }}
                       selectProps={{
@@ -820,27 +849,27 @@ export function ProductSupportOrganizationPage() {
                         onChange: (value) => {
                           if (typeof value === "string") void handleLeaderChange(value)
                         },
-                        disabled: savingLeader || membersLoading || members.length === 0,
+                        disabled: savingLeader || membersLoading || serviceManagersLoading || leaderCandidates.length === 0,
                         options: [
                           ...(selectedTeam.leaderUserId > 0 && !members.some((member) => member.userId === selectedTeam.leaderUserId)
                             ? [{
                                 value: String(selectedTeam.leaderUserId),
                                 label: ops(t, "header.leaderPrefix", {
-                                  name: selectedTeam.leaderNickname || selectedTeam.leaderUsername || ops(t, "header.selectProductLeader"),
+                                  name: selectedTeam.leaderNickname || selectedTeam.leaderUsername || ops(t, "header.selectLeader"),
                                 }),
                               }]
                             : []),
-                          ...members.map((member) => ({
+                          ...leaderCandidates.map((member) => ({
                             value: String(member.userId),
                             label: member.userId === selectedTeam.leaderUserId
                               ? ops(t, "header.leaderPrefix", { name: agentMemberName(member) })
-                              : agentMemberName(member),
+                              : ops(t, "header.serviceManagerRole", { name: agentMemberName(member) }),
                           })),
                         ],
                         style: { width: 208 },
                       }}
                     />
-                  </div> : null}
+                  </div>
                   <div className="min-w-44">
                     <SelectField
                       style={{ marginBottom: 0 }}
@@ -939,7 +968,7 @@ export function ProductSupportOrganizationPage() {
                           </RailopsButton>
                           <IconButton
                             icon={<UserMinusIcon className="size-4" />}
-                            tooltip={!isTechnicalTeam && selectedTeam.leaderUserId === member.userId
+                            tooltip={selectedTeam.leaderUserId === member.userId
                               ? ops(t, "membersPanel.changeLeaderFirstTooltip")
                               : ops(t, isTechnicalTeam ? "membersPanel.removeMaintenanceTooltip" : "membersPanel.removeTooltip")}
                             aria-label={ops(t, isTechnicalTeam ? "membersPanel.removeMaintenanceAria" : "membersPanel.removeAria", { name: agentMemberName(member) })}

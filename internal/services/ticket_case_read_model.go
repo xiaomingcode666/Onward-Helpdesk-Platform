@@ -28,6 +28,8 @@ const ticketEffectiveCaseStatusSQL = `COALESCE(NULLIF(case_status, ''), CASE
 const ticketCaseOpenSQL = "(" + ticketEffectiveCaseStatusSQL + " NOT IN ('closed', 'cancelled'))"
 const ticketResolutionSLARunningSQL = "(" + ticketCaseOpenSQL + " AND resolved_at IS NULL)"
 const ticketCaseAwaitingClosureSQL = "(" + ticketEffectiveCaseStatusSQL + " IN ('resolved', 'closure_pending'))"
+const ticketDaypopSLABreachedSQL = "(" + ticketResolutionSLARunningSQL + " AND sla_due_at IS NOT NULL AND ((daypop_clock_paused_at IS NOT NULL AND daypop_clock_paused_remaining_seconds <= 0) OR (daypop_clock_paused_at IS NULL AND sla_due_at < ?)))"
+const ticketDaypopSLARiskSQL = "(" + ticketResolutionSLARunningSQL + " AND sla_due_at IS NOT NULL AND ((daypop_clock_paused_at IS NOT NULL AND daypop_clock_paused_remaining_seconds <= ?) OR (daypop_clock_paused_at IS NULL AND sla_due_at <= ?)))"
 
 func ticketCaseAwaitingClosure(ticket models.Ticket) bool {
 	state := models.EffectiveTicketCaseStatus(ticket)

@@ -3,11 +3,15 @@
 import { Checkbox, ConfigProvider, Input, InputNumber, Select } from "antd"
 import { FormField, RailopsButton } from "@railops/ui"
 import type { ProjectConfiguration, ProjectRuntime } from "@/lib/api/project-configuration"
-import { replaceProjectRuntime } from "@/lib/project-configuration-editing"
+import { replaceProjectRuntime, serviceSLADefaults } from "@/lib/project-configuration-editing"
 
 export function ProjectRuntimeFields({ document, onChange, disabled = false }: { document: ProjectConfiguration; onChange: (document: ProjectConfiguration) => void; disabled?: boolean }) {
   const r = document.runtime
   if (!r) return null
+  const knowledgeSupport = r.service_scene === "knowledge_support"
+  const slaLabels = knowledgeSupport
+    ? { response: "首次人工回复分钟", assignment: "人工接管分钟", resolution: "问题解决分钟" }
+    : { response: "首次回复分钟", assignment: "工程师接单分钟", resolution: "解决问题分钟" }
   const imap = r.mail.imap ?? { enabled: false, host: "", port: 993, username: "", password_ref: "", project_key: "", ticket_type: "" }
   const setIMAP = (patch: Partial<typeof imap>) => set({ mail: { ...r.mail, imap: { ...imap, ...patch } } })
   const set = (patch: Partial<ProjectRuntime>) => onChange(replaceProjectRuntime(document, { ...r, ...patch }))
@@ -28,27 +32,33 @@ export function ProjectRuntimeFields({ document, onChange, disabled = false }: {
           {field(`日历标识 ${i + 1}`, c.key, key => change({ key }))}{field(`日历时区 ${i + 1}`, c.timezone, timezone => change({ timezone }))}
           {field(`上班时间 ${i + 1}`, c.start, start => change({ start }))}{field(`下班时间 ${i + 1}`, c.end, end => change({ end }))}
           <div className="sm:col-span-2"><Checkbox.Group value={c.work_days ?? []} options={["周日", "周一", "周二", "周三", "周四", "周五", "周六"].map((label, value) => ({ label, value }))} onChange={work_days => change({ work_days })} /></div>
-          {field(`休息日期 ${i + 1}（逗号分隔）`, (c.holidays ?? []).join(","), value => change({ holidays: value.split(",").map(v => v.trim()).filter(Boolean) }))}
+          <div className="flex flex-wrap gap-2 sm:col-span-2">
+            <RailopsButton onClick={() => change({ work_days: [0, 1, 2, 3, 4, 5, 6], start: "00:00", end: "24:00" })}>24×7 全天候</RailopsButton>
+            <RailopsButton onClick={() => change({ work_days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" })}>工作日 09:00-18:00</RailopsButton>
+          </div>
           <RailopsButton onClick={() => set({ calendars: r.calendars.filter((_, j) => i !== j) })}>删除此日历</RailopsButton>
         </div>
       })}
       <RailopsButton onClick={() => set({ calendars: [...r.calendars, { key: "", timezone: r.timezone, work_days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00", holidays: [] }] })}>添加工作日历</RailopsButton>
     </div></details>
     <details><summary className="font-medium">工单处理时限（SLA）</summary><div className="mt-3 grid gap-3">
+      <p className="text-sm">每个服务档次一套时限：工单按所属服务项目声明的档次取用；没声明档次的项目和没有项目的工单都按标准档。不再区分工单优先级。</p>
+      <p className="text-sm text-muted-foreground">选择服务档次后自动带出三个时限；特殊项目可以直接调整。</p>
       {(r.targets ?? []).map((t, i) => {
         const change = (patch: Partial<typeof t>) => set({ targets: r.targets.map((item, j) => i === j ? { ...item, ...patch } : item) })
         return <div key={i} className="grid gap-3 rounded border p-3 sm:grid-cols-2">
-          <FormField label="适用服务项目"><Select className="w-full" value={t.project_key} options={[{ value: "*", label: "全部项目的默认规则" }, ...document.projects.map(p => ({ value: p.key, label: p.name }))]} onChange={project_key => change({ project_key })} /></FormField>
-          <FormField label="服务档次"><Select className="w-full" value={t.profile} options={[{ value: "standard", label: "标准" }, { value: "enhanced", label: "增强" }, { value: "mission_critical", label: "关键服务" }]} onChange={profile => change({ profile })} /></FormField>
-          <FormField label="工单优先级"><Select className="w-full" value={t.priority} options={["p0", "p1", "p2", "p3", "p4"].map(value => ({ value }))} onChange={priority => change({ priority })} /></FormField>
-          <FormField label="工作日历"><Select className="w-full" value={t.calendar_key} options={r.calendars.map(c => ({ value: c.key }))} onChange={calendar_key => change({ calendar_key })} /></FormField>
-          {number(`首次回复分钟 ${i + 1}`, t.response_minutes, response_minutes => change({ response_minutes }))}
-          {number(`工程师接单分钟 ${i + 1}`, t.assignment_minutes, assignment_minutes => change({ assignment_minutes }))}
-          {number(`解决问题分钟 ${i + 1}`, t.resolution_minutes, resolution_minutes => change({ resolution_minutes }))}
-          <RailopsButton onClick={() => set({ targets: r.targets.filter((_, j) => i !== j) })}>删除此时限规则</RailopsButton>
+          <FormField label="服务档次"><Select aria-label={`服务档次 ${i + 1}`} className="w-full" value={t.profile} options={[{ value: "standard", label: "标准" }, { value: "enhanced", label: "增强" }, { value: "mission_critical", label: "关键服务" }]} onChange={profile => change({ profile, ...serviceSLADefaults(profile) })} /></FormField>
+          <FormField label="工作日历"><Select aria-label={`工作日历 ${i + 1}`} className="w-full" value={t.calendar_key} options={r.calendars.map(c => ({ value: c.key }))} onChange={calendar_key => change({ calendar_key })} /></FormField>
+          {number(`${slaLabels.response} ${i + 1}`, t.response_minutes, response_minutes => change({ response_minutes }))}
+          {number(`${slaLabels.assignment} ${i + 1}`, t.assignment_minutes, assignment_minutes => change({ assignment_minutes }))}
+          {number(`${slaLabels.resolution} ${i + 1}`, t.resolution_minutes, resolution_minutes => change({ resolution_minutes }))}
+          <div className="flex flex-wrap gap-2">
+            <RailopsButton onClick={() => change(serviceSLADefaults(t.profile))}>恢复档次默认值</RailopsButton>
+            <RailopsButton onClick={() => set({ targets: r.targets.filter((_, j) => i !== j) })}>删除此时限规则</RailopsButton>
+          </div>
         </div>
       })}
-      <RailopsButton onClick={() => set({ targets: [...r.targets, { project_key: "*", profile: "standard", priority: "p2", calendar_key: r.calendars[0]?.key ?? "", response_minutes: 0, assignment_minutes: 0, resolution_minutes: 0 }] })}>添加时限规则</RailopsButton>
+      <RailopsButton onClick={() => set({ targets: [...r.targets, { project_key: "*", profile: "standard", priority: "", calendar_key: r.calendars[0]?.key ?? "", ...serviceSLADefaults("standard") }] })}>添加时限规则</RailopsButton>
     </div></details>
     <details><summary className="font-medium">允许的工单来源</summary><div className="mt-3 flex flex-wrap gap-3">{(r.channels ?? []).map((c, i) => <Checkbox key={c.name} checked={c.enabled} onChange={e => set({ channels: r.channels.map((item, j) => i === j ? { ...item, enabled: e.target.checked } : item) })}>{({ manual: "页面录入", phone: "人工电话受理", email: "邮件入站", api: "接口", webhook: "事件推送", monitoring_alert: "监控告警", whatsapp: "WhatsApp", chatbot_handoff: "机器人转人工" } as Record<string, string>)[c.name] ?? c.name}</Checkbox>)}</div></details>
     <details><summary className="font-medium">邮件发送</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -66,7 +76,6 @@ export function ProjectRuntimeFields({ document, onChange, disabled = false }: {
       <p className="text-sm sm:col-span-2">同时启用“邮件入站”来源。首次连接只建立收件起点，此后新邮件才会建单。固定使用 TLS 加密；附件暂不导入。</p>
       {field("IMAP 地址", imap.host, host => setIMAP({ host }))}{number("IMAP 端口", imap.port, port => setIMAP({ port }))}
       {field("收件邮箱账号", imap.username, username => setIMAP({ username }))}{field("收件密钥引用", imap.password_ref, password_ref => setIMAP({ password_ref }))}
-      <FormField label="邮件所属服务项目"><Select allowClear className="w-full" value={imap.project_key || undefined} options={document.projects.map(p => ({ value: p.key, label: p.name }))} onChange={project_key => setIMAP({ project_key: project_key ?? "" })} /></FormField>
       {field("默认工单类型（可留空待客服补充）", imap.ticket_type, ticket_type => setIMAP({ ticket_type }))}
     </div></details>
     <details><summary className="font-medium">外部系统接入</summary><div className="mt-3 grid gap-3">

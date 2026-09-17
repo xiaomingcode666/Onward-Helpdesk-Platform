@@ -205,6 +205,25 @@ func (TicketSupplierCollaborationParticipant) TableName() string {
 	return "ticket_supplier_collaboration_participants"
 }
 
+// TicketClockPause records an approved interval when the DayPop accountable
+// clock is paused. End-to-end elapsed time continues across these intervals.
+type TicketClockPause struct {
+	ID           int64        `gorm:"primaryKey;autoIncrement"`
+	TenantID     int64        `gorm:"type:bigint;not null;index;uniqueIndex:uk_ticket_clock_pause_source,priority:1"`
+	TicketID     int64        `gorm:"type:bigint;not null;index"`
+	ReasonCode   string       `gorm:"type:varchar(32);not null;index;uniqueIndex:uk_ticket_clock_pause_source,priority:2"`
+	SourceType   string       `gorm:"type:varchar(32);not null;index;uniqueIndex:uk_ticket_clock_pause_source,priority:3"`
+	SourceID     int64        `gorm:"type:bigint;not null;index;uniqueIndex:uk_ticket_clock_pause_source,priority:4"`
+	StartedAt    time.Time    `gorm:"type:timestamp;not null;index"`
+	EndedAt      *time.Time   `gorm:"type:timestamp;index"`
+	ApprovedBy   int64        `gorm:"type:bigint;not null;default:0"`
+	EvidenceJSON string       `gorm:"type:text;not null;default:'{}'"`
+	Status       enums.Status `gorm:"type:int;not null;default:0;index"`
+	AuditFields
+}
+
+func (TicketClockPause) TableName() string { return "ticket_clock_pauses" }
+
 // ProductFaultStatsDaily 产品故障日统计聚合表（投影，不作为业务事实来源）。
 type ProductFaultStatsDaily struct {
 	ID                  int64     `gorm:"primaryKey;autoIncrement"`

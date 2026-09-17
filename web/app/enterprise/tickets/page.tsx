@@ -49,9 +49,6 @@ import { TicketCaseLifecycle } from "./_components/ticket-case-lifecycle"
 import { TicketClassificationFields, TicketGovernancePanel } from "./_components/ticket-governance"
 import { caseTypes, governanceLabel as g, type CaseType } from "@/lib/ticket-governance"
 import { toast } from "sonner"
-import { IntakeFields, IntakePolicyButton, IntakeCompletion, intakeLabel } from "./_components/ticket-intake"
-import { EMPTY_INTAKE, phoneIntakePayload, type IntakeDraft, type TicketIntakePolicy } from "@/lib/ticket-intake"
-import { fetchTicketIntakePolicy } from "@/lib/api/enterprise-tickets"
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
     return translateCurrentMessage(`enterpriseExtract.${key}`)
@@ -113,7 +110,6 @@ type TicketDraft = {
   parentId: number
   relationReason: string
 	channel: "enterprise" | "phone"
-	intake: IntakeDraft
   title: string
   description: string
   priority: TicketPriority
@@ -131,7 +127,6 @@ const EMPTY_TICKET_DRAFT: TicketDraft = {
   parentId: 0,
   relationReason: "",
   channel: "enterprise",
-  intake: EMPTY_INTAKE,
   title: "",
   description: "",
   priority: "medium",
@@ -284,7 +279,6 @@ export default function EnterpriseTicketsPage() {
   const [detailError, setDetailError] = useState("")
   const [createOpen, setCreateOpen] = useState(Number(searchParams.get("parent_ticket_id")) > 0)
   const [createSaving, setCreateSaving] = useState(false)
-  const [intakePolicy, setIntakePolicy] = useState<TicketIntakePolicy>({ rules: [] })
   const [createKey, setCreateKey] = useState(() => crypto.randomUUID())
   const [createError, setCreateError] = useState("")
   const [ticketDraft, setTicketDraft] = useState({ ...EMPTY_TICKET_DRAFT, parentId: Math.max(0, Number(searchParams.get("parent_ticket_id")) || 0) })
@@ -429,7 +423,7 @@ export default function EnterpriseTicketsPage() {
         setCustomerOptions(items)
         setTicketDraft((current) => ({
           ...current,
-          customerMode: items.length === 0 && current.channel !== "phone" ? "invite" : current.customerMode,
+          customerMode: items.length === 0 ? "invite" : current.customerMode,
         }))
       } catch (error) {
         if (!cancelled) {
@@ -446,18 +440,6 @@ export default function EnterpriseTicketsPage() {
     }
   }, [createOpen])
 
-  useEffect(() => {
-    if (!createOpen) return
-    let active = true
-    setIntakePolicy({ rules: [] })
-    fetchTicketIntakePolicy().then((result) => {
-      if (!active) return
-      if (result.success && result.data) setIntakePolicy({ rules: result.data.rules ?? [] })
-      else setCreateError(result.error?.message || intakeLabel("loadError"))
-    }).catch(() => { if (active) setCreateError(intakeLabel("loadError")) })
-    return () => { active = false }
-  }, [createOpen])
-
   const submitCreateTicket = useCallback(async () => {
     const title = ticketDraft.title.trim()
     const description = ticketDraft.description.trim()
@@ -465,7 +447,7 @@ export default function EnterpriseTicketsPage() {
       setCreateError(ee("tickets.text076"))
       return
     }
-    if (ticketDraft.channel !== "phone" && ticketDraft.customerMode === "existing" && ticketDraft.customerId <= 0) {
+    if (ticketDraft.customerMode === "existing" && ticketDraft.customerId <= 0) {
       setCreateError(ee("tickets.text084"))
       return
     }
@@ -495,7 +477,6 @@ export default function EnterpriseTicketsPage() {
             source: "manual",
             channel: ticketDraft.channel,
             idempotency_key: createKey,
-            ...phoneIntakePayload(ticketDraft.channel, ticketDraft.intake),
             title,
             description,
             priority: ticketDraft.priority,
@@ -609,8 +590,7 @@ export default function EnterpriseTicketsPage() {
       width: 112,
       render: (_, ticket) => (
         <span className="rhd-railops-ticket-source">
-          {ticket.channel === "phone" ? intakeLabel("phone") : sourceLabel(ticket.source || ticket.channel || "")}
-          {ticket.context_status === "context_incomplete" && <span className="block text-xs text-amber-700">{intakeLabel("incomplete")}</span>}
+          {sourceLabel(ticket.source || ticket.channel || "")}
         </span>
       ),
     },
@@ -668,7 +648,6 @@ export default function EnterpriseTicketsPage() {
       render: (_, ticket) => (
         <div className="rhd-railops-table-cell">
           <strong>{ticketOwner(ticket)}</strong>
-          <span>{caseLabel("owner")}: {ticket.case_owner_name || caseLabel("unowned")}</span>
           <span>{ticket.team_name || ee("tickets.text035")}</span>
         </div>
       ),
@@ -909,12 +888,7 @@ export default function EnterpriseTicketsPage() {
           </div>
         ) : (
           <div className="grid gap-4">
-            <div className="flex items-end gap-2">
-              <div className="min-w-0 flex-1"><SelectField label={intakeLabel("channel")} selectProps={{ value: ticketDraft.channel, options: [{ value: "enterprise", label: intakeLabel("enterprise") }, { value: "phone", label: intakeLabel("phone") }], onChange: (channel) => setTicketDraft((current) => ({ ...current, channel, customerMode: "existing" })) }} /></div>
-              {CanUseButton("ticket.update", session?.permissions) && <IntakePolicyButton onSaved={setIntakePolicy} />}
-            </div>
-            {ticketDraft.channel === "phone" && <IntakeFields value={ticketDraft.intake} onChange={(intake) => setTicketDraft((current) => ({ ...current, intake }))} policy={intakePolicy} customerId={ticketDraft.customerId} showDeviceContext={hasDeviceConcept} />}
-            {ticketDraft.channel !== "phone" && <FormField label={ee("tickets.text078")} required>
+            <FormField label={ee("tickets.text078")} required>
               <Segmented
                 block
                 value={ticketDraft.customerMode}
@@ -927,19 +901,18 @@ export default function EnterpriseTicketsPage() {
                   setTicketDraft((current) => ({ ...current, customerMode: value as TicketCustomerMode }))
                 }}
               />
-            </FormField>}
+            </FormField>
             {ticketDraft.customerMode === "existing" ? (
               <div className="grid gap-2">
                 <SelectField
                   label={ee("tickets.text077")}
-                  required={ticketDraft.channel !== "phone"}
+                  required
                   selectProps={{
-                    allowClear: ticketDraft.channel === "phone",
                     value: ticketDraft.customerId || undefined,
                     loading: customerOptionsLoading,
                     showSearch: true,
                     optionFilterProp: "label",
-                    placeholder: customerOptionsLoading ? ee("tickets.text082") : ticketDraft.channel === "phone" ? intakeLabel("unidentified") : ee("tickets.text081"),
+                    placeholder: customerOptionsLoading ? ee("tickets.text082") : ee("tickets.text081"),
                     onChange: (customerId) => setTicketDraft((current) => ({ ...current, customerId: Number(customerId) || 0 })),
                     options: customerOptions.map((customer) => ({
                       value: customer.customer_id,
@@ -949,7 +922,7 @@ export default function EnterpriseTicketsPage() {
                 />
                 {customerOptionsError ? <span className="text-sm text-destructive">{customerOptionsError}</span> : null}
                 {!customerOptionsLoading && !customerOptionsError && customerOptions.length === 0 ? (
-                  <span className="text-sm text-muted-foreground">{ticketDraft.channel === "phone" ? intakeLabel("unidentified") : ee("tickets.text083")}</span>
+                  <span className="text-sm text-muted-foreground">{ee("tickets.text083")}</span>
                 ) : null}
               </div>
             ) : (
@@ -1079,7 +1052,6 @@ export default function EnterpriseTicketsPage() {
             <div className="flex min-h-80 items-center justify-center rounded-md border border-border bg-card text-sm text-muted-foreground">{ee("tickets.text063")}</div>
           )}
           <div className="rhd-railops-ticket-modal-actions">
-            {detailData && <IntakeCompletion aggregate={detailData} showDeviceContext={hasDeviceConcept} onSaved={(value) => { setDetailData(value); void loadTickets() }} />}
             <RailopsButton onClick={closeTicketModal}>{ee("tickets.text064")}</RailopsButton>
             {detailTicketId ? (
               <Link href={`/enterprise/ticket-workbench?ticket_id=${detailTicketId}`}>

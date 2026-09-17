@@ -146,6 +146,45 @@ function ee(key: string, values?: Record<string, unknown>) {
   )
 }
 
+function formatElapsedClock(seconds: number) {
+  const totalSeconds = Math.max(0, Math.floor(seconds))
+  const totalMinutes = Math.floor(totalSeconds / 60)
+  const days = Math.floor(totalMinutes / 1440)
+  const hours = Math.floor((totalMinutes % 1440) / 60)
+  const minutes = totalMinutes % 60
+  const remainderSeconds = totalSeconds % 60
+  if (days > 0) return `${days}d ${hours}h ${minutes}m ${remainderSeconds}s`
+  if (hours > 0) return `${hours}h ${minutes}m ${remainderSeconds}s`
+  return `${minutes}m ${remainderSeconds}s`
+}
+
+function TicketClockSummary({ clocks }: { clocks: NonNullable<TicketAggregateDTO["clocks"]> }) {
+  return (
+    <section className="space-y-3 rounded-md border border-border bg-card p-3" data-testid="ticket-clocks">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">{ee("ticketWorkbench.text329")}</h3>
+        {clocks.pause_active ? (
+          <StatusTag tone="neutral">{ee("ticketWorkbench.text332")}</StatusTag>
+        ) : null}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <div>
+          <div className="text-xs text-muted-foreground">{ee("ticketWorkbench.text330")}</div>
+          <div className="mt-1 text-lg font-semibold tabular-nums">{formatElapsedClock(clocks.e2e_seconds)}</div>
+        </div>
+        <div>
+          <div className="text-xs text-muted-foreground">{ee("ticketWorkbench.text331")}</div>
+          <div className="mt-1 text-lg font-semibold tabular-nums">{formatElapsedClock(clocks.external_wait_seconds)}</div>
+        </div>
+        <div>
+          <div className="text-xs text-muted-foreground">{ee("ticketWorkbench.text333")}</div>
+          <div className="mt-1 text-lg font-semibold tabular-nums">{formatElapsedClock(clocks.accountable_seconds)}</div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 const CUSTOMER_ENTRY_EVENT_I18N_PREFIX = "customerEntryExtract.event."
 
 function cee(key: string, values?: Record<string, string | number>) {
@@ -3550,7 +3589,10 @@ function WorkbenchContextPane({
         <div className="min-h-full bg-card">
         {contextTab === "summary" ? (
           <>
-        {aggregate ? <div className="p-3"><TicketCaseLifecycle key={aggregate.ticket.id} aggregate={aggregate} onSaved={async (value) => { setAggregate(value); await onTicketUpdated() }} /></div> : null}
+        {aggregate ? <div className="space-y-3 p-3">
+          {aggregate.clocks ? <TicketClockSummary clocks={aggregate.clocks} /> : null}
+          <TicketCaseLifecycle key={aggregate.ticket.id} aggregate={aggregate} onSaved={async (value) => { setAggregate(value); await onTicketUpdated() }} />
+        </div> : null}
         {aggregate ? <div className="p-3"><TicketGovernancePanel key={`governance-${aggregate.ticket.id}`} aggregate={aggregate} onSaved={async (value) => { setAggregate(value); await onTicketUpdated() }} /></div> : null}
         <ContextSection title={ee("ticketWorkbench.text210")}>
           <p className="text-xs leading-5 text-foreground">{hasDeviceConcept ? detail.serviceSummary : item?.title || detail.serviceSummary}</p>

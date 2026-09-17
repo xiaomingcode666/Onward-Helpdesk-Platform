@@ -648,3 +648,37 @@ func TestSpeechConfigTranscriptionEnabled(t *testing.T) {
 		t.Fatalf("Validate() error = %v, want mock segment duration validation", err)
 	}
 }
+
+func TestServerTimezoneDefaultsAndEnvironmentOverride(t *testing.T) {
+	if got := (ServerConfig{}).TimezoneOrDefault(); got != DefaultServerTimezone {
+		t.Fatalf("TimezoneOrDefault() = %q, want %q", got, DefaultServerTimezone)
+	}
+	if got := (ServerConfig{Timezone: "  "}).TimezoneOrDefault(); got != DefaultServerTimezone {
+		t.Fatalf("blank timezone = %q, want %q", got, DefaultServerTimezone)
+	}
+	if got := (ServerConfig{Timezone: " UTC "}).TimezoneOrDefault(); got != "UTC" {
+		t.Fatalf("trimmed timezone = %q, want UTC", got)
+	}
+
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	content := []byte("db:\n  type: sqlite\n  dsn: file:./data/app.db?_busy_timeout=5000\n")
+	if err := os.WriteFile(path, content, 0600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got := cfg.Server.TimezoneOrDefault(); got != DefaultServerTimezone {
+		t.Fatalf("unset config timezone = %q, want %q", got, DefaultServerTimezone)
+	}
+
+	t.Setenv("RHD_SERVER_TIMEZONE", "America/New_York")
+	cfg, err = Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got := cfg.Server.TimezoneOrDefault(); got != "America/New_York" {
+		t.Fatalf("environment timezone = %q, want America/New_York", got)
+	}
+}

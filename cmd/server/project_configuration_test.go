@@ -29,7 +29,7 @@ func TestInitializeProjectConfigurationIsScopedAndNonDestructive(t *testing.T) {
 	if err := os.WriteFile(configPath, []byte(settings), 0600); err != nil {
 		t.Fatal(err)
 	}
-	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 1, Environment: "production", Projects: []projectconfig.Project{}, Intake: projectconfig.IntakePolicy{Rules: []projectconfig.Rule{}}, SecretRefs: []string{}}
+	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 1, Environment: "production", Projects: []projectconfig.Project{}, SecretRefs: []string{}}
 	writeInput := func() {
 		b, _ := json.Marshal(doc)
 		if err := os.WriteFile(inputPath, b, 0600); err != nil {

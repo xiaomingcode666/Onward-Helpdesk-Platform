@@ -1,16 +1,23 @@
 import { expect, test } from "@playwright/test"
 import type { ProjectConfiguration } from "../lib/api/project-configuration"
-import { editableProjectConfiguration, replaceProjectRuntime, restoreProjectConfiguration } from "../lib/project-configuration-editing"
+import { editableProjectConfiguration, replaceProjectRuntime, restoreProjectConfiguration, serviceSLADefaults } from "../lib/project-configuration-editing"
 import runtimeExample from "../../config/project-configuration.runtime.example.json"
 
 test.use({ video: "off" })
+
+test("service profile selection provides the default SLA times", () => {
+  expect(serviceSLADefaults("standard")).toEqual({ response_minutes: 15, assignment_minutes: 15, resolution_minutes: 480 })
+  expect(serviceSLADefaults("enhanced")).toEqual({ response_minutes: 5, assignment_minutes: 5, resolution_minutes: 240 })
+  expect(serviceSLADefaults("mission_critical")).toEqual({ response_minutes: 1, assignment_minutes: 1, resolution_minutes: 60 })
+  expect(serviceSLADefaults("unknown")).toEqual(serviceSLADefaults("standard"))
+})
 
 test("configuration editing preserves immutable history and only carries runtime dependencies", () => {
   const current = structuredClone(runtimeExample) as ProjectConfiguration
   current.runtime!.mail.password_ref = "secret://config-shared"
   current.runtime!.integrations = [{ provider: "example", enabled: false, base_url: "", app_id: "", secret_ref: "secret://config-shared", key_ref: "secret://config-app-key", metadata_json: "{}" }]
   current.secret_refs = ["secret://config-shared", "secret://config-app-key", "secret://unavailable-unused"]
-  const historical: ProjectConfiguration = { schema_version: 1, tenant_id: current.tenant_id, environment: current.environment, projects: [{ key: "support", name: "Original" }], intake: { rules: [] }, secret_refs: ["secret://historical-only"] }
+  const historical: ProjectConfiguration = { schema_version: 1, tenant_id: current.tenant_id, environment: current.environment, projects: [{ key: "support", name: "Original" }], secret_refs: ["secret://historical-only"] }
   const original = structuredClone(historical)
   const restored = restoreProjectConfiguration(historical, current)
   expect(restored.secret_refs).toEqual(["secret://historical-only", "secret://config-shared", "secret://config-app-key"])
@@ -24,8 +31,8 @@ test("configuration editing preserves immutable history and only carries runtime
   runtimeHistory.runtime!.mail.password_ref = "secret://old-mail"
   runtimeHistory.secret_refs = ["secret://old-mail", "secret://config-shared", "secret://config-app-key"]
   expect(restoreProjectConfiguration(runtimeHistory, current)).toEqual(runtimeHistory)
-  const legacy = { ...historical, projects: null, intake: { rules: null }, secret_refs: null } as unknown as ProjectConfiguration
-  expect(editableProjectConfiguration(legacy)).toMatchObject({ projects: [], intake: { rules: [] }, secret_refs: [] })
+  const legacy = { ...historical, projects: null, secret_refs: null } as unknown as ProjectConfiguration
+  expect(editableProjectConfiguration(legacy)).toMatchObject({ projects: [], secret_refs: [] })
   expect(legacy.projects).toBeNull()
 
   const changed = replaceProjectRuntime(current, { ...current.runtime!, mail: { ...current.runtime!.mail, password_ref: "secret://config-mail" } })
@@ -74,10 +81,10 @@ test("configuration drafts, validation, activation and restore use real handlers
         if (unrelatedRuntimeReference) result.data.document.secret_refs.push("secret://unavailable-unused")
         if (legacyDrafts) result.data.versions.unshift({
           id: 999999, base_version_id: 0, digest: "legacy-test", note: "旧版空字段草稿", created_by: 9001, created_at: new Date().toISOString(),
-          document: { schema_version: 1, tenant_id: 8001, environment: "development", projects: null, intake: { rules: [{ project_key: "", ticket_type: "", channel: "phone", required_fields: null }] }, secret_refs: null },
+          document: { schema_version: 1, tenant_id: 8001, environment: "development", projects: null, secret_refs: null },
         }, {
           id: 999998, base_version_id: 0, digest: "legacy-empty-test", note: "旧版空规则草稿", created_by: 9001, created_at: new Date().toISOString(),
-          document: { schema_version: 1, tenant_id: 8001, environment: "development", projects: null, intake: { rules: null }, secret_refs: null },
+          document: { schema_version: 1, tenant_id: 8001, environment: "development", projects: null, secret_refs: null },
         })
         await route.fulfill({ json: result }); return
       }

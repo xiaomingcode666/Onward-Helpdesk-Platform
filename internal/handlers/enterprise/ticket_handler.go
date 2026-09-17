@@ -316,7 +316,6 @@ func TicketCreate(ctx *gin.Context) {
 		"source":           item.Source,
 		"channel":          item.Channel,
 		"source_record_id": item.SourceRecordID,
-		"context_status":   item.ContextStatus,
 		"status":           item.Status,
 	})
 	writeEnterpriseTicketListItem(ctx, item.ID)

@@ -105,15 +105,12 @@ export interface UpdateProductPayload {
 
 export interface TicketIntakeDTO {
   source_record_id?: string
-	intake_config_version_id?: number
 	project_config_version_id?: number
   project_key?: string
   ticket_type?: string
   caller_name?: string
   caller_phone?: string
   received_at?: string
-  context_status?: string
-  missing_context?: string[]
 }
 
 export type TicketCaseStatus = "new" | "acknowledged" | "in_triage" | "assigned" | "waiting" | "restored" | "resolved" | "closure_pending" | "closed" | "cancelled"
@@ -131,21 +128,18 @@ export interface TicketCaseSummaryDTO {
   restored_at?: string
 }
 
-export type TicketLifecycleAction = "acknowledge" | "triage" | "wait" | "resume" | "restore" | "resolve" | "request_closure" | "close" | "cancel" | "reopen"
+export type TicketLifecycleAction = "triage" | "wait" | "resume" | "restore" | "resolve" | "request_closure" | "close" | "cancel" | "reopen"
 
 export interface TicketCaseLifecycleDTO {
-  workflow_version_id?: number
-  workflow_error?: string
-  status: TicketCaseStatus
-  revision: number
-  owner_id: number
-  owner_name: string
-  acknowledged_at?: string
-  restored_at?: string
-  waiting_reason?: string
-  allowed_actions: string[]
-  can_transfer_owner: boolean
-  legacy_record: boolean
+	workflow_version_id?: number
+	workflow_error?: string
+	status: TicketCaseStatus
+	revision: number
+	acknowledged_at?: string
+	restored_at?: string
+	waiting_reason?: string
+	allowed_actions: string[]
+	legacy_record: boolean
 }
 
 export interface TicketListItem extends TicketIntakeDTO, TicketCaseSummaryDTO {
@@ -363,9 +357,21 @@ export interface TicketActionPermissionsDTO {
   can_create_knowledge_candidate: boolean
 }
 
+export interface TicketClockDTO {
+  e2e_start_at: string
+  e2e_end_at: string
+  e2e_seconds: number
+  paused_seconds: number
+  accountable_seconds: number
+  external_wait_seconds: number
+  pause_active: boolean
+  pause_reason?: string
+}
+
 export interface TicketAggregateDTO {
   ticket: TicketHeaderDTO
   case_lifecycle?: TicketCaseLifecycleDTO
+  clocks?: TicketClockDTO
   customer: CustomerSummaryDTO
   device_context: DeviceContextSnapshotDTO
   conversation_snapshot?: ConversationSnapshotDTO

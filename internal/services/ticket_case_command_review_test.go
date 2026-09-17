@@ -16,7 +16,6 @@ func TestTicketCaseTerminalCommandsRejectStaleWritesAndReplayOriginalResult(t *t
 	for _, action := range []string{"close", "cancel", "reopen"} {
 		t.Run(action, func(t *testing.T) {
 			db, op, ticket := setupCaseLifecycle(t)
-			runCaseAction(t, db, ticket.ID, "acknowledge", "受理", op)
 			runCaseAction(t, db, ticket.ID, "triage", "", op)
 			if action == "cancel" {
 				runCaseAction(t, db, ticket.ID, "wait", "等待客户确认", op)
@@ -44,9 +43,8 @@ func TestTicketCaseTerminalCommandsRejectStaleWritesAndReplayOriginalResult(t *t
 				runCaseAction(t, db, ticket.ID, "resolve", "再次修复并验证", op)
 			case "cancel":
 				next, _, _ := seedCaseOwnerMember(t, db, ticket.TenantID, "replacement", constants.PermissionTicketChangeStatus.Code)
-				if err := TicketCaseOwnerService.TransferWithKey(ticket.ID, op.UserID, next.ID, "客服换班", "after-cancellation", op); err != nil {
-					t.Fatal(err)
-				}
+				current := repositories.TicketRepository.Get(db, ticket.ID)
+				moveCaseToEngineer(t, db, *current, next.ID, "转派给下一位工程师")
 			case "reopen":
 				runCaseAction(t, db, ticket.ID, "resolve", "重新验证完成", op)
 				runCaseAction(t, db, ticket.ID, "close", "客户确认", op)
@@ -83,7 +81,7 @@ func TestTicketCaseTerminalCommandsRejectStaleWritesAndReplayOriginalResult(t *t
 
 func TestTicketCaseTerminalReceiptFailureRollsBackCancellation(t *testing.T) {
 	db, op, ticket := setupCaseLifecycle(t)
-	runCaseAction(t, db, ticket.ID, "acknowledge", "受理", op)
+	runCaseAction(t, db, ticket.ID, "triage", "", op)
 	before := runCaseAction(t, db, ticket.ID, "wait", "等待资料", op)
 	if err := db.Callback().Create().Before("gorm:create").Register("fail_terminal_receipt", func(tx *gorm.DB) {
 		if tx.Statement.Schema != nil && tx.Statement.Schema.Name == "TicketCaseOperation" {
@@ -106,7 +104,7 @@ func TestTicketCaseWaitingAndTriagePreserveActiveTechnicalWork(t *testing.T) {
 	for _, status := range []enums.TicketStatus{enums.TicketStatusVideoSupport, enums.TicketStatusSupplierSupport} {
 		t.Run(string(status), func(t *testing.T) {
 			db, op, ticket := setupCaseLifecycle(t)
-			runCaseAction(t, db, ticket.ID, "acknowledge", "受理", op)
+			runCaseAction(t, db, ticket.ID, "triage", "", op)
 			now := time.Now()
 			if err := repositories.TicketRepository.Updates(db, ticket.ID, map[string]any{"status": status, "current_assignee_id": op.UserID, "accepted_at": now}); err != nil {
 				t.Fatal(err)

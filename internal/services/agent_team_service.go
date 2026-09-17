@@ -2,6 +2,7 @@ package services
 
 import (
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -155,16 +156,31 @@ func (s *agentTeamService) updateSystemManagedAgentTeam(current *models.AgentTea
 		"update_user_name": operator.Username,
 		"updated_at":       now,
 	}
-	if current.TeamType != AgentTeamTypeProductRepair || current.ProductID <= 0 || req.LeaderUserID <= 0 {
+	if req.LeaderUserID <= 0 ||
+		(current.TeamType != AgentTeamTypeTechnicalRepair && current.TeamType != AgentTeamTypeProductRepair) ||
+		(current.TeamType == AgentTeamTypeProductRepair && current.ProductID <= 0) {
 		return repositories.AgentTeamRepository.Updates(sqls.DB(), current.ID, updates)
 	}
 	member := repositories.EnterpriseIAMRepository.FindTenantMemberByUserID(sqls.DB(), current.TenantID, req.LeaderUserID)
 	if member == nil || member.Status != enums.StatusOk {
-		return errorsx.InvalidParam("product supervisor must be an active enterprise member")
+		return errorsx.InvalidParam("team supervisor must be an active enterprise member")
 	}
 	user := repositories.UserRepository.Get(sqls.DB(), req.LeaderUserID)
 	if user == nil || user.Status != enums.StatusOk {
-		return errorsx.InvalidParam("product supervisor user is not active")
+		return errorsx.InvalidParam("team supervisor user is not active")
+	}
+	roleCodes, err := EnterpriseIAMService.roleCodesForSubjectDB(
+		sqls.DB(),
+		current.TenantID,
+		models.DomainTypeEnterprise,
+		models.SubjectTypeTenantMember,
+		member.ID,
+	)
+	if err != nil {
+		return err
+	}
+	if !slices.Contains(roleCodes, EnterpriseRoleServiceManager) {
+		return errorsx.InvalidParam("team supervisor must have service manager role")
 	}
 	updates["leader_user_id"] = req.LeaderUserID
 	return sqls.WithTransaction(func(ctx *sqls.TxContext) error {
@@ -184,6 +200,9 @@ func (s *agentTeamService) updateSystemManagedAgentTeam(current *models.AgentTea
 		}
 		if err := repositories.AgentTeamRepository.Updates(ctx.Tx, current.ID, updates); err != nil {
 			return err
+		}
+		if current.TeamType != AgentTeamTypeProductRepair {
+			return nil
 		}
 		return repositories.ProductRepository.UpdatesByTenant(ctx.Tx, current.ProductID, current.TenantID, map[string]any{
 			"owner_member_id":  member.ID,

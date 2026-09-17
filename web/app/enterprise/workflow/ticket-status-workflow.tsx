@@ -112,7 +112,7 @@ export function TicketStatusWorkflowCard() {
     {notice && <p role="status" className="text-sm text-emerald-700">{notice}</p>}
     {!view ? <RailopsButton disabled={busy} onClick={() => void load()}>重新加载流程</RailopsButton> : <>
       <p className="text-sm text-muted-foreground">{view.active_version_id ? `当前配置版本 #${view.active_version_id}` : "当前使用系统默认规则"}。修改发布后只影响新工单；项目未单独设置时使用公司默认流程。</p>
-      <p className="text-xs text-muted-foreground">分配工程师后自动进入“已分配”；等待结束时回到等待前的状态；重新打开回到“分析中”。必要步骤已锁定，权限、客服负责人和处理说明仍需满足。</p>
+      <p className="text-xs text-muted-foreground">分配工程师后自动进入“已分配”；等待结束时回到等待前的状态；重新打开回到“分析中”。必要步骤已锁定，权限和处理说明仍需满足。</p>
       <p className="text-xs text-muted-foreground">设备工单通过处理记录确认解决。这里设置允许的流转范围，工单详情只显示当前能执行的操作。</p>
       {workflow && <TicketWorkflowCanvas key={project} states={view.states} workflow={workflow}
         allowed={view.allowed} required={view.required} editing={editing} busy={busy}

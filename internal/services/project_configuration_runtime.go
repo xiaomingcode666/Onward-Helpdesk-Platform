@@ -18,6 +18,7 @@ import (
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/projectconfig"
+	"remotehelpdesk/internal/pkg/ticketpolicy"
 )
 
 func RequireProjectRuntimeOperator(op *dto.AuthPrincipal) error {
@@ -51,6 +52,9 @@ func projectRuntimeDB(db *gorm.DB, tenantID int64, versionID int64) (*projectcon
 	p, err := decodeProjectVersion(v)
 	if err != nil {
 		return nil, 0, err
+	}
+	if p.Document.Runtime != nil {
+		p.Document.Runtime.ProjectProfiles = projectconfig.BuildProjectProfiles(p.Document.Projects)
 	}
 	return p.Document.Runtime, versionID, nil
 }
@@ -168,15 +172,16 @@ func UpgradeProjectConfiguration(tenantID int64) (*projectconfig.Document, error
 			if calendar == "" {
 				calendar = defaultKey
 			}
-			r.Targets = append(r.Targets, projectconfig.Target{ProjectKey: "*", Profile: "standard", Priority: p.Priority, CalendarKey: calendar, ResponseMinutes: p.FRTMinutes, AssignmentMinutes: p.AssignmentMinutes, ResolutionMinutes: p.ResolutionMinutes})
+			// 旧策略是按优先级存的，落到新的档次模型：p0/p1 视为关键服务、
+			// p2 视为增强、其余视为标准；同一档次取更紧的一组时限。
+			r.Targets = mergeTargetByProfile(r.Targets, projectconfig.Target{
+				ProjectKey: "*", Profile: legacyPriorityProfile(p.Priority), CalendarKey: calendar,
+				ResponseMinutes: p.FRTMinutes, AssignmentMinutes: p.AssignmentMinutes, ResolutionMinutes: p.ResolutionMinutes,
+			})
 		}
 	}
 	for _, name := range []string{"manual", "phone", "email", "monitoring_alert", "api", "webhook", "whatsapp", "chatbot_handoff"} {
-		enabled := name == "manual"
-		for _, rule := range doc.Intake.Rules {
-			enabled = enabled || rule.Channel == name
-		}
-		r.Channels = append(r.Channels, projectconfig.Channel{Name: name, Enabled: enabled})
+		r.Channels = append(r.Channels, projectconfig.Channel{Name: name, Enabled: name == "manual"})
 	}
 	mcfg := config.CurrentOrDefault().Email
 	r.Mail = projectconfig.Mail{Enabled: mcfg.SMTPHost != "", Host: mcfg.SMTPHost, Port: mcfg.SMTPPort, Username: mcfg.Username, FromAddress: mcfg.FromAddress, FromName: mcfg.FromName, UseTLS: mcfg.UseTLS, RetryPolicy: "retry_3_10m"}
@@ -308,7 +313,7 @@ func applyProjectRuntimeDB(db *gorm.DB, doc projectconfig.Document, op *dto.Auth
 		calendarIDs[c.Key] = row.ID
 	}
 	for _, target := range r.Targets {
-		p := SLAPolicy{ID: uuid.NewString(), TenantID: formatID(doc.TenantID), Name: target.ProjectKey + " / " + target.Profile, Priority: target.Priority, FRTMinutes: target.ResponseMinutes, AssignmentMinutes: target.AssignmentMinutes, ResolutionMinutes: target.ResolutionMinutes, Status: "active", CreatedAt: time.Now(), UpdatedAt: time.Now()}
+		p := SLAPolicy{ID: uuid.NewString(), TenantID: formatID(doc.TenantID), Name: serviceProfileLabel(target.Profile), Priority: legacyPriorityCodeForProfile(target.Profile), FRTMinutes: target.ResponseMinutes, AssignmentMinutes: target.AssignmentMinutes, ResolutionMinutes: target.ResolutionMinutes, Status: "active", CreatedAt: time.Now(), UpdatedAt: time.Now()}
 		p.CalendarID = calendarIDs[target.CalendarKey]
 		if err := db.Create(&p).Error; err != nil {
 			return err
@@ -392,29 +397,121 @@ func prepareProjectRuntimeTicketDB(db *gorm.DB, ticket *models.Ticket) error {
 	if ticket.CreatedAt.IsZero() {
 		ticket.CreatedAt = time.Now()
 	}
-	if target, calendar, ok := projectTicketTarget(r, ticket.ProjectKey, ticketSLAPriority(*ticket)); ok && target.ResolutionMinutes > 0 {
+	if target, calendar, ok := projectTicketTarget(r, ticket.ProjectKey); ok && target.ResolutionMinutes > 0 {
 		deadline := calendar.AddMinutes(ticket.CreatedAt, target.ResolutionMinutes)
 		ticket.SLADueAt = &deadline
 	}
 	return nil
 }
 
-func projectTicketTarget(r *projectconfig.Runtime, project, priority string) (projectconfig.Target, projectconfig.Calendar, bool) {
-	var target *projectconfig.Target
+// projectTicketTarget 按工单所属服务项目的服务档次挑选时限规则。
+// 项目未声明档次、或该档次没有配置时，回退标准档，保证老配置仍然生效。
+func projectTicketTarget(r *projectconfig.Runtime, project string) (projectconfig.Target, projectconfig.Calendar, bool) {
+	if r == nil {
+		return projectconfig.Target{}, projectconfig.Calendar{}, false
+	}
+	return projectTargetForProfile(r, r.ProjectProfile(project))
+}
+
+func projectTargetForProfile(r *projectconfig.Runtime, profile string) (projectconfig.Target, projectconfig.Calendar, bool) {
+	if r == nil {
+		return projectconfig.Target{}, projectconfig.Calendar{}, false
+	}
+	wanted := projectconfig.NormalizeServiceProfile(profile)
+	var fallback *projectconfig.Target
 	for i := range r.Targets {
-		t := &r.Targets[i]
-		if t.Priority == priority && (t.ProjectKey == project || (target == nil && t.ProjectKey == "*")) {
-			target = t
+		candidate := &r.Targets[i]
+		candidateProfile := projectconfig.NormalizeServiceProfile(candidate.Profile)
+		if candidateProfile == wanted {
+			if target, calendar, ok := targetWithCalendar(r, candidate); ok {
+				return target, calendar, true
+			}
+			continue
+		}
+		if candidateProfile == projectconfig.DefaultServiceProfile && fallback == nil {
+			fallback = candidate
 		}
 	}
-	if target != nil {
-		for _, c := range r.Calendars {
-			if c.Key == target.CalendarKey {
-				return *target, c, true
-			}
+	if fallback != nil {
+		if target, calendar, ok := targetWithCalendar(r, fallback); ok {
+			return target, calendar, true
 		}
 	}
 	return projectconfig.Target{}, projectconfig.Calendar{}, false
+}
+
+func targetWithCalendar(r *projectconfig.Runtime, target *projectconfig.Target) (projectconfig.Target, projectconfig.Calendar, bool) {
+	for _, c := range r.Calendars {
+		if c.Key == target.CalendarKey {
+			return *target, c, true
+		}
+	}
+	return projectconfig.Target{}, projectconfig.Calendar{}, false
+}
+
+// legacyPriorityProfile 把旧 SLA 策略的优先级折算成服务档次。
+// 旧表存的是兼容键 p0-p4，比业务优先级 P1-P4 整体低一档（ticketpolicy.LegacyCode），
+// 折算规则：业务 P1/P2 → 关键服务，P3 → 增强，P4 → 标准。
+func legacyPriorityProfile(priority string) string {
+	switch ticketpolicy.FromLegacy(strings.ToLower(strings.TrimSpace(priority))) {
+	case "p1", "p2":
+		return "mission_critical"
+	case "p3":
+		return "enhanced"
+	default:
+		return projectconfig.DefaultServiceProfile
+	}
+}
+
+// legacyPriorityCodeForProfile 把服务档次折回旧表的兼容优先级键，供旧界面展示。
+func legacyPriorityCodeForProfile(profile string) string {
+	switch projectconfig.NormalizeServiceProfile(profile) {
+	case "mission_critical":
+		return ticketpolicy.LegacyCode("p1")
+	case "enhanced":
+		return ticketpolicy.LegacyCode("p3")
+	default:
+		return ticketpolicy.LegacyCode("p4")
+	}
+}
+
+func serviceProfileLabel(profile string) string {
+	switch projectconfig.NormalizeServiceProfile(profile) {
+	case "mission_critical":
+		return "关键服务"
+	case "enhanced":
+		return "增强"
+	default:
+		return "标准"
+	}
+}
+
+// mergeTargetByProfile 按档次合并：同一档次只保留一组时限，取更紧的那个值。
+func mergeTargetByProfile(targets []projectconfig.Target, candidate projectconfig.Target) []projectconfig.Target {
+	profile := projectconfig.NormalizeServiceProfile(candidate.Profile)
+	for i := range targets {
+		if projectconfig.NormalizeServiceProfile(targets[i].Profile) != profile {
+			continue
+		}
+		targets[i].ResponseMinutes = tighterMinutes(targets[i].ResponseMinutes, candidate.ResponseMinutes)
+		targets[i].AssignmentMinutes = tighterMinutes(targets[i].AssignmentMinutes, candidate.AssignmentMinutes)
+		targets[i].ResolutionMinutes = tighterMinutes(targets[i].ResolutionMinutes, candidate.ResolutionMinutes)
+		return targets
+	}
+	return append(targets, candidate)
+}
+
+func tighterMinutes(current, candidate int) int {
+	switch {
+	case candidate <= 0:
+		return current
+	case current <= 0:
+		return candidate
+	case candidate < current:
+		return candidate
+	default:
+		return current
+	}
 }
 
 // A global cleanup must never override a managed company's retention or hold.

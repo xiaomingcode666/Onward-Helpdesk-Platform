@@ -545,6 +545,9 @@ func (s *ticketSupplierCollaborationService) Invite(ticketID int64, req dto.Tick
 			if err := s.ensureSupplierCollaborationParticipantTx(tx, existing, existingAccount, SupplierParticipantRoleOwner, now, operator); err != nil {
 				return err
 			}
+			if err := TicketClockService.OpenSupplierWaitTx(tx, lockedTicket.ID, existing.ID, now, operator); err != nil {
+				return err
+			}
 			return s.ensurePartnerConversationParticipantTx(tx, lockedTicket.ConversationID, existingAccount.UserID, existingAccount.ID, now, operator)
 		}
 		if err := repositories.TicketSupplierCollaborationRepository.Create(tx, item); err != nil {
@@ -577,6 +580,9 @@ func (s *ticketSupplierCollaborationService) Invite(ticketID int64, req dto.Tick
 			ticketUpdates["product_module_id"] = moduleID
 		}
 		if err := repositories.TicketRepository.Updates(tx, ticket.ID, ticketUpdates); err != nil {
+			return err
+		}
+		if err := TicketClockService.OpenSupplierWaitTx(tx, ticket.ID, item.ID, now, operator); err != nil {
 			return err
 		}
 		progressContent := "升级供应商协作：" + company.Name
@@ -758,6 +764,9 @@ func (s *ticketSupplierCollaborationService) expireSupplierAuthorization(id int6
 			"update_user_id":   operator.UserID,
 			"update_user_name": operator.Username,
 		}); err != nil {
+			return err
+		}
+		if err := TicketClockService.CloseSupplierWaitTx(tx, locked.TicketID, locked.ID, now, operator); err != nil {
 			return err
 		}
 		participants := repositories.TicketSupplierCollaborationRepository.FindParticipants(tx, locked.TenantID, locked.ID)
@@ -1017,6 +1026,9 @@ func (s *ticketSupplierCollaborationService) timeoutSupplierInvitation(id int64,
 			"update_user_id":   operator.UserID,
 			"update_user_name": operator.Username,
 		}); err != nil {
+			return err
+		}
+		if err := TicketClockService.CloseSupplierWaitTx(tx, locked.TicketID, locked.ID, now, operator); err != nil {
 			return err
 		}
 		participants := repositories.TicketSupplierCollaborationRepository.FindParticipants(tx, locked.TenantID, locked.ID)
@@ -1415,6 +1427,9 @@ func (s *ticketSupplierCollaborationService) Resolve(id int64, resolution string
 			"update_user_id":   operator.UserID,
 			"update_user_name": operator.Username,
 		}); err != nil {
+			return err
+		}
+		if err := TicketClockService.CloseSupplierWaitTx(tx, locked.TicketID, locked.ID, now, operator); err != nil {
 			return err
 		}
 		locked.Status = SupplierCollaborationResolved

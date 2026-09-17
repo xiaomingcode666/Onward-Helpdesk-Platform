@@ -24,6 +24,10 @@ func duplicateFixture(t *testing.T) (*gorm.DB, *dto.AuthPrincipal, models.Ticket
 	main.TicketNo = "MAIN-" + t.Name()
 	main.PriorityLevel = "p2"
 	main.Description = "第一次报障原文"
+	main.CurrentAssigneeID = 0
+	main.CaseOwnerID = 0
+	main.AcknowledgedAt = nil
+	main.AcceptedAt = nil
 	deadline := time.Now().Add(time.Hour)
 	main.SLADueAt = &deadline
 	if err := db.Create(&main).Error; err != nil {

@@ -24,7 +24,7 @@ func TestDeploymentIdentityActivationRestartAndMissingMarkers(t *testing.T) {
 	db := setupSLATenantTestDB(t)
 	require.NoError(t, db.AutoMigrate(&models.Tenant{}, &models.ProjectConfigurationState{}, &models.ProjectConfigurationVersion{}, &models.ProjectConfigurationActivation{}, &deploymentidentity.Record{}))
 	require.NoError(t, db.Create(&models.Tenant{ID: 1, Name: "Synthetic staging"}).Error)
-	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 1, Environment: "staging", Projects: []projectconfig.Project{}, Intake: projectconfig.IntakePolicy{Rules: []projectconfig.Rule{}}, SecretRefs: []string{}}
+	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 1, Environment: "staging", Projects: []projectconfig.Project{}, SecretRefs: []string{}}
 	op := &dto.AuthPrincipal{TenantID: 1, Username: "fixture", Permissions: []string{constants.PermissionTicketUpdate.Code}}
 	draft, err := SaveProjectConfigurationDraft(1, ProjectConfigDraft{Document: doc, RequestKey: "initial-instance", Note: "synthetic"}, op)
 	require.NoError(t, err)
@@ -88,7 +88,7 @@ func TestDeploymentIdentityInitialCompanyAndConfigurationAreAtomic(t *testing.T)
 	t.Setenv("RHD_PROJECT_SECRET_DIR", "")
 	db := setupSLATenantTestDB(t)
 	require.NoError(t, db.AutoMigrate(&models.Tenant{}, &models.ProjectConfigurationState{}, &models.ProjectConfigurationVersion{}, &models.ProjectConfigurationActivation{}, &deploymentidentity.Record{}))
-	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 27, Environment: "production", Projects: []projectconfig.Project{}, Intake: projectconfig.IntakePolicy{Rules: []projectconfig.Rule{}}, SecretRefs: []string{}}
+	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 27, Environment: "production", Projects: []projectconfig.Project{}, SecretRefs: []string{}}
 	require.NoError(t, db.AutoMigrate(models.Models...))
 	options := ProjectDeploymentInitialization{TenantName: "Acme fixture", Administrator: ProjectDeploymentAdministrator{Username: "atomic.admin", Password: "Atomic-admin-fixture-2026!"}}
 	_, err := InitializeProjectConfigurationDocument(doc, "")
@@ -129,7 +129,7 @@ func TestDeploymentIdentityCannotAdoptLegacyOtherEnvironmentOrCompany(t *testing
 	db := setupSLATenantTestDB(t)
 	require.NoError(t, db.AutoMigrate(&models.Tenant{}, &models.ProjectConfigurationState{}, &models.ProjectConfigurationVersion{}, &models.ProjectConfigurationActivation{}))
 	require.NoError(t, db.AutoMigrate(models.Models...))
-	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 27, Environment: "production", Projects: []projectconfig.Project{}, Intake: projectconfig.IntakePolicy{Rules: []projectconfig.Rule{}}, SecretRefs: []string{}}
+	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 27, Environment: "production", Projects: []projectconfig.Project{}, SecretRefs: []string{}}
 	legacy, err := InitializeProjectConfigurationDocumentWithOptions(doc, ProjectDeploymentInitialization{TenantName: "Legacy production fixture", Administrator: ProjectDeploymentAdministrator{Username: "legacy.admin", Password: "Legacy-admin-fixture-2026!"}})
 	require.NoError(t, err)
 	// Reproduce upgrading a pre-FND-003 database: no identity table exists yet.

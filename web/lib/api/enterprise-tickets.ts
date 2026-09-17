@@ -24,20 +24,6 @@ import type {
   TicketLifecycleAction,
 } from "@/lib/api/types"
 import type { EnterpriseCustomerInviteResult } from "@/lib/api/platform-iam"
-import type { TicketIntakePolicy, IntakeDraft } from "@/lib/ticket-intake"
-
-export function fetchTicketIntakePolicy(ticketId?: number) {
-  return apiGet<TicketIntakePolicy>("/ticket-settings/intake", ticketId ? { ticket_id: ticketId } : undefined)
-}
-
-export function updateTicketIntakePolicy(policy: TicketIntakePolicy) {
-  return apiPut<TicketIntakePolicy>("/ticket-settings/intake", policy)
-}
-
-export function completeTicketIntake(id: number, input: IntakeDraft, customerId: number) {
-  const { project_key, ticket_type, caller_name, caller_phone, product_id, device_id, service_region } = input
-  return apiPatch<TicketAggregateDTO>(`/tickets/${id}/intake`, { project_key, ticket_type, caller_name, caller_phone, product_id, device_id, service_region, customer_id: customerId })
-}
 
 export interface TicketListQuery extends ListQuery {
   status?: string
@@ -227,16 +213,8 @@ export interface TicketCaseCommandResult {
   revision: number
 }
 
-export function advanceTicketLifecycle(id: number, payload: { action: TicketLifecycleAction; reason: string; expected_status: string; expected_revision: number; idempotency_key: string; owner_id?: number }) {
+export function advanceTicketLifecycle(id: number, payload: { action: TicketLifecycleAction; reason: string; expected_status: string; expected_revision: number; idempotency_key: string }) {
   return apiPost<TicketCaseCommandResult>(`/tickets/${id}/lifecycle`, payload)
-}
-
-export function transferTicketCaseOwner(id: number, payload: { owner_id: number; reason: string; expected_owner_id: number; idempotency_key: string }) {
-  return apiPost<TicketCaseCommandResult>(`/tickets/${id}/case-owner`, payload)
-}
-
-export function fetchTicketCaseOwnerOptions(id: number) {
-  return apiGet<Array<{ id: number; name: string }>>(`/tickets/${id}/case-owner-options`)
 }
 
 export async function createTicket(payload: CreateTicketPayload): Promise<ApiResponse<TicketListItem>> {

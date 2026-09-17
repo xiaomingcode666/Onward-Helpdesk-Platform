@@ -398,7 +398,8 @@ func (s *slaService) CalculateSLADeadline(tenantID, priority string, startTime t
 		return result
 	}
 	if r != nil {
-		if t, c, ok := projectTicketTarget(r, "*", priority); ok {
+		// 运营配置按服务档次计时限，这里没有工单上下文，取默认（标准）档预览。
+		if t, c, ok := projectTicketTarget(r, ""); ok {
 			for name, minutes := range map[string]int{"frt": t.ResponseMinutes, "assignment": t.AssignmentMinutes, "resolution": t.ResolutionMinutes} {
 				if minutes > 0 {
 					result[name] = c.AddMinutes(startTime, minutes)

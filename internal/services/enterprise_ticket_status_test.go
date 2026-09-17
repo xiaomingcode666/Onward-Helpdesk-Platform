@@ -8,6 +8,7 @@ import (
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/repositories"
 
 	"github.com/mlogclub/simple/sqls"
 )
@@ -35,6 +36,41 @@ func TestEnterpriseStatusFilterCoversAfterSalesLifecycleGroups(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestEnterpriseTicketSLARiskUsesPausedAccountableClock(t *testing.T) {
+	db := setupHumanDispatchRealtimeTestDB(t)
+	now := time.Now()
+	dueAt := now.Add(time.Hour)
+	pausedAt := now.Add(-time.Hour)
+	rows := []models.Ticket{
+		{
+			TicketNo: "RISK-PAUSED-30M", TenantID: 1, Status: enums.TicketStatusSupplierSupport,
+			CaseStatus: "assigned", SLADueAt: &dueAt,
+			DaypopClockPausedAt: &pausedAt, DaypopClockPausedRemainingSeconds: int64(30 * time.Minute / time.Second),
+			AuditFields: models.AuditFields{CreatedAt: now.Add(-2 * time.Hour), UpdatedAt: now},
+		},
+		{
+			TicketNo: "RISK-PAUSED-3H", TenantID: 1, Status: enums.TicketStatusSupplierSupport,
+			CaseStatus: "assigned", SLADueAt: &dueAt,
+			DaypopClockPausedAt: &pausedAt, DaypopClockPausedRemainingSeconds: int64(3 * time.Hour / time.Second),
+			AuditFields: models.AuditFields{CreatedAt: now.Add(-2 * time.Hour), UpdatedAt: now},
+		},
+		{
+			TicketNo: "RISK-NOT-PAUSED", TenantID: 1, Status: enums.TicketStatusProcessing,
+			CaseStatus: "assigned", SLADueAt: &dueAt,
+			AuditFields: models.AuditFields{CreatedAt: now.Add(-2 * time.Hour), UpdatedAt: now},
+		},
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	risk := true
+	cnd := enterpriseTicketBaseCnd(1, EnterpriseTicketQuery{})
+	applyEnterpriseTicketSLACnd(cnd, nil, &risk, now)
+	if count := repositories.TicketRepository.Count(db, cnd); count != 2 {
+		t.Fatalf("SLA risk count = %d, want 2", count)
 	}
 }
 
@@ -134,6 +170,22 @@ func TestEnterpriseTicketSLARequiresExplicitDeadline(t *testing.T) {
 	slaTicket.SLADueAt = &dueAt
 	if !enterpriseTicketSLAAtRisk(slaTicket) || !enterpriseTicketSLABreached(slaTicket) {
 		t.Fatal("ticket with expired sla_due_at must be reported as SLA risk and breach")
+	}
+
+	pausedAt := time.Now().Add(-time.Hour)
+	pausedTicket := slaTicket
+	pausedTicket.DaypopClockPausedAt = &pausedAt
+	pausedTicket.DaypopClockPausedRemainingSeconds = int64(30 * time.Minute / time.Second)
+	if !enterpriseTicketSLAAtRisk(pausedTicket) || enterpriseTicketSLABreached(pausedTicket) {
+		t.Fatal("paused ticket with 30 minutes remaining must be at risk but not breached")
+	}
+	pausedTicket.DaypopClockPausedRemainingSeconds = int64(3 * time.Hour / time.Second)
+	if enterpriseTicketSLAAtRisk(pausedTicket) || enterpriseTicketSLABreached(pausedTicket) {
+		t.Fatal("paused ticket with three hours remaining must not be at risk")
+	}
+	pausedTicket.DaypopClockPausedRemainingSeconds = -1
+	if !enterpriseTicketSLABreached(pausedTicket) {
+		t.Fatal("paused ticket with negative remaining time must be breached")
 	}
 }
 

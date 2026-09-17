@@ -1,13 +1,11 @@
 import { apiGet, apiPost } from "./client"
-import type { TicketIntakePolicy } from "../ticket-intake"
 
 export type ProjectConfiguration = {
   ticket_workflows?: Record<string, { transitions: Record<string, string[]> }>
   schema_version: number
   tenant_id: number
   environment: string
-  projects: Array<{ key: string; name: string }>
-  intake: TicketIntakePolicy
+  projects: Array<{ key: string; name: string; profile?: string }>
   secret_refs: string[]
   runtime?: ProjectRuntime
 }

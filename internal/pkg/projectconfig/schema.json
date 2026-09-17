@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "tenant_id", "environment", "projects", "intake", "secret_refs"],
+  "required": ["schema_version", "tenant_id", "environment", "projects", "secret_refs"],
   "properties": {
     "ticket_workflows": {"type":"object","maxProperties":201,"additionalProperties":{
       "type":"object","additionalProperties":false,"required":["transitions"],"properties":{
@@ -28,26 +28,16 @@
       "type": "array", "maxItems": 200,
       "items": {
         "type": "object", "additionalProperties": false, "required": ["key", "name"],
-        "properties": {"key": {"type": "string", "minLength": 1, "maxLength": 64}, "name": {"type": "string", "minLength": 1, "maxLength": 120}}
+        "properties": {"key": {"type": "string", "minLength": 1, "maxLength": 64}, "name": {"type": "string", "minLength": 1, "maxLength": 120},
+          "profile": {"enum": ["standard", "enhanced", "mission_critical"], "description": "服务档次；留空按 standard 处理"}}
       }
     },
-    "intake": {
-      "type": "object", "additionalProperties": false, "required": ["rules"],
-      "properties": {"rules": {
-        "type": "array", "maxItems": 200,
-        "items": {
-          "type": "object", "additionalProperties": false,
-          "required": ["project_key", "channel", "ticket_type", "required_fields"],
-          "properties": {
-            "project_key": {"type": "string", "minLength": 1, "maxLength": 64},
-            "channel": {"enum": ["phone", "email", "monitoring_alert", "api", "webhook", "whatsapp", "chatbot_handoff"]},
-            "ticket_type": {"type": "string", "minLength": 1, "maxLength": 64},
-            "required_fields": {"type": "array", "uniqueItems": true, "items": {"enum": ["caller_name", "caller_phone", "customer_id", "product_id", "device_id", "service_region"]}}
-          }
-        }
-      }}
-    },
     "secret_refs": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "pattern": "^secret://[a-z][a-z0-9_-]{0,63}$"}},
+    "intake": {
+      "description": "已废弃：受理规则已从产品移除，这里只为读取历史配置版本保留，系统不再校验或使用",
+      "type": "object",
+      "properties": {"rules": {"type": ["array", "null"], "items": {"type": "object"}}}
+    },
     "runtime": {"$ref": "#/$defs/runtime"}
   },
   "if": {"properties": {"schema_version": {"const": 2}}},
@@ -73,10 +63,10 @@
           }
         }},
         "targets":{"type":"array","maxItems":1000,"items":{
-          "type":"object","additionalProperties":false,"required":["project_key","profile","priority","calendar_key","response_minutes","assignment_minutes","resolution_minutes"],
+          "type":"object","additionalProperties":false,"required":["profile","calendar_key","response_minutes","assignment_minutes","resolution_minutes"],
           "properties":{
-            "project_key":{"type":"string","minLength":1,"maxLength":64},"profile":{"enum":["standard","enhanced","mission_critical"]},
-            "priority":{"enum":["p0","p1","p2","p3","p4"]},"calendar_key":{"type":"string","minLength":1,"maxLength":64},
+            "project_key":{"type":"string","maxLength":64,"description":"兼容字段，时限规则按服务档次匹配，不再使用服务项目"},"profile":{"enum":["standard","enhanced","mission_critical"]},
+            "priority":{"enum":["","p0","p1","p2","p3","p4"],"description":"留空表示该服务项目的所有优先级共用这一组时限"},"calendar_key":{"type":"string","minLength":1,"maxLength":64},
             "response_minutes":{"$ref":"#/$defs/minutes"},"assignment_minutes":{"$ref":"#/$defs/minutes"},"resolution_minutes":{"$ref":"#/$defs/minutes"}
           }
         }},

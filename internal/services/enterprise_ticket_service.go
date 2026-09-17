@@ -384,16 +384,16 @@ func applyEnterpriseTicketSLACnd(cnd *sqls.Cnd, breached, risk *bool, now time.T
 	}
 	if breached != nil {
 		if *breached {
-			cnd.Where(ticketResolutionSLARunningSQL+" AND sla_due_at IS NOT NULL AND sla_due_at < ?", now)
+			cnd.Where(ticketDaypopSLABreachedSQL, now)
 		} else {
-			cnd.Where("(NOT "+ticketResolutionSLARunningSQL+" OR sla_due_at IS NULL OR sla_due_at >= ?)", now)
+			cnd.Where("NOT "+ticketDaypopSLABreachedSQL, now)
 		}
 	}
 	if risk != nil {
 		if *risk {
-			cnd.Where(ticketResolutionSLARunningSQL+" AND sla_due_at IS NOT NULL AND sla_due_at <= ?", now.Add(2*time.Hour))
+			cnd.Where(ticketDaypopSLARiskSQL, int64(2*time.Hour/time.Second), now.Add(2*time.Hour))
 		} else {
-			cnd.Where("(NOT "+ticketResolutionSLARunningSQL+" OR sla_due_at IS NULL OR sla_due_at > ?)", now.Add(2*time.Hour))
+			cnd.Where("NOT "+ticketDaypopSLARiskSQL, int64(2*time.Hour/time.Second), now.Add(2*time.Hour))
 		}
 	}
 }
@@ -420,6 +420,9 @@ func enterpriseTicketStatusInFilter(status enums.TicketStatus, filter string) bo
 }
 
 func enterpriseTicketSLABreached(ticket models.Ticket) bool {
+	if ticket.DaypopClockPausedAt != nil {
+		return ticket.SLADueAt != nil && ticket.DaypopClockPausedRemainingSeconds <= 0 && !ticketResolutionSLAStopped(ticket)
+	}
 	deadline, ok := ticketSLADeadline(ticket)
 	if !ok {
 		return false
@@ -430,6 +433,9 @@ func enterpriseTicketSLABreached(ticket models.Ticket) bool {
 func enterpriseTicketSLAAtRisk(ticket models.Ticket) bool {
 	if ticketResolutionSLAStopped(ticket) {
 		return false
+	}
+	if ticket.DaypopClockPausedAt != nil {
+		return ticket.SLADueAt != nil && ticket.DaypopClockPausedRemainingSeconds <= int64((2*time.Hour/time.Second))
 	}
 	deadline, ok := ticketSLADeadline(ticket)
 	if !ok {
@@ -481,9 +487,11 @@ func (s *enterpriseTicketService) GetAggregate(tenantID int64, ticketID int64) (
 	deviceNo, deviceContext := s.buildDeviceContext(ticket)
 	repair := s.buildRepair(ticket, deviceNo)
 	caseLifecycle := BuildTicketCaseLifecycle(ticket, nil)
+	clocks := TicketClockService.Compute(*ticket, time.Now())
 	return &dto.TicketAggregateDTO{
 		Ticket:               s.buildHeader(ticket),
 		CaseLifecycle:        &caseLifecycle,
+		Clocks:               &clocks,
 		Customer:             s.buildCustomer(ticket),
 		DeviceContext:        deviceContext,
 		ConversationSnapshot: s.buildConversationSnapshot(ticket),
@@ -792,7 +800,7 @@ func (s *enterpriseTicketService) buildListItem(ticket models.Ticket) dto.Enterp
 		CreatedAt:                 formatEnterpriseTime(ticket.CreatedAt),
 		UpdatedAt:                 formatEnterpriseTime(ticket.UpdatedAt),
 		SLADeadline:               formatEnterpriseTime(deadline),
-		SLABreached:               hasSLADeadline && time.Now().After(deadline) && !ticketResolutionSLAStopped(ticket),
+		SLABreached:               hasSLADeadline && enterpriseTicketSLABreached(ticket),
 		DispatchAttempts:          dispatchAttempts,
 		DispatchDeferredUntil:     formatEnterpriseTimePtr(ticket.DispatchDeferredUntil),
 		LastDispatchFailureReason: ticket.LastDispatchFailureReason,

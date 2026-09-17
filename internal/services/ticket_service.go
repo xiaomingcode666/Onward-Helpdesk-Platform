@@ -392,7 +392,7 @@ func (s *ticketService) prepareTicketCreate(db *gorm.DB, req request.CreateTicke
 		SLADueAt:                    req.SLADueAt,
 		AuditFields:                 utils.BuildAuditFields(operator),
 	}
-	if err := prepareTicketIntakeDB(db, ticket, req.TicketIntakeInput); err != nil {
+	if err := prepareTicketSourceDB(db, ticket, req.TicketIntakeInput); err != nil {
 		return nil, nil, err
 	}
 	if err := prepareProjectRuntimeTicketDB(db, ticket); err != nil {
@@ -1266,9 +1266,6 @@ func (s *ticketService) UpdateTicket(req request.UpdateTicketRequest, operator *
 		return err
 	}
 	ticket.ProductID, ticket.DeviceID, ticket.ServiceRegion = productID, deviceID, serviceRegion
-	if err := refreshTicketIntakeDB(sqls.DB(), ticket); err != nil {
-		return err
-	}
 	tagIDs, err := TicketTagService.ValidateTagIDs(req.TagIDs)
 	if err != nil {
 		return err
@@ -1301,8 +1298,6 @@ func (s *ticketService) UpdateTicket(req request.UpdateTicketRequest, operator *
 			"fault_code":                faultCode,
 			"symptom_summary":           symptomSummary,
 			"diagnosis_summary":         diagnosisSummary,
-			"context_status":            ticket.ContextStatus,
-			"missing_context_json":      ticket.MissingContextJSON,
 			"sla_due_at":                slaDueAt,
 			"resolved_at":               resolvedAt,
 			"updated_at":                now,
@@ -1349,16 +1344,11 @@ func (s *ticketService) LinkCustomer(ticketID int64, customerID int64, operator 
 	}
 	now := time.Now()
 	ticket.CustomerID = customerID
-	if err := refreshTicketIntakeDB(sqls.DB(), ticket); err != nil {
-		return err
-	}
 	return repositories.TicketRepository.Updates(sqls.DB(), ticket.ID, map[string]any{
-		"customer_id":          customerID,
-		"context_status":       ticket.ContextStatus,
-		"missing_context_json": ticket.MissingContextJSON,
-		"updated_at":           now,
-		"update_user_id":       operator.UserID,
-		"update_user_name":     operator.Username,
+		"customer_id":      customerID,
+		"updated_at":       now,
+		"update_user_id":   operator.UserID,
+		"update_user_name": operator.Username,
 	})
 }
 
@@ -1632,7 +1622,7 @@ func (s *ticketService) CreateRepairRecord(req request.CreateTicketRepairRecordR
 			return errorsx.InvalidParam("ticket must be accepted before submitting a repair conclusion")
 		}
 		if req.MarkResolved {
-			if err := ensureTicketCaseAcknowledgedDB(ctx.Tx, lockedTicket, operator); err != nil {
+			if err := ensureTicketCaseOwnershipDB(ctx.Tx, lockedTicket, operator, operator.UserID); err != nil {
 				return err
 			}
 			if err := s.resolveSupplierCollaborationsForRepairConclusionTx(ctx.Tx, lockedTicket, record, operator, now); err != nil {

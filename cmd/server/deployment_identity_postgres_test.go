@@ -77,7 +77,7 @@ func TestDeploymentIdentityPostgresInitialization(t *testing.T) {
 	configPath := filepath.Join(dir, "config.yaml")
 	settings := fmt.Sprintf("encryptionKey: fnd003-postgres-fixture-only-key\ndb:\n  type: postgres\n  dsn: %q\n  autoMigrate: true\n", dsn)
 	require.NoError(t, os.WriteFile(configPath, []byte(settings), 0600))
-	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 27, Environment: "staging", Projects: []projectconfig.Project{}, Intake: projectconfig.IntakePolicy{Rules: []projectconfig.Rule{}}, SecretRefs: []string{}}
+	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 27, Environment: "staging", Projects: []projectconfig.Project{}, SecretRefs: []string{}}
 	input, err := json.Marshal(doc)
 	require.NoError(t, err)
 	inputPath := filepath.Join(dir, "input.json")

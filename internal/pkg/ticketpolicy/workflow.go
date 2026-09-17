@@ -9,7 +9,9 @@ import (
 // Keeping this contract in one package lets the API and future workflow editor
 // share the same transition rules.
 var caseWorkflow = map[string][]string{
-	"new":             {"acknowledged", "cancelled"},
+	// A new case may be picked up directly by its engineer; the historical
+	// support-agent reception edge stays valid for configurations that use it.
+	"new":             {"acknowledged", "in_triage", "assigned", "cancelled"},
 	"acknowledged":    {"in_triage", "assigned", "waiting", "resolved", "cancelled"},
 	"in_triage":       {"assigned", "waiting", "restored", "resolved", "cancelled"},
 	"assigned":        {"in_triage", "waiting", "restored", "resolved", "cancelled"},

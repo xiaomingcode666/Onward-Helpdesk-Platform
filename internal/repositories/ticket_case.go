@@ -74,8 +74,12 @@ func SyncTicketCaseColumns(db *gorm.DB, id int64, columns map[string]interface{}
 			}
 		}
 	}
-	if next != "new" && next != "cancelled" && ticket.CaseOwnerID <= 0 {
-		return fmt.Errorf("请先确认受理并指定客服管理负责人")
+	// Ownership follows the engineer who currently handles the case; there is no
+	// separate support-agent owner. Returning to the dispatch pool clears it.
+	if assigneeChanged {
+		if _, explicitlyPreserved := columns["case_owner_id"]; !explicitlyPreserved {
+			columns["case_owner_id"] = assignee
+		}
 	}
 	if next == ticket.CaseStatus {
 		return nil

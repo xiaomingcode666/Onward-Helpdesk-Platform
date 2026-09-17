@@ -27,7 +27,6 @@ type TicketCaseCommand struct {
 	Reason           string `json:"reason"`
 	ExpectedStatus   string `json:"expected_status"`
 	ExpectedRevision *int64 `json:"expected_revision"`
-	OwnerID          int64  `json:"owner_id"`
 	IdempotencyKey   string `json:"idempotency_key"`
 }
 
@@ -56,12 +55,16 @@ func ticketCaseActions(ticket *models.Ticket, operator *dto.AuthPrincipal) []str
 	if state == "closed" {
 		return append(actions, "reopen")
 	}
-	if ticket.CaseOwnerID <= 0 {
-		return append(actions, "acknowledge", "cancel")
+	// Only the engineer handling the case, or a dispatch manager, may move it on.
+	if ticket.CurrentAssigneeID > 0 && ticket.CurrentAssigneeID != operator.UserID && !canManageTicketDispatch(operator) {
+		return append(actions, "cancel")
 	}
 	switch state {
 	case "new":
-		actions = append(actions, "acknowledge")
+		// A new case advances when its engineer accepts the assignment.
+		if ticket.CurrentAssigneeID == operator.UserID {
+			actions = append(actions, "triage")
+		}
 	case "acknowledged":
 		actions = append(actions, "triage", "wait")
 	case "in_triage", "assigned":
@@ -91,7 +94,7 @@ func BuildTicketCaseLifecycle(ticket *models.Ticket, operator *dto.AuthPrincipal
 	if ticket == nil {
 		return dto.TicketCaseLifecycleDTO{AllowedActions: []string{}}
 	}
-	result := dto.TicketCaseLifecycleDTO{Status: models.EffectiveTicketCaseStatus(*ticket), Revision: ticket.CaseRevision, OwnerID: ticket.CaseOwnerID, WaitingReason: ticket.WaitingReason, AllowedActions: ticketCaseActions(ticket, operator), LegacyRecord: ticket.CaseStatus == "", CanTransferOwner: ticket.CaseOwnerID > 0 && canManageTicketCaseOwner(ticket, operator)}
+	result := dto.TicketCaseLifecycleDTO{Status: models.EffectiveTicketCaseStatus(*ticket), Revision: ticket.CaseRevision, WaitingReason: ticket.WaitingReason, AllowedActions: ticketCaseActions(ticket, operator), LegacyRecord: ticket.CaseStatus == ""}
 	result.WorkflowVersionID = ticket.CaseWorkflowVersionID
 	var workflowErr error
 	result.AllowedActions, workflowErr = ticketCaseWorkflowActionsDB(sqls.DB(), ticket, operator)
@@ -104,51 +107,63 @@ func BuildTicketCaseLifecycle(ticket *models.Ticket, operator *dto.AuthPrincipal
 	if ticket.RestoredAt != nil {
 		result.RestoredAt = ticket.RestoredAt.Format(time.RFC3339)
 	}
-	if ticket.CaseOwnerID > 0 {
-		if user := repositories.UserRepository.Get(sqls.DB(), ticket.CaseOwnerID); user != nil {
-			result.OwnerName = firstNonBlank(user.Nickname, user.Username)
-		}
-	}
 	return result
 }
 
-// Confirming reception is distinct from an engineer's AcceptedAt. Legacy accept
-// endpoints explicitly perform both actions; no historical records are backfilled.
-func ensureTicketCaseAcknowledgedDB(db *gorm.DB, ticket *models.Ticket, operator *dto.AuthPrincipal) error {
-	if ticket.CaseOwnerID > 0 {
-		return RequireTicketCaseOwnerDB(db, ticket)
+// Accepting an assignment records the engineer as the person handling the case.
+// There is no separate support-agent reception step; historical records keep the
+// values they already have.
+func ensureTicketCaseOwnershipDB(db *gorm.DB, ticket *models.Ticket, operator *dto.AuthPrincipal, ownerID int64) error {
+	if ticket == nil || operator == nil || operator.UserID <= 0 || operator.IsCustomer() || operator.IsPartner() || operator.IsServiceAccount() {
+		return errorsx.Forbidden("请由工程师接单后继续处理")
 	}
-	if operator == nil || operator.UserID <= 0 || operator.IsCustomer() || operator.IsPartner() || operator.IsServiceAccount() {
-		return errorsx.Forbidden("请由客服确认受理并指定管理负责人")
+	if ownerID <= 0 {
+		ownerID = operator.UserID
 	}
-	return acknowledgeTicketCaseDB(db, ticket, operator.UserID, operator, "受理并接单：由操作人负责跟进")
-}
-
-func acknowledgeTicketCaseDB(db *gorm.DB, ticket *models.Ticket, ownerID int64, operator *dto.AuthPrincipal, reason string) error {
-	if err := ValidateCaseOwnerDB(db, ticket.TenantID, ownerID); err != nil {
+	recordedOwner := ticket.CaseOwnerID
+	if recordedOwner <= 0 {
+		recordedOwner = ownerID
+	}
+	if err := ValidateCaseOwnerDB(db, ticket.TenantID, recordedOwner); err != nil {
 		return err
 	}
-	now := time.Now()
 	previous := models.EffectiveTicketCaseStatus(*ticket)
+	// Retries of an already accepted assignment must not bump the revision.
+	if previous != "new" && ticket.AcknowledgedAt != nil && ticket.CaseOwnerID == recordedOwner {
+		return nil
+	}
+	now := time.Now()
 	next := previous
 	if next == "new" {
-		next = "acknowledged"
+		next = "assigned"
+		workflow, err := repositories.TicketWorkflowDB(db, ticket)
+		if err != nil {
+			return err
+		}
+		if workflow != nil && !workflow.Allows(previous, next) {
+			next = "acknowledged"
+		}
 	}
-	columns := map[string]any{"case_owner_id": ownerID, "case_status": next, "acknowledged_at": now, "case_revision": gorm.Expr("case_revision + 1"), "updated_at": now, "update_user_id": operator.UserID, "update_user_name": operator.Username}
+	columns := map[string]any{"case_owner_id": recordedOwner, "case_status": next, "case_revision": gorm.Expr("case_revision + 1"), "updated_at": now, "update_user_id": operator.UserID, "update_user_name": operator.Username}
+	if ticket.AcknowledgedAt == nil {
+		columns["acknowledged_at"] = now
+	}
 	if previous == "new" && ticket.CurrentAssigneeID == 0 {
 		columns["status"] = enums.TicketStatusAccepted
 	}
 	if err := repositories.TicketRepository.Updates(db, ticket.ID, columns); err != nil {
 		return err
 	}
-	ticket.CaseOwnerID = ownerID
+	ticket.CaseOwnerID = recordedOwner
 	ticket.CaseStatus = next
 	ticket.CaseRevision++
-	ticket.AcknowledgedAt = &now
+	if ticket.AcknowledgedAt == nil {
+		ticket.AcknowledgedAt = &now
+	}
 	if s, ok := columns["status"].(enums.TicketStatus); ok {
 		ticket.Status = s
 	}
-	return recordTicketCaseChangeDB(db, ticket, previous, next, "acknowledge", reason, operator, now)
+	return recordTicketCaseChangeDB(db, ticket, previous, next, "accept", "工程师接单并开始处理", operator, now)
 }
 
 func recordTicketCaseChangeDB(db *gorm.DB, ticket *models.Ticket, from, to, action, reason string, operator *dto.AuthPrincipal, now time.Time) error {
@@ -156,7 +171,7 @@ func recordTicketCaseChangeDB(db *gorm.DB, ticket *models.Ticket, from, to, acti
 	if err := db.Create(&models.TicketProgress{TenantID: ticket.TenantID, TicketID: ticket.ID, EventType: "case_status_changed", Content: "工单主状态：" + from + " → " + to + "；" + reason, MetadataJSON: string(metadata), AuthorID: operator.UserID, VisibleToCustomer: false, CreatedAt: now}).Error; err != nil {
 		return err
 	}
-	labels := map[string]string{"acknowledged": "客服已确认受理", "in_triage": "正在分析问题", "waiting": "正在等待补充资料或处理条件", "assigned": "已分配工程师", "restored": "服务已恢复，问题仍在跟进", "resolved": "问题已解决", "closure_pending": "等待确认关闭"}
+	labels := map[string]string{"acknowledged": "已确认收到问题", "in_triage": "工程师正在分析问题", "waiting": "正在等待补充资料或处理条件", "assigned": "工程师已接单", "restored": "服务已恢复，问题仍在跟进", "resolved": "问题已解决", "closure_pending": "等待确认关闭"}
 	if label := labels[to]; label != "" {
 		publicMetadata, _ := json.Marshal(map[string]string{"case_status": to})
 		return db.Create(&models.TicketProgress{TenantID: ticket.TenantID, TicketID: ticket.ID, EventType: "case_status_changed", Content: label, MetadataJSON: string(publicMetadata), AuthorID: operator.UserID, VisibleToCustomer: true, CreatedAt: now}).Error
@@ -187,77 +202,64 @@ func ExecuteTicketCaseCommand(ticketID int64, cmd TicketCaseCommand, operator *d
 		if replay, err := checkTicketCaseCommandDB(tx, ticket, &cmd, operator); err != nil || replay {
 			return err
 		}
-		if cmd.Action == "acknowledge" {
-			ownerID := cmd.OwnerID
-			if ownerID <= 0 {
-				ownerID = operator.UserID
-			}
-			if ticket.CaseOwnerID > 0 {
-				return errorsx.InvalidParam("已受理，请使用负责人交接操作")
-			}
-			if err := acknowledgeTicketCaseDB(tx, ticket, ownerID, operator, cmd.Reason); err != nil {
-				return err
-			}
-		} else {
-			if err := RequireTicketCaseOwnerDB(tx, ticket); err != nil {
-				return err
-			}
-			from := models.EffectiveTicketCaseStatus(*ticket)
-			next := from
-			now := time.Now()
-			columns := map[string]any{"case_revision": gorm.Expr("case_revision + 1"), "updated_at": now, "update_user_id": operator.UserID, "update_user_name": operator.Username}
-			switch cmd.Action {
-			case "triage":
-				next = "in_triage"
-				columns["status"] = ticketCaseActiveTechnicalStatus(ticket)
-			case "wait":
-				next = "waiting"
-				columns["waiting_reason"] = cmd.Reason
-				columns["case_resume_status"] = from
-				columns["case_resume_technical_status"] = ticket.Status
-				columns["status"] = enums.TicketStatusWaitingCustomer
-			case "resume":
-				next = ticket.CaseResumeStatus
-				if !slices.Contains([]string{"acknowledged", "in_triage", "assigned", "restored"}, next) {
-					next = "in_triage"
-				}
-				columns["waiting_reason"] = ""
-				columns["case_resume_status"] = ""
-				columns["case_resume_technical_status"] = ""
-				columns["status"] = ticketCaseActiveTechnicalStatus(ticket)
-			case "restore":
-				next = "restored"
-				columns["restored_at"] = now
-			case "resolve":
-				if err := validateRepairCompletionReadiness(tx, ticket); err != nil {
-					return err
-				}
-				if ticket.ProductID > 0 || ticket.DeviceID > 0 {
-					return errorsx.InvalidParam("设备售后工单请提交处理记录确认解决")
-				}
-				next = "resolved"
-				columns["resolved_at"] = now
-				columns["case_resolution"] = cmd.Reason
-				columns["status"] = enums.TicketStatusResolved
-			case "request_closure":
-				if ticket.ResolvedAt == nil {
-					return errorsx.InvalidParam("尚无已解决记录，不能进入待关闭")
-				}
-				next = "closure_pending"
-				columns["status"] = enums.TicketStatusPendingCustomerConfirm
-			default:
-				return errorsx.InvalidParam("不支持的工单操作")
-			}
-			columns["case_status"] = next
-			if err := repositories.TicketRepository.Updates(tx, ticket.ID, columns); err != nil {
-				return err
-			}
-			if err := recordTicketCaseChangeDB(tx, ticket, from, next, cmd.Action, cmd.Reason, operator, now); err != nil {
-				return err
-			}
-			ticket.CaseStatus = next
-			ticket.CaseRevision++
+		if err := requireTicketCaseHandlerDB(tx, ticket, operator); err != nil {
+			return err
 		}
+		from := models.EffectiveTicketCaseStatus(*ticket)
+		next := from
+		now := time.Now()
+		columns := map[string]any{"case_revision": gorm.Expr("case_revision + 1"), "updated_at": now, "update_user_id": operator.UserID, "update_user_name": operator.Username}
+		switch cmd.Action {
+		case "triage":
+			next = "in_triage"
+			columns["status"] = ticketCaseActiveTechnicalStatus(ticket)
+		case "wait":
+			next = "waiting"
+			columns["waiting_reason"] = cmd.Reason
+			columns["case_resume_status"] = from
+			columns["case_resume_technical_status"] = ticket.Status
+			columns["status"] = enums.TicketStatusWaitingCustomer
+		case "resume":
+			next = ticket.CaseResumeStatus
+			if !slices.Contains([]string{"acknowledged", "in_triage", "assigned", "restored"}, next) {
+				next = "in_triage"
+			}
+			columns["waiting_reason"] = ""
+			columns["case_resume_status"] = ""
+			columns["case_resume_technical_status"] = ""
+			columns["status"] = ticketCaseActiveTechnicalStatus(ticket)
+		case "restore":
+			next = "restored"
+			columns["restored_at"] = now
+		case "resolve":
+			if err := validateRepairCompletionReadiness(tx, ticket); err != nil {
+				return err
+			}
+			if ticket.ProductID > 0 || ticket.DeviceID > 0 {
+				return errorsx.InvalidParam("设备售后工单请提交处理记录确认解决")
+			}
+			next = "resolved"
+			columns["resolved_at"] = now
+			columns["case_resolution"] = cmd.Reason
+			columns["status"] = enums.TicketStatusResolved
+		case "request_closure":
+			if ticket.ResolvedAt == nil {
+				return errorsx.InvalidParam("尚无已解决记录，不能进入待关闭")
+			}
+			next = "closure_pending"
+			columns["status"] = enums.TicketStatusPendingCustomerConfirm
+		default:
+			return errorsx.InvalidParam("不支持的工单操作")
+		}
+		columns["case_status"] = next
+		if err := repositories.TicketRepository.Updates(tx, ticket.ID, columns); err != nil {
+			return err
+		}
+		if err := recordTicketCaseChangeDB(tx, ticket, from, next, cmd.Action, cmd.Reason, operator, now); err != nil {
+			return err
+		}
+		ticket.CaseStatus = next
+		ticket.CaseRevision++
 		return recordTicketCaseCommandDB(tx, ticket.ID, &cmd, operator)
 	})
 }
@@ -343,8 +345,8 @@ func operatorID(operator *dto.AuthPrincipal) int64 {
 	return operator.UserID
 }
 
-// Guard the old endpoints as well: they cannot bypass ownership or turn a
-// restored/waiting case into a closed case without a recorded resolution.
+// Guard the old endpoints as well: they cannot turn a restored/waiting case into
+// a closed case without a recorded resolution.
 func requireTicketCaseCloseDB(db *gorm.DB, ticket *models.Ticket) error {
 	if ticket.CaseStatus == "" {
 		return nil
@@ -352,5 +354,21 @@ func requireTicketCaseCloseDB(db *gorm.DB, ticket *models.Ticket) error {
 	if !slices.Contains([]string{"resolved", "closure_pending"}, ticket.CaseStatus) || ticket.ResolvedAt == nil {
 		return errorsx.InvalidParam("请先确认问题已解决，再关闭工单；不再处理的问题请取消")
 	}
-	return RequireTicketCaseOwnerDB(db, ticket)
+	return nil
+}
+
+// The engineer handling the case, or a dispatch manager, is the only one who can
+// advance it. Ownership is recorded automatically when an engineer accepts, so
+// no separate support-agent role is required.
+func requireTicketCaseHandlerDB(db *gorm.DB, ticket *models.Ticket, operator *dto.AuthPrincipal) error {
+	if ticket == nil || operator == nil || operator.UserID <= 0 {
+		return errorsx.Forbidden("无权处理这张工单")
+	}
+	if ticket.CurrentAssigneeID > 0 && ticket.CurrentAssigneeID != operator.UserID && !canManageTicketDispatch(operator) {
+		return errorsx.Forbidden("这张工单正在由其他工程师处理")
+	}
+	if ticket.CaseOwnerID > 0 {
+		return ValidateCaseOwnerDB(db, ticket.TenantID, ticket.CaseOwnerID)
+	}
+	return nil
 }

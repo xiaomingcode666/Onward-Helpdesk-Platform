@@ -208,7 +208,7 @@ func TestTicketLifecycle(t *testing.T) {
 	accepted := services.TicketService.Get(created.ID)
 	require.NotNil(t, accepted)
 	assert.Equal(t, enums.TicketStatusProcessing, accepted.Status)
-	assert.Equal(t, f.Operator.UserID, accepted.CaseOwnerID, "实际受理人应成为客服负责人")
+	assert.Equal(t, f.Operator.UserID, accepted.CaseOwnerID, "接单工程师应成为工单处理人")
 	assert.NotNil(t, accepted.AcknowledgedAt, "客户受理应有独立时间")
 	assert.NotNil(t, accepted.AcceptedAt, "工程师接单应有独立时间")
 
@@ -228,7 +228,7 @@ func TestTicketLifecycle(t *testing.T) {
 	require.NotNil(t, assigned)
 	assert.Equal(t, nextAssignee.UserID, assigned.CurrentAssigneeID)
 	assert.Equal(t, enums.TicketStatusPendingAssigneeAccept, assigned.Status)
-	assert.Equal(t, f.Operator.UserID, assigned.CaseOwnerID, "更换工程师不能替换客服负责人")
+	assert.Equal(t, nextAssignee.UserID, assigned.CaseOwnerID, "转派后处理人应跟随新的工程师")
 
 	// 验证派单记录
 	assignProgress := services.TicketProgressService.Find(sqls.NewCnd().Eq("ticket_id", created.ID).Eq("event_type", enums.TicketProgressEventAssigned).Asc("id"))
