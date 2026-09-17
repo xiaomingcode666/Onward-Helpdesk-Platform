@@ -821,15 +821,6 @@ func registerEnterpriseMeetingRoutes(group *gin.RouterGroup) {
 func registerEnterpriseNotificationRoutes(group *gin.RouterGroup) {
 	require := middleware.RequirePermissionMiddleware
 	group.GET("/notifications", require(constants.PermissionNotificationView), enterprise.NotificationList)
-	group.GET("/notifications/templates", require(constants.PermissionNotificationView), enterprise.NotificationTemplateList)
-	group.POST("/notifications/templates", require(constants.PermissionNotificationUpdate), enterprise.NotificationTemplateCreate)
-	group.POST("/notifications/templates/_preview", require(constants.PermissionNotificationView), enterprise.NotificationTemplatePreview)
-	group.POST("/notifications/templates/_seed-defaults", require(constants.PermissionNotificationUpdate), enterprise.NotificationTemplateSeedDefaults)
-	group.POST("/notifications/templates/:id/update", require(constants.PermissionNotificationUpdate), enterprise.NotificationTemplateUpdate)
-	group.POST("/notifications/templates/:id/_approve", require(constants.PermissionNotificationUpdate), enterprise.NotificationTemplateApprove)
-	group.POST("/notifications/templates/:id/_retire", require(constants.PermissionNotificationUpdate), enterprise.NotificationTemplateRetire)
-	group.POST("/notifications/templates/:id/_delete", require(constants.PermissionNotificationUpdate), enterprise.NotificationTemplateDelete)
-	group.GET("/notifications/delivery-attempts", require(constants.PermissionNotificationView), enterprise.NotificationDeliveryAttemptList)
 	group.POST("/notifications/:id/_read", require(constants.PermissionNotificationUpdate), enterprise.NotificationMarkRead)
 	group.POST("/notifications/_mark_all_read", require(constants.PermissionNotificationUpdate), enterprise.NotificationMarkAllRead)
 	group.GET("/notifications/preferences", require(constants.PermissionNotificationView), enterprise.NotificationRecipientSettingGet)

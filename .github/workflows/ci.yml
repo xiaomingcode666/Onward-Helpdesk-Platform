@@ -250,6 +250,14 @@ jobs:
           # plus three 30s retries while freshclam fetches signatures.
           docker compose -f deploy/clamav/compose.yml pull
           docker compose -f deploy/clamav/compose.yml up -d --wait --wait-timeout 900
+          docker compose -f deploy/clamav/compose.yml exec -T clamav freshclam --foreground --stdout
+          for attempt in $(seq 1 60); do
+            if docker compose -f deploy/clamav/compose.yml exec -T clamav clamdscan --ping 1 >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
+          docker compose -f deploy/clamav/compose.yml exec -T clamav clamdscan --version
           go test ./internal/services -run '^TestAssetQuarantineRealClamAV$' -count=1 -v 2>&1 | tee .tmp/attachment-scan.log
 
       - name: Seed acceptance fixture

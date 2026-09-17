@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"remotehelpdesk/internal/models"
-	"remotehelpdesk/internal/pkg/dto/request"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/services"
 
@@ -35,7 +34,6 @@ func setupNotificationTemplateTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.Notification{},
-		&models.NotificationTemplate{},
 		&models.DeliveryLog{},
 		&models.NotificationDeliveryAttempt{},
 	); err != nil {
@@ -71,56 +69,26 @@ func newNotificationTemplateCase(notificationType, title, content string, recipi
 	}
 }
 
-func TestNotificationTemplateServiceUsesOnlyApprovedTemplate(t *testing.T) {
+func TestNotificationTemplateServiceUsesBuiltInTemplateWithoutDatabaseRows(t *testing.T) {
 	db := setupNotificationTemplateTestDB(t)
-	seedNotificationTemplateUser(t, db, 1, 501, "zh-CN")
+	seedNotificationTemplateUser(t, db, 1, 911, "zh-CN")
 
-	created, err := services.NotificationTemplateService.Create(1, 9, request.SaveNotificationTemplateRequest{
-		Code:            "ticket_assigned",
-		Name:            "工单分配提醒",
-		Channel:         "in_app",
-		Language:        "zh-CN",
-		TitleTemplate:   "工单 {{TicketNo}} 已分配",
-		ContentTemplate: "请处理 {{TicketTitle}}",
-	})
-	if err != nil {
-		t.Fatalf("create template: %v", err)
+	item := newNotificationTemplateCase("ticket_assigned", "原文标题", "原文内容", 911)
+	if err := services.NotificationTemplateService.ApplyToNotification(item, 911, map[string]string{
+		"TicketNo":    "TK-911",
+		"TicketTitle": "打印机故障",
+		"Reason":      "请及时处理。",
+	}); err != nil {
+		t.Fatalf("apply built-in template: %v", err)
 	}
-	if created.ApprovalStatus != services.NotificationTemplateStatusDraft {
-		t.Fatalf("new template must start as draft, got %q", created.ApprovalStatus)
+	if item.TemplateID != 0 {
+		t.Fatalf("built-in template should not depend on a database id, got %d", item.TemplateID)
 	}
-
-	variables := map[string]string{"TicketNo": "TK-9", "TicketTitle": "打印机故障"}
-	draft := newNotificationTemplateCase("ticket_assigned", "原文标题", "原文内容", 501)
-	// 只有一个草稿模板等于“没有可用的已批准模板”，此时不允许直接发原文。
-	if err := services.NotificationTemplateService.ApplyToNotification(draft, 501, variables); err == nil {
-		t.Fatal("expected missing approved template to block sending")
-	} else if !strings.Contains(err.Error(), "通知缺少已批准的模板") {
-		t.Fatalf("unexpected error: %v", err)
+	if item.TemplateCode != "ticket_assigned" || item.Language != "zh-CN" {
+		t.Fatalf("unexpected built-in template metadata: %+v", item)
 	}
-	if draft.TemplateID != 0 || draft.Title != "原文标题" {
-		t.Fatalf("draft template must not be used for sending: %+v", draft)
-	}
-	var blockedAttempts []models.NotificationDeliveryAttempt
-	if err := db.Find(&blockedAttempts).Error; err != nil {
-		t.Fatalf("load attempts: %v", err)
-	}
-	if len(blockedAttempts) != 1 || blockedAttempts[0].Reason != "no_approved_template" {
-		t.Fatalf("expected one no_approved_template attempt, got %+v", blockedAttempts)
-	}
-
-	if _, err := services.NotificationTemplateService.Approve(1, 9, created.ID); err != nil {
-		t.Fatalf("approve template: %v", err)
-	}
-	approved := newNotificationTemplateCase("ticket_assigned", "原文标题", "原文内容", 501)
-	if err := services.NotificationTemplateService.ApplyToNotification(approved, 501, variables); err != nil {
-		t.Fatalf("apply approved template: %v", err)
-	}
-	if approved.TemplateID != created.ID {
-		t.Fatalf("expected approved template %d to be used, got %d", created.ID, approved.TemplateID)
-	}
-	if approved.Title != "工单 TK-9 已分配" || approved.Content != "请处理 打印机故障" {
-		t.Fatalf("unexpected rendered content: %q / %q", approved.Title, approved.Content)
+	if item.Title != "工单 TK-911 已分配给你" || !strings.Contains(item.Content, "打印机故障") {
+		t.Fatalf("unexpected built-in rendering: %q / %q", item.Title, item.Content)
 	}
 }
 
@@ -129,29 +97,10 @@ func TestNotificationTemplateServiceRendersRecipientLanguage(t *testing.T) {
 	seedNotificationTemplateUser(t, db, 1, 601, "en-US")
 	seedNotificationTemplateUser(t, db, 1, 602, "zh-CN")
 
-	zh, err := services.NotificationTemplateService.Create(1, 9, request.SaveNotificationTemplateRequest{
-		Code: "ticket_assigned", Name: "分配提醒", Channel: "in_app", Language: "zh-CN",
-		TitleTemplate: "工单 {{TicketNo}} 已分配",
-	})
-	if err != nil {
-		t.Fatalf("create zh template: %v", err)
-	}
-	if _, err := services.NotificationTemplateService.Approve(1, 9, zh.ID); err != nil {
-		t.Fatalf("approve zh template: %v", err)
-	}
-	en, err := services.NotificationTemplateService.Create(1, 9, request.SaveNotificationTemplateRequest{
-		Code: "ticket_assigned", Name: "Assignment", Channel: "in_app", Language: "en-US",
-		TitleTemplate: "Ticket {{TicketNo}} assigned to you",
-	})
-	if err != nil {
-		t.Fatalf("create en template: %v", err)
-	}
-	if _, err := services.NotificationTemplateService.Approve(1, 9, en.ID); err != nil {
-		t.Fatalf("approve en template: %v", err)
-	}
-
 	english := newNotificationTemplateCase("ticket_assigned", "原文", "原文", 601)
-	if err := services.NotificationTemplateService.ApplyToNotification(english, 601, map[string]string{"TicketNo": "TK-7"}); err != nil {
+	if err := services.NotificationTemplateService.ApplyToNotification(english, 601, map[string]string{
+		"TicketNo": "TK-7",
+	}); err != nil {
 		t.Fatalf("apply english template: %v", err)
 	}
 	if english.Title != "Ticket TK-7 assigned to you" || english.Language != "en-US" {
@@ -159,90 +108,82 @@ func TestNotificationTemplateServiceRendersRecipientLanguage(t *testing.T) {
 	}
 
 	chinese := newNotificationTemplateCase("ticket_assigned", "原文", "原文", 602)
-	if err := services.NotificationTemplateService.ApplyToNotification(chinese, 602, map[string]string{"TicketNo": "TK-7"}); err != nil {
+	if err := services.NotificationTemplateService.ApplyToNotification(chinese, 602, map[string]string{
+		"TicketNo": "TK-7",
+	}); err != nil {
 		t.Fatalf("apply chinese template: %v", err)
 	}
-	if chinese.Title != "工单 TK-7 已分配" {
+	if chinese.Title != "工单 TK-7 已分配给你" {
 		t.Fatalf("expected chinese rendering, got %q", chinese.Title)
 	}
 }
 
-func TestNotificationTemplateServiceFallsBackToApprovedGenericTemplate(t *testing.T) {
+func TestNotificationTemplateServiceFallsBackToBuiltInGenericTemplate(t *testing.T) {
 	db := setupNotificationTemplateTestDB(t)
 	seedNotificationTemplateUser(t, db, 1, 801, "zh-CN")
 
-	created, err := services.NotificationTemplateService.Create(1, 9, request.SaveNotificationTemplateRequest{
-		Code: services.NotificationTemplateCodeGeneric, Name: "通用通知", Channel: "in_app", Language: "zh-CN",
-		TitleTemplate: "{{Title}}", ContentTemplate: "{{Content}}",
-	})
-	if err != nil {
-		t.Fatalf("create generic template: %v", err)
-	}
-	if _, err := services.NotificationTemplateService.Approve(1, 9, created.ID); err != nil {
-		t.Fatalf("approve generic template: %v", err)
-	}
-
-	// 没有专属模板的通知类型，必须回退到已批准的通用模板，而不是直接发原文。
 	item := newNotificationTemplateCase("device_alarm_raised", "设备告警", "设备离线 15 分钟", 801)
 	if err := services.NotificationTemplateService.ApplyToNotification(item, 801, nil); err != nil {
 		t.Fatalf("apply generic template: %v", err)
 	}
-	if item.TemplateID != created.ID || item.TemplateCode != services.NotificationTemplateCodeGeneric {
-		t.Fatalf("expected generic template to be used, got %+v", item)
+	if item.TemplateID != 0 || item.TemplateCode != services.NotificationTemplateCodeGeneric {
+		t.Fatalf("expected built-in generic template to be used, got %+v", item)
 	}
 	if item.Title != "设备告警" || item.Content != "设备离线 15 分钟" {
 		t.Fatalf("unexpected generic rendering: %q / %q", item.Title, item.Content)
 	}
 }
 
-func TestEnsurePlatformDefaultsDBSeedsApprovedTemplates(t *testing.T) {
-	db := setupNotificationTemplateTestDB(t)
-	seedNotificationTemplateUser(t, db, 42, 901, "zh-CN")
+func TestBuiltInNotificationTemplateCatalogCoversAllSupportedLocales(t *testing.T) {
+	codes := []string{
+		"ticket_created",
+		"ticket_assigned",
+		"ticket_closed",
+		"sla_warning",
+		"ticket_created_assigned",
+		"ticket_assigned_transferred",
+		"ticket_assigned_accepted",
+		"ticket_assigned_cancelled",
+		"ticket_assigned_recovered",
+		services.NotificationTemplateCodeGeneric,
+	}
+	locales := []string{"zh-CN", "en-US", "es-ES"}
 
-	created, err := services.NotificationTemplateService.EnsurePlatformDefaultsDB(db)
-	if err != nil {
-		t.Fatalf("ensure platform defaults: %v", err)
-	}
-	if created != 45 {
-		t.Fatalf("expected 45 platform baseline templates, got %d", created)
-	}
-	again, err := services.NotificationTemplateService.EnsurePlatformDefaultsDB(db)
-	if err != nil {
-		t.Fatalf("re-run ensure platform defaults: %v", err)
-	}
-	if again != 0 {
-		t.Fatalf("expected idempotent seeding, got %d new rows", again)
-	}
-
-	var templates []models.NotificationTemplate
-	if err := db.Find(&templates).Error; err != nil {
-		t.Fatalf("load templates: %v", err)
-	}
-	for i := range templates {
-		if templates[i].ApprovalStatus != services.NotificationTemplateStatusApproved || templates[i].TenantID != 0 {
-			t.Fatalf("platform baseline must be approved and platform-scoped: %+v", templates[i])
+	for _, code := range codes {
+		for _, channel := range []string{
+			services.NotificationTemplateChannelInApp,
+			services.NotificationTemplateChannelEmail,
+		} {
+			if code == "ticket_created_assigned" ||
+				code == "ticket_assigned_transferred" ||
+				code == "ticket_assigned_accepted" ||
+				code == "ticket_assigned_cancelled" ||
+				code == "ticket_assigned_recovered" {
+				if channel == services.NotificationTemplateChannelEmail {
+					continue
+				}
+			}
+			for _, locale := range locales {
+				if template := services.NotificationTemplateService.ResolveApproved(0, code, channel, locale); template == nil {
+					t.Fatalf("missing built-in template code=%s channel=%s locale=%s", code, channel, locale)
+				}
+			}
 		}
 	}
+}
 
-	// 平台基线让“没有自定义模板的租户”也能正常发通知。
-	item := newNotificationTemplateCase("ticket_closed", "工单已关闭", "客户主动结束工单", 901)
-	if err := services.NotificationTemplateService.ApplyToNotification(item, 901, map[string]string{"TicketNo": "TK-5"}); err != nil {
-		t.Fatalf("apply platform baseline template: %v", err)
+func TestNotificationTemplateServiceFallsBackToDefaultLanguage(t *testing.T) {
+	template := services.NotificationTemplateService.ResolveApproved(
+		0,
+		"ticket_closed",
+		services.NotificationTemplateChannelInApp,
+		"fr-FR",
+	)
+	if template == nil {
+		t.Fatal("expected unsupported locale to fall back to the default language")
 	}
-	if item.TemplateCode != "ticket_closed" {
-		t.Fatalf("expected ticket_closed template, got %q", item.TemplateCode)
-	}
-	if item.Title != "工单 TK-5 已关闭" {
-		t.Fatalf("unexpected baseline rendering: %q", item.Title)
-	}
-
-	// 没有专属模板的通知类型仍然能发出，只是走通用基线模板。
-	fallback := newNotificationTemplateCase("security_alert", "安全告警", "检测到异常登录", 901)
-	if err := services.NotificationTemplateService.ApplyToNotification(fallback, 901, nil); err != nil {
-		t.Fatalf("apply generic baseline template: %v", err)
-	}
-	if fallback.TemplateCode != services.NotificationTemplateCodeGeneric || fallback.Title != "安全告警" {
-		t.Fatalf("unexpected generic fallback rendering: %+v", fallback)
+	if template.Language != "zh-CN" {
+		t.Fatalf("fallback language = %q, want zh-CN", template.Language)
 	}
 }
 
@@ -250,19 +191,10 @@ func TestNotificationTemplateServiceBlocksSensitiveContent(t *testing.T) {
 	db := setupNotificationTemplateTestDB(t)
 	seedNotificationTemplateUser(t, db, 1, 701, "zh-CN")
 
-	created, err := services.NotificationTemplateService.Create(1, 9, request.SaveNotificationTemplateRequest{
-		Code: "ticket_closed", Name: "关闭提醒", Channel: "in_app", Language: "zh-CN",
-		TitleTemplate: "工单 {{TicketNo}} 已关闭", ContentTemplate: "客户电话 13800138000，请回访。",
-	})
-	if err != nil {
-		t.Fatalf("create template: %v", err)
-	}
-	if _, err := services.NotificationTemplateService.Approve(1, 9, created.ID); err != nil {
-		t.Fatalf("approve template: %v", err)
-	}
-
-	item := newNotificationTemplateCase("ticket_closed", "原文标题", "原文内容", 701)
-	if err := services.NotificationTemplateService.ApplyToNotification(item, 701, map[string]string{"TicketNo": "TK-3"}); err == nil {
+	item := newNotificationTemplateCase("ticket_closed", "原文标题", "客户电话 13800138000，请回访。", 701)
+	if err := services.NotificationTemplateService.ApplyToNotification(item, 701, map[string]string{
+		"TicketNo": "TK-3",
+	}); err == nil {
 		t.Fatal("expected sensitive content to be blocked")
 	}
 
@@ -278,44 +210,6 @@ func TestNotificationTemplateServiceBlocksSensitiveContent(t *testing.T) {
 	}
 	if !strings.Contains(attempts[0].Reason, "phone_cn") {
 		t.Fatalf("expected phone rule reason, got %q", attempts[0].Reason)
-	}
-}
-
-func TestNotificationTemplateServicePreviewReportsSensitiveRule(t *testing.T) {
-	setupNotificationTemplateTestDB(t)
-
-	result, err := services.NotificationTemplateService.Preview(1, request.PreviewNotificationTemplateRequest{
-		Code: "ticket_closed", Channel: "in_app", Language: "zh-CN",
-		TitleTemplate: "工单 {{TicketNo}} 已关闭", ContentTemplate: "请联系 admin@example.com 复核。",
-		Variables: map[string]string{"TicketNo": "TK-11"},
-	})
-	if err != nil {
-		t.Fatalf("preview template: %v", err)
-	}
-	if !result.Blocked || result.RuleCode != "email" {
-		t.Fatalf("expected email rule hit, got %+v", result)
-	}
-	if result.Title != "工单 TK-11 已关闭" {
-		t.Fatalf("unexpected preview title %q", result.Title)
-	}
-}
-
-func TestNotificationTemplateServiceSeedDraftsIsIdempotent(t *testing.T) {
-	setupNotificationTemplateTestDB(t)
-
-	created, err := services.NotificationTemplateService.SeedDrafts(1, 9)
-	if err != nil {
-		t.Fatalf("seed drafts: %v", err)
-	}
-	if created == 0 {
-		t.Fatal("expected seeded drafts")
-	}
-	again, err := services.NotificationTemplateService.SeedDrafts(1, 9)
-	if err != nil {
-		t.Fatalf("seed drafts again: %v", err)
-	}
-	if again != 0 {
-		t.Fatalf("expected seeds to be idempotent, created %d on second run", again)
 	}
 }
 

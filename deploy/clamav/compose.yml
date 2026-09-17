@@ -8,6 +8,7 @@ services:
       - "127.0.0.1:3310:3310"
     environment:
       TZ: UTC
+      CLAMAV_NO_FRESHCLAMD: "true"
       FRESHCLAM_CHECKS: "12"
       CLAMD_CONF_AlertExceedsMax: "yes"
       CLAMD_CONF_AlertEncrypted: "yes"

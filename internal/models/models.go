@@ -203,7 +203,6 @@ var Models = []any{
 	&QuotaLimit{},
 	&BudgetAlert{},
 	&SyncRun{},
-	&NotificationTemplate{},
 	&NotificationDeliveryAttempt{},
 	&NotificationPreference{},
 	&NotificationRecipientSetting{},
