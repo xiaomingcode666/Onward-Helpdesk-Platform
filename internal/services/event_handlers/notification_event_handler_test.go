@@ -462,7 +462,6 @@ func setupNotificationEventHandlerTestDB(t *testing.T) *gorm.DB {
 		&models.AuthRoleBinding{},
 		&models.AuthRolePermission{},
 		&models.Notification{},
-		&models.NotificationTemplate{},
 		&models.NotificationDeliveryAttempt{},
 		&models.Product{},
 		&models.AgentTeam{},
@@ -472,11 +471,6 @@ func setupNotificationEventHandlerTestDB(t *testing.T) *gorm.DB {
 		&models.Message{},
 	); err != nil {
 		t.Fatalf("auto migrate error = %v", err)
-	}
-	// Notifications are generated from approved templates; seed the platform
-	// baseline so this fixture does not depend on another test running first.
-	if _, err := services.NotificationTemplateService.EnsurePlatformDefaultsDB(db); err != nil {
-		t.Fatalf("seed notification templates: %v", err)
 	}
 	if err := db.Create(&models.Tenant{ID: 1, Name: "notification test tenant", Status: enums.StatusOk}).Error; err != nil {
 		t.Fatalf("create notification test tenant: %v", err)

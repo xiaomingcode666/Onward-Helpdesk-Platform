@@ -89,7 +89,7 @@ func (s *notificationService) create(req request.CreateNotificationRequest) (*mo
 		Status:           int(enums.StatusOk),
 		CreatedAt:        now,
 	}
-	// 存在已批准模板时按接收人语言渲染；没有模板时保持调用方原文。
+	// 通知必须由代码内置模板按接收人语言渲染；缺少模板时阻断发送。
 	if err := NotificationTemplateService.ApplyToNotification(item, req.RecipientUserID, req.TemplateVariables); err != nil {
 		return nil, false, err
 	}
@@ -135,7 +135,7 @@ func (s *notificationService) CreateAndPush(req request.CreateNotificationReques
 	return item, nil
 }
 
-// renderNotificationStatusUpdate 用「已批准」的站内信模板渲染通知状态更新文案。
+// renderNotificationStatusUpdate 用代码内置站内信模板渲染通知状态更新文案。
 // 命中敏感信息规则或没有可用模板时返回 ok=false，调用方保留兜底文案。
 func (s *notificationService) renderNotificationStatusUpdate(item *models.Notification, code string, variables map[string]string) (string, string, bool) {
 	if item == nil || item.TenantID <= 0 {

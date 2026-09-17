@@ -1,16 +1,6 @@
 package services
 
-import (
-	"errors"
-	"time"
-
-	"remotehelpdesk/internal/models"
-	"remotehelpdesk/internal/pkg/enums"
-
-	"gorm.io/gorm"
-)
-
-// notificationTemplateSeed 平台推荐模板，只作为草稿写入租户，需要管理员批准后才会用于发送。
+// notificationTemplateSeed 是代码内置并随版本发布的已批准通知模板。
 type notificationTemplateSeed struct {
 	Code     string
 	Name     string
@@ -20,53 +10,9 @@ type notificationTemplateSeed struct {
 	Body     string
 }
 
-// EnsurePlatformDefaultsDB 幂等写入平台基线模板，并直接标记为「已批准」。
-// 作用：租户没有自定义模板时，通知仍然由已批准的模板生成，不会退化成直接发原文。
-func (s *notificationTemplateService) EnsurePlatformDefaultsDB(db *gorm.DB) (int, error) {
-	if db == nil || !db.Migrator().HasTable(&models.NotificationTemplate{}) {
-		return 0, nil
-	}
-	created := 0
-	now := time.Now()
-	for _, seed := range defaultNotificationTemplateSeeds() {
-		var existing models.NotificationTemplate
-		err := db.Where("tenant_id = ? AND code = ? AND channel = ? AND language = ?",
-			platformNotificationTemplateTenant, seed.Code, seed.Channel, seed.Language).Take(&existing).Error
-		if err == nil {
-			continue
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return created, err
-		}
-		approvedAt := now
-		variables, err := encodeNotificationTemplateVariables(nil, seed.Title, seed.Body)
-		if err != nil {
-			return created, err
-		}
-		item := &models.NotificationTemplate{
-			TenantID:        platformNotificationTemplateTenant,
-			Code:            seed.Code,
-			Name:            seed.Name + "（平台基线）",
-			Channel:         seed.Channel,
-			Language:        seed.Language,
-			TitleTemplate:   seed.Title,
-			ContentTemplate: seed.Body,
-			VariablesJSON:   variables,
-			ApprovalStatus:  NotificationTemplateStatusApproved,
-			ApprovedAt:      &approvedAt,
-			Status:          int(enums.StatusOk),
-			CreatedAt:       now,
-			UpdatedAt:       now,
-		}
-		if err := db.Create(item).Error; err != nil {
-			return created, err
-		}
-		created++
-	}
-	return created, nil
-}
+var notificationTemplateSupportedLanguages = []string{"zh-CN", "en-US", "es-ES"}
 
-// defaultNotificationTemplateSeeds 返回标准通知场景的多语言推荐模板。
+// defaultNotificationTemplateSeeds 返回代码内置的已批准通知模板。
 // 可用变量：{{Title}} {{Content}} {{RecipientName}} {{ActionURL}} {{TicketNo}} {{TicketTitle}} {{Reason}}。
 func defaultNotificationTemplateSeeds() []notificationTemplateSeed {
 	type variant [2]string
