@@ -77,7 +77,9 @@ func SyncTicketCaseColumns(db *gorm.DB, id int64, columns map[string]interface{}
 	// Ownership follows the engineer who currently handles the case; there is no
 	// separate support-agent owner. Returning to the dispatch pool clears it.
 	if assigneeChanged {
-		columns["case_owner_id"] = assignee
+		if _, explicitlyPreserved := columns["case_owner_id"]; !explicitlyPreserved {
+			columns["case_owner_id"] = assignee
+		}
 	}
 	if next == ticket.CaseStatus {
 		return nil

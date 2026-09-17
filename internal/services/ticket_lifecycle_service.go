@@ -179,6 +179,9 @@ func (s *ticketLifecycleService) accept(ticketID int64, assigneeID int64, operat
 			"update_user_id":               operator.UserID,
 			"update_user_name":             operator.Username,
 		}
+		if ticket.CaseOwnerID > 0 {
+			updates["case_owner_id"] = ticket.CaseOwnerID
+		}
 		if effectiveTeamID > 0 && ticket.CurrentTeamID != effectiveTeamID {
 			updates["current_team_id"] = effectiveTeamID
 		}
