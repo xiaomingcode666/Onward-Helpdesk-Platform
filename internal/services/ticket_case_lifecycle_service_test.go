@@ -22,7 +22,8 @@ func setupCaseLifecycle(t *testing.T) (*gorm.DB, *dto.AuthPrincipal, models.Tick
 	db := setupCaseOwnerTestDB(t)
 	if err := db.AutoMigrate(&models.TicketCaseOperation{}, &models.MeetingRoomJitsi{}, &models.TicketRepairRecord{},
 		&models.TicketDispatchAttempt{}, &models.TicketSupplierCollaboration{}, &models.TicketSupplierCollaborationParticipant{},
-		&models.PartnerAuthorizationScope{}, &models.KnowledgeCandidate{}, &models.TicketQualityClue{}, &models.DomainEvent{}, &models.OutboxRecord{}); err != nil {
+		&models.PartnerAuthorizationScope{}, &models.KnowledgeCandidate{}, &models.TicketQualityClue{}, &models.Product{},
+		&models.DomainEvent{}, &models.OutboxRecord{}); err != nil {
 		t.Fatal(err)
 	}
 	user, _, _ := seedCaseOwnerMember(t, db, 91, "case-engineer", constants.PermissionTicketChangeStatus.Code)
