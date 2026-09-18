@@ -48,6 +48,7 @@ import { caseLabel, caseStatusLabel } from "@/lib/ticket-case-labels"
 import { TicketCaseLifecycle } from "./_components/ticket-case-lifecycle"
 import { TicketClassificationFields, TicketGovernancePanel } from "./_components/ticket-governance"
 import { caseTypes, governanceLabel as g, type CaseType } from "@/lib/ticket-governance"
+import { ProjectConfigurationEditor } from "./_components/project-configuration-editor"
 import { toast } from "sonner"
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
@@ -62,6 +63,20 @@ function ee(key: string, values?: Record<string, unknown>) {
       ]),
     ),
   )
+}
+
+function serviceProfileLabel(profile: string) {
+  if (profile === "enhanced") return ee("tickets.text105")
+  if (profile === "mission_critical") return ee("tickets.text106")
+  if (profile === "standard") return ee("tickets.text104")
+  return ee("tickets.text107")
+}
+
+function serviceProfileTone(profile: string): StatusTagTone {
+  if (profile === "mission_critical") return "error"
+  if (profile === "enhanced") return "warning"
+  if (profile === "standard") return "neutral"
+  return "disabled"
 }
 
 
@@ -706,6 +721,7 @@ export default function EnterpriseTicketsPage() {
       className="ticket-guoqi-page ticket-ops-page rhd-railops-ticket-page"
       actions={
         <>
+          <ProjectConfigurationEditor />
           {canCreateTicket ? (
             <RailopsButton variant="primary" onClick={() => { setCreateKey(crypto.randomUUID()); setCreateOpen(true) }}>
               <PlusIcon className="size-4" />{ee("tickets.text065")}
@@ -920,6 +936,14 @@ export default function EnterpriseTicketsPage() {
                     })),
                   }}
                 />
+                {ticketDraft.customerId > 0 ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>{ee("tickets.text103")}</span>
+                    <StatusTag tone={serviceProfileTone(customerOptions.find((item) => item.customer_id === ticketDraft.customerId)?.service_profile || "")}>
+                      {serviceProfileLabel(customerOptions.find((item) => item.customer_id === ticketDraft.customerId)?.service_profile || "")}
+                    </StatusTag>
+                  </div>
+                ) : null}
                 {customerOptionsError ? <span className="text-sm text-destructive">{customerOptionsError}</span> : null}
                 {!customerOptionsLoading && !customerOptionsError && customerOptions.length === 0 ? (
                   <span className="text-sm text-muted-foreground">{ee("tickets.text083")}</span>

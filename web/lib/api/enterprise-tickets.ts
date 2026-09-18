@@ -76,6 +76,7 @@ export interface TicketCustomerOption {
   display_name: string
   email: string
   phone: string
+  service_profile: string
 }
 
 export interface TicketCustomerInvitationDraftPayload {

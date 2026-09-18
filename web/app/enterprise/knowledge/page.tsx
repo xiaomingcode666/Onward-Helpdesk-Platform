@@ -1,17 +1,21 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Skeleton } from "antd"
+import { Checkbox as AntCheckbox, Skeleton } from "antd"
 import type { TableColumnsType } from "antd"
 import {
   CheckIcon,
+  CalendarDaysIcon,
   DatabaseIcon,
   DownloadIcon,
   EyeIcon,
   FilePenLineIcon,
+  HistoryIcon,
+  KeyRoundIcon,
   Link2Icon,
   Loader2Icon,
   RotateCcwIcon,
+  TicketIcon,
   Trash2Icon,
   UploadIcon,
   XIcon,
@@ -36,7 +40,13 @@ import { useRouteBreadcrumbItems } from "@/components/layout/route-breadcrumbs"
 import { ProductTree, buildProductTreeGroups, getProductTreeDisplayName } from "@/components/product/product-tree"
 import { EmptyState, ErrorState } from "@/components/shared/error-states"
 import { useI18n } from "@/i18n/provider"
-import { createKnowledgeBase, fetchKnowledgeBasesAll, type KnowledgeBase } from "@/lib/api/admin"
+import {
+  createKnowledgeBase,
+  fetchAgentTeamsAll,
+  fetchKnowledgeBasesAll,
+  type AdminAgentTeam,
+  type KnowledgeBase,
+} from "@/lib/api/admin"
 import { ensureTenantDefaultAIAgent } from "@/lib/api/enterprise-ai"
 import {
   createProductKnowledgeBase,
@@ -56,6 +66,11 @@ import {
 } from "@/lib/api/enterprise-products"
 import type { ProductListItem } from "@/lib/api/types"
 import {
+  getKnowledgeAccessGrants,
+  replaceKnowledgeAccessGrants,
+  type KnowledgeAccessGrant,
+} from "@/lib/api/knowledge-access"
+import {
   approveKnowledgeCandidate,
   deleteTenantKnowledgeDocument,
   detachDuplicateKnowledgeCandidate,
@@ -66,6 +81,8 @@ import {
   fetchKnowledgeIndexTasks,
   fetchKnowledgeUploadQuota,
   fetchTenantKnowledgeDocuments,
+  fetchEntryQuality,
+  getEntryVersions,
   mergeKnowledgeCandidate,
   publishEntry,
   reprocessTenantKnowledgeDocument,
@@ -76,8 +93,10 @@ import {
   type EnrichKnowledgeCandidateInput,
   type KnowledgeEntry,
   type KnowledgeEntryListItem,
+  type KnowledgeQuality,
   type KnowledgeIndexTask,
   type KnowledgeUploadQuota,
+  type KnowledgeVersion,
 } from "@/lib/api/knowledge"
 
 type ActiveTab = "docs" | "entries"
@@ -953,6 +972,9 @@ function KnowledgePreviewDialog({
   const t = useI18n()
   const candidate = preview?.type === "candidate" ? preview.candidate : null
   const entry = preview?.type === "entry" ? preview.entry : null
+  const [entryVersions, setEntryVersions] = useState<KnowledgeVersion[]>([])
+  const [entryQuality, setEntryQuality] = useState<KnowledgeQuality | null>(null)
+  const [operationsLoading, setOperationsLoading] = useState(false)
   const title = candidate?.title || entryDetail?.title || entry?.title || t("enterpriseKnowledge.preview.title")
   const sourceLabel = candidate
     ? (candidate.source_id ? t("enterpriseKnowledge.preview.ticketSource", { id: candidate.source_id }) : t("enterpriseKnowledge.preview.ticketFallback", { id: candidate.ticket_id }))
@@ -966,6 +988,26 @@ function KnowledgePreviewDialog({
   } : {})
   const [mergeEntryId, setMergeEntryId] = useState("")
   const canEnrich = Boolean(candidate && !candidate.review_eligible && !["approved", "rejected", "merged"].includes(candidate.review_status))
+
+  useEffect(() => {
+    if (!entryDetail?.id || candidate) return
+    let cancelled = false
+    void Promise.all([
+      getEntryVersions(String(entryDetail.id)),
+      fetchEntryQuality(String(entryDetail.id)),
+    ]).then(([versionsResponse, qualityResponse]) => {
+      if (cancelled) return
+      setEntryVersions(versionsResponse.success && versionsResponse.data
+        ? [...versionsResponse.data].sort((left, right) => right.version - left.version)
+        : [])
+      setEntryQuality(qualityResponse.success && qualityResponse.data ? qualityResponse.data : null)
+    }).finally(() => {
+      if (!cancelled) setOperationsLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [candidate, entryDetail?.id])
 
   return (
     <StandardModal
@@ -1142,11 +1184,42 @@ function KnowledgePreviewDialog({
               <div><span className="block text-muted-foreground">{t("enterpriseKnowledge.preview.qualityScore")}</span><strong>{entryDetail.quality_score}</strong></div>
               <div><span className="block text-muted-foreground">{t("enterpriseKnowledge.preview.valueScore")}</span><strong>{entryDetail.value_score}</strong></div>
             </div>
-            {entryDetail.quality_flags?.length ? (
-              <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
-                {entryDetail.quality_flags.map((flag) => getKnowledgeCandidateFlagLabel(t, flag)).join("、")}
+            <div className="grid gap-3 rounded-md border bg-muted/20 p-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <HistoryIcon className="size-4 text-primary" />
+                <span>版本与运营信息</span>
               </div>
-            ) : null}
+              {operationsLoading ? (
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {Array.from({ length: 3 }).map((_, index) => <Skeleton.Node key={index} active style={{ width: "100%", height: 38 }} />)}
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-md border bg-background px-3 py-2">
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><HistoryIcon className="size-3.5" />当前版本</span>
+                    <strong className="mt-1 block text-sm">{entryVersions[0] ? `v${entryVersions[0].version}` : "-"}</strong>
+                  </div>
+                  <div className="rounded-md border bg-background px-3 py-2">
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDaysIcon className="size-3.5" />版本时间</span>
+                    <strong className="mt-1 block text-sm">{entryVersions[0]?.updated_at || entryDetail.published_at || entryDetail.created_at || "-"}</strong>
+                  </div>
+                  <div className="rounded-md border bg-background px-3 py-2">
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><TicketIcon className="size-3.5" />使用效果</span>
+                    <strong className="mt-1 block text-sm">{entryQuality ? `${entryQuality.positive_feedback} / ${entryQuality.total_views}` : "暂无数据"}</strong>
+                  </div>
+                </div>
+              )}
+              <div className="grid gap-2 border-t pt-3 text-sm sm:grid-cols-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">版本历史</span>
+                  <span className="font-medium">{entryVersions.length ? `${entryVersions.length} 个版本` : "暂无版本记录"}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">关联工单</span>
+                  <span className="font-medium">工单使用明细待接入</span>
+                </div>
+              </div>
+            </div>
             <div>
               <h3 className="mb-2 text-sm font-medium">{t("enterpriseKnowledge.preview.contentTitle")}</h3>
               <div className="whitespace-pre-wrap break-words text-sm leading-7">{entryDetail.content || "-"}</div>
@@ -1555,6 +1628,10 @@ function EnterpriseKnowledgePageContent() {
   const { ready: authReady, session } = useAuth()
   const hasProductConcept = session?.featureFlags?.product !== false
   const showProductTree = authReady && hasProductConcept
+  const canManageKnowledgeAccess =
+    authReady &&
+    Boolean(session?.permissions?.includes("knowledgeBase.view")) &&
+    Boolean(session?.permissions?.includes("knowledgeBase.update"))
   const [urlProductId] = useState<number | null>(() => {
     if (typeof window === "undefined") return null
     const params = new URLSearchParams(window.location.search)
@@ -1594,6 +1671,12 @@ function EnterpriseKnowledgePageContent() {
   const [tenantKnowledgeError, setTenantKnowledgeError] = useState("")
   const [tenantKnowledgeSubmitting, setTenantKnowledgeSubmitting] = useState(false)
   const [tenantKnowledgeForm, setTenantKnowledgeForm] = useState<TenantKnowledgeBaseFormState>(() => buildTenantKnowledgeBaseFormState(t))
+  const [knowledgeAccessOpen, setKnowledgeAccessOpen] = useState(false)
+  const [knowledgeAccessTeams, setKnowledgeAccessTeams] = useState<AdminAgentTeam[]>([])
+  const [knowledgeAccessGrants, setKnowledgeAccessGrants] = useState<KnowledgeAccessGrant[]>([])
+  const [knowledgeAccessLoading, setKnowledgeAccessLoading] = useState(false)
+  const [knowledgeAccessSaving, setKnowledgeAccessSaving] = useState(false)
+  const [knowledgeAccessError, setKnowledgeAccessError] = useState("")
   const [knowledgeDocumentsLoading, setKnowledgeDocumentsLoading] = useState(false)
   const [knowledgeDocumentsError, setKnowledgeDocumentsError] = useState("")
   const [knowledgeEntriesLoading, setKnowledgeEntriesLoading] = useState(false)
@@ -2433,6 +2516,74 @@ function EnterpriseKnowledgePageContent() {
     }
   }, [loadTenantKnowledgeBases, t, tenantKnowledgeForm.description, tenantKnowledgeForm.name])
 
+  const handleOpenKnowledgeAccess = useCallback(async () => {
+    if (!tenantKnowledgeBaseID) return
+    setKnowledgeAccessOpen(true)
+    setKnowledgeAccessLoading(true)
+    setKnowledgeAccessError("")
+    try {
+      const [teams, grantsResponse] = await Promise.all([
+        fetchAgentTeamsAll(),
+        getKnowledgeAccessGrants(tenantKnowledgeBaseID),
+      ])
+      if (!grantsResponse.success || !grantsResponse.data) {
+        throw new Error(grantsResponse.error?.message || ke(t, "access.loadFailed"))
+      }
+      setKnowledgeAccessTeams((teams || []).filter((team) => team.status === 0))
+      setKnowledgeAccessGrants(grantsResponse.data)
+    } catch (error) {
+      setKnowledgeAccessError(error instanceof Error ? error.message : ke(t, "access.loadFailed"))
+    } finally {
+      setKnowledgeAccessLoading(false)
+    }
+  }, [t, tenantKnowledgeBaseID])
+
+  const toggleKnowledgeAccessTeam = useCallback((teamId: number) => {
+    setKnowledgeAccessGrants((current) => {
+      const exists = current.some((item) => item.subject_type === "team" && item.subject_id === teamId)
+      if (exists) {
+        return current.filter((item) => !(item.subject_type === "team" && item.subject_id === teamId))
+      }
+      const team = knowledgeAccessTeams.find((item) => item.id === teamId)
+      return [
+        ...current,
+        {
+          id: -teamId,
+          subject_type: "team" as const,
+          subject_id: teamId,
+          subject_name: team?.name || "",
+          access_level: "operate" as const,
+          note: "",
+        },
+      ]
+    })
+  }, [knowledgeAccessTeams])
+
+  const handleSaveKnowledgeAccess = useCallback(async () => {
+    if (!tenantKnowledgeBaseID) return
+    setKnowledgeAccessSaving(true)
+    setKnowledgeAccessError("")
+    try {
+      const response = await replaceKnowledgeAccessGrants(
+        tenantKnowledgeBaseID,
+        knowledgeAccessGrants.map((item) => ({
+          subject_type: item.subject_type,
+          subject_id: item.subject_id,
+          access_level: item.access_level,
+          note: item.note,
+        })),
+      )
+      if (!response.success) {
+        throw new Error(response.error?.message || ke(t, "access.saveFailed"))
+      }
+      setKnowledgeAccessOpen(false)
+    } catch (error) {
+      setKnowledgeAccessError(error instanceof Error ? error.message : ke(t, "access.saveFailed"))
+    } finally {
+      setKnowledgeAccessSaving(false)
+    }
+  }, [knowledgeAccessGrants, t, tenantKnowledgeBaseID])
+
   return (
     <PageShell
       className="rhd-railops-knowledge-page"
@@ -2497,6 +2648,14 @@ function EnterpriseKnowledgePageContent() {
                   onSubmit={handleCreateTenantKnowledgeBase}
                 />
               </main>
+            ) : null}
+            {tenantKnowledgeSelected && tenantKnowledgeBaseID && canManageKnowledgeAccess ? (
+              <div className="mb-2 flex justify-end">
+                <RailopsButton size="small" onClick={() => void handleOpenKnowledgeAccess()}>
+                  <KeyRoundIcon className="size-4" />
+                  {t("enterpriseKnowledge.access.manage")}
+                </RailopsButton>
+              </div>
             ) : null}
             {tenantKnowledgeSelected && tenantKnowledgeBaseID ? (
               <KnowledgeRightPanel
@@ -2605,6 +2764,63 @@ function EnterpriseKnowledgePageContent() {
           </div>
         </section>
       )}
+      <StandardModal
+        open={knowledgeAccessOpen}
+        onCancel={() => {
+          setKnowledgeAccessOpen(false)
+          setKnowledgeAccessError("")
+        }}
+        title={t("enterpriseKnowledge.access.title")}
+        width={560}
+        footer={
+          <>
+            <RailopsButton
+              variant="text"
+              onClick={() => setKnowledgeAccessOpen(false)}
+              disabled={knowledgeAccessSaving}
+            >
+              {t("common.cancel")}
+            </RailopsButton>
+            <RailopsButton
+              variant="primary"
+              onClick={() => void handleSaveKnowledgeAccess()}
+              disabled={knowledgeAccessSaving || knowledgeAccessLoading}
+            >
+              {knowledgeAccessSaving ? t("enterpriseKnowledge.access.saving") : t("enterpriseKnowledge.access.save")}
+            </RailopsButton>
+          </>
+        }
+      >
+        <div className="space-y-3 py-1">
+          <p className="text-sm text-muted-foreground">{t("enterpriseKnowledge.access.hint")}</p>
+          {knowledgeAccessLoading ? (
+            <Skeleton active paragraph={{ rows: 4 }} />
+          ) : knowledgeAccessTeams.length === 0 ? (
+            <EmptyState title={t("enterpriseKnowledge.access.empty")} />
+          ) : (
+            <div className="max-h-80 space-y-2 overflow-y-auto">
+              {knowledgeAccessTeams.map((team) => {
+                const checked = knowledgeAccessGrants.some(
+                  (item) => item.subject_type === "team" && item.subject_id === team.id,
+                )
+                return (
+                  <label
+                    key={team.id}
+                    className="flex cursor-pointer items-center gap-3 rounded-md border border-border px-3 py-2"
+                  >
+                    <AntCheckbox checked={checked} onChange={() => toggleKnowledgeAccessTeam(team.id)} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{team.name}</span>
+                      <span className="block text-xs text-muted-foreground">{team.teamType}</span>
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          )}
+          {knowledgeAccessError ? <p role="alert" className="text-sm text-destructive">{knowledgeAccessError}</p> : null}
+        </div>
+      </StandardModal>
       <KnowledgePreviewDialog
         key={knowledgePreview?.type === "candidate"
           ? `candidate-${knowledgePreview.candidate.id}-${knowledgePreview.candidate.candidate_score}`

@@ -19,6 +19,7 @@ import (
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/projectconfig"
 	"remotehelpdesk/internal/pkg/ticketpolicy"
+	"remotehelpdesk/internal/repositories"
 )
 
 func RequireProjectRuntimeOperator(op *dto.AuthPrincipal) error {
@@ -162,6 +163,7 @@ func UpgradeProjectConfiguration(tenantID int64) (*projectconfig.Document, error
 	}
 	// Legacy violation checks counted wall-clock minutes without a calendar.
 	r.Calendars = append(r.Calendars, projectconfig.Calendar{Key: defaultKey, Timezone: r.Timezone, WorkDays: []int{0, 1, 2, 3, 4, 5, 6}, Start: "00:00", End: "24:00", Holidays: []string{}})
+	r.Targets = projectconfig.DefaultTargets(defaultKey)
 	if db.Migrator().HasTable(&SLAPolicy{}) {
 		var rows []SLAPolicy
 		if err := db.Where("tenant_id = ? AND status = 'active'", formatID(tenantID)).Find(&rows).Error; err != nil {
@@ -372,12 +374,16 @@ func resolveProjectMailConfig(tenantID int64) (*config.EmailConfig, error) {
 }
 
 func prepareProjectRuntimeTicketDB(db *gorm.DB, ticket *models.Ticket) error {
+	ticket.ServiceProfile = resolveTicketServiceProfileDB(db, ticket)
 	r, id, err := projectRuntimeDB(db, ticket.TenantID, ticket.IntakeConfigVersionID)
 	if err != nil {
 		return err
 	}
 	if r == nil {
 		return nil
+	}
+	if strings.TrimSpace(ticket.ProjectKey) != "" {
+		ticket.ServiceProfile = r.ProjectProfile(ticket.ProjectKey)
 	}
 	channel := ticket.Channel
 	switch channel {
@@ -397,11 +403,21 @@ func prepareProjectRuntimeTicketDB(db *gorm.DB, ticket *models.Ticket) error {
 	if ticket.CreatedAt.IsZero() {
 		ticket.CreatedAt = time.Now()
 	}
-	if target, calendar, ok := projectTicketTarget(r, ticket.ProjectKey); ok && target.ResolutionMinutes > 0 {
+	if target, calendar, ok := projectTicketTargetForTicket(r, ticket.ProjectKey, ticket.ServiceProfile); ok && target.ResolutionMinutes > 0 {
 		deadline := calendar.AddMinutes(ticket.CreatedAt, target.ResolutionMinutes)
 		ticket.SLADueAt = &deadline
 	}
 	return nil
+}
+
+func resolveTicketServiceProfileDB(db *gorm.DB, ticket *models.Ticket) string {
+	profile := projectconfig.NormalizeServiceProfile(ticket.ServiceProfile)
+	if ticket.CustomerID > 0 {
+		if customer := repositories.CustomerRepository.Get(db, ticket.CustomerID); customer != nil {
+			profile = projectconfig.NormalizeServiceProfile(customer.ServiceProfile)
+		}
+	}
+	return profile
 }
 
 // projectTicketTarget 按工单所属服务项目的服务档次挑选时限规则。
@@ -411,6 +427,18 @@ func projectTicketTarget(r *projectconfig.Runtime, project string) (projectconfi
 		return projectconfig.Target{}, projectconfig.Calendar{}, false
 	}
 	return projectTargetForProfile(r, r.ProjectProfile(project))
+}
+
+// projectTicketTargetForTicket 让无服务项目的工单按客户服务等级挑选时限规则。
+func projectTicketTargetForTicket(r *projectconfig.Runtime, projectKey, serviceProfile string) (projectconfig.Target, projectconfig.Calendar, bool) {
+	if r == nil {
+		return projectconfig.Target{}, projectconfig.Calendar{}, false
+	}
+	profile := r.ProjectProfile(projectKey)
+	if strings.TrimSpace(projectKey) == "" && projectconfig.IsServiceProfile(serviceProfile) {
+		profile = projectconfig.NormalizeServiceProfile(serviceProfile)
+	}
+	return projectTargetForProfile(r, profile)
 }
 
 func projectTargetForProfile(r *projectconfig.Runtime, profile string) (projectconfig.Target, projectconfig.Calendar, bool) {

@@ -767,6 +767,8 @@ func registerEnterpriseKnowledgeRoutes(group *gin.RouterGroup) {
 	require := middleware.RequirePermissionMiddleware
 	requireAI := middleware.RequireTenantAICapabilityMiddleware()
 	group.GET("/knowledge-bases/:knowledgeBaseId/documents", require(constants.PermissionKnowledgeDocumentView), requireAI, enterprise.TenantKnowledgeDocuments)
+	group.GET("/knowledge-bases/:knowledgeBaseId/access-grants", require(constants.PermissionKnowledgeBaseView), requireAI, enterprise.TenantKnowledgeAccessGrants)
+	group.PUT("/knowledge-bases/:knowledgeBaseId/access-grants", require(constants.PermissionKnowledgeBaseUpdate), requireAI, enterprise.TenantKnowledgeAccessGrantsReplace)
 	group.POST("/knowledge-bases/:knowledgeBaseId/documents/_upload", require(constants.PermissionKnowledgeDocumentCreate), requireAI, enterprise.TenantKnowledgeDocumentUpload)
 	group.POST("/knowledge-bases/:knowledgeBaseId/documents/:documentId/_reprocess", require(constants.PermissionKnowledgeDocumentUpdate), requireAI, enterprise.TenantKnowledgeDocumentReprocess)
 	group.DELETE("/knowledge-bases/:knowledgeBaseId/documents/:documentId", require(constants.PermissionKnowledgeDocumentDelete), requireAI, enterprise.TenantKnowledgeDocumentDelete)

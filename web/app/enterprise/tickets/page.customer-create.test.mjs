@@ -11,5 +11,7 @@ test("ticket creation always collects and persists customer context", () => {
   assert.match(pageSource, /ticketDraft\.customerMode === "existing"/)
   assert.match(pageSource, /ticketDraft\.customerMode === "invite"/)
   assert.match(pageSource, /ticketDraft\.customerId > 0 \? \{ customer_id: ticketDraft\.customerId \}/)
+  assert.match(pageSource, /serviceProfileLabel\(customerOptions\.find/)
+  assert.match(pageSource, /<ProjectConfigurationEditor \/>/)
   assert.doesNotMatch(pageSource, /!hasDeviceConcept && ticketDraft\.customerMode/)
 })

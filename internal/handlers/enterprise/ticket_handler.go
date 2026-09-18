@@ -225,6 +225,8 @@ func TicketCreate(ctx *gin.Context) {
 		ProductModelIDCamel    int64  `json:"productModelId"`
 		ProductModuleID        int64  `json:"product_module_id"`
 		ProductModuleIDCamel   int64  `json:"productModuleId"`
+		KnowledgeBaseID        int64  `json:"knowledge_base_id"`
+		KnowledgeBaseIDCamel   int64  `json:"knowledgeBaseId"`
 		DeviceID               int64  `json:"device_id"`
 		DeviceIDCamel          int64  `json:"deviceId"`
 		ServiceCodeID          int64  `json:"service_code_id"`
@@ -271,6 +273,7 @@ func TicketCreate(ctx *gin.Context) {
 			ProductID:                 firstNonZero(req.ProductID, req.ProductIDCamel),
 			ProductModelID:            firstNonZero(req.ProductModelID, req.ProductModelIDCamel),
 			ProductModuleID:           firstNonZero(req.ProductModuleID, req.ProductModuleIDCamel),
+			KnowledgeBaseID:           firstNonZero(req.KnowledgeBaseID, req.KnowledgeBaseIDCamel),
 			DeviceID:                  firstNonZero(req.DeviceID, req.DeviceIDCamel),
 			ServiceCodeID:             firstNonZero(req.ServiceCodeID, req.ServiceCodeIDCamel),
 			ServiceRegion:             firstNonEmpty(req.ServiceRegion, req.ServiceRegionCamel),
@@ -295,6 +298,7 @@ func TicketCreate(ctx *gin.Context) {
 			ProductID:                 firstNonZero(req.ProductID, req.ProductIDCamel),
 			ProductModelID:            firstNonZero(req.ProductModelID, req.ProductModelIDCamel),
 			ProductModuleID:           firstNonZero(req.ProductModuleID, req.ProductModuleIDCamel),
+			KnowledgeBaseID:           firstNonZero(req.KnowledgeBaseID, req.KnowledgeBaseIDCamel),
 			DeviceID:                  firstNonZero(req.DeviceID, req.DeviceIDCamel),
 			ServiceCodeID:             firstNonZero(req.ServiceCodeID, req.ServiceCodeIDCamel),
 			ServiceRegion:             firstNonEmpty(req.ServiceRegion, req.ServiceRegionCamel),

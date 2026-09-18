@@ -31,6 +31,42 @@ func TenantKnowledgeDocuments(ctx *gin.Context) {
 	httpx.WriteJSON(ctx, items)
 }
 
+func TenantKnowledgeAccessGrants(ctx *gin.Context) {
+	tenantID, knowledgeBaseID, ok := resolveEnterpriseKnowledgeBaseRoute(ctx)
+	if !ok {
+		return
+	}
+	items, err := services.ListKnowledgeAccessGrants(tenantID, knowledgeBaseID)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, items)
+}
+
+func TenantKnowledgeAccessGrantsReplace(ctx *gin.Context) {
+	tenantID, knowledgeBaseID, ok := resolveEnterpriseKnowledgeBaseRoute(ctx)
+	if !ok {
+		return
+	}
+	var req dto.EnterpriseKnowledgeAccessGrantsReplaceRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		httpx.WriteJSON(ctx, errorsx.InvalidParam("请求内容不合法"))
+		return
+	}
+	items, err := services.ReplaceKnowledgeAccessGrants(
+		tenantID,
+		knowledgeBaseID,
+		req.Grants,
+		enterpriseActionOperator(ctx, tenantID),
+	)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, items)
+}
+
 func TenantKnowledgeDocumentUpload(ctx *gin.Context) {
 	tenantID, knowledgeBaseID, ok := resolveEnterpriseKnowledgeBaseRoute(ctx)
 	if !ok {

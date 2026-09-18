@@ -31,6 +31,32 @@ func TestKnowledgeManagerUsesLeastPrivilegeProductPolicy(t *testing.T) {
 	}
 }
 
+func TestKnowledgeAccessManagementRequiresKnowledgeBaseUpdate(t *testing.T) {
+	permissionsByRole := make(map[string][]string)
+	for _, spec := range tenantDefaultRoleSpecs() {
+		permissionsByRole[spec.Code] = spec.Permissions
+	}
+
+	for _, roleCode := range []string{
+		EnterpriseRoleOwner,
+		EnterpriseRoleAdmin,
+		EnterpriseRoleServiceManager,
+		EnterpriseRoleKnowledge,
+	} {
+		if !slices.Contains(permissionsByRole[roleCode], constants.PermissionKnowledgeBaseUpdate.Code) {
+			t.Errorf("role %q should be able to maintain knowledge base access", roleCode)
+		}
+	}
+	for _, roleCode := range []string{
+		EnterpriseRoleEngineer,
+		EnterpriseRoleViewer,
+	} {
+		if slices.Contains(permissionsByRole[roleCode], constants.PermissionKnowledgeBaseUpdate.Code) {
+			t.Errorf("role %q should not be able to maintain knowledge base access", roleCode)
+		}
+	}
+}
+
 func TestTenantAdminCanConfigureAgentMCPTools(t *testing.T) {
 	var permissions []string
 	for _, spec := range tenantDefaultRoleSpecs() {

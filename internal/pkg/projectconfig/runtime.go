@@ -100,6 +100,16 @@ const DefaultServiceProfile = "standard"
 // ServiceProfiles 列出可选的服务档次，顺序即界面展示顺序。
 var ServiceProfiles = []string{"standard", "enhanced", "mission_critical"}
 
+// DefaultTargets seeds the first editable configuration version. They are only
+// suggestions; active Target values always come from the stored document.
+func DefaultTargets(calendarKey string) []Target {
+	return []Target{
+		{ProjectKey: "*", Profile: "standard", CalendarKey: calendarKey, ResponseMinutes: 30, AssignmentMinutes: 60, ResolutionMinutes: 480},
+		{ProjectKey: "*", Profile: "enhanced", CalendarKey: calendarKey, ResponseMinutes: 15, AssignmentMinutes: 30, ResolutionMinutes: 240},
+		{ProjectKey: "*", Profile: "mission_critical", CalendarKey: calendarKey, ResponseMinutes: 5, AssignmentMinutes: 5, ResolutionMinutes: 60},
+	}
+}
+
 // NormalizeServiceProfile 归一化档次名，无法识别时按标准档处理。
 func NormalizeServiceProfile(value string) string {
 	profile := strings.ToLower(strings.TrimSpace(value))

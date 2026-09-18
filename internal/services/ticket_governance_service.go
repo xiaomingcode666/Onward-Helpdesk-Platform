@@ -204,7 +204,7 @@ func refreshGovernanceDeadlineDB(db *gorm.DB, t *models.Ticket) error {
 	}
 	var policy SLAPolicy
 	if r != nil {
-		target, cal, ok := projectTicketTarget(r, t.ProjectKey)
+		target, cal, ok := projectTicketTargetForTicket(r, t.ProjectKey, t.ServiceProfile)
 		if !ok || target.ResolutionMinutes <= 0 {
 			t.SLADueAt = nil
 			return nil

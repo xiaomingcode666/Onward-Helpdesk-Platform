@@ -12,6 +12,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
+	"remotehelpdesk/internal/pkg/projectconfig"
 	"remotehelpdesk/internal/repositories"
 
 	"github.com/mlogclub/simple/sqls"
@@ -202,6 +203,7 @@ func (s *enterpriseTicketService) ListCustomerOptions(tenantID int64, search str
 			CustomerID: item.CustomerID, CustomerUserID: item.CustomerUserID,
 			CustomerOrgID: item.CustomerOrgID, CustomerOrgName: item.CustomerOrgName,
 			DisplayName: item.DisplayName, Email: item.Email, Phone: item.Phone,
+			ServiceProfile: projectconfig.NormalizeServiceProfile(item.ServiceProfile),
 		})
 	}
 	return result, nil
@@ -498,6 +500,7 @@ func (s *enterpriseTicketService) GetAggregate(tenantID int64, ticketID int64) (
 		DiagnosisSnapshot:    s.buildDiagnosisSnapshot(ticket),
 		Flow:                 s.buildFlow(ticket),
 		Assignment:           s.buildAssignment(ticket),
+		AssignmentHistory:    s.buildAssignmentHistory(ticket),
 		Meeting:              s.buildMeeting(ticket),
 		Repair:               repair,
 		Feedback:             s.buildFeedback(ticket),
@@ -804,6 +807,7 @@ func (s *enterpriseTicketService) buildListItem(ticket models.Ticket) dto.Enterp
 		DispatchAttempts:          dispatchAttempts,
 		DispatchDeferredUntil:     formatEnterpriseTimePtr(ticket.DispatchDeferredUntil),
 		LastDispatchFailureReason: ticket.LastDispatchFailureReason,
+		ServiceProfile:            projectconfig.NormalizeServiceProfile(ticket.ServiceProfile),
 	}
 }
 
@@ -817,6 +821,7 @@ func (s *enterpriseTicketService) buildHeader(ticket *models.Ticket) dto.TicketH
 		ID:                   ticket.ID,
 		ProductID:            ticket.ProductID,
 		ProductModuleID:      ticket.ProductModuleID,
+		KnowledgeBaseID:      ticket.KnowledgeBaseID,
 		TicketNo:             ticket.TicketNo,
 		Title:                ticket.Title,
 		Description:          ticket.Description,
@@ -833,6 +838,51 @@ func (s *enterpriseTicketService) buildHeader(ticket *models.Ticket) dto.TicketH
 		UpdatedAt:            formatEnterpriseTime(ticket.UpdatedAt),
 		SLADeadline:          formatTicketSLADeadline(*ticket),
 		Category:             ticket.FaultCode,
+		ServiceProfile:       projectconfig.NormalizeServiceProfile(ticket.ServiceProfile),
+		ServiceTarget:        buildTicketServiceTargetDTO(ticket),
+		ServiceMetrics:       buildTicketServiceMetricsDTO(ticket),
+		SupportStatus:        ticket.SupportStatus,
+		SupportReason:        ticket.SupportReason,
+		SupportCheckedAt:     formatEnterpriseTimePtr(ticket.SupportCheckedAt),
+	}
+}
+
+func buildTicketServiceMetricsDTO(ticket *models.Ticket) []dto.TicketServiceMetricDTO {
+	if ticket == nil || ticket.ID <= 0 {
+		return nil
+	}
+	items := TicketServiceMetricService.ListForTicket(ticket.ID)
+	result := make([]dto.TicketServiceMetricDTO, 0, len(items))
+	for _, item := range items {
+		result = append(result, dto.TicketServiceMetricDTO{
+			MetricType: item.MetricType,
+			Status:     item.Status,
+			TargetAt:   formatEnterpriseTimePtr(item.TargetAt),
+			ActualAt:   formatEnterpriseTimePtr(item.ActualAt),
+			Escalated:  item.Escalated,
+		})
+	}
+	return result
+}
+
+func buildTicketServiceTargetDTO(ticket *models.Ticket) *dto.TicketServiceTargetDTO {
+	if ticket == nil || ticket.ProjectConfigVersionID <= 0 {
+		return nil
+	}
+	r, _, err := projectRuntimeDB(sqls.DB(), ticket.TenantID, ticket.ProjectConfigVersionID)
+	if err != nil || r == nil {
+		return nil
+	}
+	target, calendar, ok := projectTicketTargetForTicket(r, ticket.ProjectKey, ticket.ServiceProfile)
+	if !ok {
+		return nil
+	}
+	return &dto.TicketServiceTargetDTO{
+		Profile:           projectconfig.NormalizeServiceProfile(ticket.ServiceProfile),
+		CalendarKey:       calendar.Key,
+		ResponseMinutes:   target.ResponseMinutes,
+		AssignmentMinutes: target.AssignmentMinutes,
+		ResolutionMinutes: target.ResolutionMinutes,
 	}
 }
 
@@ -1161,6 +1211,42 @@ func (s *enterpriseTicketService) buildAssignment(ticket *models.Ticket) dto.Tic
 		}
 	}
 	return assignment
+}
+
+func (s *enterpriseTicketService) buildAssignmentHistory(ticket *models.Ticket) []dto.TicketAssignmentHistoryDTO {
+	history := []dto.TicketAssignmentHistoryDTO{}
+	if ticket == nil || ticket.TenantID <= 0 || ticket.ID <= 0 {
+		return history
+	}
+	attempts, err := repositories.TicketDispatchAttemptRepository.FindAssignedByTicket(sqls.DB(), ticket.TenantID, ticket.ID)
+	if err != nil {
+		return history
+	}
+	for _, attempt := range attempts {
+		item := dto.TicketAssignmentHistoryDTO{
+			ID:         attempt.ID,
+			AttemptNo:  attempt.AttemptNo,
+			AssigneeID: attempt.AssigneeID,
+			TeamID:     attempt.TeamID,
+			Source:     "manual",
+			Outcome:    attempt.Outcome,
+			Reason:     attempt.Reason,
+			AssignedAt: formatEnterpriseTime(attempt.AssignedAt),
+			AcceptedAt: formatEnterpriseTimePtr(attempt.AcceptedAt),
+			EndedAt:    formatEnterpriseTimePtr(attempt.EndedAt),
+		}
+		if attempt.CreateUserID <= 0 {
+			item.Source = "automatic"
+		}
+		if user := repositories.UserRepository.Get(sqls.DB(), attempt.AssigneeID); user != nil {
+			item.AssigneeName = firstNonEmptyString(user.Nickname, user.Username)
+		}
+		if team := AgentTeamService.GetForTenant(attempt.TeamID, ticket.TenantID); team != nil {
+			item.TeamName = team.Name
+		}
+		history = append(history, item)
+	}
+	return history
 }
 
 func (s *enterpriseTicketService) buildMeeting(ticket *models.Ticket) dto.TicketMeetingDTO {

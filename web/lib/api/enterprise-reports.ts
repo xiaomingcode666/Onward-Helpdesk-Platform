@@ -28,6 +28,15 @@ export interface DashboardOverview {
   remote_resolution_rate: number | null
   outcome_metric_coverage_rate: number | null
   outcome_metric_sample_size: number
+  service_metric_report: Array<{
+    metric_type: string
+    running: number
+    warning: number
+    breached: number
+    met: number
+    escalated: number
+    total: number
+  }>
   recent_activities: Activity[]
   queue_tickets: QueueTicket[]
 }

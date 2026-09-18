@@ -52,6 +52,11 @@ func Init() {
 	})
 
 	addFunc(c, "@every 1m", func() {
+		if processed, err := services.TicketServiceMetricService.ScanActiveTickets(0); err != nil {
+			slog.Warn("ticket service metric scan failed", "error", err)
+		} else if processed > 0 {
+			slog.Debug("ticket service metrics refreshed", "count", processed)
+		}
 		if warnings, err := services.SLAService.CheckSLAWarnings(); err != nil {
 			slog.Warn("sla warning scan failed", "error", err)
 		} else if warnings > 0 {

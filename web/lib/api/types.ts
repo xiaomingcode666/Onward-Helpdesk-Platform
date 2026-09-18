@@ -200,6 +200,7 @@ export interface TicketHeaderDTO extends TicketIntakeDTO, TicketCaseSummaryDTO {
   id: number
 	product_id: number
 	product_module_id: number
+  knowledge_base_id: number
   ticket_no: string
   title: string
   description: string
@@ -212,6 +213,24 @@ export interface TicketHeaderDTO extends TicketIntakeDTO, TicketCaseSummaryDTO {
   updated_at: string
   sla_deadline: string
   category: string
+  service_profile: string
+  service_target?: {
+    profile: string
+    calendar_key: string
+    response_minutes: number
+    assignment_minutes: number
+    resolution_minutes: number
+  }
+  service_metrics?: Array<{
+    metric_type: string
+    status: string
+    target_at?: string
+    actual_at?: string
+    escalated: boolean
+  }>
+  support_status: string
+  support_reason: string
+  support_checked_at: string
 }
 
 export interface CustomerSummaryDTO {
@@ -279,6 +298,21 @@ export interface TicketAssignmentDTO {
   note: string
   can_transfer: boolean
   can_escalate: boolean
+}
+
+export interface TicketAssignmentHistoryDTO {
+  id: number
+  attempt_no: number
+  assignee_id: number
+  assignee_name: string
+  team_id: number
+  team_name: string
+  source: string
+  outcome: string
+  reason: string
+  assigned_at: string
+  accepted_at: string
+  ended_at: string
 }
 
 export interface TicketMeetingDTO {
@@ -378,6 +412,7 @@ export interface TicketAggregateDTO {
   diagnosis_snapshot?: DiagnosisHandoffSnapshotDTO
   flow: TicketFlowDTO
   assignment: TicketAssignmentDTO
+  assignment_history?: TicketAssignmentHistoryDTO[]
   meeting: TicketMeetingDTO
 	repair: TicketRepairDTO
 	feedback?: TicketFeedbackDTO
@@ -477,6 +512,7 @@ export interface CreateTicketPayload extends TicketIntakeDTO {
   channel: string
   product_id?: number
   product_model_id?: number
+  knowledge_base_id?: number
   device_id?: number
   customer_id?: number
   conversation_id?: number

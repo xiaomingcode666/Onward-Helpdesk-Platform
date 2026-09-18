@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mlogclub/simple/sqls"
 	"github.com/stretchr/testify/require"
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/enums"
@@ -49,4 +50,12 @@ func TestProjectRuntimeSLAFollowsTicketServiceProfile(t *testing.T) {
 	require.NotNil(t, standard.SLADueAt)
 	require.True(t, standard.SLADueAt.Equal(time.Date(2026, time.September, 16, 15, 0, 0, 0, time.UTC)),
 		"standard deadline = %s", standard.SLADueAt.Format(time.RFC3339))
+
+	customer := models.Customer{ID: 901, Name: "Enhanced Customer", ServiceProfile: "enhanced", Status: enums.StatusOk}
+	require.NoError(t, sqls.DB().Create(&customer).Error)
+	customerTicket := models.Ticket{TenantID: 1, TicketNo: "PROFILE-CUSTOMER", CustomerID: customer.ID, Channel: "manual", Status: enums.TicketStatusPending, AuditFields: models.AuditFields{CreatedAt: start}}
+	require.NoError(t, TicketService.Create(&customerTicket))
+	require.Equal(t, "enhanced", customerTicket.ServiceProfile)
+	require.True(t, customerTicket.SLADueAt.Equal(time.Date(2026, time.September, 14, 17, 0, 0, 0, time.UTC)),
+		"customer enhanced deadline = %s", customerTicket.SLADueAt.Format(time.RFC3339))
 }

@@ -382,6 +382,7 @@ func (s *ticketService) prepareTicketCreate(db *gorm.DB, req request.CreateTicke
 		ProductID:                   req.ProductID,
 		ProductModelID:              req.ProductModelID,
 		ProductModuleID:             req.ProductModuleID,
+		KnowledgeBaseID:             req.KnowledgeBaseID,
 		DeviceID:                    req.DeviceID,
 		ServiceCodeID:               req.ServiceCodeID,
 		CustomerEntrySessionID:      req.CustomerEntrySessionID,
@@ -400,6 +401,11 @@ func (s *ticketService) prepareTicketCreate(db *gorm.DB, req request.CreateTicke
 	}
 	if err := initializeTicketGovernanceDB(db, ticket, req.CaseType, req.PriorityFacts); err != nil {
 		return nil, nil, err
+	}
+	if ticket.KnowledgeBaseID <= 0 {
+		if knowledgeBase := defaultTicketKnowledgeBaseDB(db, tenantID); knowledgeBase != nil {
+			ticket.KnowledgeBaseID = knowledgeBase.ID
+		}
 	}
 	var initialPriorityChange map[string]any
 	initialPriorityReason := strings.TrimSpace(req.PriorityReason)
@@ -827,6 +833,14 @@ func (s *ticketService) buildCreateTicketRequestFromConversationDB(db *gorm.DB, 
 		productModelID = conversation.ProductModelID
 	}
 	productModuleID := req.ProductModuleID
+	knowledgeBaseID := req.KnowledgeBaseID
+	if knowledgeBaseID <= 0 && conversation.AIAgentID > 0 {
+		if agent := repositories.AIAgentRepository.Get(db, conversation.AIAgentID); agent != nil {
+			if ids := utils.SplitInt64s(agent.KnowledgeIDs); len(ids) > 0 {
+				knowledgeBaseID = ids[0]
+			}
+		}
+	}
 	deviceID := req.DeviceID
 	if deviceID <= 0 {
 		deviceID = conversation.DeviceID
@@ -862,6 +876,7 @@ func (s *ticketService) buildCreateTicketRequestFromConversationDB(db *gorm.DB, 
 		ProductID:                 productID,
 		ProductModelID:            productModelID,
 		ProductModuleID:           productModuleID,
+		KnowledgeBaseID:           knowledgeBaseID,
 		DeviceID:                  deviceID,
 		ServiceCodeID:             serviceCodeID,
 		CustomerEntrySessionID:    customerEntrySessionID,
@@ -1198,6 +1213,7 @@ func (s *ticketService) UpdateTicket(req request.UpdateTicketRequest, operator *
 	productID := req.ProductID
 	productModelID := req.ProductModelID
 	productModuleID := req.ProductModuleID
+	knowledgeBaseID := req.KnowledgeBaseID
 	deviceID := req.DeviceID
 	serviceCodeID := req.ServiceCodeID
 	customerEntrySessionID := req.CustomerEntrySessionID
@@ -1215,6 +1231,7 @@ func (s *ticketService) UpdateTicket(req request.UpdateTicketRequest, operator *
 		productID = ticket.ProductID
 		productModelID = ticket.ProductModelID
 		productModuleID = ticket.ProductModuleID
+		knowledgeBaseID = ticket.KnowledgeBaseID
 		deviceID = ticket.DeviceID
 		serviceCodeID = ticket.ServiceCodeID
 		customerEntrySessionID = ticket.CustomerEntrySessionID
@@ -1233,6 +1250,9 @@ func (s *ticketService) UpdateTicket(req request.UpdateTicketRequest, operator *
 		}
 		if productModuleID == 0 {
 			productModuleID = ticket.ProductModuleID
+		}
+		if knowledgeBaseID == 0 {
+			knowledgeBaseID = ticket.KnowledgeBaseID
 		}
 		if deviceID == 0 {
 			deviceID = ticket.DeviceID
@@ -1291,6 +1311,7 @@ func (s *ticketService) UpdateTicket(req request.UpdateTicketRequest, operator *
 			"product_id":                productID,
 			"product_model_id":          productModelID,
 			"product_module_id":         productModuleID,
+			"knowledge_base_id":          knowledgeBaseID,
 			"device_id":                 deviceID,
 			"service_code_id":           serviceCodeID,
 			"customer_entry_session_id": customerEntrySessionID,
@@ -1312,7 +1333,27 @@ func (s *ticketService) UpdateTicket(req request.UpdateTicketRequest, operator *
 		if err := repositories.TicketRepository.Updates(ctx.Tx, ticket.ID, columns); err != nil {
 			return err
 		}
-		return TicketTagService.ReplaceTicketTags(ctx.Tx, ticket.ID, tagIDs, operator)
+		if err := TicketTagService.ReplaceTicketTags(ctx.Tx, ticket.ID, tagIDs, operator); err != nil {
+			return err
+		}
+		if locked.KnowledgeBaseID != knowledgeBaseID {
+			locked.KnowledgeBaseID = knowledgeBaseID
+			if err := EvaluateTicketSupportReadinessDB(
+				ctx.Tx,
+				locked,
+				locked.CurrentTeamID,
+				locked.CurrentAssigneeID,
+				operator.UserID,
+				now,
+			); err != nil {
+				slog.Warn("evaluate ticket support readiness after module change failed",
+					"ticket_id", locked.ID,
+					"knowledge_base_id", knowledgeBaseID,
+					"error", err,
+				)
+			}
+		}
+		return nil
 	})
 }
 
@@ -1930,11 +1971,18 @@ func (s *ticketService) AddProgress(req request.CreateTicketProgressRequest, ope
 		if err := repositories.TicketProgressRepository.Create(ctx.Tx, progress); err != nil {
 			return err
 		}
-		return repositories.TicketRepository.Updates(ctx.Tx, ticket.ID, map[string]any{
+		updates := map[string]any{
 			"updated_at":       now,
 			"update_user_id":   operator.UserID,
 			"update_user_name": operator.Username,
-		})
+		}
+		if req.VisibleToCustomer {
+			updates["last_customer_update_at"] = now
+			if ticket.FirstRespondedAt == nil {
+				updates["first_responded_at"] = now
+			}
+		}
+		return repositories.TicketRepository.Updates(ctx.Tx, ticket.ID, updates)
 	}); err != nil {
 		return nil, err
 	}

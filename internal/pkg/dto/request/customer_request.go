@@ -30,12 +30,13 @@ func (r CustomerListRequest) Offset() int {
 }
 
 type CreateCustomerRequest struct {
-	Name          string `json:"name"`
-	Gender        int    `json:"gender"`
-	CompanyID     int64  `json:"companyId"`
-	PrimaryMobile string `json:"primaryMobile"`
-	PrimaryEmail  string `json:"primaryEmail"`
-	Remark        string `json:"remark"`
+	Name           string `json:"name"`
+	Gender         int    `json:"gender"`
+	CompanyID      int64  `json:"companyId"`
+	ServiceProfile string `json:"serviceProfile"`
+	PrimaryMobile  string `json:"primaryMobile"`
+	PrimaryEmail   string `json:"primaryEmail"`
+	Remark         string `json:"remark"`
 }
 
 type UpdateCustomerRequest struct {
@@ -74,10 +75,11 @@ type CustomerProfileContactItem struct {
 
 // SaveCustomerProfileRequest 客户主信息与联系方式一并保存（单事务）；id 为空或 0 表示新建客户。
 type SaveCustomerProfileRequest struct {
-	ID        *int64                       `json:"id,omitempty"`
-	Name      string                       `json:"name"`
-	Gender    int                          `json:"gender"`
-	CompanyID int64                        `json:"companyId"`
-	Remark    string                       `json:"remark"`
-	Contacts  []CustomerProfileContactItem `json:"contacts"`
+	ID             *int64                       `json:"id,omitempty"`
+	Name           string                       `json:"name"`
+	Gender         int                          `json:"gender"`
+	CompanyID      int64                        `json:"companyId"`
+	ServiceProfile string                       `json:"serviceProfile"`
+	Remark         string                       `json:"remark"`
+	Contacts       []CustomerProfileContactItem `json:"contacts"`
 }

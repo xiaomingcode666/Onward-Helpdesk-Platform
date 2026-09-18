@@ -39,6 +39,8 @@ const genderValueOptions = [
   String(Gender.Female),
 ] as const
 
+const serviceProfileValueOptions = ["standard", "enhanced", "mission_critical"] as const
+
 const contactTypeValues = [
   ContactType.Mobile,
   ContactType.Email,
@@ -57,6 +59,7 @@ export type CustomerFormValues = {
   name: string
   gender: (typeof genderValueOptions)[number]
   companyId: string
+  serviceProfile: (typeof serviceProfileValueOptions)[number]
   remark: string
   contacts: CustomerContactFormRow[]
 }
@@ -82,6 +85,7 @@ const emptyCustomerForm: CustomerFormValues = {
   name: "",
   gender: "0",
   companyId: "0",
+  serviceProfile: "standard",
   remark: "",
   contacts: [defaultContactRow(true)],
 }
@@ -92,6 +96,7 @@ function buildCustomerMainFromAdmin(item: AdminCustomer | null): Omit<CustomerFo
       name: "",
       gender: "0",
       companyId: "0",
+      serviceProfile: "standard",
       remark: "",
     }
   }
@@ -99,6 +104,7 @@ function buildCustomerMainFromAdmin(item: AdminCustomer | null): Omit<CustomerFo
     name: item.name,
     gender: String(item.gender) as "0" | "1" | "2",
     companyId: String(item.companyId ?? 0),
+    serviceProfile: (item.serviceProfile || "standard") as CustomerFormValues["serviceProfile"],
     remark: item.remark ?? "",
   }
 }
@@ -160,6 +166,14 @@ function CustomerFormFields({
       { value: String(Gender.Unknown), label: t("customerForm.genderUnknown") },
       { value: String(Gender.Male), label: t("customerForm.genderMale") },
       { value: String(Gender.Female), label: t("customerForm.genderFemale") },
+    ],
+    [t]
+  )
+  const serviceProfileOptions = useMemo(
+    () => [
+      { value: "standard", label: t("customerForm.serviceStandard") },
+      { value: "enhanced", label: t("customerForm.serviceEnhanced") },
+      { value: "mission_critical", label: t("customerForm.serviceCritical") },
     ],
     [t]
   )
@@ -250,6 +264,25 @@ function CustomerFormFields({
                   )}
                 />
                 <FieldError errors={[errors.companyId]} />
+              </FieldContent>
+            </Field>
+
+            <Field data-invalid={!!errors.serviceProfile}>
+              <FieldLabel htmlFor={id("serviceProfile")}>{t("customerForm.serviceProfile")}</FieldLabel>
+              <FieldContent>
+                <Controller
+                  control={control}
+                  name="serviceProfile"
+                  render={({ field }) => (
+                    <OptionCombobox
+                      value={field.value}
+                      options={serviceProfileOptions}
+                      placeholder={t("customerForm.serviceProfile")}
+                      onChange={field.onChange}
+                    />
+                  )}
+                />
+                <FieldError errors={[errors.serviceProfile]} />
               </FieldContent>
             </Field>
           </div>
@@ -397,6 +430,7 @@ export function CustomerForm({
         name: z.string().trim().min(1, t("customerForm.nameRequired")),
         gender: z.enum(genderValueOptions, { message: t("customerForm.genderRequired") }),
         companyId: z.string().trim().regex(/^\d+$/, t("customerForm.companyRequired")),
+        serviceProfile: z.enum(serviceProfileValueOptions, { message: t("customerForm.serviceProfileRequired") }),
         remark: z.string().trim(),
         contacts: z.array(contactRowSchema),
       }),
@@ -451,6 +485,7 @@ export function CustomerForm({
       name: values.name.trim(),
       gender: Number(values.gender),
       companyId: Number(values.companyId),
+      serviceProfile: values.serviceProfile,
       remark: values.remark.trim(),
       contacts: contacts.map((c) => ({
         id: c.id,

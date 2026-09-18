@@ -8,8 +8,10 @@ import {
   CircleDotIcon,
   ClipboardListIcon,
   FileTextIcon,
+  KeyRoundIcon,
   MessageSquareMoreIcon,
   PackageIcon,
+  ShieldCheckIcon,
   StarIcon,
   UserCheckIcon,
   type LucideIcon,
@@ -17,6 +19,7 @@ import {
 import { useState, type ReactNode } from "react"
 
 import { StatusTag, UnderlineTabs, type RailopsTabItem } from "@railops/ui"
+import { useAuth } from "@/components/auth-provider"
 import type { TicketAggregateDTO, TicketFlowStepDTO } from "@/lib/api/types"
 import { displayTicketStatus, isCaseStatus, isProcessingTicketStatus, isTerminalTicketStatus } from "@/lib/ticket-lifecycle"
 import { caseLabel, caseStatusLabel, localizeCaseTimelineContent } from "@/lib/ticket-case-labels"
@@ -432,11 +435,80 @@ function dispatchFailureReasonLabel(reason?: string | null) {
   return map[normalized] ?? normalized
 }
 
+function assignmentOutcomeLabel(outcome: string) {
+  const map: Record<string, string> = {
+    pending: ee("ticketDetail.text108"),
+    accepted: ee("ticketDetail.text109"),
+    timed_out: ee("ticketDetail.text110"),
+    superseded: ee("ticketDetail.text111"),
+    escalated: ee("ticketDetail.text112"),
+    closed: ee("ticketDetail.text113"),
+    cancelled: ee("ticketDetail.text114"),
+    failed: ee("ticketDetail.text115"),
+  }
+  return map[outcome] || outcome || ee("ticketDetail.text103")
+}
+
+function assignmentSourceLabel(source: string) {
+  return source === "automatic" ? ee("ticketDetail.text116") : ee("ticketDetail.text117")
+}
+
+function ticketSupportAccessLabel(status: string) {
+  if (status === "ready") return ee("ticketDetail.text121")
+  if (status === "restricted_support") return ee("ticketDetail.text120")
+  return ee("ticketDetail.text122")
+}
+
+function ticketServiceProfileLabel(profile: string) {
+  if (profile === "enhanced") return ee("tickets.text105")
+  if (profile === "mission_critical") return ee("tickets.text106")
+  if (profile === "standard") return ee("tickets.text104")
+  return ee("tickets.text107")
+}
+
+function ticketServiceTargetLabel(target: TicketAggregateDTO["ticket"]["service_target"]) {
+  if (!target) return ee("tickets.text107")
+  return ee("tickets.text109", {
+    value0: target.response_minutes,
+    value1: target.assignment_minutes,
+    value2: target.resolution_minutes,
+  })
+}
+
+function ticketServiceMetricLabel(metricType: string) {
+  const map: Record<string, string> = {
+    acknowledgement: ee("ticketDetail.text133"),
+    first_response: ee("ticketDetail.text134"),
+    update_cadence: ee("ticketDetail.text135"),
+    escalation: ee("ticketDetail.text136"),
+    restore: ee("ticketDetail.text137"),
+    resolve: ee("ticketDetail.text138"),
+  }
+  return map[metricType] ?? metricType
+}
+
+function ticketServiceMetricStatusLabel(status: string) {
+  if (status === "escalated") return ee("ticketDetail.text136")
+  if (status === "warning") return ee("ticketDetail.text140")
+  if (status === "breached") return ee("ticketDetail.text141")
+  if (status === "met") return ee("ticketDetail.text142")
+  return ee("ticketDetail.text139")
+}
+
+function ticketServiceMetricTone(status: string) {
+  if (status === "escalated") return "error" as const
+  if (status === "breached") return "error" as const
+  if (status === "warning") return "warning" as const
+  if (status === "met") return "success" as const
+  return "neutral" as const
+}
+
 export function EnterpriseTicketDetailContent({
   aggregate,
   variant = "full",
   showDeviceContext = true,
 }: TicketDetailContentProps) {
+  const { ready: authReady, session } = useAuth()
   const [activeTab, setActiveTab] = useState<DetailTabKey>("overview")
   const detailTabs = buildDetailTabs()
   const compact = variant === "compact"
@@ -444,6 +516,7 @@ export function EnterpriseTicketDetailContent({
   const customer = aggregate.customer
   const device = aggregate.device_context
   const assignment = aggregate.assignment
+  const assignmentHistory = aggregate.assignment_history ?? []
   const repair = aggregate.repair
   const repairParts = repair.parts ?? []
   const conversation = aggregate.conversation_snapshot
@@ -451,6 +524,15 @@ export function EnterpriseTicketDetailContent({
   const assets = aggregate.assets ?? []
   const timeline = aggregate.timeline ?? []
   const progressRecords = timeline.filter((item) => !isTicketCreatedTimelineItem(item))
+  const viewerIsAssignee =
+    authReady && assignment.assignee_id > 0 && session?.user?.id === assignment.assignee_id
+  const accessStatus = ticket.support_status || "unknown"
+  const accessDescription =
+    accessStatus === "ready"
+      ? ee(viewerIsAssignee ? "ticketDetail.text127" : "ticketDetail.text129")
+      : accessStatus === "restricted_support"
+        ? ee(viewerIsAssignee ? "ticketDetail.text126" : "ticketDetail.text128")
+        : ee(viewerIsAssignee ? "ticketDetail.text130" : "ticketDetail.text131")
 
   const fields: Array<[string, string]> = [
     [ee("ticketDetail.text050"), ticket.ticket_no],
@@ -470,6 +552,8 @@ export function EnterpriseTicketDetailContent({
       ["联系电话", ticket.caller_phone || "-"],
       ["接入时间", ticket.received_at ? formatDateTime(ticket.received_at) : "-"],
     ] as Array<[string, string]> : []),
+    [ee("tickets.text103"), ticketServiceProfileLabel(ticket.service_profile)],
+    [ee("tickets.text108"), ticketServiceTargetLabel(ticket.service_target)],
     [caseLabel("engineer"), assignment.assignee_name || ee("ticketDetail.text056")],
     ["SLA", slaLabel(ticket.sla_deadline, ticket.status)],
     [ee("ticketDetail.text057"), ticketStatusLabel(displayTicketStatus(ticket))],
@@ -503,6 +587,45 @@ export function EnterpriseTicketDetailContent({
             value={dispatchFailureReasonLabel(assignment.last_dispatch_failure_reason) || ee("ticketDetail.text065")}
             meta={assignment.dispatch_deferred_until ? formatDateTime(assignment.dispatch_deferred_until) : undefined}
           />
+        ) : null}
+        {assignmentHistory.length > 0 ? (
+          <div className="mt-3 space-y-2 border-t border-border pt-3" data-testid="ticket-assignment-history">
+            <div className="text-rhd-xs font-semibold text-muted-foreground">
+              {ee("ticketDetail.text106")}
+            </div>
+            {assignmentHistory.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-md border border-border/70 px-3 py-2"
+                data-testid="ticket-assignment-history-item"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-medium text-foreground">
+                      {item.assignee_name || ee("ticketDetail.text056")}
+                    </div>
+                    <div className="mt-0.5 text-rhd-xs text-muted-foreground">
+                      {item.team_name || ee("ticketDetail.text060")} · {assignmentSourceLabel(item.source)} ·{" "}
+                      {assignmentOutcomeLabel(item.outcome)}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right text-rhd-xs text-muted-foreground">
+                    <div>{ee("ticketDetail.text107", { value0: item.attempt_no })}</div>
+                    <div>
+                      {item.accepted_at
+                        ? ee("ticketDetail.text062", { value0: formatDateTime(item.accepted_at) })
+                        : formatDateTime(item.assigned_at)}
+                    </div>
+                  </div>
+                </div>
+                {item.reason ? (
+                  <div className="mt-1 text-rhd-xs text-muted-foreground">
+                    {ee("ticketDetail.text118", { value0: item.reason })}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
         ) : null}
       </div>
     </DetailSection>
@@ -653,6 +776,72 @@ export function EnterpriseTicketDetailContent({
         </div>
       </section>
 
+      <section
+        role="status"
+        data-testid="ticket-support-access-banner"
+        className={cn(
+          "rounded-lg border p-4",
+          accessStatus === "ready"
+            ? "border-emerald-500/35 bg-emerald-500/10"
+            : accessStatus === "restricted_support"
+              ? "border-amber-500/45 bg-amber-500/10"
+              : "border-border bg-muted/35",
+        )}
+      >
+        <div className="flex items-start gap-3">
+          <span
+            className={cn(
+              "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full",
+              accessStatus === "ready"
+                ? "bg-emerald-500/15 text-emerald-700"
+                : accessStatus === "restricted_support"
+                  ? "bg-amber-500/20 text-amber-700"
+                  : "bg-muted text-muted-foreground",
+            )}
+          >
+            {accessStatus === "ready" ? (
+              <ShieldCheckIcon className="size-4" />
+            ) : (
+              <KeyRoundIcon className="size-4" />
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-sm font-semibold">
+                {ee(viewerIsAssignee ? "ticketDetail.text124" : "ticketDetail.text125")}
+              </div>
+              <StatusTag
+                tone={
+                  accessStatus === "ready"
+                    ? "success"
+                    : accessStatus === "restricted_support"
+                      ? "warning"
+                      : "neutral"
+                }
+              >
+                {ticketSupportAccessLabel(accessStatus)}
+              </StatusTag>
+              {!viewerIsAssignee && assignment.assignee_id > 0 ? (
+                <span className="text-rhd-xs text-muted-foreground">
+                  {ee("ticketDetail.text132", { value0: assignment.assignee_name || ee("ticketDetail.text056") })}
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-1.5 text-xs leading-5 text-foreground/80">{accessDescription}</p>
+            {ticket.support_reason || ticket.support_checked_at ? (
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-rhd-xs text-muted-foreground">
+                {ticket.support_reason ? (
+                  <span>{ee("ticketDetail.text118", { value0: ticket.support_reason })}</span>
+                ) : null}
+                {ticket.support_checked_at ? (
+                  <span>{ee("ticketDetail.text123", { value0: formatDateTime(ticket.support_checked_at) })}</span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
       <section className="rhd-railops-ticket-detail-fields grid grid-cols-2 gap-3 text-xs lg:grid-cols-4">
         {fields.map(([label, value]) => (
           <InfoTile key={label} label={label} value={fieldValue(value)} />
@@ -704,6 +893,27 @@ export function EnterpriseTicketDetailContent({
         {activeTab === "overview" ? (
           <div className="rhd-railops-ticket-detail-tab-grid grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(22rem,0.9fr)]">
             <div className="space-y-3">
+              {ticket.service_metrics?.length ? (
+                <DetailSection
+                  icon={ClipboardListIcon}
+                  title={ee("ticketDetail.text143")}
+                >
+                  <div className="space-y-2">
+                    {ticket.service_metrics.map((metric) => (
+                      <RecordRow
+                        key={`${metric.metric_type}-${metric.target_at}`}
+                        label={ticketServiceMetricLabel(metric.metric_type)}
+                        value={
+                          <StatusTag tone={ticketServiceMetricTone(metric.status)}>
+                            {ticketServiceMetricStatusLabel(metric.status)}
+                          </StatusTag>
+                        }
+                        meta={metric.target_at ? ee("ticketDetail.text144", { value0: formatDateTime(metric.target_at) }) : undefined}
+                      />
+                    ))}
+                  </div>
+                </DetailSection>
+              ) : null}
               <DetailSection
                 icon={CheckCircle2Icon}
                 title={ee("ticketDetail.text090")}
@@ -873,14 +1083,17 @@ function RecordRow({
   meta,
 }: {
   label: string
-  value: string
+  value: ReactNode
   meta?: string
 }) {
   return (
     <div className="rhd-railops-ticket-detail-record flex min-w-0 items-start justify-between gap-3 rounded-md bg-muted/45 px-3 py-2.5 text-sm">
       <div className="min-w-0">
         <div className="text-rhd-xs text-muted-foreground">{label}</div>
-        <div className="mt-1 break-words font-medium leading-5 text-foreground" title={value}>
+        <div
+          className="mt-1 break-words font-medium leading-5 text-foreground"
+          title={typeof value === "string" ? value : undefined}
+        >
           {value || "-"}
         </div>
       </div>

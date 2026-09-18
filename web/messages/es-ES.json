@@ -1646,6 +1646,11 @@
     "nameRequired": "Enter a customer name.",
     "genderRequired": "Select a gender.",
     "companyRequired": "Select a company.",
+    "serviceProfile": "Perfil de servicio",
+    "serviceProfileRequired": "Selecciona un perfil de servicio",
+    "serviceStandard": "Estandar",
+    "serviceEnhanced": "Mejorado",
+    "serviceCritical": "Critico",
     "sectionCustomer": "Customer Details",
     "name": "Customer Name",
     "namePlaceholder": "Enter customer name",
@@ -4938,6 +4943,14 @@
     "productTreeEmptyText": "No matching products",
     "productTreeMounted": "Mounted",
     "productTreeUncreated": "Not created",
+    "access": {
+      "manage": "Gestionar acceso",
+      "title": "Acceso a la base de conocimiento",
+      "hint": "Selecciona los equipos que pueden ver y usar esta base. Sin permisos, los tickets se marcan como soporte restringido.",
+      "empty": "No hay equipos de soporte disponibles",
+      "save": "Guardar acceso",
+      "saving": "Guardando..."
+    },
     "tenantPanel": {
       "title": "Enterprise shared knowledge base",
       "subtitle": "Tenant default · above product knowledge bases",

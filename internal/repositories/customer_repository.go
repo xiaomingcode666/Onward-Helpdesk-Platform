@@ -34,6 +34,7 @@ type TenantCustomerOption struct {
 	DisplayName     string
 	Email           string
 	Phone           string
+	ServiceProfile  string
 }
 
 func (r *customerRepository) FindTenantCustomerOptions(db *gorm.DB, tenantID int64, search string, limit int) ([]TenantCustomerOption, error) {
@@ -50,7 +51,8 @@ func (r *customerRepository) FindTenantCustomerOptions(db *gorm.DB, tenantID int
 		Select(`ci.customer_id AS customer_id, cu.id AS customer_user_id, cu.customer_org_id,
 			co.name AS customer_org_name, COALESCE(NULLIF(cu.display_name, ''), c.name) AS display_name,
 			COALESCE(NULLIF(cu.email, ''), c.primary_email) AS email,
-			COALESCE(NULLIF(cu.phone, ''), c.primary_mobile) AS phone`).
+			COALESCE(NULLIF(cu.phone, ''), c.primary_mobile) AS phone,
+			c.service_profile AS service_profile`).
 		Joins("JOIN "+identityTable+" AS ci ON ci.external_source = ? AND ci.external_id = CAST(cu.user_id AS TEXT) AND ci.status = ?", enums.ExternalSourceUser, enums.StatusOk).
 		Joins("JOIN "+customerTable+" AS c ON c.id = ci.customer_id AND c.status = ?", enums.StatusOk).
 		Joins("LEFT JOIN customer_orgs AS co ON co.id = cu.customer_org_id AND co.tenant_id = cu.tenant_id AND co.status = ?", enums.StatusOk).

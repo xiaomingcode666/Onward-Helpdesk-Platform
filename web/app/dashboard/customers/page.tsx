@@ -32,6 +32,12 @@ function getGenderText(gender: number, t: TFunction) {
   return t("customerForm.genderUnknown");
 }
 
+function getServiceProfileText(profile: string, t: TFunction) {
+  if (profile === "enhanced") return t("customerForm.serviceEnhanced")
+  if (profile === "mission_critical") return t("customerForm.serviceCritical")
+  return t("customerForm.serviceStandard")
+}
+
 export default function DashboardCustomersPage() {
   const t = useI18n();
   const [companyOptions, setCompanyOptions] = useState<ComboboxOption[]>([
@@ -157,6 +163,16 @@ export default function DashboardCustomersPage() {
             {item.companyId > 0
               ? (companyNameMap[item.companyId] ?? String(item.companyId))
               : "-"}
+          </span>
+        ),
+      },
+      {
+        key: "serviceProfile",
+        label: t("customerForm.serviceProfile"),
+        className: "w-28",
+        render: (item) => (
+          <span className="text-muted-foreground">
+            {getServiceProfileText(item.serviceProfile || "standard", t)}
           </span>
         ),
       },

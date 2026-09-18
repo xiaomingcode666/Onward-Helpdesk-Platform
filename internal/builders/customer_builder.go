@@ -13,18 +13,19 @@ func BuildCustomer(item *models.Customer) *response.CustomerResponse {
 		return nil
 	}
 	return &response.CustomerResponse{
-		ID:            item.ID,
-		Name:          item.Name,
-		Gender:        item.Gender,
-		CompanyID:     item.CompanyID,
-		Company:       BuildCompany(services.CompanyService.Get(item.CompanyID)),
-		LastActiveAt:  utils.FormatTimePtr(item.LastActiveAt),
-		PrimaryMobile: item.PrimaryMobile,
-		PrimaryEmail:  item.PrimaryEmail,
-		Status:        item.Status,
-		Remark:        item.Remark,
-		CreatedAt:     item.CreatedAt.Format(time.DateTime),
-		UpdatedAt:     item.UpdatedAt.Format(time.DateTime),
+		ID:             item.ID,
+		Name:           item.Name,
+		Gender:         item.Gender,
+		CompanyID:      item.CompanyID,
+		ServiceProfile: item.ServiceProfile,
+		Company:        BuildCompany(services.CompanyService.Get(item.CompanyID)),
+		LastActiveAt:   utils.FormatTimePtr(item.LastActiveAt),
+		PrimaryMobile:  item.PrimaryMobile,
+		PrimaryEmail:   item.PrimaryEmail,
+		Status:         item.Status,
+		Remark:         item.Remark,
+		CreatedAt:      item.CreatedAt.Format(time.DateTime),
+		UpdatedAt:      item.UpdatedAt.Format(time.DateTime),
 	}
 }
 

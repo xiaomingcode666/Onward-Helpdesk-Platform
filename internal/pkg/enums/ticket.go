@@ -14,6 +14,7 @@ const (
 	TicketProgressEventClosed          TicketProgressEventType = "ticket_closed"
 	TicketProgressEventReopened        TicketProgressEventType = "ticket_reopened"
 	TicketProgressEventMeetingEnded    TicketProgressEventType = "meeting_ended"
+	TicketProgressEventSupportReadiness TicketProgressEventType = "support_readiness"
 	TicketProgressEventProgress        TicketProgressEventType = "progress"
 )
 

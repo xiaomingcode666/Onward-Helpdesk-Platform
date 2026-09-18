@@ -36,6 +36,7 @@ type EnterpriseTicketListItemDTO struct {
 	DispatchAttempts          int                         `json:"dispatch_attempts"`
 	DispatchDeferredUntil     string                      `json:"dispatch_deferred_until"`
 	LastDispatchFailureReason string                      `json:"last_dispatch_failure_reason"`
+	ServiceProfile            string                      `json:"service_profile"`
 	Actions                   *TicketActionPermissionsDTO `json:"actions,omitempty"`
 }
 
@@ -58,6 +59,7 @@ type EnterpriseTicketCustomerOptionDTO struct {
 	DisplayName     string `json:"display_name"`
 	Email           string `json:"email"`
 	Phone           string `json:"phone"`
+	ServiceProfile  string `json:"service_profile"`
 }
 
 type EnterpriseTicketInvitationDraftDTO struct {
@@ -68,23 +70,46 @@ type EnterpriseTicketInvitationDraftDTO struct {
 type TicketHeaderDTO struct {
 	TicketIntakeDTO
 	TicketCaseSummaryDTO
-	DeviceID        int64  `json:"device_id"`
-	ServiceRegion   string `json:"service_region"`
-	ID              int64  `json:"id"`
-	ProductID       int64  `json:"product_id"`
-	ProductModuleID int64  `json:"product_module_id"`
-	TicketNo        string `json:"ticket_no"`
-	Title           string `json:"title"`
-	Description     string `json:"description"`
-	Status          string `json:"status"`
-	Priority        string `json:"priority"`
-	Source          string `json:"source"`
-	Channel         string `json:"channel"`
-	ConversationID  int64  `json:"conversation_id"`
-	CreatedAt       string `json:"created_at"`
-	UpdatedAt       string `json:"updated_at"`
-	SLADeadline     string `json:"sla_deadline"`
-	Category        string `json:"category"`
+	DeviceID         int64                   `json:"device_id"`
+	ServiceRegion    string                  `json:"service_region"`
+	ID               int64                   `json:"id"`
+	ProductID        int64                   `json:"product_id"`
+	ProductModuleID  int64                   `json:"product_module_id"`
+	KnowledgeBaseID  int64                   `json:"knowledge_base_id"`
+	TicketNo         string                  `json:"ticket_no"`
+	Title            string                  `json:"title"`
+	Description      string                  `json:"description"`
+	Status           string                  `json:"status"`
+	Priority         string                  `json:"priority"`
+	Source           string                  `json:"source"`
+	Channel          string                  `json:"channel"`
+	ConversationID   int64                   `json:"conversation_id"`
+	CreatedAt        string                  `json:"created_at"`
+	UpdatedAt        string                  `json:"updated_at"`
+	SLADeadline      string                  `json:"sla_deadline"`
+	Category         string                  `json:"category"`
+	ServiceProfile   string                  `json:"service_profile"`
+	ServiceTarget    *TicketServiceTargetDTO `json:"service_target,omitempty"`
+	ServiceMetrics   []TicketServiceMetricDTO `json:"service_metrics,omitempty"`
+	SupportStatus    string                  `json:"support_status"`
+	SupportReason    string                  `json:"support_reason"`
+	SupportCheckedAt string                  `json:"support_checked_at"`
+}
+
+type TicketServiceTargetDTO struct {
+	Profile           string `json:"profile"`
+	CalendarKey       string `json:"calendar_key"`
+	ResponseMinutes   int    `json:"response_minutes"`
+	AssignmentMinutes int    `json:"assignment_minutes"`
+	ResolutionMinutes int    `json:"resolution_minutes"`
+}
+
+type TicketServiceMetricDTO struct {
+	MetricType string `json:"metric_type"`
+	Status     string `json:"status"`
+	TargetAt   string `json:"target_at,omitempty"`
+	ActualAt   string `json:"actual_at,omitempty"`
+	Escalated  bool   `json:"escalated"`
 }
 
 type CustomerSummaryDTO struct {
@@ -152,6 +177,21 @@ type TicketAssignmentDTO struct {
 	Note                      string `json:"note"`
 	CanTransfer               bool   `json:"can_transfer"`
 	CanEscalate               bool   `json:"can_escalate"`
+}
+
+type TicketAssignmentHistoryDTO struct {
+	ID           int64  `json:"id"`
+	AttemptNo    int    `json:"attempt_no"`
+	AssigneeID   int64  `json:"assignee_id"`
+	AssigneeName string `json:"assignee_name"`
+	TeamID       int64  `json:"team_id"`
+	TeamName     string `json:"team_name"`
+	Source       string `json:"source"`
+	Outcome      string `json:"outcome"`
+	Reason       string `json:"reason"`
+	AssignedAt   string `json:"assigned_at"`
+	AcceptedAt   string `json:"accepted_at"`
+	EndedAt      string `json:"ended_at"`
 }
 
 type TicketMeetingDTO struct {
@@ -240,6 +280,7 @@ type TicketAggregateDTO struct {
 	DiagnosisSnapshot    *DiagnosisHandoffSnapshotDTO `json:"diagnosis_snapshot,omitempty"`
 	Flow                 TicketFlowDTO                `json:"flow"`
 	Assignment           TicketAssignmentDTO          `json:"assignment"`
+	AssignmentHistory    []TicketAssignmentHistoryDTO `json:"assignment_history"`
 	Meeting              TicketMeetingDTO             `json:"meeting"`
 	Repair               TicketRepairDTO              `json:"repair"`
 	Feedback             *TicketFeedbackDTO           `json:"feedback,omitempty"`

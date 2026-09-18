@@ -1646,6 +1646,11 @@
     "nameRequired": "Enter a customer name.",
     "genderRequired": "Select a gender.",
     "companyRequired": "Select a company.",
+    "serviceProfile": "Service profile",
+    "serviceProfileRequired": "Select a service profile",
+    "serviceStandard": "Standard",
+    "serviceEnhanced": "Enhanced",
+    "serviceCritical": "Mission Critical",
     "sectionCustomer": "Customer Details",
     "name": "Customer Name",
     "namePlaceholder": "Enter customer name",
@@ -4938,6 +4943,14 @@
     "productTreeEmptyText": "No matching products",
     "productTreeMounted": "Mounted",
     "productTreeUncreated": "Not created",
+    "access": {
+      "manage": "Manage access",
+      "title": "Knowledge base access",
+      "hint": "Select the support teams that can view and use this knowledge base. Related tickets are marked Restricted Support when no grant is available.",
+      "empty": "No support teams available",
+      "save": "Save access",
+      "saving": "Saving..."
+    },
     "tenantPanel": {
       "title": "Enterprise shared knowledge base",
       "subtitle": "Tenant default · above product knowledge bases",

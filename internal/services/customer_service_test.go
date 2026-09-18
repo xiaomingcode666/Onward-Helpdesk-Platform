@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"remotehelpdesk/internal/models"
+	"remotehelpdesk/internal/pkg/dto"
+	"remotehelpdesk/internal/pkg/dto/request"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/openidentity"
 	"remotehelpdesk/internal/services"
@@ -95,6 +97,35 @@ func TestEnsureExternalCustomerUpdatesNameFromExternalIdentity(t *testing.T) {
 	}
 	if updatedConversation.CustomerName != "李四" {
 		t.Fatalf("expected conversation customer name updated, got %q", updatedConversation.CustomerName)
+	}
+}
+
+func TestCustomerServiceProfilePersistsAndNormalizes(t *testing.T) {
+	setupCustomerServiceTestDB(t)
+	operator := &dto.AuthPrincipal{UserID: 1, Username: "fixture"}
+	customer, err := services.CustomerService.CreateCustomer(request.CreateCustomerRequest{
+		Name:           "Enhanced Customer",
+		ServiceProfile: "enhanced",
+	}, operator)
+	if err != nil {
+		t.Fatalf("CreateCustomer() error = %v", err)
+	}
+	if customer.ServiceProfile != "enhanced" {
+		t.Fatalf("service profile = %q, want enhanced", customer.ServiceProfile)
+	}
+
+	if err := services.CustomerService.UpdateCustomer(request.UpdateCustomerRequest{
+		ID: customer.ID,
+		CreateCustomerRequest: request.CreateCustomerRequest{
+			Name:           customer.Name,
+			ServiceProfile: "unsupported",
+		},
+	}, operator); err != nil {
+		t.Fatalf("UpdateCustomer() error = %v", err)
+	}
+	updated := services.CustomerService.Get(customer.ID)
+	if updated == nil || updated.ServiceProfile != "standard" {
+		t.Fatalf("service profile = %+v, want standard fallback", updated)
 	}
 }
 

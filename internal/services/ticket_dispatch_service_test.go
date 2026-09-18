@@ -1765,6 +1765,55 @@ func TestTicketDispatchSupervisorTakeoverDoesNotReturnToLatestTimedOutAssignee(t
 	}
 }
 
+func TestSupervisorTakeoverPendingAcceptanceIsNotAutoRecycled(t *testing.T) {
+	db := setupHumanDispatchRealtimeTestDB(t)
+	createHumanDispatchRealtimeTeam(t, db, 1)
+	createHumanDispatchRealtimeSupervisor(t, db, 202, 1)
+
+	now := time.Now()
+	assignedAt := now.Add(-31 * time.Minute)
+	ticket := models.Ticket{
+		TicketNo:          "SUPERVISOR-PENDING-ACCEPT",
+		Title:             "主管兜底后等待主管接单",
+		TenantID:          1,
+		CurrentTeamID:     1,
+		CurrentAssigneeID: 202,
+		Status:            enums.TicketStatusPendingAssigneeAccept,
+		CaseStatus:        "assigned",
+		AssignedAt:        &assignedAt,
+		AcceptDeadlineAt:  nil,
+		AuditFields: models.AuditFields{
+			CreatedAt: assignedAt,
+			UpdatedAt: assignedAt,
+		},
+	}
+	if err := db.Create(&ticket).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&models.TicketDispatchAttempt{
+		TenantID:    1,
+		TicketID:    ticket.ID,
+		TeamID:      1,
+		AssigneeID:  202,
+		AttemptNo:   2,
+		Outcome:     ticketDispatchOutcomeEscalated,
+		Reason:      supervisorTakeoverReason,
+		AssignedAt:  assignedAt,
+		AuditFields: models.AuditFields{CreatedAt: assignedAt, UpdatedAt: assignedAt},
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	recovered, err := TicketDispatchService.RecoverIneligibleTicketAcceptances(10)
+	if err != nil || recovered != 0 {
+		t.Fatalf("RecoverIneligibleTicketAcceptances() = (%d, %v), want supervisor assignment retained", recovered, err)
+	}
+	current := repositoriesTicket(t, ticket.ID)
+	if current.CurrentAssigneeID != 202 || current.Status != enums.TicketStatusPendingAssigneeAccept || current.AcceptedAt != nil {
+		t.Fatalf("supervisor pending acceptance was recycled: %+v", current)
+	}
+}
+
 func TestTicketDispatchTimeoutEscalationRewritesDisabledCurrentTeamToProductRepairTeam(t *testing.T) {
 	db := setupHumanDispatchRealtimeTestDB(t)
 	createHumanDispatchRealtimeTeam(t, db, 1)

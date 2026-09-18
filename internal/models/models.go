@@ -74,9 +74,11 @@ var Models = []any{
 	&ProductModel{},
 	&ProductModule{},
 	&ProductModuleModelLink{},
+	&KnowledgeAccessGrant{},
 	&TicketSupplierCollaboration{},
 	&TicketSupplierCollaborationParticipant{},
 	&TicketClockPause{},
+	&TicketServiceMetric{},
 	&ProductFaultStatsDaily{},
 	&ProductManualFile{},
 	&SystemIntroDoc{},
@@ -533,15 +535,16 @@ type Company struct {
 //
 //	用于存储客户稳定画像信息，不包含平台身份映射和多联系方式明细。
 type Customer struct {
-	ID            int64        `gorm:"primaryKey;autoIncrement"`                    // ID 为客户主键。
-	Name          string       `gorm:"type:varchar(100);not null;default:'';index"` // Name 为客户姓名或展示名称。
-	Gender        enums.Gender `gorm:"type:int;not null;default:0;"`                // Gender 为性别：0未知 1男 2女。
-	CompanyID     int64        `gorm:"type:bigint;not null;default:0;index"`        // CompanyID 为所属公司ID；0表示无所属公司（个人客户）。
-	LastActiveAt  *time.Time   `gorm:"type:timestamp;"`                             // LastActiveAt 为最近活跃时间。
-	PrimaryMobile string       `gorm:"type:varchar(32);not null;default:'';index"`  // PrimaryMobile 为主手机号（冗余展示字段）。
-	PrimaryEmail  string       `gorm:"type:varchar(100);not null;default:'';index"` // PrimaryEmail 为主邮箱（冗余展示字段）。
-	Status        enums.Status `gorm:"type:int;not null;default:0;"`                // Status 为客户状态。
-	Remark        string       `gorm:"type:text"`                                   // Remark 为备注。
+	ID             int64        `gorm:"primaryKey;autoIncrement"`                           // ID 为客户主键。
+	Name           string       `gorm:"type:varchar(100);not null;default:'';index"`        // Name 为客户姓名或展示名称。
+	Gender         enums.Gender `gorm:"type:int;not null;default:0;"`                       // Gender 为性别：0未知 1男 2女。
+	CompanyID      int64        `gorm:"type:bigint;not null;default:0;index"`               // CompanyID 为所属公司ID；0表示无所属公司（个人客户）。
+	ServiceProfile string       `gorm:"type:varchar(32);not null;default:'standard';index"` // ServiceProfile 为客户服务等级。
+	LastActiveAt   *time.Time   `gorm:"type:timestamp;"`                                    // LastActiveAt 为最近活跃时间。
+	PrimaryMobile  string       `gorm:"type:varchar(32);not null;default:'';index"`         // PrimaryMobile 为主手机号（冗余展示字段）。
+	PrimaryEmail   string       `gorm:"type:varchar(100);not null;default:'';index"`        // PrimaryEmail 为主邮箱（冗余展示字段）。
+	Status         enums.Status `gorm:"type:int;not null;default:0;"`                       // Status 为客户状态。
+	Remark         string       `gorm:"type:text"`                                          // Remark 为备注。
 	AuditFields
 }
 
@@ -1143,6 +1146,7 @@ type Ticket struct {
 	SourceRecordID              string             `gorm:"type:varchar(160);not null;default:'';index"`
 	SourceRecordKey             *string            `gorm:"type:varchar(64);uniqueIndex:uk_ticket_intake_source,priority:2"`
 	ProjectKey                  string             `gorm:"type:varchar(64);not null;default:''"`
+	ServiceProfile              string             `gorm:"type:varchar(32);not null;default:'standard';index"`
 	IntakeConfigVersionID       int64              `gorm:"not null;default:0;index"`
 	ProjectConfigVersionID      int64              `gorm:"not null;default:0;index"`
 	TicketType                  string             `gorm:"type:varchar(64);not null;default:''"`
@@ -1164,6 +1168,8 @@ type Ticket struct {
 	CaseOwnerID               int64      `gorm:"not null;default:0;index"`
 	AcknowledgedAt            *time.Time `gorm:"type:timestamp"`
 	RestoredAt                *time.Time `gorm:"type:timestamp"`
+	FirstRespondedAt          *time.Time `gorm:"type:timestamp"`
+	LastCustomerUpdateAt      *time.Time `gorm:"type:timestamp"`
 	WaitingReason             string     `gorm:"type:text;not null;default:''"`
 	CaseResumeStatus          string     `gorm:"type:varchar(32);not null;default:''"`
 	CaseResumeTechnicalStatus string     `gorm:"type:varchar(50);not null;default:''"`
@@ -1176,6 +1182,7 @@ type Ticket struct {
 	ProductID                 int64      `gorm:"type:bigint;not null;default:0;index"`
 	ProductModelID            int64      `gorm:"type:bigint;not null;default:0;index"`
 	ProductModuleID           int64      `gorm:"type:bigint;not null;default:0;index"`
+	KnowledgeBaseID           int64      `gorm:"type:bigint;not null;default:0;index"`
 	DeviceID                  int64      `gorm:"type:bigint;not null;default:0;index"`
 	ServiceCodeID             int64      `gorm:"type:bigint;not null;default:0;index"`
 	CustomerEntrySessionID    int64      `gorm:"type:bigint;not null;default:0;index"`
@@ -1203,6 +1210,14 @@ type Ticket struct {
 	DispatchDeferredUntil *time.Time `gorm:"type:timestamp;index"`
 	// LastDispatchFailureReason 记录最近一次自动派单失败原因，用于工作台展示和排障。
 	LastDispatchFailureReason string `gorm:"type:varchar(64);not null;default:'';index"`
+	// SupportStatus 记录当前模块访问支持状态：ready / restricted_support / unknown。
+	SupportStatus string `gorm:"type:varchar(32);not null;default:'';index"`
+	// SupportReasonCode 是结构化的支持受限原因码。
+	SupportReasonCode string `gorm:"type:varchar(64);not null;default:'';index"`
+	// SupportReason 是面向页面展示的支持受限原因。
+	SupportReason string `gorm:"type:text;not null;default:''"`
+	// SupportCheckedAt 是最近一次支持条件检查时间。
+	SupportCheckedAt *time.Time `gorm:"type:timestamp;index"`
 	AuditFields
 }
 

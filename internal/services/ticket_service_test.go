@@ -785,8 +785,9 @@ func TestTicketServiceAddProgressStoresContentAndAuthor(t *testing.T) {
 	}
 
 	progress, err := services.TicketService.AddProgress(request.CreateTicketProgressRequest{
-		TicketID: ticket.ID,
-		Content:  "客户已确认问题复现路径",
+		TicketID:          ticket.ID,
+		Content:           "客户已确认问题复现路径",
+		VisibleToCustomer: true,
 	}, operator)
 	if err != nil {
 		t.Fatalf("AddProgress() error = %v", err)
@@ -796,6 +797,10 @@ func TestTicketServiceAddProgressStoresContentAndAuthor(t *testing.T) {
 	}
 	if progress.Content != "客户已确认问题复现路径" || progress.AuthorID != operator.UserID {
 		t.Fatalf("unexpected progress: %+v", progress)
+	}
+	updated := services.TicketService.Get(ticket.ID)
+	if updated == nil || updated.FirstRespondedAt == nil || updated.LastCustomerUpdateAt == nil {
+		t.Fatalf("customer-visible progress did not record service timestamps: %+v", updated)
 	}
 }
 

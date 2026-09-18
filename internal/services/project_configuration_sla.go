@@ -26,7 +26,7 @@ func projectSLAWorkItems() ([]projectSLAWork, error) {
 		if r == nil {
 			continue
 		}
-		t, c, ok := projectTicketTarget(r, ticket.ProjectKey)
+		t, c, ok := projectTicketTargetForTicket(r, ticket.ProjectKey, ticket.ServiceProfile)
 		if !ok {
 			continue
 		}

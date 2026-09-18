@@ -28,7 +28,7 @@ func setupProjectRuntime(t *testing.T) (*gorm.DB, *dto.AuthPrincipal, projectcon
 	t.Setenv("RHD_PROJECT_CONFIG_FILE", "")
 	t.Setenv("RHD_PROJECT_CONFIG_REQUIRED", "")
 	db := setupSLATenantTestDB(t)
-	require.NoError(t, db.AutoMigrate(&models.Tenant{}, &models.TenantBranding{}, &models.ProjectConfigurationState{}, &models.ProjectConfigurationVersion{}, &models.ProjectConfigurationActivation{}, &ServiceCalendar{}, &models.DataRegionPolicy{}, &models.TenantIntegrationConfig{}, &models.TenantMailSetting{}, &models.AuditLog{}, &models.Conversation{}, &models.ConversationEventLog{}, &models.Notification{}, &models.CustomerPrivacyConsent{}))
+	require.NoError(t, db.AutoMigrate(&models.Tenant{}, &models.TenantBranding{}, &models.Customer{}, &models.ProjectConfigurationState{}, &models.ProjectConfigurationVersion{}, &models.ProjectConfigurationActivation{}, &ServiceCalendar{}, &models.DataRegionPolicy{}, &models.TenantIntegrationConfig{}, &models.TenantMailSetting{}, &models.AuditLog{}, &models.Conversation{}, &models.ConversationEventLog{}, &models.Notification{}, &models.CustomerPrivacyConsent{}, &models.TicketServiceMetric{}))
 	require.NoError(t, db.Create(&models.Tenant{ID: 1, Name: "Runtime fixture", ServiceScene: "knowledge_support", DefaultLocale: "zh-CN", Timezone: "UTC", SupportedLocalesJSON: `["zh-CN"]`, Status: enums.StatusOk}).Error)
 	op := &dto.AuthPrincipal{TenantID: 1, UserID: 7, Username: "fixture", Roles: []string{EnterpriseRoleAdmin}, Permissions: []string{constants.PermissionTicketUpdate.Code}}
 	d, err := UpgradeProjectConfiguration(1)

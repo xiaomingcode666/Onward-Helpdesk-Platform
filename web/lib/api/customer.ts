@@ -8,6 +8,7 @@ export type AdminCustomer = {
   name: string
   gender: number
   companyId: number
+  serviceProfile: string
   company?: AdminCompany
   lastActiveAt?: string
   primaryMobile: string
@@ -22,6 +23,7 @@ export type CreateAdminCustomerPayload = {
   name: string
   gender: number
   companyId: number
+  serviceProfile: string
   primaryMobile: string
   primaryEmail: string
   remark: string
@@ -45,6 +47,7 @@ export type SaveCustomerProfilePayload = {
   name: string
   gender: number
   companyId: number
+  serviceProfile: string
   remark: string
   contacts: SaveCustomerProfileContactLine[]
 }

@@ -863,6 +863,9 @@ func (s *ticketDispatchService) recoverIneligibleTicketAcceptancesOnce(limit int
 		}
 		ticket := &tickets[i]
 		oldAssigneeID := ticket.CurrentAssigneeID
+		if supervisorTakeoverPendingDB(sqls.DB(), ticket) {
+			continue
+		}
 		if validateAutomaticTicketAssigneeEligibilityDB(sqls.DB(), ticket, oldAssigneeID, ticket.CurrentTeamID, now) == nil {
 			continue
 		}
@@ -1349,7 +1352,7 @@ func (s *ticketDispatchService) escalateTicketAfterRepeatedTimeout(ticket *model
 		if err := finishPendingTicketDispatchAttemptTx(ctx.Tx, locked.ID, ticketDispatchOutcomeEscalated, nil, now); err != nil {
 			return err
 		}
-		if err := createFinishedTicketDispatchAttemptTx(ctx.Tx, locked, teamID, supervisorID, ticketDispatchOutcomeEscalated, "接单多次超时，主管兜底接管", operator, now); err != nil {
+		if err := createFinishedTicketDispatchAttemptTx(ctx.Tx, locked, teamID, supervisorID, ticketDispatchOutcomeEscalated, supervisorTakeoverReason, operator, now); err != nil {
 			return err
 		}
 		progress := &models.TicketProgress{

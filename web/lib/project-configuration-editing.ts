@@ -1,20 +1,5 @@
 import type { ProjectConfiguration, ProjectRuntime } from "./api/project-configuration"
 
-export type ServiceSLADefaults = Pick<
-  ProjectRuntime["targets"][number],
-  "response_minutes" | "assignment_minutes" | "resolution_minutes"
->
-
-export const SERVICE_SLA_DEFAULTS: Record<string, ServiceSLADefaults> = {
-  standard: { response_minutes: 15, assignment_minutes: 15, resolution_minutes: 480 },
-  enhanced: { response_minutes: 5, assignment_minutes: 5, resolution_minutes: 240 },
-  mission_critical: { response_minutes: 1, assignment_minutes: 1, resolution_minutes: 60 },
-}
-
-export function serviceSLADefaults(profile: string): ServiceSLADefaults {
-  return SERVICE_SLA_DEFAULTS[profile] ?? SERVICE_SLA_DEFAULTS.standard
-}
-
 function runtimeSecretRefs(runtime?: ProjectRuntime): string[] {
   if (!runtime) return []
   return [...new Set([

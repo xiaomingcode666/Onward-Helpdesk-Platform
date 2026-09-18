@@ -685,6 +685,11 @@ func (s *messageService) sendValidatedMessage(conversation *models.Conversation,
 		}); err != nil {
 			return err
 		}
+		if senderType == enums.IMSenderTypeAgent || senderType == enums.IMSenderTypePartner {
+			if err := TicketServiceMetricService.RecordCustomerReplyForConversation(ctx.Tx, conversation.ID, now); err != nil {
+				return err
+			}
+		}
 
 		// 记录事件日志
 		if err := ConversationEventLogService.CreateEventWithRequestID(ctx, conversation.ID, traceID, enums.IMEventTypeMessageSend, senderType,

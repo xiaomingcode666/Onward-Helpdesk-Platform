@@ -90,6 +90,7 @@ type DashboardOverview struct {
 	RemoteResolutionRate      *float64      `json:"remote_resolution_rate"`
 	OutcomeMetricCoverageRate *float64      `json:"outcome_metric_coverage_rate"`
 	OutcomeMetricSampleSize   int64         `json:"outcome_metric_sample_size"`
+	ServiceMetricReport       []TicketServiceMetricReportItem `json:"service_metric_report"`
 	RecentActivities          []Activity    `json:"recent_activities"`
 	QueueTickets              []QueueTicket `json:"queue_tickets"`
 }
@@ -371,6 +372,9 @@ func (s *reportService) GetDashboardOverview(ctx interface{}, tenantID string) (
 			Order("created_at desc").
 			Limit(6).
 			Find(&queueTickets)
+	})
+	run(func() { // 六类服务指标报告
+		overview.ServiceMetricReport = TicketServiceMetricService.ReportByTenant(parseID(tenantID))
 	})
 	wg.Wait()
 

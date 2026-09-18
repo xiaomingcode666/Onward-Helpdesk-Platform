@@ -24,6 +24,7 @@ type CreateTicketRequest struct {
 	ProductID                   int64      `json:"productId"`
 	ProductModelID              int64      `json:"productModelId"`
 	ProductModuleID             int64      `json:"productModuleId"`
+	KnowledgeBaseID             int64      `json:"knowledgeBaseId"`
 	DeviceID                    int64      `json:"deviceId"`
 	ServiceCodeID               int64      `json:"serviceCodeId"`
 	CustomerEntrySessionID      int64      `json:"customerEntrySessionId"`
@@ -49,6 +50,7 @@ type CreateTicketFromConversationRequest struct {
 	ProductID              int64      `json:"productId"`
 	ProductModelID         int64      `json:"productModelId"`
 	ProductModuleID        int64      `json:"productModuleId"`
+	KnowledgeBaseID        int64      `json:"knowledgeBaseId"`
 	DeviceID               int64      `json:"deviceId"`
 	ServiceCodeID          int64      `json:"serviceCodeId"`
 	CustomerEntrySessionID int64      `json:"customerEntrySessionId"`
@@ -78,6 +80,7 @@ type UpdateTicketRequest struct {
 	ProductID              int64      `json:"productId"`
 	ProductModelID         int64      `json:"productModelId"`
 	ProductModuleID        int64      `json:"productModuleId"`
+	KnowledgeBaseID        int64      `json:"knowledgeBaseId"`
 	DeviceID               int64      `json:"deviceId"`
 	ServiceCodeID          int64      `json:"serviceCodeId"`
 	CustomerEntrySessionID int64      `json:"customerEntrySessionId"`

@@ -1,16 +1,9 @@
 import { expect, test } from "@playwright/test"
 import type { ProjectConfiguration } from "../lib/api/project-configuration"
-import { editableProjectConfiguration, replaceProjectRuntime, restoreProjectConfiguration, serviceSLADefaults } from "../lib/project-configuration-editing"
+import { editableProjectConfiguration, replaceProjectRuntime, restoreProjectConfiguration } from "../lib/project-configuration-editing"
 import runtimeExample from "../../config/project-configuration.runtime.example.json"
 
 test.use({ video: "off" })
-
-test("service profile selection provides the default SLA times", () => {
-  expect(serviceSLADefaults("standard")).toEqual({ response_minutes: 15, assignment_minutes: 15, resolution_minutes: 480 })
-  expect(serviceSLADefaults("enhanced")).toEqual({ response_minutes: 5, assignment_minutes: 5, resolution_minutes: 240 })
-  expect(serviceSLADefaults("mission_critical")).toEqual({ response_minutes: 1, assignment_minutes: 1, resolution_minutes: 60 })
-  expect(serviceSLADefaults("unknown")).toEqual(serviceSLADefaults("standard"))
-})
 
 test("configuration editing preserves immutable history and only carries runtime dependencies", () => {
   const current = structuredClone(runtimeExample) as ProjectConfiguration

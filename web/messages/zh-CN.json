@@ -1646,6 +1646,11 @@
     "nameRequired": "客户名称不能为空",
     "genderRequired": "请选择性别",
     "companyRequired": "请选择所属公司",
+    "serviceProfile": "服务模式",
+    "serviceProfileRequired": "请选择服务模式",
+    "serviceStandard": "标准服务",
+    "serviceEnhanced": "增强服务",
+    "serviceCritical": "关键服务",
     "sectionCustomer": "客户信息",
     "name": "客户名称",
     "namePlaceholder": "请输入客户名称",
@@ -4938,6 +4943,14 @@
     "productTreeEmptyText": "无匹配产品",
     "productTreeMounted": "已挂载",
     "productTreeUncreated": "未创建",
+    "access": {
+      "manage": "维护访问授权",
+      "title": "知识库访问授权",
+      "hint": "选择可查看和使用该知识库的支持团队。未配置时，相关工单会标记为支持受限。",
+      "empty": "暂无可选支持团队",
+      "save": "保存访问授权",
+      "saving": "保存中..."
+    },
     "tenantPanel": {
       "title": "企业通用知识库",
       "subtitle": "租户默认 · 位于产品知识库上级",

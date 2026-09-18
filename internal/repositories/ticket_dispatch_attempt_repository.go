@@ -31,6 +31,18 @@ func (r *ticketDispatchAttemptRepository) CountByTicket(db *gorm.DB, ticketID in
 	return count, err
 }
 
+func (r *ticketDispatchAttemptRepository) FindAssignedByTicket(db *gorm.DB, tenantID, ticketID int64) ([]models.TicketDispatchAttempt, error) {
+	items := []models.TicketDispatchAttempt{}
+	if db == nil || tenantID <= 0 || ticketID <= 0 || !db.Migrator().HasTable(&models.TicketDispatchAttempt{}) {
+		return items, nil
+	}
+	err := db.Where("tenant_id = ? AND ticket_id = ? AND assignee_id > 0", tenantID, ticketID).
+		Order("attempt_no ASC").
+		Order("id ASC").
+		Find(&items).Error
+	return items, err
+}
+
 func (r *ticketDispatchAttemptRepository) FindPendingForUpdate(db *gorm.DB, ticketID int64) (*models.TicketDispatchAttempt, error) {
 	if db == nil || !db.Migrator().HasTable(&models.TicketDispatchAttempt{}) {
 		return nil, gorm.ErrRecordNotFound

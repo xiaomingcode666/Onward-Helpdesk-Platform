@@ -319,10 +319,17 @@ function buildMetrics(role: ReportRole, data: ReportState | null): MetricItem[] 
     ]
   }
 
+  const serviceMetrics = overview?.service_metric_report ?? []
+  const serviceWarnings = serviceMetrics.reduce((sum, row) => sum + row.warning, 0)
+  const serviceBreaches = serviceMetrics.reduce((sum, row) => sum + row.breached, 0)
+  const serviceEscalations = serviceMetrics.reduce((sum, row) => sum + row.escalated, 0)
   return [
     { label: ee("reports.adminMetrics.totalTickets"), value: formatInteger(overview?.total_tickets), meta: ee("reports.adminMetrics.todayNew", { value0: formatInteger(overview?.new_today) }), tone: "info" },
     { label: ee("reports.adminMetrics.pendingAndProcessing"), value: formatInteger((overview?.pending_tickets ?? 0) + (overview?.in_progress_tickets ?? 0)), meta: ee("reports.adminMetrics.pendingCount", { value0: formatInteger(overview?.pending_tickets) }), tone: "warn" },
     { label: ee("reports.adminMetrics.slaRisk"), value: formatInteger(overview?.sla_at_risk), meta: ee("reports.adminMetrics.currentTenantRisk"), tone: (overview?.sla_at_risk ?? 0) > 0 ? "bad" : "good" },
+    { label: ee("reports.adminMetrics.serviceWarning"), value: formatInteger(serviceWarnings), meta: "", tone: serviceWarnings > 0 ? "warn" : "good" },
+    { label: ee("reports.adminMetrics.serviceBreached"), value: formatInteger(serviceBreaches), meta: "", tone: serviceBreaches > 0 ? "bad" : "good" },
+    { label: ee("reports.adminMetrics.serviceEscalated"), value: formatInteger(serviceEscalations), meta: "", tone: serviceEscalations > 0 ? "bad" : "good" },
     { label: ee("reports.adminMetrics.aiResolveRate"), value: formatPercent(overview?.ai_resolve_rate), meta: ee("reports.adminMetrics.todayAiSessions", { value0: formatInteger(overview?.ai_sessions) }), tone: "good" },
   ]
 }

@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ const (
 	ticketDispatchOutcomeClosed     = "closed"
 	ticketDispatchOutcomeCancelled  = "cancelled"
 	ticketDispatchOutcomeFailed     = "failed"
+	supervisorTakeoverReason        = "接单多次超时，主管兜底接管"
 )
 
 func ticketAssignmentTrackingUpdates(now time.Time) map[string]any {
@@ -104,7 +106,7 @@ func ticketAssignmentSLADeadlineDB(db *gorm.DB, ticket *models.Ticket) (time.Tim
 		if err != nil || r == nil {
 			return time.Time{}, false
 		}
-		t, c, ok := projectTicketTarget(r, ticket.ProjectKey)
+		t, c, ok := projectTicketTargetForTicket(r, ticket.ProjectKey, ticket.ServiceProfile)
 		if !ok || t.AssignmentMinutes <= 0 {
 			return time.Time{}, false
 		}
@@ -190,7 +192,7 @@ func createTicketDispatchAttemptTx(db *gorm.DB, ticket *models.Ticket, teamID, a
 	audit := utils.BuildAuditFields(operator)
 	audit.CreatedAt = now
 	audit.UpdatedAt = now
-	return repositories.TicketDispatchAttemptRepository.Create(db, &models.TicketDispatchAttempt{
+	err = repositories.TicketDispatchAttemptRepository.Create(db, &models.TicketDispatchAttempt{
 		TenantID:         ticket.TenantID,
 		TicketID:         ticket.ID,
 		TeamID:           teamID,
@@ -202,6 +204,20 @@ func createTicketDispatchAttemptTx(db *gorm.DB, ticket *models.Ticket, teamID, a
 		AcceptDeadlineAt: &deadline,
 		AuditFields:      audit,
 	})
+	if err != nil {
+		return err
+	}
+	ticket.CurrentTeamID = teamID
+	ticket.CurrentAssigneeID = assigneeID
+	if err := EvaluateTicketSupportReadinessDB(db, ticket, teamID, assigneeID, auditOperatorID(operator), now); err != nil {
+		slog.Warn("evaluate ticket support readiness failed",
+			"ticket_id", ticket.ID,
+			"tenant_id", ticket.TenantID,
+			"assignee_id", assigneeID,
+			"error", err,
+		)
+	}
+	return nil
 }
 
 func finishPendingTicketDispatchAttemptTx(db *gorm.DB, ticketID int64, outcome string, acceptedAt *time.Time, now time.Time) error {
@@ -239,7 +255,7 @@ func createFinishedTicketDispatchAttemptTx(db *gorm.DB, ticket *models.Ticket, t
 	if outcome == ticketDispatchOutcomeAccepted {
 		acceptedAt = &now
 	}
-	return repositories.TicketDispatchAttemptRepository.Create(db, &models.TicketDispatchAttempt{
+	err = repositories.TicketDispatchAttemptRepository.Create(db, &models.TicketDispatchAttempt{
 		TenantID:    ticket.TenantID,
 		TicketID:    ticket.ID,
 		TeamID:      teamID,
@@ -252,6 +268,20 @@ func createFinishedTicketDispatchAttemptTx(db *gorm.DB, ticket *models.Ticket, t
 		EndedAt:     &endedAt,
 		AuditFields: audit,
 	})
+	if err != nil {
+		return err
+	}
+	ticket.CurrentTeamID = teamID
+	ticket.CurrentAssigneeID = assigneeID
+	if err := EvaluateTicketSupportReadinessDB(db, ticket, teamID, assigneeID, auditOperatorID(operator), now); err != nil {
+		slog.Warn("evaluate ticket support readiness failed",
+			"ticket_id", ticket.ID,
+			"tenant_id", ticket.TenantID,
+			"assignee_id", assigneeID,
+			"error", err,
+		)
+	}
+	return nil
 }
 
 func createFailedTicketDispatchAttemptTx(db *gorm.DB, ticket *models.Ticket, teamID int64, reason string, operator *dto.AuthPrincipal, now time.Time) error {
@@ -278,4 +308,20 @@ func createFailedTicketDispatchAttemptTx(db *gorm.DB, ticket *models.Ticket, tea
 		EndedAt:     &endedAt,
 		AuditFields: audit,
 	})
+}
+
+func supervisorTakeoverPendingDB(db *gorm.DB, ticket *models.Ticket) bool {
+	if db == nil || ticket == nil || ticket.CurrentAssigneeID <= 0 || ticket.AcceptedAt != nil ||
+		!isPendingAssigneeAcceptanceTicketStatus(ticket.Status) {
+		return false
+	}
+	var attempt models.TicketDispatchAttempt
+	return db.Where(
+		"tenant_id = ? AND ticket_id = ? AND assignee_id = ? AND outcome = ? AND reason = ?",
+		ticket.TenantID,
+		ticket.ID,
+		ticket.CurrentAssigneeID,
+		ticketDispatchOutcomeEscalated,
+		supervisorTakeoverReason,
+	).Order("attempt_no DESC").Order("id DESC").First(&attempt).Error == nil
 }

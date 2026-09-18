@@ -3,7 +3,7 @@
 import { Checkbox, ConfigProvider, Input, InputNumber, Select } from "antd"
 import { FormField, RailopsButton } from "@railops/ui"
 import type { ProjectConfiguration, ProjectRuntime } from "@/lib/api/project-configuration"
-import { replaceProjectRuntime, serviceSLADefaults } from "@/lib/project-configuration-editing"
+import { replaceProjectRuntime } from "@/lib/project-configuration-editing"
 
 export function ProjectRuntimeFields({ document, onChange, disabled = false }: { document: ProjectConfiguration; onChange: (document: ProjectConfiguration) => void; disabled?: boolean }) {
   const r = document.runtime
@@ -43,22 +43,26 @@ export function ProjectRuntimeFields({ document, onChange, disabled = false }: {
     </div></details>
     <details><summary className="font-medium">工单处理时限（SLA）</summary><div className="mt-3 grid gap-3">
       <p className="text-sm">每个服务档次一套时限：工单按所属服务项目声明的档次取用；没声明档次的项目和没有项目的工单都按标准档。不再区分工单优先级。</p>
-      <p className="text-sm text-muted-foreground">选择服务档次后自动带出三个时限；特殊项目可以直接调整。</p>
+      <p className="text-sm text-muted-foreground">每种客户服务模式单独配置一组时限，数值全部来自当前项目配置。</p>
       {(r.targets ?? []).map((t, i) => {
         const change = (patch: Partial<typeof t>) => set({ targets: r.targets.map((item, j) => i === j ? { ...item, ...patch } : item) })
         return <div key={i} className="grid gap-3 rounded border p-3 sm:grid-cols-2">
-          <FormField label="服务档次"><Select aria-label={`服务档次 ${i + 1}`} className="w-full" value={t.profile} options={[{ value: "standard", label: "标准" }, { value: "enhanced", label: "增强" }, { value: "mission_critical", label: "关键服务" }]} onChange={profile => change({ profile, ...serviceSLADefaults(profile) })} /></FormField>
+          <FormField label="服务档次"><Select aria-label={`服务档次 ${i + 1}`} className="w-full" value={t.profile} options={[{ value: "standard", label: "标准服务" }, { value: "enhanced", label: "增强服务" }, { value: "mission_critical", label: "关键服务" }]} onChange={profile => {
+            const preset = r.targets.find((item, j) => j !== i && item.profile === profile)
+            change(preset
+              ? { profile, response_minutes: preset.response_minutes, assignment_minutes: preset.assignment_minutes, resolution_minutes: preset.resolution_minutes }
+              : { profile })
+          }} /></FormField>
           <FormField label="工作日历"><Select aria-label={`工作日历 ${i + 1}`} className="w-full" value={t.calendar_key} options={r.calendars.map(c => ({ value: c.key }))} onChange={calendar_key => change({ calendar_key })} /></FormField>
           {number(`${slaLabels.response} ${i + 1}`, t.response_minutes, response_minutes => change({ response_minutes }))}
           {number(`${slaLabels.assignment} ${i + 1}`, t.assignment_minutes, assignment_minutes => change({ assignment_minutes }))}
           {number(`${slaLabels.resolution} ${i + 1}`, t.resolution_minutes, resolution_minutes => change({ resolution_minutes }))}
           <div className="flex flex-wrap gap-2">
-            <RailopsButton onClick={() => change(serviceSLADefaults(t.profile))}>恢复档次默认值</RailopsButton>
             <RailopsButton onClick={() => set({ targets: r.targets.filter((_, j) => i !== j) })}>删除此时限规则</RailopsButton>
           </div>
         </div>
       })}
-      <RailopsButton onClick={() => set({ targets: [...r.targets, { project_key: "*", profile: "standard", priority: "", calendar_key: r.calendars[0]?.key ?? "", ...serviceSLADefaults("standard") }] })}>添加时限规则</RailopsButton>
+      <RailopsButton onClick={() => set({ targets: [...r.targets, { project_key: "*", profile: "standard", priority: "", calendar_key: r.calendars[0]?.key ?? "", response_minutes: 0, assignment_minutes: 0, resolution_minutes: 0 }] })}>添加时限规则</RailopsButton>
     </div></details>
     <details><summary className="font-medium">允许的工单来源</summary><div className="mt-3 flex flex-wrap gap-3">{(r.channels ?? []).map((c, i) => <Checkbox key={c.name} checked={c.enabled} onChange={e => set({ channels: r.channels.map((item, j) => i === j ? { ...item, enabled: e.target.checked } : item) })}>{({ manual: "页面录入", phone: "人工电话受理", email: "邮件入站", api: "接口", webhook: "事件推送", monitoring_alert: "监控告警", whatsapp: "WhatsApp", chatbot_handoff: "机器人转人工" } as Record<string, string>)[c.name] ?? c.name}</Checkbox>)}</div></details>
     <details><summary className="font-medium">邮件发送</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">

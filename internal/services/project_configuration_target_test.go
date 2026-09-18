@@ -73,3 +73,37 @@ func TestLegacyPriorityProfileMapping(t *testing.T) {
 		}
 	}
 }
+
+func TestProjectTicketTargetFallsBackToCustomerProfile(t *testing.T) {
+	office := projectconfig.Calendar{Key: "office", Timezone: "Asia/Shanghai", WorkDays: []int{1, 2, 3, 4, 5}, Start: "09:00", End: "18:00", Holidays: []string{}}
+	standard := projectconfig.Target{Profile: "standard", CalendarKey: "office", ResponseMinutes: 120, AssignmentMinutes: 240, ResolutionMinutes: 1440}
+	enhanced := projectconfig.Target{Profile: "enhanced", CalendarKey: "office", ResponseMinutes: 30, AssignmentMinutes: 30, ResolutionMinutes: 480}
+	runtime := &projectconfig.Runtime{
+		Calendars: []projectconfig.Calendar{office},
+		Targets:   []projectconfig.Target{standard, enhanced},
+	}
+
+	target, calendar, ok := projectTicketTargetForTicket(runtime, "", "enhanced")
+	if !ok || target.ResolutionMinutes != 480 || calendar.Key != "office" {
+		t.Fatalf("customer enhanced target = %+v calendar=%s ok=%v", target, calendar.Key, ok)
+	}
+	if target, _, ok = projectTicketTargetForTicket(runtime, "", "mission_critical"); !ok || target.ResolutionMinutes != 1440 {
+		t.Fatalf("missing customer profile should fall back to standard: %+v ok=%v", target, ok)
+	}
+}
+
+func TestUpgradeProjectConfigurationSeedsThreeProfiles(t *testing.T) {
+	targets := projectconfig.DefaultTargets("continuous")
+	profiles := map[string]bool{}
+	for _, target := range targets {
+		profiles[target.Profile] = true
+		if target.ResponseMinutes <= 0 || target.AssignmentMinutes <= 0 || target.ResolutionMinutes <= 0 {
+			t.Fatalf("profile %q has an empty target: %+v", target.Profile, target)
+		}
+	}
+	for _, profile := range []string{"standard", "enhanced", "mission_critical"} {
+		if !profiles[profile] {
+			t.Fatalf("missing default target for %q", profile)
+		}
+	}
+}

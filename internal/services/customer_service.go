@@ -11,6 +11,7 @@ import (
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/openidentity"
+	"remotehelpdesk/internal/pkg/projectconfig"
 	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/repositories"
 	"strings"
@@ -30,6 +31,10 @@ func newCustomerService() *customerService {
 }
 
 type customerService struct {
+}
+
+func normalizeCustomerServiceProfile(value string) string {
+	return projectconfig.NormalizeServiceProfile(value)
 }
 
 func (s *customerService) Get(id int64) *models.Customer {
@@ -207,14 +212,15 @@ func (s *customerService) CreateCustomer(req request.CreateCustomerRequest, oper
 	}
 
 	item := &models.Customer{
-		Name:          name,
-		Gender:        enums.Gender(req.Gender),
-		CompanyID:     req.CompanyID,
-		PrimaryMobile: strings.TrimSpace(req.PrimaryMobile),
-		PrimaryEmail:  strings.TrimSpace(req.PrimaryEmail),
-		Status:        enums.StatusOk,
-		Remark:        strings.TrimSpace(req.Remark),
-		AuditFields:   utils.BuildAuditFields(operator),
+		Name:           name,
+		Gender:         enums.Gender(req.Gender),
+		CompanyID:      req.CompanyID,
+		ServiceProfile: normalizeCustomerServiceProfile(req.ServiceProfile),
+		PrimaryMobile:  strings.TrimSpace(req.PrimaryMobile),
+		PrimaryEmail:   strings.TrimSpace(req.PrimaryEmail),
+		Status:         enums.StatusOk,
+		Remark:         strings.TrimSpace(req.Remark),
+		AuditFields:    utils.BuildAuditFields(operator),
 	}
 
 	if err := repositories.CustomerRepository.Create(sqls.DB(), item); err != nil {
@@ -249,6 +255,7 @@ func (s *customerService) UpdateCustomer(req request.UpdateCustomerRequest, oper
 			"name":             name,
 			"gender":           req.Gender,
 			"company_id":       req.CompanyID,
+			"service_profile":  normalizeCustomerServiceProfile(req.ServiceProfile),
 			"primary_mobile":   strings.TrimSpace(req.PrimaryMobile),
 			"primary_email":    strings.TrimSpace(req.PrimaryEmail),
 			"remark":           strings.TrimSpace(req.Remark),
@@ -330,14 +337,15 @@ func (s *customerService) SaveCustomerProfile(req request.SaveCustomerProfileReq
 		var customerID int64
 		if createMode {
 			c := &models.Customer{
-				Name:          name,
-				Gender:        enums.Gender(req.Gender),
-				CompanyID:     req.CompanyID,
-				PrimaryMobile: "",
-				PrimaryEmail:  "",
-				Status:        enums.StatusOk,
-				Remark:        strings.TrimSpace(req.Remark),
-				AuditFields:   utils.BuildAuditFields(operator),
+				Name:           name,
+				Gender:         enums.Gender(req.Gender),
+				CompanyID:      req.CompanyID,
+				ServiceProfile: normalizeCustomerServiceProfile(req.ServiceProfile),
+				PrimaryMobile:  "",
+				PrimaryEmail:   "",
+				Status:         enums.StatusOk,
+				Remark:         strings.TrimSpace(req.Remark),
+				AuditFields:    utils.BuildAuditFields(operator),
 			}
 			if err := repositories.CustomerRepository.Create(ctx.Tx, c); err != nil {
 				return err
@@ -355,6 +363,7 @@ func (s *customerService) SaveCustomerProfile(req request.SaveCustomerProfileReq
 				"name":             name,
 				"gender":           req.Gender,
 				"company_id":       req.CompanyID,
+				"service_profile":  normalizeCustomerServiceProfile(req.ServiceProfile),
 				"remark":           strings.TrimSpace(req.Remark),
 				"update_user_id":   operator.UserID,
 				"update_user_name": operator.Username,
