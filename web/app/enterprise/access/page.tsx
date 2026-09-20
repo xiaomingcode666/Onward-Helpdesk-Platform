@@ -59,6 +59,9 @@ import {
 import type { NotificationMailSetting } from "@/lib/api/types"
 import { readSession } from "@/lib/auth"
 import { cn } from "@/lib/utils"
+import { createChannel, type CreateAdminChannelPayload } from "@/lib/api/admin"
+import { Status } from "@/lib/generated/enums"
+import { EditDialog as ChannelEditDialog } from "@/app/dashboard/channels/_components/edit"
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
     return translateCurrentMessage(`enterpriseExtract.${key}`)
@@ -283,6 +286,21 @@ export default function EnterpriseAccessPage() {
   const [feishuOpen, setFeishuOpen] = useState(false)
   const [savingFeishu, setSavingFeishu] = useState(false)
   const [feishuForm, setFeishuForm] = useState<FeishuForm>(EMPTY_FEISHU_FORM)
+  const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false)
+  const [savingWhatsapp, setSavingWhatsapp] = useState(false)
+
+  const createWhatsappChannel = useCallback(async (payload: CreateAdminChannelPayload) => {
+    setSavingWhatsapp(true)
+    try {
+      await createChannel({ ...payload, channelType: "whatsapp", status: Status.Ok })
+      setWhatsappDialogOpen(false)
+      toast.success("WhatsApp 账号配置已保存")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "WhatsApp 账号保存失败")
+    } finally {
+      setSavingWhatsapp(false)
+    }
+  }, [])
 
   const canManageMail = session?.permissions.includes("notification.channel.manage") ?? false
   const canCreateConnector = session?.permissions.includes("tenantIntegrationConfig.create") ?? false
@@ -602,6 +620,23 @@ export default function EnterpriseAccessPage() {
 
       {view === "channels" ? (
         <div className="space-y-4">
+          <ContentModule
+            className={PANEL_CLASS}
+            title={(
+              <span className="rhd-railops-access-module-title">
+                <MessagesSquareIcon className="size-4" />WhatsApp 项目接入
+              </span>
+            )}
+            extra={<StatusTag tone="disabled">默认关闭</StatusTag>}
+          >
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">为项目配置独立 Chatwoot Community Core 与官方 WhatsApp Cloud API</p>
+                <p className="text-sm text-muted-foreground">填写 WhatsApp Cloud API 参数后保存，系统即可建立该账号配置。</p>
+              </div>
+              <RailopsButton size="small" onClick={() => setWhatsappDialogOpen(true)}><PlusIcon className="size-4" />配置 WhatsApp 账号</RailopsButton>
+            </div>
+          </ContentModule>
           {!canManageMail ? (
             <AccessState title={ee("access.text058")} />
           ) : (
@@ -775,6 +810,15 @@ export default function EnterpriseAccessPage() {
           )}
         </ContentModule>
       )}
+
+      <ChannelEditDialog
+        whatsappOnly
+        open={whatsappDialogOpen}
+        saving={savingWhatsapp}
+        itemId={null}
+        onOpenChange={(open) => { if (!savingWhatsapp) setWhatsappDialogOpen(open) }}
+        onSubmit={createWhatsappChannel}
+      />
 
       <StandardModal
         open={createOpen}

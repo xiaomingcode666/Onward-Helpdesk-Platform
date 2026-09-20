@@ -96,3 +96,41 @@ func MailReceiveStatus(ctx *gin.Context) {
 	}
 	httpx.WriteJSON(ctx, map[string]any{"mailboxes": rows, "pending_count": pending})
 }
+
+func MailPendingLinks(ctx *gin.Context) {
+	operator, err := services.AuthService.RequirePermission(ctx, constants.PermissionNotificationChannelManage)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	rows, err := services.ListPendingInboundEmailLinks(operator.TenantID)
+	if err != nil {
+		httpx.WriteJSON(ctx, errorsx.InvalidParam("待人工关联邮件读取失败"))
+		return
+	}
+	httpx.WriteJSON(ctx, rows)
+}
+
+func MailPendingLinkResolve(ctx *gin.Context) {
+	operator, err := services.AuthService.RequirePermission(ctx, constants.PermissionTicketProgress)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	inboundEmailID, ok := httpx.GetPathInt64(ctx, "id")
+	if !ok {
+		return
+	}
+	var req struct {
+		TicketID int64 `json:"ticket_id"`
+	}
+	if err := ctx.ShouldBindJSON(&req); err != nil || req.TicketID <= 0 {
+		httpx.WriteJSON(ctx, errorsx.InvalidParam("请选择目标工单"))
+		return
+	}
+	if err := services.ResolveInboundEmailManualLink(inboundEmailID, req.TicketID, operator); err != nil {
+		httpx.WriteJSON(ctx, errorsx.InvalidParam(err.Error()))
+		return
+	}
+	httpx.WriteJSON(ctx, map[string]any{"linked": true, "inbound_email_id": inboundEmailID, "ticket_id": req.TicketID})
+}

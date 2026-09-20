@@ -26,6 +26,7 @@ type WorkflowNodeInput struct {
 	UserPrompt       string
 	KnowledgeContext string
 	BlockedToolCodes []string
+	KnowledgeOnly    bool
 }
 
 type ResumeInput struct {

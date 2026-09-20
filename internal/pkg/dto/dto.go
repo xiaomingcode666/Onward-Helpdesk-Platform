@@ -143,3 +143,17 @@ type WechatMPChannelConfig struct {
 	ThemeColor      string `json:"themeColor"`
 	UserTokenSecret string `json:"userTokenSecret,omitempty"`
 }
+
+type WhatsAppChannelConfig struct {
+	ProjectKey                       string `json:"projectKey"`
+	ChatwootCoreURL                  string `json:"chatwootCoreUrl"`
+	ChatwootAccountID                string `json:"chatwootAccountId"`
+	ChatwootInboxID                  string `json:"chatwootInboxId"`
+	MetaPhoneNumberID                string `json:"metaPhoneNumberId"`
+	MetaBusinessAccountID            string `json:"metaBusinessAccountId"`
+	MetaAccessTokenSecretRef         string `json:"metaAccessTokenSecretRef"`
+	WebhookVerifyTokenSecretRef      string `json:"webhookVerifyTokenSecretRef"`
+	ProjectConfigurationApproved     bool   `json:"projectConfigurationApproved"`
+	CommercialResponsibilityApproved bool   `json:"commercialResponsibilityApproved"`
+	ReadinessApproved                bool   `json:"readinessApproved"`
+}

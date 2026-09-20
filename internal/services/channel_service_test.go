@@ -51,6 +51,24 @@ func TestChannelServiceAllowsAgentWithPublishedWorkflow(t *testing.T) {
 	}
 }
 
+func TestWhatsAppChannelUsesCloudAPIConfigurationToEnable(t *testing.T) {
+	db := setupChannelServiceTestDB(t)
+	agent := createChannelServiceTestAgent(t, db, 1001)
+	item, err := ChannelService.CreateChannel(request.CreateChannelRequest{
+		ChannelType: enums.ChannelTypeWhatsApp, AIAgentID: agent.ID, Name: "WhatsApp 项目",
+		Status: int(enums.StatusOk), ConfigJSON: `{"projectKey":"p1","chatwootCoreUrl":"https://cw","chatwootAccountId":"1","chatwootInboxId":"2","metaPhoneNumberId":"3","metaBusinessAccountId":"4","metaAccessTokenSecretRef":"secret://wa","webhookVerifyTokenSecretRef":"secret://verify"}`,
+	}, channelServiceTestOperator())
+	if err != nil {
+		t.Fatalf("create whatsapp channel: %v", err)
+	}
+	if item.Status != enums.StatusOk {
+		t.Fatalf("whatsapp status = %v, want enabled", item.Status)
+	}
+	if err := ChannelService.UpdateStatus(item.ID, int(enums.StatusOk), channelServiceTestOperator()); err != nil {
+		t.Fatalf("enable whatsapp: %v", err)
+	}
+}
+
 func TestChannelServiceGetEnabledChannelFallsBackToSingleEnabledWebChannel(t *testing.T) {
 	db := setupChannelServiceTestDB(t)
 	agent := createChannelServiceTestAgent(t, db, 1001)

@@ -51,6 +51,10 @@ type KnowledgeDocumentResponse struct {
 	IndexedAt         *time.Time                         `json:"indexedAt"`
 	IndexError        string                             `json:"indexError"`
 	ContentHash       string                             `json:"contentHash"`
+	ReviewStatus      string                             `json:"reviewStatus"`
+	ExpiresAt         *time.Time                         `json:"expiresAt"`
+	DeprecatedAt      *time.Time                         `json:"deprecatedAt"`
+	DeprecatedReason  string                             `json:"deprecatedReason"`
 	CreatedAt         time.Time                          `json:"createdAt"`
 	UpdatedAt         time.Time                          `json:"updatedAt"`
 	CreateUserName    string                             `json:"createUserName"`
@@ -73,6 +77,10 @@ type KnowledgeDocumentListResponse struct {
 	IndexedAt         *time.Time                         `json:"indexedAt"`
 	IndexError        string                             `json:"indexError"`
 	ContentHash       string                             `json:"contentHash"`
+	ReviewStatus      string                             `json:"reviewStatus"`
+	ExpiresAt         *time.Time                         `json:"expiresAt"`
+	DeprecatedAt      *time.Time                         `json:"deprecatedAt"`
+	DeprecatedReason  string                             `json:"deprecatedReason"`
 	CreatedAt         time.Time                          `json:"createdAt"`
 	UpdatedAt         time.Time                          `json:"updatedAt"`
 	CreateUserName    string                             `json:"createUserName"`
@@ -96,6 +104,10 @@ type KnowledgeFAQResponse struct {
 	IndexedAt         *time.Time                         `json:"indexedAt"`
 	IndexError        string                             `json:"indexError"`
 	Remark            string                             `json:"remark"`
+	ReviewStatus      string                             `json:"reviewStatus"`
+	ExpiresAt         *time.Time                         `json:"expiresAt"`
+	DeprecatedAt      *time.Time                         `json:"deprecatedAt"`
+	DeprecatedReason  string                             `json:"deprecatedReason"`
 	CreatedAt         time.Time                          `json:"createdAt"`
 	UpdatedAt         time.Time                          `json:"updatedAt"`
 	CreateUserName    string                             `json:"createUserName"`

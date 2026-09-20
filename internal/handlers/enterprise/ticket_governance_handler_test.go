@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/constants"
+	"remotehelpdesk/internal/pkg/ticketpolicy"
 	"remotehelpdesk/internal/services"
 	"testing"
 	"time"
@@ -64,12 +65,24 @@ func TestTicketGovernanceHTTPSimpleChangeWithoutAssessmentOrCategory(t *testing.
 	if err := f.db.AutoMigrate(&models.TicketGovernanceOperation{}, &models.TicketRelation{}, &models.TicketPriorityProposal{}); err != nil {
 		t.Fatal(err)
 	}
+	f.ticket.ProductModuleID = 101
+	_ = f.db.Save(&f.ticket)
 	f.member(t, "editor", 9401, []string{constants.PermissionTicketView.Code, constants.PermissionTicketUpdate.Code})
 	f.router.GET("/api/enterprise/v1/tickets/:id/governance", TicketGovernance)
 	f.router.POST("/api/enterprise/v1/tickets/:id/governance", TicketGovernance)
 	endpoint := fmt.Sprintf("/api/enterprise/v1/tickets/%d/governance", f.ticket.ID)
 	revision := int64(0)
-	classify := services.TicketGovernanceCommand{Action: "classify", CaseType: "known_error", Reason: "分类已确认", ExpectedRevision: &revision, OperationKey: "simple-classify"}
+	classify := services.TicketGovernanceCommand{
+		Action:   "classify",
+		CaseType: "known_error",
+		Facts: ticketpolicy.Facts{
+			Impact: "low", Urgency: "low", Safety: "none", Reach: "low",
+			Workaround: "verified", Evidence: "核实备用流程有效",
+		},
+		Reason:           "分类已确认",
+		ExpectedRevision: &revision,
+		OperationKey:     "simple-classify",
+	}
 	var receipt services.TicketGovernanceReceipt
 	decodeEnterpriseData(t, f.request(t, "editor", http.MethodPost, endpoint, classify), &receipt)
 	var view services.TicketGovernanceView
@@ -91,6 +104,41 @@ func TestTicketGovernanceHTTPSimpleChangeWithoutAssessmentOrCategory(t *testing.
 	decodeEnterpriseData(t, f.request(t, "editor", http.MethodPost, endpoint, change), &again)
 	if again != receipt {
 		t.Fatal("retry changed receipt")
+	}
+}
+
+func TestTicketGovernanceHTTPKnownErrorValidationRejection(t *testing.T) {
+	f := newCaseHTTPFixture(t)
+	if err := f.db.AutoMigrate(&models.TicketGovernanceOperation{}, &models.TicketRelation{}, &models.TicketPriorityProposal{}); err != nil {
+		t.Fatal(err)
+	}
+	f.member(t, "editor", 9401, []string{constants.PermissionTicketView.Code, constants.PermissionTicketUpdate.Code})
+	f.router.POST("/api/enterprise/v1/tickets/:id/governance", TicketGovernance)
+	endpoint := fmt.Sprintf("/api/enterprise/v1/tickets/%d/governance", f.ticket.ID)
+	revision := int64(0)
+
+	// Attempt to classify as known_error without workaround & component
+	cmd := services.TicketGovernanceCommand{
+		Action:           "classify",
+		CaseType:         "known_error",
+		Reason:           "尝试分类为已知错误",
+		ExpectedRevision: &revision,
+		OperationKey:     "ke-invalid-1",
+	}
+	rec := f.request(t, "editor", http.MethodPost, endpoint, cmd)
+	var envelope struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil || envelope.Success {
+		t.Fatalf("expected rejection, got body: %s", rec.Body.String())
+	}
+
+	// Verify revision untouched
+	var stored models.Ticket
+	f.db.First(&stored, f.ticket.ID)
+	if stored.GovernanceRevision != 0 || stored.CaseType == "known_error" {
+		t.Fatalf("unvalidated known error was persisted: %+v", stored)
 	}
 }
 

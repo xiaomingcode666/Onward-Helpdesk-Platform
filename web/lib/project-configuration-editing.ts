@@ -17,6 +17,15 @@ export function editableProjectConfiguration(document: ProjectConfiguration): Pr
   delete (copy as { intake?: unknown }).intake
   copy.projects ??= []
   copy.secret_refs ??= []
+  if (copy.runtime?.retention) {
+    copy.runtime.retention.data_region = copy.runtime.retention.data_region || "global"
+    copy.runtime.retention.days = copy.runtime.retention.ticket_days || copy.runtime.retention.days || 365
+    copy.runtime.retention.archive_after_days = 0
+    copy.runtime.retention.auto_delete = Boolean(copy.runtime.retention.auto_delete)
+    copy.runtime.retention.legal_hold = Boolean(copy.runtime.retention.legal_hold)
+    copy.runtime.retention.gdpr_region = false
+    copy.runtime.retention.ccpa_region = false
+  }
   return copy
 }
 
@@ -33,8 +42,18 @@ export function restoreProjectConfiguration(document: ProjectConfiguration, curr
 }
 
 export function replaceProjectRuntime(document: ProjectConfiguration, runtime: ProjectRuntime): ProjectConfiguration {
+  const normalizedRuntime = structuredClone(runtime)
+  if (normalizedRuntime.retention) {
+    normalizedRuntime.retention.data_region = normalizedRuntime.retention.data_region || "global"
+    normalizedRuntime.retention.days = normalizedRuntime.retention.ticket_days || normalizedRuntime.retention.days || 365
+    normalizedRuntime.retention.archive_after_days = 0
+    normalizedRuntime.retention.auto_delete = Boolean(normalizedRuntime.retention.auto_delete)
+    normalizedRuntime.retention.legal_hold = Boolean(normalizedRuntime.retention.legal_hold)
+    normalizedRuntime.retention.gdpr_region = false
+    normalizedRuntime.retention.ccpa_region = false
+  }
   const previousRefs = new Set(runtimeSecretRefs(document.runtime))
-  const nextRefs = runtimeSecretRefs(runtime)
+  const nextRefs = runtimeSecretRefs(normalizedRuntime)
   const nextRefSet = new Set(nextRefs)
   // A reference can be shared by mail and multiple integrations. Remove an old
   // dependency only after every consumer has stopped using it; retain explicit
@@ -43,5 +62,5 @@ export function replaceProjectRuntime(document: ProjectConfiguration, runtime: P
     ...document.secret_refs.filter(ref => !previousRefs.has(ref) || nextRefSet.has(ref)),
     ...nextRefs,
   ])]
-  return { ...document, runtime, secret_refs }
+  return { ...document, runtime: normalizedRuntime, secret_refs }
 }

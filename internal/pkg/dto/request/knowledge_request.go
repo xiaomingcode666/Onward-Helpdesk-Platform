@@ -2,6 +2,7 @@ package request
 
 import (
 	"io"
+	"time"
 
 	"remotehelpdesk/internal/pkg/enums"
 )
@@ -50,6 +51,7 @@ type CreateKnowledgeDocumentRequest struct {
 	Title           string                             `json:"title"`
 	ContentType     enums.KnowledgeDocumentContentType `json:"contentType"`
 	Content         string                             `json:"content"`
+	ExpiresAt       *time.Time                         `json:"expiresAt"`
 }
 
 type UpdateKnowledgeDocumentRequest struct {
@@ -68,12 +70,13 @@ type BatchDeleteKnowledgeDocumentRequest struct {
 }
 
 type CreateKnowledgeFAQRequest struct {
-	KnowledgeBaseID  int64    `json:"knowledgeBaseId"`
-	DirectoryID      int64    `json:"directoryId"`
-	Question         string   `json:"question"`
-	Answer           string   `json:"answer"`
-	SimilarQuestions []string `json:"similarQuestions"`
-	Remark           string   `json:"remark"`
+	ExpiresAt        *time.Time `json:"expiresAt"`
+	KnowledgeBaseID  int64      `json:"knowledgeBaseId"`
+	DirectoryID      int64      `json:"directoryId"`
+	Question         string     `json:"question"`
+	Answer           string     `json:"answer"`
+	SimilarQuestions []string   `json:"similarQuestions"`
+	Remark           string     `json:"remark"`
 }
 
 type UpdateKnowledgeFAQRequest struct {

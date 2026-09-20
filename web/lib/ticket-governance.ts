@@ -3,7 +3,7 @@ import { apiGet, apiPost } from "@/lib/api/client"
 
 export const caseTypes = ["user_case", "incident", "major_incident", "problem", "known_error", "service_request"] as const
 export type CaseType = typeof caseTypes[number]
-export function governanceLabel(key: string) { return translateCurrentMessage(`ticketGovernance.${key}`) }
+export function governanceLabel(key: string, values?: Record<string, string | number>) { return translateCurrentMessage(`ticketGovernance.${key}`, values) }
 export type PriorityFacts = { impact: string; urgency: string; safety: string; reach: string; workaround: string; evidence: string; root_cause: string }
 export const emptyPriorityFacts: PriorityFacts = { impact: "unknown", urgency: "unknown", safety: "unknown", reach: "unknown", workaround: "unknown", evidence: "", root_cause: "" }
 export interface PriorityPolicy { version: string; defaults: Record<CaseType, string>; matrix: string[][] }
@@ -29,7 +29,7 @@ export interface GovernanceView {
 export interface GovernanceCommand {
   target_revision?: number
   action: string; operation_key: string; expected_revision: number; reason: string
-  case_type?: string; facts?: PriorityFacts; priority?: string; category?: string; proposal_id?: number; use_latest_rules?: boolean; relation_kind?: string; target_id?: number; relation_id?: number
+  case_type?: string; facts?: PriorityFacts; priority?: string; category?: string; proposal_id?: number; use_latest_rules?: boolean; relation_kind?: string; target_id?: number; relation_id?: number; product_id?: number; product_module_id?: number
 }
 export const fetchGovernance = (id: number) => apiGet<GovernanceView>(`/tickets/${id}/governance`)
 export interface PriorityPreview { priority: string; previous_accept_deadline?: string | null; accept_deadline?: string | null; previous_deadline: string | null; deadline: string | null; overdue: boolean }

@@ -72,3 +72,20 @@ func TestBuildAnalyzeConversationResultDoesNotReuseNegatedOrHistoricalHandoff(t 
 		}
 	}
 }
+
+func TestBuildAnalyzeConversationResultForcesHandoffForSensitiveIntent(t *testing.T) {
+	tests := []string{
+		"我要申请退款，订单金额需要人工确认",
+		"请帮我修改账户并解除封禁",
+		"我要赔付损失，谁能最终决定优先级？",
+	}
+	for _, message := range tests {
+		got := buildAnalyzeConversationResult(models.Conversation{}, nil, AnalyzeConversationInput{ObservedIssue: message})
+		if !containsSignal(got.RiskSignals, "sensitive_intent") {
+			t.Errorf("message %q did not produce sensitive_intent: %#v", message, got.RiskSignals)
+		}
+		if got.RecommendedNextAction != "handoff_to_human" {
+			t.Errorf("message %q next action = %q, want handoff_to_human", message, got.RecommendedNextAction)
+		}
+	}
+}

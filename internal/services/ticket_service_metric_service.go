@@ -21,10 +21,10 @@ const (
 	ServiceMetricRestore         = "restore"
 	ServiceMetricResolve         = "resolve"
 
-	ServiceMetricStatusRunning = "running"
-	ServiceMetricStatusWarning = "warning"
-	ServiceMetricStatusBreached = "breached"
-	ServiceMetricStatusMet     = "met"
+	ServiceMetricStatusRunning   = "running"
+	ServiceMetricStatusWarning   = "warning"
+	ServiceMetricStatusBreached  = "breached"
+	ServiceMetricStatusMet       = "met"
 	ServiceMetricStatusEscalated = "escalated"
 )
 
@@ -37,10 +37,10 @@ func newTicketServiceMetricService() *ticketServiceMetricService {
 type ticketServiceMetricService struct{}
 
 type ticketMetricSpec struct {
-	metricType   string
+	metricType    string
 	targetMinutes int
-	startedAt    time.Time
-	actualAt     *time.Time
+	startedAt     time.Time
+	actualAt      *time.Time
 }
 
 type TicketServiceMetricReportItem struct {

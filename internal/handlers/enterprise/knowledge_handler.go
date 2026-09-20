@@ -108,6 +108,51 @@ func TenantKnowledgeDocumentReprocess(ctx *gin.Context) {
 	httpx.WriteJSON(ctx, item)
 }
 
+func TenantKnowledgeDocumentSubmit(ctx *gin.Context) {
+	tenantID, knowledgeBaseID, documentID, ok := resolveEnterpriseKnowledgeBaseDocumentRoute(ctx)
+	if !ok {
+		return
+	}
+	item, err := services.KnowledgeDocumentService.UpdateEnterpriseTenantDocumentStatus(
+		tenantID, knowledgeBaseID, documentID, "review", enterpriseActionOperator(ctx, tenantID),
+	)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, item)
+}
+
+func TenantKnowledgeDocumentPublish(ctx *gin.Context) {
+	tenantID, knowledgeBaseID, documentID, ok := resolveEnterpriseKnowledgeBaseDocumentRoute(ctx)
+	if !ok {
+		return
+	}
+	item, err := services.KnowledgeDocumentService.UpdateEnterpriseTenantDocumentStatus(
+		tenantID, knowledgeBaseID, documentID, "published", enterpriseActionOperator(ctx, tenantID),
+	)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, item)
+}
+
+func TenantKnowledgeDocumentDeprecate(ctx *gin.Context) {
+	tenantID, knowledgeBaseID, documentID, ok := resolveEnterpriseKnowledgeBaseDocumentRoute(ctx)
+	if !ok {
+		return
+	}
+	item, err := services.KnowledgeDocumentService.UpdateEnterpriseTenantDocumentStatus(
+		tenantID, knowledgeBaseID, documentID, "deprecated", enterpriseActionOperator(ctx, tenantID),
+	)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, item)
+}
+
 func TenantKnowledgeDocumentDelete(ctx *gin.Context) {
 	tenantID, knowledgeBaseID, documentID, ok := resolveEnterpriseKnowledgeBaseDocumentRoute(ctx)
 	if !ok {

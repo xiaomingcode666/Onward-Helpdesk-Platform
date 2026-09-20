@@ -85,8 +85,11 @@ import {
   getEntryVersions,
   mergeKnowledgeCandidate,
   publishEntry,
+  publishTenantKnowledgeDocument,
   reprocessTenantKnowledgeDocument,
   rejectKnowledgeCandidate,
+  deprecateTenantKnowledgeDocument,
+  submitTenantKnowledgeDocument,
   submitForReview,
   uploadTenantKnowledgeDocument,
   type KnowledgeCandidate,
@@ -271,15 +274,18 @@ function KnowledgeParsingProgress({
     detail = ke(t, "index.generatingVectorIndex")
   } else if (taskStatus === "waiting_retry") {
     label = ke(t, "index.waitingRetry")
-    detail = task?.max_retries
+    const retryDetail = task?.max_retries
       ? ke(t, "index.retryCount", { count: `${task.retry_count}/${task.max_retries}` })
       : ke(t, "index.retryCount", { count: `${task?.retry_count || 0}` })
+    detail = errorSummary ? `${retryDetail} · ${truncateIndexError(errorSummary)}` : retryDetail
     tone = "retry"
   } else if (taskStatus === "pending") {
     label = ke(t, "index.waitingParsing")
     detail = ke(t, "index.inParsingQueue")
   } else if (taskStatus === "failed" || item.index_status === "failed") {
-    label = ke(t, "index.parsingFailed")
+    // Text extraction has already completed by this stage; failures here are
+    // vector-index/embedding failures and must not be presented as parsing errors.
+    label = ke(t, "index.indexFailed")
     detail = errorSummary ? truncateIndexError(errorSummary) : ke(t, "index.parsingTaskFailed")
     tone = "failed"
   } else if (taskStatus === "cancelled") {
@@ -1239,6 +1245,12 @@ function ProductKnowledgeDocumentsTable({
   onView,
   onDelete,
   onReprocess,
+  onSubmit,
+  onPublish,
+  onDeprecate,
+  documentActionId,
+  canSubmitDocuments,
+  canPublishDocuments,
 }: {
   rows: ProductKnowledgeDocumentFile[]
   indexTasks: KnowledgeIndexTask[]
@@ -1248,6 +1260,12 @@ function ProductKnowledgeDocumentsTable({
   onView: (item: ProductKnowledgeDocumentFile) => void
   onDelete: (item: ProductKnowledgeDocumentFile) => void
   onReprocess: (item: ProductKnowledgeDocumentFile) => void
+  onSubmit: (item: ProductKnowledgeDocumentFile) => void
+  onPublish: (item: ProductKnowledgeDocumentFile) => void
+  onDeprecate: (item: ProductKnowledgeDocumentFile) => void
+  documentActionId: number | null
+  canSubmitDocuments: boolean
+  canPublishDocuments: boolean
 }) {
   const t = useI18n()
   const latestTaskByDocumentId = new Map<number, KnowledgeIndexTask>()
@@ -1293,6 +1311,18 @@ function ProductKnowledgeDocumentsTable({
       render: (_, item) => <KnowledgeParsingProgress item={item} task={latestTaskByDocumentId.get(item.id)} />,
     },
     {
+      title: t("enterpriseKnowledge.documentTable.status"),
+      key: "reviewStatus",
+      width: 120,
+      render: (_, item) => {
+        const expired = Boolean(item.expires_at && Date.parse(item.expires_at) <= Date.now())
+        const unavailable = item.review_status === "deprecated" || expired
+        const tone: StatusTagTone = item.review_status === "published" && !expired ? "success" : item.review_status === "review" ? "warning" : unavailable ? "error" : "neutral"
+        const label = item.review_status === "published" && !expired ? t("enterpriseKnowledge.documentTable.statusPublished") : item.review_status === "review" ? t("enterpriseKnowledge.documentTable.statusReview") : unavailable ? t("enterpriseKnowledge.documentTable.statusDeprecated") : t("enterpriseKnowledge.documentTable.statusDraft")
+        return <StatusTag tone={tone}>{label}</StatusTag>
+      },
+    },
+    {
       title: t("enterpriseKnowledge.documentTable.size"),
       key: "size",
       width: 100,
@@ -1336,12 +1366,15 @@ function ProductKnowledgeDocumentsTable({
             aria-label={t("enterpriseKnowledge.documentTable.view")}
             onClick={() => onView(item)}
           />
+          {canSubmitDocuments && item.review_status === "draft" ? <IconButton className="rhd-railops-knowledge-action-button" icon={documentActionId === item.id ? <Loader2Icon className="size-4 animate-spin" /> : <FilePenLineIcon className="size-4" />} tooltip={t("enterpriseKnowledge.documentTable.submitForReview")} aria-label={t("enterpriseKnowledge.documentTable.submitForReview")} disabled={documentActionId === item.id} onClick={() => onSubmit(item)} /> : null}
+          {canPublishDocuments && item.review_status === "review" ? <IconButton className="rhd-railops-knowledge-action-button" icon={documentActionId === item.id ? <Loader2Icon className="size-4 animate-spin" /> : <CheckIcon className="size-4" />} tooltip={t("enterpriseKnowledge.documentTable.approveAndPublish")} aria-label={t("enterpriseKnowledge.documentTable.approveAndPublish")} disabled={documentActionId === item.id} onClick={() => onPublish(item)} /> : null}
+          {canPublishDocuments && item.review_status === "published" ? <IconButton className="rhd-railops-knowledge-action-button" icon={documentActionId === item.id ? <Loader2Icon className="size-4 animate-spin" /> : <XIcon className="size-4" />} tooltip={t("enterpriseKnowledge.documentTable.deprecate")} aria-label={t("enterpriseKnowledge.documentTable.deprecate")} disabled={documentActionId === item.id} onClick={() => onDeprecate(item)} /> : null}
           <IconButton
             className="rhd-railops-knowledge-action-button"
             icon={reprocessingId === item.id ? <Loader2Icon className="size-4 animate-spin" /> : <RotateCcwIcon className="size-4" />}
             tooltip={item.index_status === "failed" ? t("enterpriseKnowledge.documentTable.reprocess") : t("enterpriseKnowledge.documentTable.reindex")}
             aria-label={item.index_status === "failed" ? t("enterpriseKnowledge.documentTable.reprocess") : t("enterpriseKnowledge.documentTable.reindex")}
-            disabled={reprocessingId === item.id}
+            disabled={reprocessingId === item.id || item.review_status !== "published"}
             onClick={() => onReprocess(item)}
           />
           {item.url ? (
@@ -1427,6 +1460,12 @@ function KnowledgeRightPanel({
   onUploadFiles,
   onDeleteKnowledgeDocument,
   onReprocessKnowledgeDocument,
+  onSubmitKnowledgeDocument,
+  onPublishKnowledgeDocument,
+  onDeprecateKnowledgeDocument,
+  documentActionId,
+  canSubmitDocuments = false,
+  canPublishDocuments = false,
   onViewAdmittedKnowledge,
   onViewCandidate,
   onViewEntry,
@@ -1471,6 +1510,12 @@ function KnowledgeRightPanel({
   onUploadFiles: (files: FileList | null) => Promise<void>
   onDeleteKnowledgeDocument: (item: ProductKnowledgeDocumentFile) => void
   onReprocessKnowledgeDocument: (item: ProductKnowledgeDocumentFile) => void
+  onSubmitKnowledgeDocument: (item: ProductKnowledgeDocumentFile) => void
+  onPublishKnowledgeDocument: (item: ProductKnowledgeDocumentFile) => void
+  onDeprecateKnowledgeDocument: (item: ProductKnowledgeDocumentFile) => void
+  documentActionId: number | null
+  canSubmitDocuments?: boolean
+  canPublishDocuments?: boolean
   onViewAdmittedKnowledge: (item: ProductKnowledgeDocumentFile) => void
   onViewCandidate: (candidate: KnowledgeCandidate) => void
   onViewEntry: (entry: KnowledgeEntryListItem) => void
@@ -1587,8 +1632,14 @@ function KnowledgeRightPanel({
               onView={onViewAdmittedKnowledge}
               onDelete={onDeleteKnowledgeDocument}
               onReprocess={onReprocessKnowledgeDocument}
+              onSubmit={onSubmitKnowledgeDocument}
+              onPublish={onPublishKnowledgeDocument}
+              onDeprecate={onDeprecateKnowledgeDocument}
+              documentActionId={documentActionId}
+              canSubmitDocuments={canSubmitDocuments}
+              canPublishDocuments={canPublishDocuments}
             />
-            <Pagination page={docsPage} rows={knowledgeDocuments} total={knowledgeDocumentsTotal} onPageChange={onDocsPageChange} />
+            {activeTab === "docs" ? <Pagination page={docsPage} rows={knowledgeDocuments} total={knowledgeDocumentsTotal} onPageChange={onDocsPageChange} /> : null}
           </div>
         ) : (
           <div className="kb-tab-panel active">
@@ -1626,7 +1677,10 @@ function EnterpriseKnowledgePageContent() {
   const t = useI18n()
   const confirm = useConfirm()
   const { ready: authReady, session } = useAuth()
-  const hasProductConcept = session?.featureFlags?.product !== false
+  // The service-scene flag is authoritative for generic knowledge Q&A
+  // tenants. This also keeps older sessions (without product=false) out of
+  // the product-scoped knowledge UI.
+  const hasProductConcept = session?.featureFlags?.product !== false && session?.featureFlags?.knowledgeSupport !== true
   const showProductTree = authReady && hasProductConcept
   const canManageKnowledgeAccess =
     authReady &&
@@ -1690,6 +1744,7 @@ function EnterpriseKnowledgePageContent() {
   const [knowledgeDocumentUploading, setKnowledgeDocumentUploading] = useState(false)
   const [deletingKnowledgeDocumentId, setDeletingKnowledgeDocumentId] = useState<number | null>(null)
   const [reprocessingKnowledgeDocumentId, setReprocessingKnowledgeDocumentId] = useState<number | null>(null)
+  const [documentActionId, setDocumentActionId] = useState<number | null>(null)
   const [uploadQuota, setUploadQuota] = useState<KnowledgeUploadQuota | null>(null)
   const [uploadQuotaLoading, setUploadQuotaLoading] = useState(false)
   const [uploadQuotaError, setUploadQuotaError] = useState("")
@@ -2229,6 +2284,30 @@ function EnterpriseKnowledgePageContent() {
     }
   }, [refreshKnowledgeDocuments, selectedProductId, t, tenantKnowledgeBaseID, tenantKnowledgeSelected])
 
+  const handleTenantKnowledgeDocumentStatus = useCallback(async (item: ProductKnowledgeDocumentFile, next: "review" | "published" | "deprecated") => {
+    if (!tenantKnowledgeSelected || !tenantKnowledgeBaseID) return
+    setDocumentActionId(item.id)
+    setKnowledgeDocumentsError("")
+    try {
+      const request = next === "review"
+        ? submitTenantKnowledgeDocument(tenantKnowledgeBaseID, item.id)
+        : next === "published"
+          ? publishTenantKnowledgeDocument(tenantKnowledgeBaseID, item.id)
+          : deprecateTenantKnowledgeDocument(tenantKnowledgeBaseID, item.id)
+      const response = await request
+      if (!response.success) throw new Error(readErrorMessage(response, t("enterpriseKnowledge.errors.reviewFailed")))
+      await Promise.all([refreshKnowledgeDocuments(), loadTenantKnowledgeBases()])
+    } catch (error) {
+      setKnowledgeDocumentsError(error instanceof Error ? error.message : t("enterpriseKnowledge.errors.reviewFailed"))
+    } finally {
+      setDocumentActionId(null)
+    }
+  }, [loadTenantKnowledgeBases, refreshKnowledgeDocuments, t, tenantKnowledgeBaseID, tenantKnowledgeSelected])
+
+  const handleSubmitKnowledgeDocument = useCallback((item: ProductKnowledgeDocumentFile) => { void handleTenantKnowledgeDocumentStatus(item, "review") }, [handleTenantKnowledgeDocumentStatus])
+  const handlePublishKnowledgeDocument = useCallback((item: ProductKnowledgeDocumentFile) => { void handleTenantKnowledgeDocumentStatus(item, "published") }, [handleTenantKnowledgeDocumentStatus])
+  const handleDeprecateKnowledgeDocument = useCallback((item: ProductKnowledgeDocumentFile) => { void handleTenantKnowledgeDocumentStatus(item, "deprecated") }, [handleTenantKnowledgeDocumentStatus])
+
   const handleViewKnowledgeCandidate = useCallback((candidate: KnowledgeCandidate) => {
     setKnowledgePreview({ type: "candidate", candidate })
     setPreviewEntryDetail(null)
@@ -2673,7 +2752,7 @@ function EnterpriseKnowledgePageContent() {
                 state={tenantDocumentState}
                 selectedProductId={null}
                 knowledgeEntriesLoadedProductId={null}
-                activeTab="docs"
+                activeTab={activeTab}
                 docsPage={docsPage}
                 entriesPage={1}
                 loading={false}
@@ -2688,12 +2767,18 @@ function EnterpriseKnowledgePageContent() {
                 reprocessingKnowledgeDocumentId={reprocessingKnowledgeDocumentId}
                 actionCandidateId={null}
                 actionEntryId={null}
+                documentActionId={documentActionId}
+                canSubmitDocuments={Boolean(session?.permissions?.includes("knowledgeBase.update"))}
+                canPublishDocuments={Boolean(session?.permissions?.includes("knowledgeBase.publish"))}
                 onTabChange={setActiveTab}
                 onDocsPageChange={setDocsPage}
                 onEntriesPageChange={setEntriesPage}
                 onUploadFiles={handleUploadKnowledgeDocuments}
                 onDeleteKnowledgeDocument={handleDeleteKnowledgeDocument}
                 onReprocessKnowledgeDocument={handleReprocessKnowledgeDocument}
+                onSubmitKnowledgeDocument={handleSubmitKnowledgeDocument}
+                onPublishKnowledgeDocument={handlePublishKnowledgeDocument}
+                onDeprecateKnowledgeDocument={handleDeprecateKnowledgeDocument}
                 onViewAdmittedKnowledge={handleViewAdmittedKnowledge}
                 onViewCandidate={handleViewKnowledgeCandidate}
                 onViewEntry={handleViewKnowledgeEntry}
@@ -2746,12 +2831,16 @@ function EnterpriseKnowledgePageContent() {
                 reprocessingKnowledgeDocumentId={reprocessingKnowledgeDocumentId}
                 actionCandidateId={actionCandidateId}
                 actionEntryId={actionEntryId}
+                documentActionId={documentActionId}
                 onTabChange={setActiveTab}
                 onDocsPageChange={setDocsPage}
                 onEntriesPageChange={setEntriesPage}
                 onUploadFiles={handleUploadKnowledgeDocuments}
                 onDeleteKnowledgeDocument={handleDeleteKnowledgeDocument}
                 onReprocessKnowledgeDocument={handleReprocessKnowledgeDocument}
+                onSubmitKnowledgeDocument={handleSubmitKnowledgeDocument}
+                onPublishKnowledgeDocument={handlePublishKnowledgeDocument}
+                onDeprecateKnowledgeDocument={handleDeprecateKnowledgeDocument}
                 onViewAdmittedKnowledge={handleViewAdmittedKnowledge}
                 onViewCandidate={handleViewKnowledgeCandidate}
                 onViewEntry={handleViewKnowledgeEntry}

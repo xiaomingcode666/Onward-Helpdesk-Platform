@@ -48,6 +48,7 @@ test("tenant default reception is a first-class scope beside product agents", ()
 
 test("knowledge support tenants use tenant reception without loading a product scope", () => {
   assert.match(source, /const hasProductConcept = session\?\.featureFlags\?\.product !== false/)
+  assert.match(source, /session\?\.featureFlags\?\.knowledgeSupport !== true/)
   assert.match(source, /const showProductTree = authReady && hasProductConcept/)
   assert.match(source, /if \(!hasProductConcept\) \{[\s\S]*?setSelectedScope\("tenant"\)[\s\S]*?return/)
   assert.match(source, /style=\{showProductTree \? undefined : \{ gridTemplateColumns: "minmax\(0, 1fr\)" \}\}/)

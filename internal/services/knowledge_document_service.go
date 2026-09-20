@@ -315,6 +315,7 @@ func (s *knowledgeDocumentService) buildKnowledgeDocumentModel(req request.Creat
 		Title:           req.Title,
 		ContentType:     req.ContentType,
 		Content:         req.Content,
+		ExpiresAt:       req.ExpiresAt,
 	}
 	if plainText != "" {
 		hash := sha256.Sum256([]byte(plainText))

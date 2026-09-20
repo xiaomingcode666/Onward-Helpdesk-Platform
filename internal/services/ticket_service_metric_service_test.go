@@ -25,11 +25,11 @@ func TestTicketServiceMetricRefreshWarnsBreachesAndEscalatesP1(t *testing.T) {
 	now := time.Date(2026, time.September, 18, 14, 0, 0, 0, time.UTC)
 	createdAt := now.Add(-70 * time.Minute)
 	ticket := models.Ticket{
-		TenantID:      1,
-		TicketNo:      "METRIC-P1",
-		Channel:       "manual",
-		Status:        enums.TicketStatusPending,
-		AuditFields:   models.AuditFields{CreatedAt: createdAt, UpdatedAt: createdAt},
+		TenantID:    1,
+		TicketNo:    "METRIC-P1",
+		Channel:     "manual",
+		Status:      enums.TicketStatusPending,
+		AuditFields: models.AuditFields{CreatedAt: createdAt, UpdatedAt: createdAt},
 	}
 	ticket.PriorityLevel = "p1"
 	require.NoError(t, TicketService.Create(&ticket))

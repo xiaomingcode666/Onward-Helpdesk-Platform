@@ -133,6 +133,35 @@ func TestEmailMVPAtomicIngestAndThreadIsolation(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestEmailPendingManualLinkCanBeResolvedWithoutGuessing(t *testing.T) {
+	db, op := setupEmailMVP(t)
+	created, err := IngestInboundEmail(sampleInbound("manual-origin@example.test"))
+	require.NoError(t, err)
+	reply := sampleInbound("manual-reply@example.test")
+	reply.InReplyTo = "unknown-thread@example.test"
+	pending, err := IngestInboundEmail(reply)
+	require.NoError(t, err)
+	require.Equal(t, InboundEmailPendingManual, pending.Action)
+	require.Zero(t, pending.TicketID)
+	var progressBefore int64
+	require.NoError(t, db.Model(&models.TicketProgress{}).Where("ticket_id = ?", created.TicketID).Count(&progressBefore).Error)
+
+	require.NoError(t, ResolveInboundEmailManualLink(pending.InboundEmailID, created.TicketID, op))
+	var row models.InboundEmail
+	require.NoError(t, db.First(&row, pending.InboundEmailID).Error)
+	require.Equal(t, created.TicketID, row.TicketID)
+	require.Equal(t, InboundEmailAppended, row.Status)
+	require.Equal(t, "manual", row.MatchedBy)
+
+	var progress int64
+	require.NoError(t, db.Model(&models.TicketProgress{}).Where("ticket_id = ?", created.TicketID).Count(&progress).Error)
+	require.EqualValues(t, progressBefore+1, progress)
+
+	foreign := *op
+	foreign.TenantID = 2
+	require.Error(t, ResolveInboundEmailManualLink(pending.InboundEmailID, created.TicketID, &foreign))
+}
+
 func TestEmailMVPMIMEAndAttachmentBoundary(t *testing.T) {
 	raw := "From: Customer <customer@example.test>\r\nMessage-ID: <mime@example.test>\r\nSubject: =?UTF-8?B?5peg5rOV55m75b2V?=\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=test\r\n\r\n--test\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n5rWL6K+V\r\n--test\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=unsafe.exe\r\n\r\nDO-NOT-IMPORT\r\n--test--\r\n"
 	in := parseInboundMIME([]byte(raw), "fallback")

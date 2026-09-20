@@ -388,3 +388,48 @@ export async function updateTicketAutoClosePolicy(
 ): Promise<ApiResponse<TicketAutoClosePolicy>> {
   return apiPut<TicketAutoClosePolicy>("/ticket-settings/auto-close", policy)
 }
+
+export interface TicketQualityScorecardItem {
+  code: string
+  title: string
+  max: number
+}
+
+export interface TicketQualityScorecard {
+  id: number
+  tenant_id: number
+  version: string
+  name: string
+  status: string
+  items: TicketQualityScorecardItem[]
+  published_at?: string
+}
+
+export interface TicketQualityReview {
+  id: number
+  tenant_id: number
+  ticket_id: number
+  scorecard_version_id: number
+  score_snapshot_json: string
+  total_score: number
+  max_score: number
+  result: string
+  remark: string
+  reviewer_id: number
+  reviewed_at: string
+}
+
+export async function fetchActiveTicketQualityScorecard(): Promise<ApiResponse<TicketQualityScorecard>> {
+  return apiGet<TicketQualityScorecard>("/ticket-quality/scorecard/active")
+}
+
+export async function fetchTicketQualityReviews(ticketId: number): Promise<ApiResponse<TicketQualityReview[]>> {
+  return apiGet<TicketQualityReview[]>(`/tickets/${ticketId}/quality-reviews`)
+}
+
+export async function createTicketQualityReview(
+  ticketId: number,
+  payload: { answers: Record<string, number>; remark: string },
+): Promise<ApiResponse<TicketQualityReview>> {
+  return apiPost<TicketQualityReview>(`/tickets/${ticketId}/quality-reviews`, payload)
+}

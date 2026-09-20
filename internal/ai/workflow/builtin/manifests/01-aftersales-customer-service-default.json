@@ -762,8 +762,8 @@
             },
             {
               "id": "default",
-              "name": "AI 安全收口",
-              "targetNodeId": "diagnostic_safe_reply_1",
+              "name": "低置信度转人工",
+              "targetNodeId": "handoff_1",
               "default": true
             }
           ]
@@ -1121,9 +1121,9 @@
         "target": "reply_1"
       },
       {
-        "id": "edge_answerability_safe",
+        "id": "edge_answerability_handoff",
         "source": "answerability_route_1",
-        "target": "diagnostic_safe_reply_1"
+        "target": "handoff_1"
       },
       {
         "id": "edge_reply_send",

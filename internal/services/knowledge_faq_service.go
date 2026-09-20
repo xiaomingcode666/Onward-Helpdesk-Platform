@@ -268,6 +268,7 @@ func (s *knowledgeFAQService) buildKnowledgeFAQModel(req request.CreateKnowledge
 		Answer:           req.Answer,
 		SimilarQuestions: string(similarQuestions),
 		Remark:           req.Remark,
+		ExpiresAt:        req.ExpiresAt,
 	}, nil
 }
 

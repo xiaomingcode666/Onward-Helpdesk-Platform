@@ -33,6 +33,7 @@ function getChannelTypeLabel(channelType: string, t: (key: string) => string) {
   if (channelType === "wxwork_kf") {
     return t("channel.typeWxworkKf")
   }
+  if (channelType === "whatsapp") return t("channel.typeWhatsapp")
   return t("channel.typeWeb")
 }
 
@@ -70,6 +71,7 @@ export default function DashboardChannelsPage() {
     { value: "web", label: t("channel.typeWeb") },
     { value: "wechat_mp", label: t("channel.typeWechatMp") },
     { value: "wxwork_kf", label: t("channel.typeWxworkKf") },
+    { value: "whatsapp", label: t("channel.typeWhatsapp") },
   ]
 
   return (

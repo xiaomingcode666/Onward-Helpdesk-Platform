@@ -141,3 +141,54 @@ func TestRuntimeCalendarHolidayRangeAndAllDay(t *testing.T) {
 		t.Fatalf("24x7 elapsed %d", got)
 	}
 }
+
+func TestRetentionPolicyAsCodeEffectiveDays(t *testing.T) {
+	d := runtimeTestDocument()
+	d.Runtime.Retention.TicketDays = 730
+	d.Runtime.Retention.AttachmentDays = 365
+	d.Runtime.Retention.EventDays = 90
+	d.Runtime.Retention.AuditDays = 180
+	d.Runtime.Retention.MetricDays = 60
+	d.Runtime.Retention.LogDays = 30
+	d.Runtime.Retention.ReportDays = 120
+	d.Runtime.Retention.BackupDays = 45
+
+	if r := Validate(d, 1, "development", nil); !r.Valid {
+		t.Fatalf("retention with 8 category days rejected: %+v", r)
+	}
+
+	ret := d.Runtime.Retention
+	if ret.EffectiveDays("ticket") != 730 {
+		t.Fatalf("expected ticket 730, got %d", ret.EffectiveDays("ticket"))
+	}
+	if ret.EffectiveDays("attachment") != 365 {
+		t.Fatalf("expected attachment 365, got %d", ret.EffectiveDays("attachment"))
+	}
+	if ret.EffectiveDays("event") != 90 {
+		t.Fatalf("expected event 90, got %d", ret.EffectiveDays("event"))
+	}
+	if ret.EffectiveDays("audit") != 180 {
+		t.Fatalf("expected audit 180, got %d", ret.EffectiveDays("audit"))
+	}
+	if ret.EffectiveDays("metric") != 60 {
+		t.Fatalf("expected metric 60, got %d", ret.EffectiveDays("metric"))
+	}
+	if ret.EffectiveDays("log") != 30 {
+		t.Fatalf("expected log 30, got %d", ret.EffectiveDays("log"))
+	}
+	if ret.EffectiveDays("report") != 120 {
+		t.Fatalf("expected report 120, got %d", ret.EffectiveDays("report"))
+	}
+	if ret.EffectiveDays("backup") != 45 {
+		t.Fatalf("expected backup 45, got %d", ret.EffectiveDays("backup"))
+	}
+
+	// Fallback test
+	emptyRet := Retention{Days: 365}
+	if emptyRet.EffectiveDays("ticket") != 365 {
+		t.Fatalf("expected fallback 365, got %d", emptyRet.EffectiveDays("ticket"))
+	}
+	if emptyRet.EffectiveDays("unknown") != 365 {
+		t.Fatalf("expected fallback 365, got %d", emptyRet.EffectiveDays("unknown"))
+	}
+}

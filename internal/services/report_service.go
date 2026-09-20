@@ -73,26 +73,26 @@ type ProductReport struct {
 
 // DashboardOverview 运营概览
 type DashboardOverview struct {
-	TotalProducts             int64         `json:"total_products"`
-	TotalDevices              int64         `json:"total_devices"`
-	TotalTickets              int64         `json:"total_tickets"`
-	PendingTickets            int64         `json:"pending_tickets"`
-	InProgressTickets         int64         `json:"in_progress_tickets"`
-	SLAAtRisk                 int64         `json:"sla_at_risk"`
-	NewToday                  int64         `json:"new_today"`
-	AISessions                int64         `json:"ai_sessions"`
-	AIResolveRate             float64       `json:"ai_resolve_rate"`
-	ExpertInterventionRate    *float64      `json:"expert_intervention_rate"`
-	AvoidedTrips              *int64        `json:"avoided_trips"`
-	FirstTimeFixRate          *float64      `json:"first_time_fix_rate"`
-	AvgDowntimeMinutes        *float64      `json:"avg_downtime_minutes"`
-	KnowledgeReuseRate        *float64      `json:"knowledge_reuse_rate"`
-	RemoteResolutionRate      *float64      `json:"remote_resolution_rate"`
-	OutcomeMetricCoverageRate *float64      `json:"outcome_metric_coverage_rate"`
-	OutcomeMetricSampleSize   int64         `json:"outcome_metric_sample_size"`
+	TotalProducts             int64                           `json:"total_products"`
+	TotalDevices              int64                           `json:"total_devices"`
+	TotalTickets              int64                           `json:"total_tickets"`
+	PendingTickets            int64                           `json:"pending_tickets"`
+	InProgressTickets         int64                           `json:"in_progress_tickets"`
+	SLAAtRisk                 int64                           `json:"sla_at_risk"`
+	NewToday                  int64                           `json:"new_today"`
+	AISessions                int64                           `json:"ai_sessions"`
+	AIResolveRate             float64                         `json:"ai_resolve_rate"`
+	ExpertInterventionRate    *float64                        `json:"expert_intervention_rate"`
+	AvoidedTrips              *int64                          `json:"avoided_trips"`
+	FirstTimeFixRate          *float64                        `json:"first_time_fix_rate"`
+	AvgDowntimeMinutes        *float64                        `json:"avg_downtime_minutes"`
+	KnowledgeReuseRate        *float64                        `json:"knowledge_reuse_rate"`
+	RemoteResolutionRate      *float64                        `json:"remote_resolution_rate"`
+	OutcomeMetricCoverageRate *float64                        `json:"outcome_metric_coverage_rate"`
+	OutcomeMetricSampleSize   int64                           `json:"outcome_metric_sample_size"`
 	ServiceMetricReport       []TicketServiceMetricReportItem `json:"service_metric_report"`
-	RecentActivities          []Activity    `json:"recent_activities"`
-	QueueTickets              []QueueTicket `json:"queue_tickets"`
+	RecentActivities          []Activity                      `json:"recent_activities"`
+	QueueTickets              []QueueTicket                   `json:"queue_tickets"`
 }
 
 // Activity 最近活动记录

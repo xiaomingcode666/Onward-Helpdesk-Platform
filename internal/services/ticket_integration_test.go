@@ -675,7 +675,11 @@ func TestTicketSLATracking(t *testing.T) {
 
 	// 2. 暂停 SLA
 	ticketIDStr := fmt.Sprintf("%d", created.ID)
-	pauseRecord, err := services.SLAService.PauseSLA(ticketIDStr, "waiting_customer")
+	approver := *f.Operator
+	approver.Roles = []string{services.EnterpriseRoleOwner}
+	pauseRecord, err := services.SLAService.PauseSLAForTenantWithApproval(fmt.Sprintf("%d", f.Tenant.ID), ticketIDStr, services.SLAPauseRequest{
+		Reason: "waiting_customer", OwnerID: f.Operator.UserID, Evidence: "integration-test customer wait evidence",
+	}, &approver)
 	require.NoError(t, err)
 	assert.NotNil(t, pauseRecord)
 	assert.Equal(t, ticketIDStr, pauseRecord.TicketID)

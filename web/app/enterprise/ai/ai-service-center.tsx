@@ -295,7 +295,10 @@ function agentReleaseActionIcon(agent: AIAgent, canCreateRelease: boolean, canRe
 export function EnterpriseAiServiceCenter() {
   const router = useRouter()
   const { ready: authReady, session } = useAuth()
-  const hasProductConcept = session?.featureFlags?.product !== false
+  // Knowledge-support tenants are scoped to the tenant-wide knowledge base;
+  // do not expose a product selector even when an older session omitted the
+  // derived `product: false` capability flag.
+  const hasProductConcept = session?.featureFlags?.product !== false && session?.featureFlags?.knowledgeSupport !== true
   const showProductTree = authReady && hasProductConcept
   const [summary, setSummary] = useState<EnterpriseAIAgentSummary>(emptySummary)
   const [agents, setAgents] = useState<AIAgent[]>([])

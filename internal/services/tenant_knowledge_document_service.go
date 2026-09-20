@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"mime/multipart"
 	"strings"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
+	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/repositories"
 
 	"github.com/mlogclub/simple/sqls"
@@ -71,31 +71,51 @@ func (s *knowledgeDocumentService) UploadEnterpriseTenantDocument(
 		_ = AssetService.DeleteAsset(asset.ID, operator)
 		return nil, err
 	}
-	document, err := s.createPublishedProductKnowledgeDocument(publishedProductKnowledgeDocumentInput{
-		TenantID:          tenantID,
-		KnowledgeBaseID:   knowledgeBaseID,
-		Title:             firstNonBlank(strings.TrimSpace(file.Filename), fmt.Sprintf("Knowledge document %d", asset.ID)),
-		Content:           content,
-		Language:          "default",
-		SourceAssetID:     asset.ID,
-		SourceType:        "uploaded_document",
-		SourceReferenceID: asset.ID,
-	}, operator)
-	if err != nil {
+	document := &models.KnowledgeDocument{
+		TenantID: tenantID, KnowledgeBaseID: knowledgeBaseID,
+		Title: firstNonBlank(strings.TrimSpace(file.Filename), fmt.Sprintf("Knowledge document %d", asset.ID)),
+		ContentType: enums.KnowledgeDocumentContentTypeMarkdown, Content: strings.TrimSpace(content),
+		SourceAssetID: asset.ID, SourceType: "uploaded_document", SourceReferenceID: asset.ID,
+		ReviewStatus: "draft", Language: "default", TagsJSON: "[]", FaultCodesJSON: "[]",
+		Status: enums.StatusDisabled, IndexStatus: enums.KnowledgeDocumentIndexStatusPending,
+		ContentHash: knowledgeContentHash(content), AuditFields: utils.BuildAuditFields(operator),
+	}
+	document.CreatedAt = time.Now()
+	document.UpdatedAt = document.CreatedAt
+	if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
+		return repositories.KnowledgeDocumentRepository.Create(ctx.Tx, document)
+	}); err != nil {
 		_ = AssetService.DeleteAsset(asset.ID, operator)
 		return nil, err
 	}
-	if _, err := KnowledgeIndexSyncService.RequestEntryReindex(context.Background(), tenantID, "document", document.ID, operator); err != nil {
-		slog.Warn("enqueue uploaded tenant knowledge document failed", "document_id", document.ID, "error", err)
-		_ = repositories.KnowledgeDocumentRepository.Updates(sqls.DB(), document.ID, map[string]any{
-			"index_status": enums.KnowledgeDocumentIndexStatusFailed,
-			"index_error":  err.Error(),
-			"indexed_at":   nil,
-			"updated_at":   time.Now(),
-		})
-	}
 	document = repositories.KnowledgeDocumentRepository.Get(sqls.DB(), document.ID)
 	result := s.buildEnterpriseProductDocumentDTO(0, *document, 0, "uploaded_document", asset.ID)
+	return &result, nil
+}
+
+func (s *knowledgeDocumentService) UpdateEnterpriseTenantDocumentStatus(tenantID, knowledgeBaseID, documentID int64, next string, operator *dto.AuthPrincipal) (*dto.EnterpriseProductKnowledgeDocumentDTO, error) {
+	if operator == nil {
+		return nil, errorsx.UnauthorizedI18n("error.auth.expired")
+	}
+	if _, err := s.requireEnterpriseTenantKnowledgeBase(tenantID, knowledgeBaseID); err != nil {
+		return nil, err
+	}
+	if err := requireKnowledgeTenantOwnership(tenantID, operator); err != nil {
+		return nil, err
+	}
+	document := repositories.KnowledgeDocumentRepository.Get(sqls.DB(), documentID)
+	if document == nil || document.TenantID != tenantID || document.KnowledgeBaseID != knowledgeBaseID || document.SourceType != "uploaded_document" || document.Status == enums.StatusDeleted {
+		return nil, errorsx.InvalidParam("tenant knowledge document not found")
+	}
+	_, err := EnterpriseKnowledgeService.UpdateEntryStatus(tenantID, encodeEnterpriseKnowledgeID("document", documentID), next, operator)
+	if err != nil {
+		return nil, err
+	}
+	updated := repositories.KnowledgeDocumentRepository.Get(sqls.DB(), documentID)
+	if updated == nil {
+		return nil, errorsx.InvalidParam("tenant knowledge document not found")
+	}
+	result := s.buildEnterpriseProductDocumentDTO(0, *updated, 0, "uploaded_document", updated.SourceReferenceID)
 	return &result, nil
 }
 
@@ -115,6 +135,12 @@ func (s *knowledgeDocumentService) ReprocessEnterpriseTenantDocument(
 	document := repositories.KnowledgeDocumentRepository.Get(sqls.DB(), documentID)
 	if document == nil || document.TenantID != tenantID || document.KnowledgeBaseID != knowledgeBaseID || document.Status == enums.StatusDeleted {
 		return nil, errorsx.InvalidParam("tenant knowledge document not found")
+	}
+	// Draft and review documents may be parsed and inspected, but must never
+	// be sent to the customer-facing retrieval index before publication.
+	if document.ReviewStatus != "published" {
+		result := s.buildEnterpriseProductDocumentDTO(0, *document, 0, firstNonBlank(document.SourceType, "uploaded_document"), document.SourceReferenceID)
+		return &result, nil
 	}
 	if _, err := KnowledgeIndexSyncService.RequestEntryReindex(context.Background(), tenantID, "document", document.ID, operator); err != nil {
 		_ = repositories.KnowledgeDocumentRepository.Updates(sqls.DB(), document.ID, map[string]any{

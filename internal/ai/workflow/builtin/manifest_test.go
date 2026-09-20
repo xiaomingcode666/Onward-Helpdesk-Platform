@@ -55,6 +55,11 @@ func TestKnowledgeSupportManifestUsesTenantKnowledgeAndHumanHandoff(t *testing.T
 		if retrieve == nil || json.Unmarshal(retrieve.Config, &retrieveConfig) != nil || retrieveConfig.EffectiveBindingMethod() != "agent_default" {
 			t.Fatalf("knowledge workflow does not use tenant agent knowledge: %+v", retrieve)
 		}
+		knowledgeReply := manifestNodeByID(item.Definition, "knowledge_reply_1")
+		var knowledgeReplyConfig map[string]any
+		if knowledgeReply == nil || json.Unmarshal(knowledgeReply.Config, &knowledgeReplyConfig) != nil || knowledgeReplyConfig["knowledgeOnly"] != true || knowledgeReplyConfig["allowEmptyKnowledge"] == true {
+			t.Fatalf("knowledge workflow must refuse unverified empty-context answers: %+v", knowledgeReply)
+		}
 		reply := manifestNodeByID(item.Definition, "send_reply_1")
 		if reply == nil {
 			t.Fatal("knowledge workflow reply node not found")
@@ -143,15 +148,25 @@ func TestDefaultWorkflowDiagnosisFailureRequiresCustomerHandoffAction(t *testing
 		if answerabilityRoute == nil || json.Unmarshal(answerabilityRoute.Config, &answerabilityConfig) != nil {
 			t.Fatalf("answerability route config is invalid: %+v", answerabilityRoute)
 		}
+		lowConfidenceHandoff := false
 		for _, branch := range answerabilityConfig.Branches {
-			if branch.TargetNodeID == "handoff_1" {
-				t.Fatalf("unanswerable diagnosis can still trigger automatic handoff: %+v", answerabilityConfig.Branches)
+			if branch.Default && branch.TargetNodeID == "handoff_1" {
+				lowConfidenceHandoff = true
 			}
 		}
+		if !lowConfidenceHandoff {
+			t.Fatalf("low-confidence diagnosis must force human handoff: %+v", answerabilityConfig.Branches)
+		}
 		for _, edge := range item.Definition.Edges {
-			if (edge.Source == "diagnosis_failure_route_1" || edge.Source == "answerability_route_1") && edge.Target == "handoff_1" {
-				t.Fatalf("knowledge failure still has an automatic handoff edge: %+v", edge)
+			if edge.Source == "diagnosis_failure_route_1" && edge.Target == "handoff_1" {
+				t.Fatalf("diagnosis execution failure must remain an AI safety fallback: %+v", edge)
 			}
+			if edge.Source == "answerability_route_1" && edge.Target == "handoff_1" {
+				lowConfidenceHandoff = true
+			}
+		}
+		if !lowConfidenceHandoff {
+			t.Fatalf("answerability route is missing the human handoff edge")
 		}
 		reply := manifestNodeByID(item.Definition, "diagnostic_safe_reply_1")
 		var replyConfig map[string]any

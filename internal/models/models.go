@@ -188,6 +188,9 @@ var Models = []any{
 	&ProductFaultStatsRebuildJob{},
 	&KnowledgeIndexSyncTask{},
 	&TicketQualityClue{},
+	&TicketQualityScorecardVersion{},
+	&TicketQualityReview{},
+	&TicketQualitySample{},
 	&DomainEvent{},
 	&OutboxRecord{},
 	&AuditLog{},
@@ -218,6 +221,7 @@ var Models = []any{
 	&DSARExecutionLog{},
 	&DataBreachRecord{},
 	&DataRegionPolicy{},
+	&ProjectRetentionApproval{},
 }
 
 type Migration struct {
@@ -1538,8 +1542,11 @@ type KnowledgeDocument struct {
 	SourceType          string                             `gorm:"type:varchar(32);not null;default:'knowledge_entry';index"` // SourceType 区分 uploaded_document/product_manual/knowledge_entry。
 	SourceReferenceID   int64                              `gorm:"type:bigint;not null;default:0;index"`                      // SourceReferenceID 为手册等来源业务记录 ID。
 	ReviewStatus        string                             `gorm:"type:varchar(20);not null;default:'draft';index"`           // ReviewStatus 为企业知识中心审核状态：draft/review/published/deprecated。
-	Language            string                             `gorm:"type:varchar(16);not null;default:'default';index"`         // Language 为主语言。
-	TagsJSON            string                             `gorm:"column:tags_json;type:text;not null;default:'[]'"`          // TagsJSON 为标签 JSON 数组。
+	ExpiresAt           *time.Time                         `gorm:"type:timestamp;index"`
+	DeprecatedAt        *time.Time                         `gorm:"type:timestamp;index"`
+	DeprecatedReason    string                             `gorm:"type:varchar(255);not null;default:''"`
+	Language            string                             `gorm:"type:varchar(16);not null;default:'default';index"` // Language 为主语言。
+	TagsJSON            string                             `gorm:"column:tags_json;type:text;not null;default:'[]'"`  // TagsJSON 为标签 JSON 数组。
 	FaultCodesJSON      string                             `gorm:"column:fault_codes_json;type:text;not null;default:'[]'"`
 	Status              enums.Status                       `gorm:"type:int;not null;default:0;index"`                 // Status 为状态
 	IndexStatus         enums.KnowledgeDocumentIndexStatus `gorm:"type:varchar(20);not null;default:'pending';index"` // IndexStatus 为索引状态：pending/indexed/failed。
@@ -1554,14 +1561,17 @@ type KnowledgeDocument struct {
 
 // KnowledgeFAQ FAQ 条目主表。
 type KnowledgeFAQ struct {
-	ID                  int64                              `gorm:"primaryKey;autoIncrement"`                          // ID 为 FAQ 主键。
-	TenantID            int64                              `gorm:"type:bigint;not null;default:0;index"`              // TenantID 为租户 ID。
-	KnowledgeBaseID     int64                              `gorm:"type:bigint;not null;index"`                        // KnowledgeBaseID 为所属 FAQ 知识库 ID。
-	DirectoryID         int64                              `gorm:"type:bigint;not null;default:0;index"`              // DirectoryID 为所属知识库内部目录 ID，0 表示根目录。
-	Question            string                             `gorm:"type:varchar(500);not null;default:'';index"`       // Question 为标准问题。
-	Answer              string                             `gorm:"type:text"`                                         // Answer 为标准答案。
-	SimilarQuestions    string                             `gorm:"type:text"`                                         // SimilarQuestions 为相似问 JSON 数组。
-	ReviewStatus        string                             `gorm:"type:varchar(20);not null;default:'draft';index"`   // ReviewStatus 为企业知识中心审核状态：draft/review/published/deprecated。
+	ID                  int64                              `gorm:"primaryKey;autoIncrement"`                        // ID 为 FAQ 主键。
+	TenantID            int64                              `gorm:"type:bigint;not null;default:0;index"`            // TenantID 为租户 ID。
+	KnowledgeBaseID     int64                              `gorm:"type:bigint;not null;index"`                      // KnowledgeBaseID 为所属 FAQ 知识库 ID。
+	DirectoryID         int64                              `gorm:"type:bigint;not null;default:0;index"`            // DirectoryID 为所属知识库内部目录 ID，0 表示根目录。
+	Question            string                             `gorm:"type:varchar(500);not null;default:'';index"`     // Question 为标准问题。
+	Answer              string                             `gorm:"type:text"`                                       // Answer 为标准答案。
+	SimilarQuestions    string                             `gorm:"type:text"`                                       // SimilarQuestions 为相似问 JSON 数组。
+	ReviewStatus        string                             `gorm:"type:varchar(20);not null;default:'draft';index"` // ReviewStatus 为企业知识中心审核状态：draft/review/published/deprecated。
+	ExpiresAt           *time.Time                         `gorm:"type:timestamp;index"`
+	DeprecatedAt        *time.Time                         `gorm:"type:timestamp;index"`
+	DeprecatedReason    string                             `gorm:"type:varchar(255);not null;default:''"`
 	Language            string                             `gorm:"type:varchar(16);not null;default:'default';index"` // Language 为主语言。
 	TagsJSON            string                             `gorm:"column:tags_json;type:text;not null;default:'[]'"`  // TagsJSON 为标签 JSON 数组。
 	FaultCodesJSON      string                             `gorm:"column:fault_codes_json;type:text;not null;default:'[]'"`

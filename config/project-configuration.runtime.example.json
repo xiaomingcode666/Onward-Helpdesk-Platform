@@ -22,7 +22,7 @@
     "channels": [{"name":"manual","enabled":true},{"name":"phone","enabled":true},{"name":"email","enabled":false},{"name":"monitoring_alert","enabled":false},{"name":"api","enabled":false},{"name":"webhook","enabled":false},{"name":"whatsapp","enabled":false},{"name":"chatbot_handoff","enabled":false}],
     "mail": {"enabled":false,"host":"","port":465,"username":"","password_ref":"","from_address":"","from_name":"","use_tls":true,"reply_to":"","retry_policy":"retry_3_10m"},
     "integrations": [],
-    "retention": {"data_region":"global","days":365,"archive_after_days":180,"auto_delete":false,"legal_hold":false,"gdpr_region":false,"ccpa_region":false},
+    "retention": {"data_region":"global","days":365,"archive_after_days":180,"auto_delete":false,"legal_hold":false,"gdpr_region":false,"ccpa_region":false,"ticket_days":365,"attachment_days":180,"event_days":90,"audit_days":180,"metric_days":30,"log_days":30,"report_days":90,"backup_days":30},
     "auto_close": {"enabled":false,"days":7}
   }
 }

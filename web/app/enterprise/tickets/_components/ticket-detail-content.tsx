@@ -1,5 +1,6 @@
 "use client"
 import { TicketEmailPanel } from "./ticket-email-panel"
+import { TicketQualityPanel } from "./ticket-quality-panel"
 
 import { translateCurrentMessage } from "@/i18n/messages"
 import {
@@ -879,6 +880,10 @@ export function EnterpriseTicketDetailContent({
           <TicketEmailPanel key={ticket.id} ticketID={ticket.id} />
         </div>
       ) : null}
+
+      <div className="mb-3">
+        <TicketQualityPanel ticketID={ticket.id} />
+      </div>
 
       <div className="rhd-railops-ticket-detail-tabs">
         <UnderlineTabs

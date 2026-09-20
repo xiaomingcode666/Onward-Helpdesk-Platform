@@ -69,3 +69,17 @@ func TestFilterWorkflowNodeToolDefinitionsBlocksAliases(t *testing.T) {
 		t.Fatalf("unexpected filtered definitions: %#v", filtered)
 	}
 }
+
+func TestFilterKnowledgeOnlyWorkflowToolDefinitionsDisablesDynamicActions(t *testing.T) {
+	definitions := []tooling.MCPToolDefinition{
+		{ToolCode: "mcp/refund"},
+		{ToolCode: "mcp/account_lookup"},
+	}
+	filtered := filterKnowledgeOnlyWorkflowToolDefinitions(definitions, true)
+	if len(filtered) != 0 {
+		t.Fatalf("knowledge-only workflow must not expose dynamic action tools: %#v", filtered)
+	}
+	if preserved := filterKnowledgeOnlyWorkflowToolDefinitions(definitions, false); len(preserved) != len(definitions) {
+		t.Fatalf("non-knowledge workflow should preserve dynamic tools: %#v", preserved)
+	}
+}

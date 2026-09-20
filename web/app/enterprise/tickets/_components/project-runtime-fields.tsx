@@ -4,6 +4,12 @@ import { Checkbox, ConfigProvider, Input, InputNumber, Select } from "antd"
 import { FormField, RailopsButton } from "@railops/ui"
 import type { ProjectConfiguration, ProjectRuntime } from "@/lib/api/project-configuration"
 import { replaceProjectRuntime } from "@/lib/project-configuration-editing"
+import { translateCurrentMessage } from "@/i18n/messages"
+
+const t = (key: string, fallback: string) => {
+  const val = translateCurrentMessage(`projectConfiguration.${key}`)
+  return val && val !== `projectConfiguration.${key}` ? val : fallback
+}
 
 export function ProjectRuntimeFields({ document, onChange, disabled = false }: { document: ProjectConfiguration; onChange: (document: ProjectConfiguration) => void; disabled?: boolean }) {
   const r = document.runtime
@@ -95,14 +101,23 @@ export function ProjectRuntimeFields({ document, onChange, disabled = false }: {
       })}
       <RailopsButton onClick={() => set({ integrations: [...r.integrations, { provider: "", enabled: false, base_url: "", app_id: "", secret_ref: "", key_ref: "", metadata_json: "{}" }] })}>添加接入设置</RailopsButton>
     </div></details>
-    <details><summary className="font-medium">数据保存与自动关闭</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">
-      {field("数据区域", r.retention.data_region, data_region => set({ retention: { ...r.retention, data_region } }))}
-      <Checkbox checked={r.retention.gdpr_region} onChange={e => set({retention:{...r.retention,gdpr_region:e.target.checked}})}>适用 GDPR 地区</Checkbox>
-      <Checkbox checked={r.retention.ccpa_region} onChange={e => set({retention:{...r.retention,ccpa_region:e.target.checked}})}>适用 CCPA 地区</Checkbox>
-      <p className="text-sm sm:col-span-2">保存策略作用于现有日志、通知和授权记录清理任务。地区是配置标记，不会自动迁移数据库所在地。</p>
-      {number("保存天数", r.retention.days, days => set({ retention: { ...r.retention, days } }))}{number("归档天数（0 为不归档）", r.retention.archive_after_days, archive_after_days => set({ retention: { ...r.retention, archive_after_days } }))}
+    <details><summary className="font-medium">{t("retentionTitle", "数据保存与自动关闭")}</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <p className="font-medium text-xs text-muted-foreground mb-2">
+          {t("retentionCategoriesTitle", "各数据分类保存期限（天）：")}
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {number(t("retentionTicket", "工单记录 (Ticket)"), r.retention.ticket_days || r.retention.days || 365, v => set({ retention: { ...r.retention, ticket_days: v, days: v || r.retention.days || 365 } }))}
+          {number(t("retentionAttachment", "文件附件 (Attachment)"), r.retention.attachment_days || 180, v => set({ retention: { ...r.retention, attachment_days: v } }))}
+          {number(t("retentionEvent", "会话事件 (Event)"), r.retention.event_days || 90, v => set({ retention: { ...r.retention, event_days: v } }))}
+          {number(t("retentionAudit", "安全审计 (Audit)"), r.retention.audit_days || 180, v => set({ retention: { ...r.retention, audit_days: v } }))}
+          {number(t("retentionMetric", "监控指标 (Metric)"), r.retention.metric_days || 30, v => set({ retention: { ...r.retention, metric_days: v } }))}
+          {number(t("retentionLog", "系统日志 (Log)"), r.retention.log_days || 30, v => set({ retention: { ...r.retention, log_days: v } }))}
+          {number(t("retentionReport", "导出报表 (Report)"), r.retention.report_days || 90, v => set({ retention: { ...r.retention, report_days: v } }))}
+          {number(t("retentionBackup", "系统备份 (Backup)"), r.retention.backup_days || 30, v => set({ retention: { ...r.retention, backup_days: v } }))}
+        </div>
+      </div>
       <Checkbox checked={r.retention.auto_delete} onChange={e => set({ retention: { ...r.retention, auto_delete: e.target.checked } })}>按保存期限自动清理</Checkbox>
-      <Checkbox checked={r.retention.legal_hold} onChange={e => set({ retention: { ...r.retention, legal_hold: e.target.checked } })}>暂停本公司自动清理（需要保留证据）</Checkbox>
       <Checkbox checked={r.auto_close.enabled} onChange={e => set({ auto_close: { ...r.auto_close, enabled: e.target.checked } })}>启用已解决工单自动关闭</Checkbox>
       {number("自动关闭等待天数", r.auto_close.days, days => set({ auto_close: { ...r.auto_close, days } }))}
     </div></details>

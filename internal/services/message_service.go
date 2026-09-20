@@ -745,6 +745,13 @@ func (s *messageService) sendValidatedMessage(conversation *models.Conversation,
 			"error", enqueueErr,
 		)
 	}
+	if enqueueErr := ChannelMessageOutboxService.EnqueueWhatsAppMessage(conversation, message); enqueueErr != nil {
+		slog.Error("enqueue whatsapp outbox failed",
+			"conversation_id", conversation.ID,
+			"message_id", message.ID,
+			"error", enqueueErr,
+		)
+	}
 
 	if pushErr := MobileConversationPushService.ScheduleReply(conversation, message); pushErr != nil {
 		slog.Error("schedule customer mobile conversation push failed",

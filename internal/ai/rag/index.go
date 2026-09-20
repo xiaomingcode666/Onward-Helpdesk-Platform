@@ -148,14 +148,14 @@ func (s *index) IndexFAQToTarget(ctx context.Context, faq models.KnowledgeFAQ, k
 }
 
 func requirePublishedKnowledgeDocument(document models.KnowledgeDocument) error {
-	if strings.TrimSpace(document.ReviewStatus) != "published" || document.Status != enums.StatusOk || document.PublishedRevisionID <= 0 {
+	if strings.TrimSpace(document.ReviewStatus) != "published" || document.Status != enums.StatusOk || document.PublishedRevisionID <= 0 || (document.ExpiresAt != nil && !document.ExpiresAt.After(time.Now())) {
 		return fmt.Errorf("knowledge document %d is not a published revision", document.ID)
 	}
 	return nil
 }
 
 func requirePublishedKnowledgeFAQ(faq models.KnowledgeFAQ) error {
-	if strings.TrimSpace(faq.ReviewStatus) != "published" || faq.Status != enums.StatusOk || faq.PublishedRevisionID <= 0 {
+	if strings.TrimSpace(faq.ReviewStatus) != "published" || faq.Status != enums.StatusOk || faq.PublishedRevisionID <= 0 || (faq.ExpiresAt != nil && !faq.ExpiresAt.After(time.Now())) {
 		return fmt.Errorf("knowledge faq %d is not a published revision", faq.ID)
 	}
 	return nil

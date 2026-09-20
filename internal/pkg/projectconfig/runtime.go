@@ -88,7 +88,47 @@ type Retention struct {
 	LegalHold        bool   `json:"legal_hold"`
 	GDPRRegion       bool   `json:"gdpr_region"`
 	CCPARegion       bool   `json:"ccpa_region"`
+	TicketDays       int    `json:"ticket_days,omitempty"`
+	AttachmentDays   int    `json:"attachment_days,omitempty"`
+	EventDays        int    `json:"event_days,omitempty"`
+	AuditDays        int    `json:"audit_days,omitempty"`
+	MetricDays       int    `json:"metric_days,omitempty"`
+	LogDays          int    `json:"log_days,omitempty"`
+	ReportDays       int    `json:"report_days,omitempty"`
+	BackupDays       int    `json:"backup_days,omitempty"`
 }
+
+// EffectiveDays returns the retention days for a specific category (ticket, attachment, event,
+// audit, metric, log, report, backup). If not specifically set, it falls back to general Days.
+func (r Retention) EffectiveDays(target string) int {
+	var specific int
+	switch strings.ToLower(strings.TrimSpace(target)) {
+	case "ticket":
+		specific = r.TicketDays
+	case "attachment":
+		specific = r.AttachmentDays
+	case "event":
+		specific = r.EventDays
+	case "audit":
+		specific = r.AuditDays
+	case "metric":
+		specific = r.MetricDays
+	case "log":
+		specific = r.LogDays
+	case "report":
+		specific = r.ReportDays
+	case "backup":
+		specific = r.BackupDays
+	}
+	if specific > 0 {
+		return specific
+	}
+	if r.Days > 0 {
+		return r.Days
+	}
+	return 365
+}
+
 type AutoClose struct {
 	Enabled bool `json:"enabled"`
 	Days    int  `json:"days"`

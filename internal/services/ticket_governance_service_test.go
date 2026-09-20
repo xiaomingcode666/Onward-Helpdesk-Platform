@@ -12,6 +12,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/ticketpolicy"
 	"remotehelpdesk/internal/repositories"
+	"strings"
 	"testing"
 	"time"
 )
@@ -46,6 +47,10 @@ func TestTicketGovernanceDefaultsDowngradeAndReceipts(t *testing.T) {
 	for _, typ := range ticketpolicy.Types {
 		item := ticket
 		f := ticketpolicy.Facts{}
+		if typ == "known_error" {
+			item.ProductModuleID = 101
+			f = lowImpactFacts()
+		}
 		if err := initializeTicketGovernanceDB(db, &item, typ, f); err != nil {
 			t.Fatal(err)
 		}
@@ -604,5 +609,180 @@ func TestTicketGovernanceSimpleReasonRequiredAndHistoricalRead(t *testing.T) {
 	stored := repositories.TicketRepository.Get(db, ticket.ID)
 	if !stored.PriorityReviewRequired {
 		t.Fatal("reading rewrote historical data")
+	}
+}
+
+func TestTicketGovernanceKnownErrorMustLinkRequirements(t *testing.T) {
+	db, op, ticket := setupGovernance(t)
+	ticket.ProductModuleID = 101
+	if err := db.Save(&ticket).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	validFacts := lowImpactFacts() // Workaround: "verified", Evidence: "...", Safety: "none", Impact: "low", Reach: "low"
+
+	// 1. Missing or invalid Workaround
+	{
+		cmd := governanceCommand(t, db, ticket.ID, "classify")
+		cmd.CaseType = "known_error"
+		invalidFacts := validFacts
+		invalidFacts.Workaround = "none"
+		cmd.Facts = invalidFacts
+		_, err := ExecuteTicketGovernance(ticket.ID, cmd, op)
+		if err == nil || !strings.Contains(err.Error(), "临时解决办法") {
+			t.Fatalf("expected workaround rejection, got %v", err)
+		}
+
+		// Also test missing evidence
+		invalidFacts = validFacts
+		invalidFacts.Evidence = ""
+		cmd.Facts = invalidFacts
+		_, err = ExecuteTicketGovernance(ticket.ID, cmd, op)
+		if err == nil || !strings.Contains(err.Error(), "临时解决办法") {
+			t.Fatalf("expected evidence rejection, got %v", err)
+		}
+	}
+
+	// 2. Missing Component
+	{
+		noComponentTicket := ticket
+		noComponentTicket.ID = 0
+		noComponentTicket.TicketNo = "CASE-NO-COMP"
+		noComponentTicket.ProductModuleID = 0
+		noComponentTicket.ProductID = 0
+		noComponentTicket.FaultCode = ""
+		if err := db.Create(&noComponentTicket).Error; err != nil {
+			t.Fatal(err)
+		}
+		cmd := governanceCommand(t, db, noComponentTicket.ID, "classify")
+		cmd.CaseType = "known_error"
+		cmd.Facts = validFacts
+		_, err := ExecuteTicketGovernance(noComponentTicket.ID, cmd, op)
+		if err == nil || !strings.Contains(err.Error(), "受影响组件") {
+			t.Fatalf("expected component rejection, got %v", err)
+		}
+	}
+
+	// 3. Missing Risk (Safety or Impact)
+	{
+		cmd := governanceCommand(t, db, ticket.ID, "classify")
+		cmd.CaseType = "known_error"
+		invalidFacts := validFacts
+		invalidFacts.Impact = "unknown"
+		cmd.Facts = invalidFacts
+		_, err := ExecuteTicketGovernance(ticket.ID, cmd, op)
+		if err == nil || !strings.Contains(err.Error(), "风险") {
+			t.Fatalf("expected risk impact rejection, got %v", err)
+		}
+
+		invalidFacts = validFacts
+		invalidFacts.Safety = "unknown"
+		cmd.Facts = invalidFacts
+		_, err = ExecuteTicketGovernance(ticket.ID, cmd, op)
+		if err == nil || !strings.Contains(err.Error(), "风险") {
+			t.Fatalf("expected risk safety rejection, got %v", err)
+		}
+	}
+
+	// 4. Missing Reach (Scope)
+	{
+		cmd := governanceCommand(t, db, ticket.ID, "classify")
+		cmd.CaseType = "known_error"
+		invalidFacts := validFacts
+		invalidFacts.Reach = "unknown"
+		cmd.Facts = invalidFacts
+		_, err := ExecuteTicketGovernance(ticket.ID, cmd, op)
+		if err == nil || !strings.Contains(err.Error(), "适用范围") {
+			t.Fatalf("expected reach rejection, got %v", err)
+		}
+	}
+
+	// 5. Missing Permanent Fix Owner
+	{
+		noOwnerTicket := ticket
+		noOwnerTicket.ID = 0
+		noOwnerTicket.TicketNo = "CASE-NO-OWNER"
+		noOwnerTicket.CurrentAssigneeID = 0
+		noOwnerTicket.CaseOwnerID = 0
+		noOwnerTicket.ProductModuleID = 101
+		if err := db.Create(&noOwnerTicket).Error; err != nil {
+			t.Fatal(err)
+		}
+		cmd := governanceCommand(t, db, noOwnerTicket.ID, "classify")
+		cmd.CaseType = "known_error"
+		cmd.Facts = validFacts
+		_, err := ExecuteTicketGovernance(noOwnerTicket.ID, cmd, op)
+		if err == nil || !strings.Contains(err.Error(), "永久修复责任人") {
+			t.Fatalf("expected permanent fix owner rejection, got %v", err)
+		}
+	}
+
+	// 6. All 5 satisfied -> success
+	{
+		cmd := governanceCommand(t, db, ticket.ID, "classify")
+		cmd.CaseType = "known_error"
+		cmd.Facts = validFacts
+		receipt, err := ExecuteTicketGovernance(ticket.ID, cmd, op)
+		if err != nil {
+			t.Fatalf("expected success, got %v", err)
+		}
+		stored := repositories.TicketRepository.Get(db, ticket.ID)
+		if stored.CaseType != "known_error" || stored.GovernanceRevision != receipt.Revision {
+			t.Fatalf("unexpected stored governance state: %+v", stored)
+		}
+		var storedFacts ticketpolicy.Facts
+		if err := json.Unmarshal([]byte(stored.PriorityFactsJSON), &storedFacts); err != nil || storedFacts.Workaround != "verified" {
+			t.Fatalf("facts not preserved: %s", stored.PriorityFactsJSON)
+		}
+	}
+
+	// 7. Ticket without component succeeds if ProductID or ProductModuleID is supplied in command
+	{
+		noCompTicket := ticket
+		noCompTicket.ID = 0
+		noCompTicket.TicketNo = "CASE-AUTO-ATTACH-COMP"
+		noCompTicket.ProductModuleID = 0
+		noCompTicket.ProductID = 0
+		if err := db.Create(&noCompTicket).Error; err != nil {
+			t.Fatal(err)
+		}
+		cmd := governanceCommand(t, db, noCompTicket.ID, "classify")
+		cmd.CaseType = "known_error"
+		cmd.Facts = validFacts
+		cmd.ProductID = 88
+		cmd.ProductModuleID = 99
+		receipt, err := ExecuteTicketGovernance(noCompTicket.ID, cmd, op)
+		if err != nil {
+			t.Fatalf("expected success with supplied component, got %v", err)
+		}
+		stored := repositories.TicketRepository.Get(db, noCompTicket.ID)
+		if stored.CaseType != "known_error" || stored.ProductID != 88 || stored.ProductModuleID != 99 || stored.GovernanceRevision != receipt.Revision {
+			t.Fatalf("unexpected stored state: %+v", stored)
+		}
+	}
+
+	// 8. Knowledge support ticket with Category or KnowledgeBaseID succeeds without ProductID
+	{
+		knowledgeTicket := ticket
+		knowledgeTicket.ID = 0
+		knowledgeTicket.TicketNo = "CASE-KNOWLEDGE-SUPPORT"
+		knowledgeTicket.ProductModuleID = 0
+		knowledgeTicket.ProductID = 0
+		knowledgeTicket.TicketType = "知识库问答"
+		knowledgeTicket.KnowledgeBaseID = 12
+		if err := db.Create(&knowledgeTicket).Error; err != nil {
+			t.Fatal(err)
+		}
+		cmd := governanceCommand(t, db, knowledgeTicket.ID, "classify")
+		cmd.CaseType = "known_error"
+		cmd.Facts = validFacts
+		receipt, err := ExecuteTicketGovernance(knowledgeTicket.ID, cmd, op)
+		if err != nil {
+			t.Fatalf("expected success for knowledge support ticket, got %v", err)
+		}
+		stored := repositories.TicketRepository.Get(db, knowledgeTicket.ID)
+		if stored.CaseType != "known_error" || stored.GovernanceRevision != receipt.Revision {
+			t.Fatalf("unexpected stored state: %+v", stored)
+		}
 	}
 }

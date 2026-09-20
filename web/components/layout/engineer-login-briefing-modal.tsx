@@ -265,7 +265,7 @@ export function EngineerLoginBriefingModal({ autoOpen = true, session }: { autoO
   const [reminderTick, setReminderTick] = useState(0)
   const t = useI18n()
   const isEmployeePortalMode = session.supportMode === "employee_portal"
-  const hasProductConcept = session.featureFlags?.product !== false
+  const hasProductConcept = session.featureFlags?.product !== false && session.featureFlags?.knowledgeSupport !== true
   const draftStatusMeta = useMemo(() => STATUS_OPTIONS.find((item) => item.value === status) || STATUS_OPTIONS[0], [status])
   const currentStatusMeta = useMemo(
     () => STATUS_OPTIONS.find((item) => item.value === briefing?.workStatus.status) || STATUS_OPTIONS[0],

@@ -2,6 +2,7 @@ package enterprise
 
 import (
 	"strconv"
+	"time"
 
 	"remotehelpdesk/internal/builders"
 	"remotehelpdesk/internal/pkg/constants"
@@ -62,15 +63,21 @@ func SlaPostPause(ctx *gin.Context) {
 		return
 	}
 	type req struct {
-		TicketID string `json:"ticketId"`
-		Reason   string `json:"reason"` // waiting_customer/waiting_parts/scheduled/on_hold
+		TicketID    string     `json:"ticketId"`
+		Reason      string     `json:"reason"` // waiting_customer/waiting_parts/scheduled/on_hold; generic_pending is forbidden
+		OwnerID     int64      `json:"ownerId"`
+		EffectiveAt *time.Time `json:"effectiveAt"`
+		Evidence    string     `json:"evidence"`
 	}
 	var r req
 	if err := ctx.ShouldBindJSON(&r); err != nil {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	record, err := services.SLAService.PauseSLAForTenant(tenantID, r.TicketID, r.Reason)
+	operator := services.AuthService.GetAuthPrincipal(ctx)
+	record, err := services.SLAService.PauseSLAForTenantWithApproval(tenantID, r.TicketID, services.SLAPauseRequest{
+		Reason: r.Reason, OwnerID: r.OwnerID, EffectiveAt: r.EffectiveAt, Evidence: r.Evidence,
+	}, operator)
 	if err != nil {
 		httpx.WriteJSON(ctx, err)
 		return

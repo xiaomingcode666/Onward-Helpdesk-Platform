@@ -8,6 +8,7 @@ import (
 	"remotehelpdesk/internal/events"
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/config"
+	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
 
 	"github.com/glebarez/sqlite"
@@ -408,18 +409,19 @@ func TestSLATenantScopedMutationsAndIdempotency(t *testing.T) {
 
 	ticket1ID := formatID(tickets[0].ID)
 	ticket2ID := formatID(tickets[1].ID)
-	if _, err := SLAService.PauseSLAForTenant("1", ticket2ID, "waiting_customer"); err == nil {
+	approver := &dto.AuthPrincipal{TenantID: 1, UserID: 901, Username: "sla-owner", Roles: []string{EnterpriseRoleOwner}}
+	if _, err := SLAService.PauseSLAForTenantWithApproval("1", ticket2ID, SLAPauseRequest{Reason: "waiting_customer", Evidence: "tenant 1 customer callback", OwnerID: 101}, approver); err == nil {
 		t.Fatal("expected cross-tenant pause to fail")
 	}
 	if _, err := SLAService.GetSLATimelineForTenant("1", ticket2ID); err == nil {
 		t.Fatal("expected cross-tenant timeline to fail")
 	}
 
-	firstPause, err := SLAService.PauseSLAForTenant("1", ticket1ID, "waiting_customer")
+	firstPause, err := SLAService.PauseSLAForTenantWithApproval("1", ticket1ID, SLAPauseRequest{Reason: "waiting_customer", Evidence: "customer callback scheduled", OwnerID: 101}, approver)
 	if err != nil {
 		t.Fatalf("pause SLA: %v", err)
 	}
-	repeatedPause, err := SLAService.PauseSLAForTenant("1", ticket1ID, "waiting_parts")
+	repeatedPause, err := SLAService.PauseSLAForTenantWithApproval("1", ticket1ID, SLAPauseRequest{Reason: "waiting_parts", Evidence: "parts order attached", OwnerID: 101}, approver)
 	if err != nil {
 		t.Fatalf("repeat pause SLA: %v", err)
 	}

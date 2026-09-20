@@ -1311,7 +1311,7 @@ func (s *ticketService) UpdateTicket(req request.UpdateTicketRequest, operator *
 			"product_id":                productID,
 			"product_model_id":          productModelID,
 			"product_module_id":         productModuleID,
-			"knowledge_base_id":          knowledgeBaseID,
+			"knowledge_base_id":         knowledgeBaseID,
 			"device_id":                 deviceID,
 			"service_code_id":           serviceCodeID,
 			"customer_entry_session_id": customerEntrySessionID,

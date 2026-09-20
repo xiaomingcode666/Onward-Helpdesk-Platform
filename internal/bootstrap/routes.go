@@ -500,6 +500,15 @@ func registerThirdJitsiRoutes(group *gin.RouterGroup) {
 	group.POST("/transcription/events/:accessToken", third.JigasiTranscriptionPostEvent)
 }
 
+func registerThirdWhatsAppLocalRoutes(group *gin.RouterGroup) {
+	group.GET("/webhook", third.WhatsAppLocalGetWebhook)
+	group.POST("/webhook", third.WhatsAppLocalPostWebhook)
+}
+
+func registerThirdTwilioWhatsAppRoutes(group *gin.RouterGroup) {
+	group.POST("/webhook", third.TwilioWhatsAppPostWebhook)
+}
+
 // ------ Enterprise 路由（SLA、升级） ------
 
 func registerEnterpriseSLARoutes(group *gin.RouterGroup) {
@@ -678,7 +687,11 @@ func registerEnterpriseTicketRoutes(group *gin.RouterGroup) {
 	group.GET("/ticket-settings/configuration/upgrade", require(constants.PermissionTicketUpdate), enterprise.ProjectConfigurationUpgrade)
 	group.POST("/ticket-settings/configuration/drafts", require(constants.PermissionTicketUpdate), enterprise.ProjectConfigurationDraft)
 	group.POST("/ticket-settings/configuration/validate", require(constants.PermissionTicketUpdate), enterprise.ProjectConfigurationValidate)
+	group.POST("/ticket-settings/configuration/impact-preview", require(constants.PermissionTicketUpdate), enterprise.ProjectConfigurationImpactPreview)
 	group.POST("/ticket-settings/configuration/:version/apply", require(constants.PermissionTicketUpdate), enterprise.ProjectConfigurationApply)
+	group.GET("/ticket-settings/configuration/retention", require(constants.PermissionTicketUpdate), enterprise.ProjectRetentionApprovalsGet)
+	group.POST("/ticket-settings/configuration/:version/retention/submit", require(constants.PermissionTicketUpdate), enterprise.ProjectRetentionApprovalSubmit)
+	group.POST("/ticket-settings/configuration/retention/:approval/review", require(constants.PermissionTicketUpdate), enterprise.ProjectRetentionApprovalReview)
 	group.GET("/ticket-settings/auto-close", require(constants.PermissionTicketView), enterprise.TicketAutoClosePolicyGet)
 	group.PUT("/ticket-settings/auto-close", require(constants.PermissionTicketUpdate), enterprise.TicketAutoClosePolicyUpdate)
 	group.GET("/tickets", require(constants.PermissionTicketView), enterprise.TicketList)
@@ -686,6 +699,15 @@ func registerEnterpriseTicketRoutes(group *gin.RouterGroup) {
 	group.GET("/tickets/customer-options", require(constants.PermissionTicketCreate), enterprise.TicketCustomerOptions)
 	group.POST("/tickets/customer-invitation-drafts", require(constants.PermissionTicketCreate), enterprise.TicketCustomerInvitationDraftCreate)
 	group.GET("/tickets/summary", require(constants.PermissionTicketView), enterprise.TicketSummary)
+	group.GET("/ticket-quality/scorecard/active", require(constants.PermissionTicketView), enterprise.TicketQualityScorecardActive)
+	group.POST("/ticket-quality/scorecard/versions", require(constants.PermissionTicketUpdate), enterprise.TicketQualityScorecardVersionCreate)
+	group.POST("/ticket-quality/scorecard/versions/:id/publish", require(constants.PermissionTicketUpdate), enterprise.TicketQualityScorecardVersionPublish)
+	group.GET("/tickets/:id/quality-reviews", require(constants.PermissionTicketView), enterprise.TicketQualityReviewList)
+	group.POST("/tickets/:id/quality-reviews", require(constants.PermissionTicketProgress), enterprise.TicketQualityReviewCreate)
+	group.GET("/ticket-quality/samples", require(constants.PermissionTicketView), enterprise.TicketQualitySampleList)
+	group.POST("/ticket-quality/samples/_generate", require(constants.PermissionTicketUpdate), enterprise.TicketQualitySampleGenerate)
+	group.POST("/ticket-quality/samples/:id/_start", require(constants.PermissionTicketUpdate), enterprise.TicketQualitySampleStart)
+	group.POST("/ticket-quality/samples/:id/_complete", require(constants.PermissionTicketUpdate), enterprise.TicketQualitySampleComplete)
 	group.GET("/tickets/:id", require(constants.PermissionTicketView), enterprise.TicketGet)
 	group.GET("/tickets/:id/actions", require(constants.PermissionTicketView), enterprise.TicketActions)
 	group.POST("/tickets/:id/lifecycle", require(constants.PermissionTicketChangeStatus), enterprise.TicketCaseTransition)
@@ -771,6 +793,9 @@ func registerEnterpriseKnowledgeRoutes(group *gin.RouterGroup) {
 	group.PUT("/knowledge-bases/:knowledgeBaseId/access-grants", require(constants.PermissionKnowledgeBaseUpdate), requireAI, enterprise.TenantKnowledgeAccessGrantsReplace)
 	group.POST("/knowledge-bases/:knowledgeBaseId/documents/_upload", require(constants.PermissionKnowledgeDocumentCreate), requireAI, enterprise.TenantKnowledgeDocumentUpload)
 	group.POST("/knowledge-bases/:knowledgeBaseId/documents/:documentId/_reprocess", require(constants.PermissionKnowledgeDocumentUpdate), requireAI, enterprise.TenantKnowledgeDocumentReprocess)
+	group.POST("/knowledge-bases/:knowledgeBaseId/documents/:documentId/_submit", require(constants.PermissionKnowledgeBaseUpdate), requireAI, enterprise.TenantKnowledgeDocumentSubmit)
+	group.POST("/knowledge-bases/:knowledgeBaseId/documents/:documentId/_publish", require(constants.PermissionKnowledgeBasePublish), requireAI, enterprise.TenantKnowledgeDocumentPublish)
+	group.POST("/knowledge-bases/:knowledgeBaseId/documents/:documentId/_deprecate", require(constants.PermissionKnowledgeBasePublish), requireAI, enterprise.TenantKnowledgeDocumentDeprecate)
 	group.DELETE("/knowledge-bases/:knowledgeBaseId/documents/:documentId", require(constants.PermissionKnowledgeDocumentDelete), requireAI, enterprise.TenantKnowledgeDocumentDelete)
 	group.GET("/knowledge/upload-quota", require(constants.PermissionKnowledgeDocumentView), requireAI, enterprise.KnowledgeUploadQuota)
 	group.GET("/knowledge/entries", require(constants.PermissionKnowledgeBaseView), requireAI, enterprise.KnowledgeEntryList)
@@ -779,8 +804,8 @@ func registerEnterpriseKnowledgeRoutes(group *gin.RouterGroup) {
 	group.GET("/knowledge/entries/:id", require(constants.PermissionKnowledgeBaseView), requireAI, enterprise.KnowledgeEntryGet)
 	group.PATCH("/knowledge/entries/:id", require(constants.PermissionKnowledgeBaseUpdate), requireAI, enterprise.KnowledgeEntryUpdate)
 	group.POST("/knowledge/entries/:id/_submit", require(constants.PermissionKnowledgeBaseUpdate), requireAI, enterprise.KnowledgeEntrySubmit)
-	group.POST("/knowledge/entries/:id/_publish", require(constants.PermissionKnowledgeBaseUpdate), requireAI, enterprise.KnowledgeEntryPublish)
-	group.POST("/knowledge/entries/:id/_deprecate", require(constants.PermissionKnowledgeBaseUpdate), requireAI, enterprise.KnowledgeEntryDeprecate)
+	group.POST("/knowledge/entries/:id/_publish", require(constants.PermissionKnowledgeBasePublish), requireAI, enterprise.KnowledgeEntryPublish)
+	group.POST("/knowledge/entries/:id/_deprecate", require(constants.PermissionKnowledgeBasePublish), requireAI, enterprise.KnowledgeEntryDeprecate)
 	group.GET("/knowledge/entries/:id/versions", require(constants.PermissionKnowledgeBaseView), requireAI, enterprise.KnowledgeEntryVersions)
 	group.GET("/knowledge/entries/:id/quality", require(constants.PermissionKnowledgeBaseView), requireAI, enterprise.KnowledgeEntryQuality)
 	group.GET("/knowledge/entries/:id/translations", require(constants.PermissionKnowledgeBaseView), requireAI, enterprise.KnowledgeEntryTranslations)
@@ -833,6 +858,8 @@ func registerEnterpriseNotificationRoutes(group *gin.RouterGroup) {
 	group.GET("/notifications/mail-settings", require(constants.PermissionNotificationChannelManage), enterprise.NotificationMailSettingGet)
 	group.POST("/notifications/mail-settings/receive", require(constants.PermissionNotificationChannelManage), enterprise.MailReceivePoll)
 	group.GET("/notifications/mail-settings/receive-status", require(constants.PermissionNotificationChannelManage), enterprise.MailReceiveStatus)
+	group.GET("/notifications/mail-settings/pending-links", require(constants.PermissionNotificationChannelManage), enterprise.MailPendingLinks)
+	group.POST("/notifications/mail-settings/pending-links/:id/link", require(constants.PermissionTicketProgress), enterprise.MailPendingLinkResolve)
 	group.POST("/notifications/mail-settings", require(constants.PermissionNotificationChannelManage), enterprise.NotificationMailSettingSave)
 	group.POST("/notifications/mail-settings/_test", require(constants.PermissionNotificationChannelManage), enterprise.NotificationMailSettingTest)
 }

@@ -8,12 +8,14 @@ type ExternalSource string
 const (
 	ExternalSourceGuest    ExternalSource = "guest"     // 访客
 	ExternalSourceWxWorkKF ExternalSource = "wxwork_kf" // 企业微信客服
+	ExternalSourceWhatsApp ExternalSource = "whatsapp"  // WhatsApp Cloud API（含本地模拟入口）
 	ExternalSourceUser     ExternalSource = "user"      // 用户信息
 )
 
 var externalSourceLabelMap = map[ExternalSource]string{
 	ExternalSourceGuest:    "历史外部身份",
 	ExternalSourceWxWorkKF: "企业微信客服",
+	ExternalSourceWhatsApp: "WhatsApp",
 	ExternalSourceUser:     "用户",
 }
 

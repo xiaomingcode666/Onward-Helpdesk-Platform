@@ -35,6 +35,8 @@ type TicketGovernanceCommand struct {
 	TargetID         int64              `json:"target_id"`
 	TargetRevision   *int64             `json:"target_revision"`
 	RelationID       int64              `json:"relation_id"`
+	ProductID        int64              `json:"product_id"`
+	ProductModuleID  int64              `json:"product_module_id"`
 }
 type TicketGovernanceReceipt struct {
 	TicketID     int64  `json:"ticket_id"`
@@ -155,11 +157,56 @@ func TicketPriorityPolicyForTenant(db *gorm.DB, tenantID int64) (ticketpolicy.Po
 	return p, err
 }
 
+// ValidateKnownErrorRequirements enforces that every known error must be linked to
+// a verified/limited workaround, an affected component, risk (safety & impact), reach, and a permanent fix owner.
+func ValidateKnownErrorRequirements(t *models.Ticket, f ticketpolicy.Facts) error {
+	if t == nil {
+		return errorsx.InvalidParam("工单不存在")
+	}
+	if !slices.Contains([]string{"verified", "limited"}, f.Workaround) || (strings.TrimSpace(f.Evidence) == "" && strings.TrimSpace(t.DiagnosisSummary) == "" && strings.TrimSpace(t.CaseResolution) == "") {
+		return errorsx.InvalidParam("已知错误必须关联有效的临时解决办法（Workaround 为 verified 或 limited）及核对依据")
+	}
+	hasComponent := t.ProductModuleID > 0 || (t.ProductID > 0 && strings.TrimSpace(t.FaultCode) != "") || t.ProductID > 0
+	if !hasComponent {
+		isKnowledgeSupport := false
+		if t.TenantID > 0 {
+			tenant := repositories.PlatformIAMRepository.GetTenant(sqls.DB(), t.TenantID)
+			if tenant != nil && tenant.IsKnowledgeSupportScene() {
+				isKnowledgeSupport = true
+			}
+		}
+		if isKnowledgeSupport || t.KnowledgeBaseID > 0 || strings.TrimSpace(t.TicketType) != "" || strings.TrimSpace(t.CaseWorkflowKey) != "" {
+			hasComponent = true
+		}
+	}
+	if !hasComponent {
+		return errorsx.InvalidParam("已知错误必须关联受影响组件（ProductModule、知识库分类或产品）")
+	}
+	if !slices.Contains([]string{"high", "medium", "low"}, f.Impact) || !slices.Contains([]string{"critical", "none"}, f.Safety) {
+		return errorsx.InvalidParam("已知错误必须明确评估风险（业务影响 Impact 与安全风险 Safety）")
+	}
+	if !slices.Contains([]string{"high", "medium", "low"}, f.Reach) {
+		return errorsx.InvalidParam("已知错误必须明确评估适用范围（Reach）")
+	}
+	if t.CurrentAssigneeID <= 0 && t.CaseOwnerID <= 0 {
+		return errorsx.InvalidParam("已知错误必须指定永久修复责任人（Permanent Fix Owner）")
+	}
+	return nil
+}
+
 // Initial urgency is determined only by classification. Legacy assessment inputs
 // remain accepted in the request contract but never change the effective level.
-func initializeTicketGovernanceDB(db *gorm.DB, t *models.Ticket, caseType string, _ ticketpolicy.Facts) error {
+func initializeTicketGovernanceDB(db *gorm.DB, t *models.Ticket, caseType string, facts ticketpolicy.Facts) error {
 	if caseType == "" {
 		caseType = "user_case"
+	}
+	if caseType == "known_error" {
+		if err := ValidateKnownErrorRequirements(t, facts); err != nil {
+			return err
+		}
+		if encoded, err := json.Marshal(facts); err == nil {
+			t.PriorityFactsJSON = string(encoded)
+		}
 	}
 	if err := applyTicketClassificationDB(db, t, caseType); err != nil {
 		return err
@@ -395,6 +442,24 @@ func ExecuteTicketGovernance(ticketID int64, cmd TicketGovernanceCommand, op *dt
 			switch cmd.Action {
 			case "classify":
 				previous := ticketEffectivePriority(t)
+				if cmd.CaseType == "known_error" {
+					if t.ProductModuleID <= 0 && cmd.ProductModuleID > 0 {
+						t.ProductModuleID = cmd.ProductModuleID
+					}
+					if t.ProductID <= 0 && cmd.ProductID > 0 {
+						t.ProductID = cmd.ProductID
+					}
+					facts := cmd.Facts
+					if facts == (ticketpolicy.Facts{}) && t.PriorityFactsJSON != "" && t.PriorityFactsJSON != "{}" {
+						_ = json.Unmarshal([]byte(t.PriorityFactsJSON), &facts)
+					}
+					if err := ValidateKnownErrorRequirements(&t, facts); err != nil {
+						return err
+					}
+					if encoded, err := json.Marshal(facts); err == nil {
+						t.PriorityFactsJSON = string(encoded)
+					}
+				}
 				if err := applyTicketClassificationDB(db, &t, cmd.CaseType); err != nil {
 					return err
 				}
@@ -428,6 +493,12 @@ func ExecuteTicketGovernance(ticketID int64, cmd TicketGovernanceCommand, op *dt
 			}
 			t.GovernanceRevision++
 			updates := map[string]any{"case_type": t.CaseType, "priority_level": t.PriorityLevel, "priority_suggested": t.PrioritySuggested, "priority_review_required": t.PriorityReviewRequired, "priority_overridden": t.PriorityOverridden, "priority_facts_json": t.PriorityFactsJSON, "priority_policy_json": t.PriorityPolicyJSON, "priority_explanation": t.PriorityExplanation, "priority_config_version_id": t.PriorityConfigVersionID, "governance_revision": t.GovernanceRevision, "priority_code": t.PriorityCode, "sla_due_at": t.SLADueAt, "accept_deadline_at": t.AcceptDeadlineAt, "updated_at": time.Now(), "update_user_id": op.UserID, "update_user_name": op.Username}
+			if t.ProductModuleID > 0 {
+				updates["product_module_id"] = t.ProductModuleID
+			}
+			if t.ProductID > 0 {
+				updates["product_id"] = t.ProductID
+			}
 			if t.DaypopClockPausedAt != nil && t.SLADueAt != nil {
 				updates["daypop_clock_paused_remaining_seconds"] = int64(t.SLADueAt.Sub(*t.DaypopClockPausedAt) / time.Second)
 			}

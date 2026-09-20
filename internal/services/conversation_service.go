@@ -1770,6 +1770,8 @@ func externalSourceForChannelType(channelType string) enums.ExternalSource {
 	switch strings.TrimSpace(channelType) {
 	case enums.ChannelTypeWxWorkKF:
 		return enums.ExternalSourceWxWorkKF
+	case enums.ChannelTypeWhatsApp:
+		return enums.ExternalSourceWhatsApp
 	case enums.ChannelTypeWeb:
 		return enums.ExternalSourceGuest
 	default:

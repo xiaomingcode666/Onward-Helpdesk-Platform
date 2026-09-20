@@ -3,10 +3,14 @@ package cronx
 import (
 	"context"
 	"log/slog"
+	"time"
 
+	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/config"
+	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/services"
 
+	"github.com/mlogclub/simple/sqls"
 	"github.com/robfig/cron/v3"
 )
 
@@ -22,6 +26,19 @@ func Init() {
 	addFunc(c, "15 0 * * *", func() {
 		if err := services.MeteringService.AggregateDailyUsage(); err != nil {
 			slog.Error("daily AI usage aggregation failed", "error", err)
+		}
+	})
+	addNonOverlappingFunc(c, "20 0 * * *", func() {
+		var tenants []models.Tenant
+		if err := sqls.DB().Where("status <> ?", enums.StatusDeleted).Find(&tenants).Error; err != nil {
+			slog.Error("ticket quality sample tenant scan failed", "error", err)
+			return
+		}
+		periodKey := time.Now().Format("2006-01-02")
+		for _, tenant := range tenants {
+			if _, err := services.TicketQualitySampleService.Generate(tenant.ID, periodKey, 10, nil); err != nil {
+				slog.Warn("ticket quality samples generation failed", "tenant_id", tenant.ID, "error", err)
+			}
 		}
 	})
 
@@ -175,6 +192,10 @@ func Init() {
 		count := services.WxWorkKFOutboundService.DispatchPendingOutbox()
 		if count > 0 {
 			slog.Info("wxwork kf outbox dispatched", "count", count)
+		}
+		twilioCount := services.TwilioWhatsAppOutboundService.DispatchPendingOutbox()
+		if twilioCount > 0 {
+			slog.Info("Twilio WhatsApp outbox dispatched", "count", twilioCount)
 		}
 	})
 

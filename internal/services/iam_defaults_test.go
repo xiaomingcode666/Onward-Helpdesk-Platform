@@ -95,3 +95,29 @@ func TestNotificationChannelManagementUsesLeastPrivilege(t *testing.T) {
 		t.Errorf("engineer must retain %q for personal read state", constants.PermissionNotificationUpdate.Code)
 	}
 }
+
+func TestKnowledgeReviewPermissionsUseGovernedRoles(t *testing.T) {
+	permissionsByRole := make(map[string][]string)
+	for _, spec := range tenantDefaultRoleSpecs() {
+		permissionsByRole[spec.Code] = spec.Permissions
+	}
+
+	publishPermission := constants.PermissionKnowledgeBasePublish.Code
+	updatePermission := constants.PermissionKnowledgeBaseUpdate.Code
+	for _, roleCode := range []string{EnterpriseRoleOwner, EnterpriseRoleServiceManager, EnterpriseRoleKnowledge} {
+		if !slices.Contains(permissionsByRole[roleCode], publishPermission) {
+			t.Errorf("role %q missing knowledge publish permission %q", roleCode, publishPermission)
+		}
+		if !slices.Contains(permissionsByRole[roleCode], updatePermission) {
+			t.Errorf("role %q missing knowledge update permission %q", roleCode, updatePermission)
+		}
+	}
+	for _, roleCode := range []string{EnterpriseRoleEngineer, EnterpriseRoleViewer} {
+		if slices.Contains(permissionsByRole[roleCode], publishPermission) {
+			t.Errorf("role %q must not publish knowledge", roleCode)
+		}
+	}
+	if slices.Contains(permissionsByRole[EnterpriseRoleAdmin], publishPermission) {
+		t.Errorf("enterprise admin must not publish knowledge without the knowledge manager or service manager role")
+	}
+}

@@ -554,14 +554,14 @@ func (s *knowledgeRetrievalService) hydrateResults(searchResults []vectordb.Sear
 		}
 		if chunk.DocumentID > 0 {
 			doc := documentByID[chunk.DocumentID]
-			if doc == nil || doc.TenantID != scope.Context.TenantID || doc.Status != enums.StatusOk || doc.ReviewStatus != "published" || !knowledgeDocumentAssetUsable(doc) {
+			if doc == nil || doc.TenantID != scope.Context.TenantID || !KnowledgeDocumentUsable(doc, time.Now()) || !knowledgeDocumentAssetUsable(doc) {
 				continue
 			}
 			item.DocumentTitle = doc.Title
 		}
 		if chunk.FaqID > 0 {
 			faq := faqByID[chunk.FaqID]
-			if faq == nil || faq.TenantID != scope.Context.TenantID || faq.Status != enums.StatusOk || faq.ReviewStatus != "published" {
+			if faq == nil || faq.TenantID != scope.Context.TenantID || !KnowledgeFAQUsable(faq, time.Now()) {
 				continue
 			}
 			item.FaqQuestion = faq.Question

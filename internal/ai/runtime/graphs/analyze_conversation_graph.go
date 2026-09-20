@@ -71,7 +71,7 @@ func buildAnalyzeConversationResult(conversation models.Conversation, messages [
 	joined := strings.ToLower(buildConversationCorpus(conversation, messages, input))
 	actionText := buildConversationActionText(messages, input)
 	signals := collectRiskSignals(joined, actionText, input)
-	intent := detectUserIntent(joined, actionText, input)
+	intent := detectUserIntent(joined, actionText, input, signals)
 	recommendedAction := recommendNextAction(intent, signals, input)
 	result := AnalyzeConversationResult{
 		Summary:               buildConversationSummary(conversation, messages, input),
@@ -135,6 +135,13 @@ func collectRiskSignals(joined, actionText string, input AnalyzeConversationInpu
 	if containsAny(joined, "投诉", "举报", "差评", "曝光", "媒体", "起诉", "律师", "12315") {
 		add("complaint_escalation")
 	}
+	if containsAny(actionText,
+		"退款", "赔偿", "赔付", "损失", "扣款", "重复扣费", "金额",
+		"账户", "账号", "account", "封禁", "解封", "封号",
+		"优先级", "priority", "final decision", "最终裁决",
+	) {
+		add("sensitive_intent")
+	}
 	if containsAny(joined, "退款", "赔偿", "损失", "扣款", "重复扣费", "金额") {
 		add("financial_risk")
 	}
@@ -153,12 +160,14 @@ func collectRiskSignals(joined, actionText string, input AnalyzeConversationInpu
 	return signals
 }
 
-func detectUserIntent(joined, actionText string, input AnalyzeConversationInput) string {
+func detectUserIntent(joined, actionText string, input AnalyzeConversationInput, signals []string) string {
 	switch {
 	case input.NeedHumanHandoff || runtimeintent.IsExplicitHandoffRequest(actionText):
 		return "handoff_request"
 	case input.NeedTicket || runtimeintent.IsExplicitTicketRequest(actionText):
 		return "ticket_request"
+	case containsSignal(signals, "sensitive_intent"):
+		return "sensitive_intent"
 	case containsAny(joined, "投诉", "举报", "差评", "赔偿"):
 		return "complaint"
 	default:
@@ -170,7 +179,7 @@ func deriveRiskLevel(signals []string) string {
 	if len(signals) == 0 {
 		return "low"
 	}
-	if containsSignal(signals, "complaint_escalation") || containsSignal(signals, "financial_risk") {
+	if containsSignal(signals, "complaint_escalation") || containsSignal(signals, "financial_risk") || containsSignal(signals, "sensitive_intent") {
 		return "high"
 	}
 	if containsSignal(signals, "handoff_requested") || containsSignal(signals, "negative_sentiment") {
@@ -183,6 +192,8 @@ func recommendNextAction(intent string, signals []string, input AnalyzeConversat
 	switch {
 	case input.NeedQualityCheck:
 		return "quality_review"
+	case containsSignal(signals, "sensitive_intent"):
+		return "handoff_to_human"
 	case containsSignal(signals, "handoff_requested") || intent == "handoff_request":
 		return "handoff_to_human"
 	case containsSignal(signals, "ticket_expected") || intent == "ticket_request":

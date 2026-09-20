@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -286,6 +287,16 @@ func addRouter(app *gin.Engine) {
 	thirdGroup := app.Group("/api/third")
 	registerThirdWechatRoutes(thirdGroup.Group("/wechat"))
 	registerThirdJitsiRoutes(thirdGroup.Group("/jitsi"))
+	if whatsappLocalTestEnabled() {
+		registerThirdWhatsAppLocalRoutes(thirdGroup.Group("/whatsapp/local"))
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("RHD_TWILIO_WHATSAPP_ENABLED")), "true") {
+		registerThirdTwilioWhatsAppRoutes(thirdGroup.Group("/twilio/whatsapp"))
+	}
+}
+
+func whatsappLocalTestEnabled() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("RHD_WHATSAPP_LOCAL_TEST")), "true")
 }
 
 func mcpAccessMiddleware() gin.HandlerFunc {

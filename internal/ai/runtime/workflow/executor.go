@@ -836,6 +836,12 @@ func understandConversationMessage(rawMessage string) workflowConversationUnders
 		ret.Confidence = 0.95
 		ret.RiskSignals = append(ret.RiskSignals, "handoff_requested")
 		ret.Reason = "matched handoff phrase"
+	case isSensitiveWorkflowIntent(lower):
+		ret.MessageIntent = "sensitive_intent"
+		ret.AnswerScope = "needs_handoff"
+		ret.Confidence = 0.98
+		ret.RiskSignals = append(ret.RiskSignals, "sensitive_intent")
+		ret.Reason = "matched sensitive intent"
 	case containsAnyWorkflowText(lower, "投诉", "举报", "差评", "曝光", "起诉", "律师", "12315"):
 		ret.MessageIntent = "complaint"
 		ret.AnswerScope = "needs_handoff"
@@ -882,6 +888,15 @@ func decideWorkflowReplyPolicy(aiAgent models.AIAgent, capabilities workflowcapa
 	intent := strings.TrimSpace(input.MessageIntent)
 	scope := strings.TrimSpace(input.AnswerScope)
 	if answerability := strings.TrimSpace(input.Answerability); answerability != "" && answerability != "answerable" {
+		if capabilities.HumanHandoff {
+			return workflowReplyPolicyDecision{
+				Action:           "handoff_to_human",
+				Reason:           "knowledge confidence is below the answerability threshold",
+				RequiresFlow:     true,
+				TargetFlow:       "handoff_to_human",
+				FinalReplySource: "answerability_handoff",
+			}
+		}
 		return workflowReplyPolicyDecision{
 			Action:           "knowledge_fallback",
 			ReplyText:        workflowKnowledgeFallbackReplyForMessage(aiAgent, capabilities, input.UserMessage),
@@ -953,6 +968,13 @@ func isGreetingMessage(value string) bool {
 	default:
 		return false
 	}
+}
+
+func isSensitiveWorkflowIntent(value string) bool {
+	return containsAnyWorkflowText(value,
+		"退款", "赔偿", "赔付", "扣款", "重复扣费", "账户", "账号", "account",
+		"封禁", "解封", "封号", "优先级", "priority", "最终裁决", "final decision",
+	)
 }
 
 func isAmbiguousWorkflowQuestion(value string) bool {
@@ -1550,6 +1572,15 @@ func (e *Executor) executeLLMReply(ctx context.Context, state *runState, node ds
 		systemPrompt = strings.TrimSpace(systemPrompt + "\n\n" + languageInstruction)
 	}
 	allowEmptyKnowledge := readBoolConfig(node.Config, "allowEmptyKnowledge")
+	knowledgeOnly := readBoolConfig(node.Config, "knowledgeOnly")
+	if knowledgeOnly && !hasItems(state.resolveInput(node, "knowledgeItems")) {
+		if reply, ok := workflowKnowledgeOnlyEmptyReply(state.input.AIAgent, capabilities, state.input.UserMessage.Content); ok {
+			state.setNodeVars(node.ID, map[string]any{"replyText": reply})
+			return nil
+		}
+		state.setNodeVars(node.ID, map[string]any{"replyText": workflowKnowledgeFallbackReplyForMessage(state.input.AIAgent, capabilities, state.input.UserMessage.Content)})
+		return nil
+	}
 	if _, declaresKnowledge := node.Inputs["knowledgeItems"]; declaresKnowledge && !allowEmptyKnowledge && (state.input.AIAgent.ProductID > 0 || len(utils.SplitInt64s(state.input.AIAgent.KnowledgeIDs)) > 0) && !hasItems(state.resolveInput(node, "knowledgeItems")) {
 		state.setNodeVars(node.ID, map[string]any{"replyText": workflowKnowledgeFallbackReplyForMessage(state.input.AIAgent, capabilities, state.input.UserMessage.Content)})
 		return nil
@@ -1567,6 +1598,7 @@ func (e *Executor) executeLLMReply(ctx context.Context, state *runState, node ds
 		UserPrompt:       userPrompt,
 		KnowledgeContext: knowledgeItems,
 		BlockedToolCodes: workflowAgentBlockedToolCodes(state.input.Definition),
+		KnowledgeOnly:    knowledgeOnly,
 	})
 	if agentResult != nil {
 		state.mergeAgentResult(node.ID, agentResult)
@@ -1598,6 +1630,24 @@ func (e *Executor) executeLLMReply(ctx context.Context, state *runState, node ds
 		"agentRuntimeTraceData": agentResult.TraceData,
 	})
 	return nil
+}
+
+func workflowKnowledgeOnlyEmptyReply(aiAgent models.AIAgent, capabilities workflowcapability.Set, userMessage string) (string, bool) {
+	understanding := understandConversationMessage(userMessage)
+	switch understanding.MessageIntent {
+	case "greeting":
+		return workflowPolicyReply(userMessage, "您好，请问有什么可以帮您？", "Hello. How can I help you?"), true
+	case "thanks":
+		return workflowPolicyReply(userMessage, "不客气，如有其他问题可以继续告诉我。", "You are welcome. Let me know if you have another question."), true
+	case "end_conversation":
+		return workflowPolicyReply(userMessage, "好的，如后续还有问题可以随时联系。", "Understood. Contact us again if you need further help."), true
+	case "confirmation":
+		return workflowPolicyReply(userMessage, "好的，请继续补充需要处理的问题。", "Understood. Please provide the issue you need help with."), true
+	case "ambiguous_question":
+		return workflowPolicyReply(userMessage, "请补充具体的主题、场景或希望确认的内容，我再继续帮你查找。", "Please provide the topic, scenario, or detail you want to confirm so I can continue checking."), true
+	default:
+		return workflowKnowledgeFallbackReplyForMessage(aiAgent, capabilities, userMessage), false
+	}
 }
 
 func sanitizeUnverifiedActionClaims(value string, capabilities workflowcapability.Set) string {

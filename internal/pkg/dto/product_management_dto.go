@@ -129,6 +129,8 @@ type EnterpriseProductKnowledgeDocumentDTO struct {
 	URL               string `json:"url"`
 	IndexStatus       string `json:"index_status"`
 	ReviewStatus      string `json:"review_status"`
+	ExpiresAt         string `json:"expires_at,omitempty"`
+	DeprecatedReason  string `json:"deprecated_reason,omitempty"`
 	Deletable         bool   `json:"deletable"`
 	IndexError        string `json:"index_error"`
 	IndexedAt         string `json:"indexed_at"`

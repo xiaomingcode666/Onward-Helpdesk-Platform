@@ -63,6 +63,7 @@ func (s *Service) ExecuteWorkflowNode(ctx context.Context, req WorkflowNodeInput
 		return workflowNodePrepareError(summary, collector, err)
 	}
 	toolDefs = filterWorkflowNodeToolDefinitions(toolDefs, req.BlockedToolCodes)
+	toolDefs = filterKnowledgeOnlyWorkflowToolDefinitions(toolDefs, req.KnowledgeOnly)
 	tooling := prepareTooling(toolDefs, nil, toolSet, factory.HasVisibleSkills(agentConfig))
 	summary.ToolCodes = append(summary.ToolCodes, tooling.toolCodes...)
 	collector.Data.Input.ToolCodes = append(collector.Data.Input.ToolCodes, summary.ToolCodes...)

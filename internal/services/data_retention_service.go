@@ -138,6 +138,12 @@ func (s *dataRetentionService) CleanupExpiredData(ctx context.Context) error {
 			continue
 		}
 		cutoffDate := time.Now().AddDate(0, 0, -policy.RetentionDays)
+		auditCutoffDate := cutoffDate
+		eventCutoffDate := cutoffDate
+		if r != nil {
+			auditCutoffDate = time.Now().AddDate(0, 0, -r.Retention.EffectiveDays("audit"))
+			eventCutoffDate = time.Now().AddDate(0, 0, -r.Retention.EffectiveDays("event"))
+		}
 
 		slog.Info("data_retention: cleaning by policy",
 			"tenant_id", policy.TenantID,
@@ -146,10 +152,10 @@ func (s *dataRetentionService) CleanupExpiredData(ctx context.Context) error {
 			"cutoff_date", cutoffDate.Format(time.RFC3339),
 		)
 
-		if err := s.deleteExpiredAuditLogs(ctx, policy.TenantID, cutoffDate); err != nil {
+		if err := s.deleteExpiredAuditLogs(ctx, policy.TenantID, auditCutoffDate); err != nil {
 			failures = append(failures, err)
 		}
-		if err := s.deleteExpiredConversationLogs(ctx, policy.TenantID, cutoffDate); err != nil {
+		if err := s.deleteExpiredConversationLogs(ctx, policy.TenantID, eventCutoffDate); err != nil {
 			failures = append(failures, err)
 		}
 		if err := s.deleteExpiredNotifications(ctx, policy.TenantID, cutoffDate); err != nil {
@@ -195,7 +201,7 @@ func (s *dataRetentionService) cleanupManagedAudit(ctx context.Context, tenantID
 		if r == nil || r.Retention.LegalHold || !r.Retention.AutoDelete {
 			return nil
 		}
-		cutoff := time.Now().AddDate(0, 0, -r.Retention.Days)
+		cutoff := time.Now().AddDate(0, 0, -r.Retention.EffectiveDays("audit"))
 		if db.Migrator().HasTable(&models.AuthAuditLog{}) {
 			if err := db.Where("tenant_id = ? AND occurred_at < ?", tenantID, cutoff).Delete(&models.AuthAuditLog{}).Error; err != nil {
 				return err

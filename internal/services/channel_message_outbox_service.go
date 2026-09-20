@@ -123,6 +123,51 @@ func (s *channelMessageOutboxService) EnqueueWxWorkKFMessage(conversation *model
 	})
 }
 
+// EnqueueWhatsAppMessage stores an agent/AI reply for the local WhatsApp
+// adapter. The local adapter deliberately stops at the durable outbox so the
+// message can be inspected without a Meta account.
+func (s *channelMessageOutboxService) EnqueueWhatsAppMessage(conversation *models.Conversation, message *models.Message) error {
+	if conversation == nil || message == nil {
+		return nil
+	}
+	channel := ChannelService.Get(conversation.ChannelID)
+	if channel == nil || channel.ChannelType != enums.ChannelTypeWhatsApp {
+		return nil
+	}
+	if message.SenderType != enums.IMSenderTypeAgent && message.SenderType != enums.IMSenderTypeAI && message.SenderType != enums.IMSenderTypePartner {
+		return nil
+	}
+	if message.MessageType != enums.IMMessageTypeText && message.MessageType != enums.IMMessageTypeHTML {
+		return nil
+	}
+	if existing := s.GetByMessageID(enums.ChannelTypeWhatsApp, message.ID); existing != nil {
+		return nil
+	}
+	payload, err := json.Marshal(map[string]any{
+		"conversationId": conversation.ID,
+		"messageId":      message.ID,
+		"messageType":    message.MessageType,
+		"content":        strings.TrimSpace(message.Content),
+		"payload":        strings.TrimSpace(message.Payload),
+		"senderId":       message.SenderID,
+	})
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	return s.Create(&models.ChannelMessageOutbox{
+		ChannelType:    enums.ChannelTypeWhatsApp,
+		ConversationID: conversation.ID,
+		MessageID:      message.ID,
+		Payload:        string(payload),
+		SendStatus:     string(enums.ChannelMessageOutboxStatusPending),
+		AuditFields: models.AuditFields{
+			CreatedAt: now, CreateUserID: message.UpdateUserID, CreateUserName: message.UpdateUserName,
+			UpdatedAt: now, UpdateUserID: message.UpdateUserID, UpdateUserName: message.UpdateUserName,
+		},
+	})
+}
+
 func (s *channelMessageOutboxService) ListPending(channelType string, limit int) []models.ChannelMessageOutbox {
 	if limit <= 0 {
 		limit = 20

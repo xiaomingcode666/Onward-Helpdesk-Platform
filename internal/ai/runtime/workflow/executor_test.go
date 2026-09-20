@@ -259,6 +259,19 @@ func TestUnderstandConversationMessageHonorsActionNegation(t *testing.T) {
 	}
 }
 
+func TestUnderstandConversationMessageRoutesSensitiveIntentToHuman(t *testing.T) {
+	for _, message := range []string{
+		"我要退款，请人工确认",
+		"我的账户被封禁了，帮我解除",
+		"请人工决定这个问题的 Priority",
+	} {
+		got := understandConversationMessage(message)
+		if got.MessageIntent != "sensitive_intent" || got.AnswerScope != "needs_handoff" || got.Confidence < 0.9 {
+			t.Errorf("understandConversationMessage(%q) = %+v, want sensitive handoff", message, got)
+		}
+	}
+}
+
 func TestSanitizeUnverifiedActionClaims(t *testing.T) {
 	got := sanitizeUnverifiedActionClaims(
 		"我已为你转人工工程师处理，并已为你创建工单；我已邀请供应商。",
@@ -911,6 +924,78 @@ func TestExecutorLLMReplyAllowsGeneralConversationWithoutKnowledgeHits(t *testin
 	}
 	if agentRuntime.input.UserPrompt != "hi" || !strings.Contains(agentRuntime.input.SystemPrompt, "Answer general service questions naturally.") {
 		t.Fatalf("general LLM runtime did not receive expected input: %+v", agentRuntime.input)
+	}
+}
+
+func TestDecideWorkflowReplyPolicyHandsOffWhenKnowledgeIsUnanswerable(t *testing.T) {
+	decision := decideWorkflowReplyPolicy(models.AIAgent{}, workflowcapability.Set{HumanHandoff: true}, workflowReplyPolicyInput{
+		MessageIntent: "business_question",
+		AnswerScope:   "needs_knowledge",
+		Answerability: "unanswerable",
+		UserMessage:   "退款什么时候到账？",
+	})
+	if decision.Action != "handoff_to_human" || !decision.RequiresFlow || decision.TargetFlow != "handoff_to_human" {
+		t.Fatalf("unanswerable business question = %+v, want forced human handoff", decision)
+	}
+}
+
+func TestDecideWorkflowReplyPolicyKeepsAIOnlyFallbackWhenKnowledgeIsUnanswerable(t *testing.T) {
+	decision := decideWorkflowReplyPolicy(models.AIAgent{}, workflowcapability.Set{}, workflowReplyPolicyInput{
+		MessageIntent: "business_question",
+		AnswerScope:   "needs_knowledge",
+		Answerability: "unanswerable",
+		UserMessage:   "退款什么时候到账？",
+	})
+	if decision.Action != "knowledge_fallback" || decision.RequiresFlow || decision.ReplyText == "" {
+		t.Fatalf("AI-only unanswerable business question = %+v, want knowledge fallback", decision)
+	}
+}
+
+func TestExecutorLLMReplyKnowledgeOnlyRefusesBusinessQuestionWithoutEvidence(t *testing.T) {
+	definition := emptyKnowledgeReplyDefinition()
+	definition.Nodes[1].Config = json.RawMessage(`{"allowEmptyKnowledge":true,"knowledgeOnly":true}`)
+	agentRuntime := &fakeWorkflowAgentRuntime{result: &runtimeexecutor.RunResult{
+		Status:    "completed",
+		ReplyText: "模型自行猜测的答案",
+	}}
+	result, err := NewExecutor().Execute(context.Background(), Input{
+		Definition:   definition,
+		UserMessage:  models.Message{Content: "退款什么时候到账？"},
+		AIAgent:      models.AIAgent{KnowledgeIDs: "1", FallbackMessage: "当前没有找到已审批且仍有效的知识资料。"},
+		AgentRuntime: agentRuntime,
+	})
+	if err != nil {
+		t.Fatalf("execute workflow: %v", err)
+	}
+	if result.ReplyText != "当前没有找到已审批且仍有效的知识资料。" {
+		t.Fatalf("expected approved-knowledge fallback, got %q", result.ReplyText)
+	}
+	if agentRuntime.input.UserPrompt != "" {
+		t.Fatalf("knowledge-only fallback must not invoke the model, got input=%+v", agentRuntime.input)
+	}
+}
+
+func TestExecutorLLMReplyKnowledgeOnlyHandlesGreetingWithoutEvidence(t *testing.T) {
+	definition := emptyKnowledgeReplyDefinition()
+	definition.Nodes[1].Config = json.RawMessage(`{"allowEmptyKnowledge":true,"knowledgeOnly":true}`)
+	agentRuntime := &fakeWorkflowAgentRuntime{result: &runtimeexecutor.RunResult{
+		Status:    "completed",
+		ReplyText: "模型生成的问候",
+	}}
+	result, err := NewExecutor().Execute(context.Background(), Input{
+		Definition:   definition,
+		UserMessage:  models.Message{Content: "Hello"},
+		AIAgent:      models.AIAgent{KnowledgeIDs: "1"},
+		AgentRuntime: agentRuntime,
+	})
+	if err != nil {
+		t.Fatalf("execute workflow: %v", err)
+	}
+	if result.ReplyText != "Hello. How can I help you?" {
+		t.Fatalf("expected deterministic greeting, got %q", result.ReplyText)
+	}
+	if agentRuntime.input.UserPrompt != "" {
+		t.Fatalf("knowledge-only greeting must not invoke the model, got input=%+v", agentRuntime.input)
 	}
 }
 

@@ -47,6 +47,17 @@ type InboundEmailResult struct {
 	MatchedBy      string `json:"matched_by,omitempty"`
 }
 
+func ListPendingInboundEmailLinks(tenantID int64) ([]models.InboundEmail, error) {
+	if tenantID <= 0 {
+		return nil, errors.New("tenant is required")
+	}
+	var rows []models.InboundEmail
+	if err := sqls.DB().Where("tenant_id = ? AND status = ?", tenantID, InboundEmailPendingManual).Order("received_at ASC, id ASC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 func emailHash(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])
@@ -170,6 +181,60 @@ func IngestInboundEmail(input InboundEmailInput) (*InboundEmailResult, error) {
 		return nil
 	})
 	return result, err
+}
+
+// ResolveInboundEmailManualLink attaches a pending email reply only after an
+// operator explicitly selects the target ticket. A pending receipt is never
+// guessed into a ticket by this method, and a second resolution cannot move it
+// to another ticket silently.
+func ResolveInboundEmailManualLink(inboundEmailID, ticketID int64, operator *dto.AuthPrincipal) error {
+	if operator == nil || operator.TenantID <= 0 || inboundEmailID <= 0 || ticketID <= 0 {
+		return errors.New("manual email link requires operator, inbound email and ticket")
+	}
+	return sqls.WithTransaction(func(ctx *sqls.TxContext) error {
+		now := time.Now().UTC()
+		var row models.InboundEmail
+		if err := ctx.Tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND tenant_id = ?", inboundEmailID, operator.TenantID).First(&row).Error; err != nil {
+			return err
+		}
+		if row.TicketID > 0 {
+			if row.TicketID == ticketID && row.Status == InboundEmailAppended {
+				return nil
+			}
+			return errors.New("inbound email is already linked to another ticket")
+		}
+		if row.Status != InboundEmailPendingManual {
+			return errors.New("inbound email is not waiting for manual link")
+		}
+		var ticket models.Ticket
+		if err := ctx.Tx.Where("id = ? AND tenant_id = ?", ticketID, operator.TenantID).First(&ticket).Error; err != nil {
+			return err
+		}
+		metadata, _ := json.Marshal(map[string]any{
+			"channel": "email", "direction": "inbound", "inbound_email_id": row.ID, "matched_by": "manual",
+		})
+		if err := ctx.Tx.Create(&models.TicketProgress{
+			TenantID:          operator.TenantID,
+			TicketID:          ticketID,
+			EventType:         enums.TicketProgressEventProgress,
+			Content:           row.TextBody,
+			VisibleToCustomer: true,
+			MetadataJSON:      string(metadata),
+			CreatedAt:         now,
+		}).Error; err != nil {
+			return err
+		}
+		if err := ctx.Tx.Model(&ticket).Updates(map[string]any{"updated_at": now}).Error; err != nil {
+			return err
+		}
+		return ctx.Tx.Model(&row).Updates(map[string]any{
+			"ticket_id":      ticketID,
+			"status":         InboundEmailAppended,
+			"matched_by":     "manual",
+			"failure_reason": "",
+			"updated_at":     now,
+		}).Error
+	})
 }
 
 var emailTicketMarker = regexp.MustCompile(`(?i)\[Ticket #([A-Za-z0-9_-]{1,64})\]`)

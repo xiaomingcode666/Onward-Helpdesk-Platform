@@ -1,14 +1,15 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Input } from "antd"
+import { Form, Input } from "antd"
 import { useAuth } from "@/components/auth-provider"
 import { FormField, RailopsButton, SelectField, StandardModal, StatusTag } from "@railops/ui"
 import { fetchTicketAggregate } from "@/lib/api/enterprise-tickets"
-import type { TicketAggregateDTO } from "@/lib/api/types"
+import type { TicketAggregateDTO, ProductListItem } from "@/lib/api/types"
 import { caseStatusLabel } from "@/lib/ticket-case-labels"
 import { formatDateTime } from "@/lib/utils"
-import { caseTypes, searchDuplicateTickets, type DuplicateCandidate, governanceLabel as g, fetchGovernance, saveGovernance, type CaseType, type PriorityFacts, type GovernanceView, type GovernanceCommand, type PriorityPolicy, fetchClassificationPolicy, previewPriorityChange, type PriorityPreview } from "@/lib/ticket-governance"
+import { listProducts, getProductModules, type ProductModule } from "@/lib/api/enterprise-products"
+import { caseTypes, emptyPriorityFacts, searchDuplicateTickets, type DuplicateCandidate, governanceLabel as g, fetchGovernance, saveGovernance, type CaseType, type PriorityFacts, type GovernanceView, type GovernanceCommand, type PriorityPolicy, fetchClassificationPolicy, previewPriorityChange, type PriorityPreview } from "@/lib/ticket-governance"
 
 export function TicketClassificationFields({ value, onChange, disabled = false, policy, keepPriority, priorityOverride = "", priorityReason = "", onPriorityChange, onPriorityReasonChange }: { value: string; onChange: (value: CaseType) => void; disabled?: boolean; policy?: PriorityPolicy; keepPriority?: string; priorityOverride?: string; priorityReason?: string; onPriorityChange?: (value: string) => void; onPriorityReasonChange?: (value: string) => void }) {
   const { session } = useAuth()
@@ -29,6 +30,7 @@ export function TicketClassificationFields({ value, onChange, disabled = false, 
 }
 
 export function TicketGovernancePanel({ aggregate, onSaved, active = true }: { aggregate: TicketAggregateDTO; onSaved: (value: TicketAggregateDTO) => void | Promise<void>; active?: boolean }) {
+  const { session } = useAuth()
   const id = aggregate.ticket.id
   const [view, setView] = useState<GovernanceView | null>(null)
   const [preview, setPreview] = useState<PriorityPreview | null>(null)
@@ -49,12 +51,21 @@ export function TicketGovernancePanel({ aggregate, onSaved, active = true }: { a
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [submitted, setSubmitted] = useState(false)
+  const [facts, setFacts] = useState<PriorityFacts>(emptyPriorityFacts)
+  const [products, setProducts] = useState<ProductListItem[]>([])
+  const [selectedProductId, setSelectedProductId] = useState<number>(0)
+  const [productModules, setProductModules] = useState<ProductModule[]>([])
+  const [selectedModuleId, setSelectedModuleId] = useState<number>(0)
+  const [loadingProducts, setLoadingProducts] = useState(false)
   const mounted = useRef(false)
   const pending = useRef<GovernanceCommand | null>(null)
   const committed = useRef(false)
   const inFlight = useRef(false)
   const searchSequence = useRef(0)
   const terminal = ["closed", "cancelled"].includes(aggregate.ticket.case_status || aggregate.ticket.status)
+  const isKnowledgeScene = session?.featureFlags?.device === false || aggregate.ticket.knowledge_base_id > 0 || Boolean(aggregate.ticket.category)
+  const hasComponent = aggregate.ticket.product_module_id > 0 || aggregate.ticket.product_id > 0 || isKnowledgeScene
+  const hasOwner = Boolean((aggregate.assignment?.assignee_id && aggregate.assignment.assignee_id > 0) || (aggregate.ticket.case_owner_id && aggregate.ticket.case_owner_id > 0))
 
   useEffect(() => {
     let cancelled = false
@@ -100,20 +111,107 @@ export function TicketGovernancePanel({ aggregate, onSaved, active = true }: { a
     setSearch(value); setCandidates([]); setTarget(undefined); setSelectedParent(undefined)
     setSearching(true); setError("")
   }
+  useEffect(() => {
+    if (active && action === "classify" && caseType === "known_error" && !hasComponent) {
+      let cancelled = false
+      setLoadingProducts(true)
+      void listProducts({ page: 1, page_size: 100 }).then(res => {
+        if (!cancelled && res.success && res.data) {
+          setProducts(res.data)
+        }
+      }).finally(() => {
+        if (!cancelled) setLoadingProducts(false)
+      })
+      return () => { cancelled = true }
+    }
+  }, [active, action, caseType, hasComponent])
+
+  useEffect(() => {
+    if (selectedProductId > 0) {
+      let cancelled = false
+      void getProductModules(selectedProductId).then(res => {
+        if (!cancelled && res.success && res.data) {
+          setProductModules(res.data.filter(m => m.status !== "disabled"))
+        }
+      })
+      return () => { cancelled = true }
+    } else {
+      setProductModules([])
+      setSelectedModuleId(0)
+    }
+  }, [selectedProductId])
+
   function open(next: string, ref = 0) {
     if (!view || inFlight.current) return
     pending.current = null; committed.current = false
     setPreview(null); setPreviewError("")
     setAction(next); setReference(ref); setRevision(view.revision); setReason(""); setError(""); setSubmitted(false)
+    setSelectedProductId(0); setSelectedModuleId(0); setProductModules([])
     setCaseType(view.case_type || "user_case"); setPriority(view.priority || "p2"); setTarget(undefined); setSelectedParent(undefined); setCandidates([]); setSearch("")
+    setFacts(view.facts && view.facts.workaround !== "unknown" ? { ...view.facts } : { ...emptyPriorityFacts, workaround: "verified", safety: "none", impact: "medium", reach: "medium" })
   }
   async function save() {
     if (!view || inFlight.current || !mounted.current) return
-    if (action !== "duplicate_child" && !reason.trim()) { setError(g("reasonRequired")); return }
-    if (!submitted && action === "override" && preview?.priority !== priority) { setError(previewError || g("loading")); return }
-    if (action === "duplicate_child" && (!target || !selectedParent)) { setError(g("chooseTicket")); return }
+    if (action !== "duplicate_child" && !(action === "classify" && caseType === "known_error") && !reason.trim()) {
+      setError(g("reasonRequired"))
+      return
+    }
+    if (!submitted && action === "override" && preview?.priority !== priority) {
+      setError(previewError || g("loading"))
+      return
+    }
+    if (action === "duplicate_child" && (!target || !selectedParent)) {
+      setError(g("chooseTicket"))
+      return
+    }
+
+    let effectiveFacts = facts
+    let effectiveReason = reason.trim()
+
+    if (action === "classify" && caseType === "known_error") {
+      const workaroundText = facts.evidence?.trim() || ""
+      if (!workaroundText) {
+        setError(g("workaroundInputPlaceholder") || g("knownErrorNotice"))
+        return
+      }
+      const effectiveProductId = aggregate.ticket.product_id || selectedProductId
+      const effectiveModuleId = aggregate.ticket.product_module_id || selectedModuleId
+      if (!effectiveProductId && !effectiveModuleId && !isKnowledgeScene) {
+        setError(g("knownErrorComponentMissing"))
+        return
+      }
+      if (!hasOwner) {
+        setError(g("knownErrorOwnerMissing"))
+        return
+      }
+      effectiveFacts = {
+        ...facts,
+        workaround: "verified",
+        impact: "medium",
+        safety: "none",
+        reach: "medium",
+        evidence: workaroundText,
+      }
+      if (!effectiveReason) {
+        effectiveReason = g("knownErrorDefaultReason")
+      }
+    }
+
     inFlight.current = true; setBusy(true); setSubmitted(true); setError("")
-    if (!pending.current) pending.current = { action, expected_revision: revision, operation_key: crypto.randomUUID(), reason: reason.trim(), priority, case_type: caseType, relation_id: reference, target_id: target, target_revision: action === "duplicate_child" ? selectedParent?.revision : undefined }
+    if (!pending.current) pending.current = {
+      action,
+      expected_revision: revision,
+      operation_key: crypto.randomUUID(),
+      reason: effectiveReason,
+      priority,
+      case_type: caseType,
+      facts: action === "classify" && caseType === "known_error" ? effectiveFacts : undefined,
+      relation_id: reference,
+      target_id: target,
+      target_revision: action === "duplicate_child" ? selectedParent?.revision : undefined,
+      product_id: selectedProductId > 0 ? selectedProductId : undefined,
+      product_module_id: selectedModuleId > 0 ? selectedModuleId : undefined,
+    }
     try {
       if (!committed.current) { const result = await saveGovernance(id, pending.current); if (!result.success) throw new Error(result.error?.message || g("failed")); committed.current = true }
       await reload()
@@ -152,9 +250,76 @@ export function TicketGovernancePanel({ aggregate, onSaved, active = true }: { a
     {!view.relations.length ? <p className="text-sm text-muted-foreground">{g("noRelations")}</p> : view.relations.map(r => <div key={r.id} className="space-y-1 border-b pb-2 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><a className="underline" href={`/enterprise/ticket-workbench?ticket_id=${r.other_id}`}>{r.ticket_no} · {r.title}</a>{r.can_remove ? <RailopsButton size="small" onClick={() => open("unlink", r.id)}>{g("action.unlink")}</RailopsButton> : null}</div><p>{g(`relation.${r.kind === "parent" && r.target_id === id ? "child_of" : r.kind === "causes" && r.target_id === id ? "caused_by" : r.kind === "duplicate" && r.target_id === id ? "duplicates" : r.kind === "merged" && r.target_id === id ? "merged_sources" : r.kind}`)} · {r.priority.toUpperCase()} · {caseStatusLabel(r.status)} · {g("owner")}: {r.owner_id || "—"}</p><p className="text-muted-foreground">{r.reason}</p></div>)}
     {view.proposals.length ? <details className="border-t pt-3 text-sm"><summary className="cursor-pointer">{g("historicalProposals")} ({view.proposals.length})</summary><p className="my-2 text-muted-foreground">{g("historicalProposalHelp")}</p>{view.proposals.map(p => <div key={p.id} className="space-y-1 border-b py-2"><p>#{p.id} · {p.priority.toUpperCase()} · {g(p.status === "pending" ? "historicalPending" : `proposal.${p.status}`)}</p><p>{p.reason}</p>{p.review_reason ? <p>{g("reviewReason")}: {p.review_reason}</p> : null}</div>)}</details> : null}
     <details className="border-t pt-3 text-sm"><summary className="cursor-pointer">{g("history")} ({view.history.length})</summary><div className="mt-3 space-y-3">{view.history.map(h => <div key={h.id} className="border-b pb-2"><p>{g(`action.${h.action}`)} · {formatDateTime(h.created_at)} · {g("operator")} #{h.actor_id}</p><p className="whitespace-pre-wrap">{h.reason}</p><details><summary>{g("decisionDetails")}</summary><DecisionDetails details={h.details} /></details></div>)}</div></details>
-    <StandardModal open={Boolean(action)} title={g(`action.${action || "classify"}`)} onCancel={() => { if (!busy) { setAction(""); void reload().catch(() => {}) } }} footer={<><RailopsButton disabled={busy} onClick={() => { setAction(""); void reload().catch(() => {}) }}>{g("cancel")}</RailopsButton><RailopsButton variant="primary" loading={busy} disabled={busy || stale || (action === "duplicate_child" && !submitted && !selectedParent) || (action === "override" && !submitted && preview?.priority !== priority)} onClick={() => void save()}>{committed.current ? g("refresh") : g(action === "duplicate_child" ? "confirmParentLink" : "save")}</RailopsButton></>}>
-      <div className="space-y-4">
+    <StandardModal width={560} open={Boolean(action)} title={g(`action.${action || "classify"}`)} onCancel={() => { if (!busy) { setAction(""); void reload().catch(() => {}) } }} footer={<><RailopsButton disabled={busy} onClick={() => { setAction(""); void reload().catch(() => {}) }}>{g("cancel")}</RailopsButton><RailopsButton variant="primary" loading={busy} disabled={busy || stale || (action === "duplicate_child" && !submitted && !selectedParent) || (action === "override" && !submitted && preview?.priority !== priority)} onClick={() => void save()}>{committed.current ? g("refresh") : g(action === "duplicate_child" ? "confirmParentLink" : "save")}</RailopsButton></>}>
+      <Form layout="vertical" className="space-y-4">
         {action === "classify" ? <TicketClassificationFields value={caseType} onChange={setCaseType} disabled={formDisabled} policy={view.policy} keepPriority={view.overridden ? view.priority : undefined} /> : null}
+        {action === "classify" && caseType === "known_error" ? (
+          <div className="space-y-3" data-testid="known-error-fields">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full shrink-0 ${hasComponent || selectedProductId > 0 ? "bg-emerald-500" : "bg-amber-500"}`} />
+                <span className="text-muted-foreground">{g("fieldComponent")}:</span>
+                <span className="font-medium">{isKnowledgeScene ? (aggregate.ticket.category ? g("knowledgeCategoryLinked", { category: aggregate.ticket.category }) : g("knowledgeServiceLinked")) : (hasComponent ? g("componentLinked") : (selectedProductId > 0 ? g("componentSelected") : g("knownErrorComponentMissingShort")))}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full shrink-0 ${hasOwner ? "bg-emerald-500" : "bg-amber-500"}`} />
+                <span className="text-muted-foreground">{g("fieldOwner")}:</span>
+                <span className="font-medium">{hasOwner ? (aggregate.assignment?.assignee_name || aggregate.ticket.case_owner_name || g("ownerAssigned")) : g("knownErrorOwnerMissingShort")}</span>
+              </div>
+            </div>
+            {!hasComponent ? (
+              <div className="space-y-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
+                <div className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                  {g("missingComponentPrompt")}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <SelectField
+                    label={g("affectedProduct")}
+                    required
+                    selectProps={{
+                      className: "w-full",
+                      placeholder: loadingProducts ? g("loadingProducts") : g("selectProduct"),
+                      value: selectedProductId || undefined,
+                      disabled: formDisabled || loadingProducts,
+                      options: products.map(p => ({ value: p.id, label: p.name })),
+                      onChange: v => {
+                        setSelectedProductId(Number(v))
+                        setSelectedModuleId(0)
+                        setError("")
+                      },
+                    }}
+                  />
+                  {productModules.length > 0 ? (
+                    <SelectField
+                      label={g("optionalModule")}
+                      selectProps={{
+                        className: "w-full",
+                        placeholder: g("optionalModulePlaceholder"),
+                        value: selectedModuleId || undefined,
+                        disabled: formDisabled,
+                        options: productModules.map(m => ({ value: m.id, label: m.name })),
+                        onChange: v => setSelectedModuleId(Number(v)),
+                      }}
+                    />
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+            <FormField label={g("workaroundInputLabel")} required>
+              <Input.TextArea
+                value={facts.evidence}
+                disabled={formDisabled}
+                rows={3}
+                maxLength={2000}
+                placeholder={g("workaroundInputPlaceholder")}
+                onChange={e => {
+                  setFacts((f: PriorityFacts) => ({ ...f, evidence: e.target.value }))
+                  setError("")
+                }}
+              />
+            </FormField>
+          </div>
+        ) : null}
         {action === "override" ? <SelectField label={g("newPriority")} selectProps={{ value: priority, disabled: formDisabled, options: ["p1", "p2", "p3", "p4"].map(p => ({ value: p, label: g(`level.${p}`) })), onChange: setPriority }} /> : null}
         {action === "duplicate_child" ? <SelectField label={g("parentTicket")} required selectProps={{
           "aria-label": g("parentTicket"), value: target, disabled: formDisabled, showSearch: true,
@@ -164,9 +329,9 @@ export function TicketGovernancePanel({ aggregate, onSaved, active = true }: { a
           onChange: v => { const candidate = candidates.find(c => c.other_id === Number(v)); setTarget(candidate?.other_id); setSelectedParent(candidate); setError("") },
         }} /> : null}
         {action === "override" ? <div className="text-xs text-muted-foreground">{preview?.deadline ? <p>{g("slaDeadline")}: {formatDateTime(preview.deadline)}</p> : null}{preview?.overdue ? <p className="text-amber-700">{g("previewOverdue")}</p> : null}{!preview && !previewError ? <p>{g("loading")}</p> : null}{previewError ? <p role="alert">{previewError} <RailopsButton onClick={() => setPreviewAttempt(n => n + 1)}>{g("retry")}</RailopsButton></p> : null}</div> : null}
-        {action !== "duplicate_child" ? <FormField label={g(reasonLabel)} required><Input.TextArea aria-label={g(reasonLabel)} value={reason} disabled={formDisabled} rows={2} maxLength={2000} onChange={e => { setReason(e.target.value); setError("") }} /></FormField> : null}
+        {action !== "duplicate_child" && !(action === "classify" && caseType === "known_error") ? <FormField label={g(reasonLabel)} required><Input.TextArea aria-label={g(reasonLabel)} value={reason} disabled={formDisabled} rows={2} maxLength={2000} onChange={e => { setReason(e.target.value); setError("") }} /></FormField> : null}
         {stale ? <p role="alert" className="text-sm text-destructive">{g("stale")}</p> : null}{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}{submitted && error ? <p className="text-xs text-muted-foreground">{g("retryHelp")}</p> : null}
-      </div>
+      </Form>
     </StandardModal>
   </section>
 }

@@ -1228,6 +1228,7 @@ func setupTicketTestDB(t *testing.T) {
 
 func setupTicketTestDBWithMaxOpenConns(t *testing.T, maxOpenConns int) {
 	t.Helper()
+	t.Setenv("RHD_BOOTSTRAP_ADMIN_PASSWORD", "Ticket-test-only-2026!")
 
 	dbPath := filepath.Join(t.TempDir(), "ticket-test.db")
 	db, err := bootstrap.InitDB(config.DBConfig{

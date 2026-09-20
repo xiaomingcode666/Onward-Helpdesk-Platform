@@ -368,6 +368,8 @@ export interface ProductKnowledgeDocumentFile {
   url: string
   index_status: string
   review_status: string
+  expires_at?: string
+  deprecated_reason?: string
   deletable: boolean
   index_error: string
   indexed_at: string

@@ -97,7 +97,7 @@ func VerifyProjectConfigurationDeployment() error {
 	if err != nil {
 		return err
 	}
-	if state.ActiveVersionID != bundle.VersionID {
+	if state.ActiveVersionID != bundle.VersionID && !(state.ActiveVersionID == 0 && bundle.Document.Environment == "production") {
 		return fmt.Errorf("部署配置版本与数据库当前生效版本不一致，请核对后重新部署")
 	}
 	var version models.ProjectConfigurationVersion
@@ -110,6 +110,11 @@ func VerifyProjectConfigurationDeployment() error {
 	}
 	if parsed.Digest != bundle.Digest {
 		return fmt.Errorf("部署配置内容与数据库版本不一致")
+	}
+	if parsed.Environment == "production" && state.ActiveVersionID > 0 {
+		if err := RequireApprovedRetentionPolicies(sqls.DB(), version); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -231,6 +236,17 @@ func InitializeProjectConfigurationDocumentWithOptions(doc projectconfig.Documen
 		draft, err := saveProjectConfigurationDraftDB(db, doc.TenantID, ProjectConfigDraft{Document: doc, RequestKey: "initial:" + projectconfig.Digest(doc), Note: "本机部署工具首次初始化（系统操作）；未覆盖已有生效配置"}, op)
 		if err != nil {
 			return err
+		}
+		if doc.Environment == "production" {
+			// Production bootstrap is intentionally two-phase: leave the exact
+			// immutable draft pending so the tenant owner can approve it before
+			// the first activation. The deployment bundle remains usable for
+			// starting the control plane, but cannot become active yet.
+			if err := bindProjectDeploymentIdentityDB(db, id); err != nil {
+				return err
+			}
+			result = draft
+			return nil
 		}
 		result, err = applyProjectConfigurationDB(db, doc.TenantID, draft.ID, op, func(s models.ProjectConfigurationState, _ models.ProjectConfigurationVersion) error {
 			if s.ActiveVersionID != 0 {

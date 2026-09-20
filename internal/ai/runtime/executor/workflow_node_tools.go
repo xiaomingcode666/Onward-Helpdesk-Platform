@@ -82,6 +82,16 @@ func filterWorkflowNodeToolDefinitions(definitions []runtimetooling.MCPToolDefin
 	return ret
 }
 
+// filterKnowledgeOnlyWorkflowToolDefinitions keeps the basic knowledge
+// chatbot from exposing tenant-configured MCP actions such as account,
+// refund, or other transactional tools to the model.
+func filterKnowledgeOnlyWorkflowToolDefinitions(definitions []runtimetooling.MCPToolDefinition, knowledgeOnly bool) []runtimetooling.MCPToolDefinition {
+	if !knowledgeOnly {
+		return definitions
+	}
+	return nil
+}
+
 func workflowNodeToolCodeSet(toolCodes []string) map[string]struct{} {
 	ret := make(map[string]struct{}, len(toolCodes))
 	for _, toolCode := range toolCodes {

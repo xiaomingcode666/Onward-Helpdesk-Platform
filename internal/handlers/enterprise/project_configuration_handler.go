@@ -128,6 +128,38 @@ func ProjectConfigurationValidate(ctx *gin.Context) {
 	}
 	httpx.WriteJSON(ctx, projectconfig.Validate(doc, id, projectconfig.Environment(), projectconfig.RuntimeSecretCheck))
 }
+
+// ProjectConfigurationImpactPreview performs a read-only comparison between
+// the active configuration and the candidate document for recent tickets.
+func ProjectConfigurationImpactPreview(ctx *gin.Context) {
+	op, id, ok := projectConfigOperator(ctx)
+	if !ok {
+		return
+	}
+	if err := services.RequireProjectRuntimeOperator(op); err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	var input services.ProjectConfigurationImpactRequest
+	if !decodeConfigRequest(ctx, &input) {
+		return
+	}
+	if input.Document.TenantID != id || input.Document.Environment != projectconfig.Environment() || input.Document.Runtime == nil {
+		httpx.WriteJSON(ctx, errorsx.InvalidParam("试算配置必须属于当前公司、当前环境且包含运营设置"))
+		return
+	}
+	report := projectconfig.Validate(input.Document, id, projectconfig.Environment(), projectconfig.RuntimeSecretCheck)
+	if !report.Valid {
+		if len(report.Issues) > 0 {
+			httpx.WriteJSON(ctx, errorsx.InvalidParam(report.Issues[0].Path+"："+report.Issues[0].Message))
+		} else {
+			httpx.WriteJSON(ctx, errorsx.InvalidParam("配置检查未通过"))
+		}
+		return
+	}
+	result, err := services.PreviewProjectConfigurationImpact(id, input.Document, input.Limit)
+	writeProjectConfigResult(ctx, result, err)
+}
 func ProjectConfigurationApply(ctx *gin.Context) {
 	op, id, ok := projectConfigOperator(ctx)
 	if !ok {
@@ -140,4 +172,57 @@ func ProjectConfigurationApply(ctx *gin.Context) {
 	}
 	version, err := services.ApplyProjectConfiguration(id, versionID, op)
 	writeProjectConfigResult(ctx, version, err)
+}
+
+func ProjectRetentionApprovalsGet(ctx *gin.Context) {
+	op, id, ok := projectConfigOperator(ctx)
+	if !ok {
+		return
+	}
+	versionID, err := strconv.ParseInt(ctx.Query("version_id"), 10, 64)
+	if err != nil || versionID <= 0 {
+		httpx.WriteJSON(ctx, errorsx.InvalidParam("配置版本无效"))
+		return
+	}
+	result, err := services.ListRetentionApprovals(id, versionID, op)
+	writeProjectConfigResult(ctx, result, err)
+}
+
+func ProjectRetentionApprovalSubmit(ctx *gin.Context) {
+	op, id, ok := projectConfigOperator(ctx)
+	if !ok {
+		return
+	}
+	versionID, err := strconv.ParseInt(ctx.Param("version"), 10, 64)
+	if err != nil || versionID <= 0 {
+		httpx.WriteJSON(ctx, errorsx.InvalidParam("配置版本无效"))
+		return
+	}
+	result, err := services.SubmitRetentionApproval(id, versionID, op)
+	writeProjectConfigResult(ctx, result, err)
+}
+
+func ProjectRetentionApprovalReview(ctx *gin.Context) {
+	op, id, ok := projectConfigOperator(ctx)
+	if !ok {
+		return
+	}
+	if err := services.RequireProjectRuntimeOperator(op); err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	approvalID, err := strconv.ParseInt(ctx.Param("approval"), 10, 64)
+	if err != nil || approvalID <= 0 {
+		httpx.WriteJSON(ctx, errorsx.InvalidParam("审批记录无效"))
+		return
+	}
+	var body struct {
+		Approved bool   `json:"approved"`
+		Comment  string `json:"comment"`
+	}
+	if !decodeConfigRequest(ctx, &body) {
+		return
+	}
+	result, err := services.ReviewRetentionApproval(id, approvalID, body.Approved, body.Comment, op)
+	writeProjectConfigResult(ctx, result, err)
 }

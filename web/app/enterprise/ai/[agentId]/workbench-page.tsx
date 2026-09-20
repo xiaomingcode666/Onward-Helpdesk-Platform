@@ -231,7 +231,7 @@ export function AgentWorkbenchPage({ agentId: requestedAgentId }: { agentId?: nu
 
   const activeSection = normalizeSection(searchParams.get("section"))
   const session = useMemo(() => readSession(), [])
-  const hasProductConcept = session?.featureFlags?.product !== false
+  const hasProductConcept = session?.featureFlags?.product !== false && session?.featureFlags?.knowledgeSupport !== true
 
   const [agent, setAgent] = useState<AIAgent | null>(null)
   const [agents, setAgents] = useState<AIAgent[]>([])

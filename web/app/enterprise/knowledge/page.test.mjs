@@ -48,6 +48,18 @@ test("tenant default knowledge base supports document upload and management", ()
   assert.doesNotMatch(source, /ent-product-editor space-y-4/)
 })
 
+test("knowledge-support tenants do not require the derived product flag", () => {
+  assert.match(source, /const hasProductConcept = session\?\.featureFlags\?\.product !== false/)
+  assert.match(source, /session\?\.featureFlags\?\.knowledgeSupport !== true/)
+})
+
+test("tenant knowledge review actions stay in the document list", () => {
+  assert.doesNotMatch(source, /documentReviewTabLabel/)
+  assert.match(source, /documentTable\.submitForReview/)
+  assert.match(source, /documentTable\.approveAndPublish/)
+  assert.match(source, /documentTable\.deprecate/)
+})
+
 test("knowledge base access grants are managed from the tenant knowledge scope", () => {
   assert.match(source, /getKnowledgeAccessGrants/)
   assert.match(source, /replaceKnowledgeAccessGrants/)

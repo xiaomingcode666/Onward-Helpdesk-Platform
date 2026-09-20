@@ -33,6 +33,7 @@ import {
 import { useI18n } from "@/i18n/provider"
 
 type ChannelFormDialogProps = {
+  whatsappOnly?: boolean
   open: boolean
   saving: boolean
   itemId: number | null
@@ -57,6 +58,9 @@ type WechatMPChannelConfig = {
   themeColor?: string
   userTokenSecret?: string
 }
+type WhatsAppChannelConfig = {
+  projectKey?: string; chatwootCoreUrl?: string; chatwootAccountId?: string; chatwootInboxId?: string; metaPhoneNumberId?: string; metaBusinessAccountId?: string; metaAccessTokenSecretRef?: string; webhookVerifyTokenSecretRef?: string; projectConfigurationApproved?: boolean; commercialResponsibilityApproved?: boolean; readinessApproved?: boolean
+}
 
 function getDefaultWebChannelConfig(t: Translate): Required<WebChannelConfig> {
   return {
@@ -72,7 +76,7 @@ function getDefaultWebChannelConfig(t: Translate): Required<WebChannelConfig> {
 function createSchema(t: Translate) {
   return z
     .object({
-      channelType: z.enum(["web", "wechat_mp", "wxwork_kf"], t("channel.typeRequired")),
+      channelType: z.enum(["web", "wechat_mp", "wxwork_kf", "whatsapp"], t("channel.typeRequired")),
       aiAgentId: z.string().trim().regex(/^\d+$/, t("channel.agentRequired")),
       name: z.string().trim().min(1, t("channel.nameRequired")),
       openKfId: z.string().trim(),
@@ -83,6 +87,7 @@ function createSchema(t: Translate) {
       widgetWidth: z.string().trim(),
       userTokenSecret: z.string().trim(),
       remark: z.string().trim(),
+      projectKey: z.string().trim(), chatwootCoreUrl: z.string().trim(), chatwootAccountId: z.string().trim(), chatwootInboxId: z.string().trim(), metaPhoneNumberId: z.string().trim(), metaBusinessAccountId: z.string().trim(), metaAccessTokenSecretRef: z.string().trim(), webhookVerifyTokenSecretRef: z.string().trim(), projectConfigurationApproved: z.boolean(), commercialResponsibilityApproved: z.boolean(), readinessApproved: z.boolean(),
     })
     .superRefine((values, ctx) => {
       if (values.channelType === "wxwork_kf" && !values.openKfId.trim()) {
@@ -92,11 +97,23 @@ function createSchema(t: Translate) {
           message: t("channel.wxworkAccountRequired"),
         })
       }
+      if (values.channelType === "whatsapp") {
+        const required: Array<[keyof typeof values, string]> = [
+          ["projectKey", "channel.projectKeyRequired"],
+          ["metaPhoneNumberId", "channel.metaPhoneNumberIdRequired"],
+          ["metaBusinessAccountId", "channel.metaBusinessAccountIdRequired"],
+          ["metaAccessTokenSecretRef", "channel.metaAccessTokenSecretRefRequired"],
+          ["webhookVerifyTokenSecretRef", "channel.webhookVerifyTokenSecretRefRequired"],
+        ]
+        for (const [field, messageKey] of required) {
+          if (!String(values[field] ?? "").trim()) ctx.addIssue({ code: "custom", path: [field], message: t(messageKey) })
+        }
+      }
     })
 }
 
 type EditForm = {
-  channelType: "web" | "wechat_mp" | "wxwork_kf"
+  channelType: "web" | "wechat_mp" | "wxwork_kf" | "whatsapp"
   aiAgentId: string
   name: string
   openKfId: string
@@ -107,6 +124,7 @@ type EditForm = {
   widgetWidth: string
   userTokenSecret: string
   remark: string
+  projectKey: string; chatwootCoreUrl: string; chatwootAccountId: string; chatwootInboxId: string; metaPhoneNumberId: string; metaBusinessAccountId: string; metaAccessTokenSecretRef: string; webhookVerifyTokenSecretRef: string; projectConfigurationApproved: boolean; commercialResponsibilityApproved: boolean; readinessApproved: boolean
 }
 
 function createEmptyForm(t: Translate): EditForm {
@@ -123,6 +141,7 @@ function createEmptyForm(t: Translate): EditForm {
     widgetWidth: defaultWebChannelConfig.width,
     userTokenSecret: "",
     remark: "",
+    projectKey: "", chatwootCoreUrl: "", chatwootAccountId: "", chatwootInboxId: "", metaPhoneNumberId: "", metaBusinessAccountId: "", metaAccessTokenSecretRef: "", webhookVerifyTokenSecretRef: "", projectConfigurationApproved: false, commercialResponsibilityApproved: false, readinessApproved: false,
   }
 }
 
@@ -190,17 +209,20 @@ function buildForm(item: AdminChannel | null, t: Translate): EditForm {
     return createEmptyForm(t)
   }
   const isWechatMP = item.channelType === "wechat_mp"
+  const isWhatsApp = item.channelType === "whatsapp"
   const webConfig = parseWebChannelConfig(item.configJson, t)
   const wechatConfig = isWechatMP
     ? parseWechatMPChannelConfig(item.configJson, t)
     : null
+  let whatsappConfig: WhatsAppChannelConfig = {}
+  if (isWhatsApp) { try { whatsappConfig = JSON.parse(item.configJson) as WhatsAppChannelConfig } catch {} }
   return {
     channelType:
       item.channelType === "wxwork_kf"
         ? "wxwork_kf"
         : item.channelType === "wechat_mp"
           ? "wechat_mp"
-          : "web",
+          : item.channelType === "whatsapp" ? "whatsapp" : "web",
     aiAgentId: item.aiAgentId > 0 ? String(item.aiAgentId) : "",
     name: item.name,
     openKfId: parseOpenKfId(item.configJson),
@@ -211,6 +233,7 @@ function buildForm(item: AdminChannel | null, t: Translate): EditForm {
     widgetWidth: webConfig.width,
     userTokenSecret: wechatConfig?.userTokenSecret ?? webConfig.userTokenSecret,
     remark: item.remark || "",
+    projectKey: whatsappConfig.projectKey || "", chatwootCoreUrl: whatsappConfig.chatwootCoreUrl || "", chatwootAccountId: whatsappConfig.chatwootAccountId || "", chatwootInboxId: whatsappConfig.chatwootInboxId || "", metaPhoneNumberId: whatsappConfig.metaPhoneNumberId || "", metaBusinessAccountId: whatsappConfig.metaBusinessAccountId || "", metaAccessTokenSecretRef: whatsappConfig.metaAccessTokenSecretRef || "", webhookVerifyTokenSecretRef: whatsappConfig.webhookVerifyTokenSecretRef || "", projectConfigurationApproved: Boolean(whatsappConfig.projectConfigurationApproved), commercialResponsibilityApproved: Boolean(whatsappConfig.commercialResponsibilityApproved), readinessApproved: Boolean(whatsappConfig.readinessApproved),
   }
 }
 
@@ -229,6 +252,8 @@ function buildPayload(form: EditForm, status: number, t: Translate): CreateAdmin
   const configJson =
     channelType === "wxwork_kf"
       ? JSON.stringify({ openKfId: form.openKfId.trim() })
+      : channelType === "whatsapp"
+        ? JSON.stringify({ projectKey: form.projectKey.trim(), chatwootCoreUrl: form.chatwootCoreUrl.trim(), chatwootAccountId: form.chatwootAccountId.trim(), chatwootInboxId: form.chatwootInboxId.trim(), metaPhoneNumberId: form.metaPhoneNumberId.trim(), metaBusinessAccountId: form.metaBusinessAccountId.trim(), metaAccessTokenSecretRef: form.metaAccessTokenSecretRef.trim(), webhookVerifyTokenSecretRef: form.webhookVerifyTokenSecretRef.trim(), projectConfigurationApproved: form.projectConfigurationApproved, commercialResponsibilityApproved: form.commercialResponsibilityApproved, readinessApproved: form.readinessApproved })
       : channelType === "wechat_mp"
         ? JSON.stringify(webLikeConfig)
         : JSON.stringify({
@@ -254,6 +279,7 @@ function isAgentWorkflowPublished(agent: AIAgent | undefined) {
 type ChannelFormBodyProps = Omit<ChannelFormDialogProps, "open">
 
 export function EditDialog({
+  whatsappOnly = false,
   open,
   saving,
   itemId,
@@ -266,6 +292,7 @@ export function EditDialog({
 
   return (
     <ChannelFormBody
+      whatsappOnly={whatsappOnly}
       key={itemId ? `edit-${itemId}` : "create"}
       itemId={itemId}
       saving={saving}
@@ -276,6 +303,7 @@ export function EditDialog({
 }
 
 function ChannelFormBody({
+  whatsappOnly = false,
   saving,
   itemId,
   onOpenChange,
@@ -283,7 +311,7 @@ function ChannelFormBody({
 }: ChannelFormBodyProps) {
   const t = useI18n()
   const formId = "channel-edit-form"
-  const emptyForm = useMemo(() => createEmptyForm(t), [t])
+  const emptyForm = useMemo(() => ({ ...createEmptyForm(t), ...(whatsappOnly ? { channelType: "whatsapp" as const } : {}) }), [t, whatsappOnly])
   const schema = useMemo(() => createSchema(t), [t])
   const resolver = useMemo(
     () =>
@@ -409,6 +437,7 @@ function ChannelFormBody({
     { value: "web", label: t("channel.typeWeb") },
     { value: "wechat_mp", label: t("channel.typeWechatMp") },
     { value: "wxwork_kf", label: t("channel.typeWxworkKf") },
+    { value: "whatsapp", label: t("channel.typeWhatsapp") },
   ] as const
   const widgetPositionOptions = [
     { value: "right", label: t("channel.positionRight") },
@@ -476,9 +505,10 @@ function ChannelFormBody({
     <ProjectDialog
       open={true}
       onOpenChange={onOpenChange}
-      title={itemId ? t("channel.editTitle") : t("channel.createTitle")}
+      title={whatsappOnly ? t("channel.whatsappConfigTitle") : itemId ? t("channel.editTitle") : t("channel.createTitle")}
       size="lg"
       allowFullscreen
+      bodyClassName="max-h-[calc(100dvh-10rem)] overflow-y-auto"
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -539,7 +569,7 @@ function ChannelFormBody({
               </FieldContent>
             </Field>
 
-            <Field data-invalid={!!errors.channelType}>
+            <Field hidden={whatsappOnly} data-invalid={!!errors.channelType}>
               <FieldLabel>{t("channel.channelType")}</FieldLabel>
               <FieldContent>
                 <Controller
@@ -569,7 +599,9 @@ function ChannelFormBody({
                   ? t("channel.configWxworkDescription")
                   : channelType === "wechat_mp"
                     ? t("channel.configWechatDescription")
-                    : t("channel.configWebDescription")}
+                    : channelType === "whatsapp"
+                      ? t("channel.whatsappConfigDescription")
+                      : t("channel.configWebDescription")}
               </div>
             </div>
 
@@ -599,6 +631,16 @@ function ChannelFormBody({
                   <FieldError errors={[errors.openKfId]} />
                 </FieldContent>
               </Field>
+            ) : null}
+
+            {channelType === "whatsapp" ? (
+              <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3">
+                <div className="text-sm font-medium">{t("channel.whatsappConfigTitle")}</div>
+                <div className="text-xs text-muted-foreground">{t("channel.whatsappConfigDescription")}</div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {(["projectKey", "metaPhoneNumberId", "metaBusinessAccountId", "metaAccessTokenSecretRef", "webhookVerifyTokenSecretRef"] as const).map((name) => <Field key={name}><FieldLabel>{t(`channel.${name}`)}</FieldLabel><FieldContent><Input {...register(name)} /></FieldContent></Field>)}
+                </div>
+              </div>
             ) : null}
 
             {channelType === "web" || channelType === "wechat_mp" ? (

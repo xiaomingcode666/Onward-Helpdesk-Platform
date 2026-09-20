@@ -317,6 +317,11 @@ func applyProjectConfigurationDB(sourceDB *gorm.DB, tenantID, versionID int64, o
 		if !report.Valid {
 			return &ProjectConfigValidationError{report}
 		}
+		if s.Environment == "production" {
+			if err := RequireApprovedRetentionPolicies(db, v); err != nil {
+				return errorsx.InvalidParam(err.Error())
+			}
+		}
 		if err := applyProjectRuntimeDB(db, result.Document, op); err != nil {
 			return err
 		}

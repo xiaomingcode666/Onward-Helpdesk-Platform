@@ -74,14 +74,14 @@ func resolveKnowledgeFallbackReply(aiAgent models.AIAgent) string {
 	case enums.AIAgentFallbackModeSuggestRetry:
 		return "当前知识库里没有找到足够明确的信息，你可以换个更具体的问法再试一次。"
 	default:
-		return "当前知识库暂无明确信息。"
+		return "当前没有找到已审核且仍有效的知识资料。"
 	}
 }
 
 func resolveKnowledgeHumanSupportFallback(aiAgent models.AIAgent) string {
 	base := strings.TrimSpace(resolveKnowledgeFallbackReply(aiAgent))
 	if strs.IsBlank(base) {
-		base = "当前知识库暂无明确信息。"
+		base = "当前没有找到已审核且仍有效的知识资料。"
 	}
 	return base
 }
@@ -89,7 +89,7 @@ func resolveKnowledgeHumanSupportFallback(aiAgent models.AIAgent) string {
 func buildKnowledgeRuntimeInstruction(answerMode enums.KnowledgeAnswerMode, fallbackReply string) string {
 	fallbackReply = strings.TrimSpace(fallbackReply)
 	if fallbackReply == "" {
-		fallbackReply = "当前知识库暂无明确信息。"
+		fallbackReply = "当前没有找到已审核且仍有效的知识资料。"
 	}
 	if answerMode == enums.KnowledgeAnswerModeAssist {
 		return "知识库回答约束：优先依据后续提供的知识片段回答，可以做轻度归纳，但不要编造片段中未提供的事实。回答中的具体事实、步骤、承诺、价格、时效、政策必须能被知识片段直接支持；若知识片段不足以直接支持答案，必须明确回复：" + fallbackReply
@@ -100,7 +100,7 @@ func buildKnowledgeRuntimeInstruction(answerMode enums.KnowledgeAnswerMode, fall
 func buildKnowledgeNoContextInstruction(fallbackReply string) string {
 	fallbackReply = strings.TrimSpace(fallbackReply)
 	if fallbackReply == "" {
-		fallbackReply = "当前知识库暂无明确信息。"
+		fallbackReply = "当前没有找到已审核且仍有效的知识资料。"
 	}
 	return "知识库检索状态：当前没有从知识库检索到可用资料。\n" +
 		"回复策略：\n" +
@@ -114,7 +114,7 @@ func buildKnowledgeNoContextInstruction(fallbackReply string) string {
 func buildKnowledgeRetrievalErrorInstruction(fallbackReply string) string {
 	fallbackReply = strings.TrimSpace(fallbackReply)
 	if fallbackReply == "" {
-		fallbackReply = "当前知识库暂无明确信息。"
+		fallbackReply = "当前没有找到已审核且仍有效的知识资料。"
 	}
 	return "知识库检索状态：知识库检索暂时不可用，当前没有可用的知识库资料。\n" +
 		"回复策略：\n" +

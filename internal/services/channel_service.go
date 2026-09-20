@@ -130,6 +130,11 @@ func (s *channelService) UpdateStatus(id int64, status int, operator *dto.AuthPr
 	if status != int(enums.StatusOk) && status != int(enums.StatusDisabled) {
 		return errorsx.InvalidParamI18n("error.e0254")
 	}
+	if item.ChannelType == enums.ChannelTypeWhatsApp && status == int(enums.StatusOk) {
+		if err := s.requireWhatsAppActivation(item.ConfigJSON); err != nil {
+			return err
+		}
+	}
 	return s.Updates(id, map[string]any{
 		"status":           status,
 		"update_user_id":   operator.UserID,
@@ -268,6 +273,35 @@ func (s *channelService) ParseWechatMPChannelConfig(raw string) (*dto.WechatMPCh
 	return cfg, nil
 }
 
+func (s *channelService) ParseWhatsAppChannelConfig(raw string) (*dto.WhatsAppChannelConfig, error) {
+	cfg := &dto.WhatsAppChannelConfig{}
+	if strings.TrimSpace(raw) != "" {
+		if err := json.Unmarshal([]byte(raw), cfg); err != nil {
+			return nil, err
+		}
+	}
+	cfg.ProjectKey = strings.TrimSpace(cfg.ProjectKey)
+	cfg.ChatwootCoreURL = strings.TrimRight(strings.TrimSpace(cfg.ChatwootCoreURL), "/")
+	cfg.ChatwootAccountID = strings.TrimSpace(cfg.ChatwootAccountID)
+	cfg.ChatwootInboxID = strings.TrimSpace(cfg.ChatwootInboxID)
+	cfg.MetaPhoneNumberID = strings.TrimSpace(cfg.MetaPhoneNumberID)
+	cfg.MetaBusinessAccountID = strings.TrimSpace(cfg.MetaBusinessAccountID)
+	cfg.MetaAccessTokenSecretRef = strings.TrimSpace(cfg.MetaAccessTokenSecretRef)
+	cfg.WebhookVerifyTokenSecretRef = strings.TrimSpace(cfg.WebhookVerifyTokenSecretRef)
+	return cfg, nil
+}
+
+func (s *channelService) requireWhatsAppActivation(raw string) error {
+	cfg, err := s.ParseWhatsAppChannelConfig(raw)
+	if err != nil {
+		return errorsx.InvalidParam("invalid WhatsApp configuration")
+	}
+	if cfg.ProjectKey == "" || cfg.MetaPhoneNumberID == "" || cfg.MetaBusinessAccountID == "" || cfg.MetaAccessTokenSecretRef == "" || cfg.WebhookVerifyTokenSecretRef == "" {
+		return errorsx.InvalidParam("WhatsApp requires project, Meta identifiers and secret references")
+	}
+	return nil
+}
+
 func (s *channelService) GetUserTokenSecret(channel *models.Channel) string {
 	if channel == nil {
 		return ""
@@ -370,6 +404,17 @@ func (s *channelService) GetEnabledWxWorkKFChannelByOpenKfID(openKfID string) *m
 	return nil
 }
 
+func (s *channelService) GetEnabledWhatsAppChannelByChannelID(channelID string) *models.Channel {
+	channelID = strings.TrimSpace(channelID)
+	if channelID == "" {
+		return nil
+	}
+	return s.FindOne(sqls.NewCnd().
+		Eq("channel_type", enums.ChannelTypeWhatsApp).
+		Eq("channel_id", channelID).
+		Eq("status", enums.StatusOk))
+}
+
 func (s *channelService) GetDefaultEnabledWebChannel() *models.Channel {
 	channels := s.Find(sqls.NewCnd().
 		Eq("channel_type", enums.ChannelTypeWeb).
@@ -398,7 +443,7 @@ func (s *channelService) GetEnabledChannel(ctx *gin.Context) *models.Channel {
 
 func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRequest) (*models.Channel, error) {
 	channelType := strings.TrimSpace(req.ChannelType)
-	if channelType != enums.ChannelTypeWeb && channelType != enums.ChannelTypeWechatMP && channelType != enums.ChannelTypeWxWorkKF {
+	if channelType != enums.ChannelTypeWeb && channelType != enums.ChannelTypeWechatMP && channelType != enums.ChannelTypeWxWorkKF && channelType != enums.ChannelTypeWhatsApp {
 		return nil, errorsx.InvalidParamI18n("error.e0250")
 	}
 	name := strings.TrimSpace(req.Name)
@@ -422,7 +467,6 @@ func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRe
 	if status != enums.StatusOk && status != enums.StatusDisabled {
 		return nil, errorsx.InvalidParamI18n("error.e0249")
 	}
-
 	channelID := ""
 	if id > 0 {
 		current := s.Get(id)
@@ -496,6 +540,25 @@ func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRe
 		if channel := s.GetEnabledWxWorkKFChannelByOpenKfID(cfg.OpenKfID); channel != nil && channel.ID != id {
 			return nil, errorsx.InvalidParamI18n("error.e0069")
 		}
+	case enums.ChannelTypeWhatsApp:
+		if channelID == "" {
+			channelID = strs.UUID()
+		}
+		if exists := s.Take("channel_id = ? AND status <> ? AND id <> ?", channelID, enums.StatusDeleted, id); exists != nil {
+			return nil, errorsx.InvalidParamI18n("error.e0248")
+		}
+		cfg, err := s.ParseWhatsAppChannelConfig(configJSON)
+		if err != nil {
+			return nil, errorsx.InvalidParam("invalid WhatsApp configuration")
+		}
+		if cfg.ProjectKey == "" || cfg.MetaPhoneNumberID == "" || cfg.MetaBusinessAccountID == "" || cfg.MetaAccessTokenSecretRef == "" || cfg.WebhookVerifyTokenSecretRef == "" {
+			return nil, errorsx.InvalidParam("WhatsApp requires project, Meta identifiers and secret references")
+		}
+		configBytes, err := json.Marshal(cfg)
+		if err != nil {
+			return nil, err
+		}
+		configJSON = string(configBytes)
 	}
 
 	return &models.Channel{

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"remotehelpdesk/internal/events"
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/config"
+	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/eventbus"
@@ -48,15 +50,22 @@ func (SLAPolicy) TableName() string {
 
 // SLAPauseRecord SLA 暂停记录
 type SLAPauseRecord struct {
-	ID        string     `gorm:"primaryKey;type:varchar(36)"`
-	TenantID  string     `gorm:"type:varchar(36);index;not null;default:''"`
-	TicketID  string     `gorm:"type:varchar(36);index;not null"`
-	Reason    string     `gorm:"type:varchar(32);not null;default:'';index"` // waiting_customer/waiting_parts/scheduled/on_hold
-	PausedAt  time.Time  `gorm:"type:timestamp;not null;index"`
-	ResumedAt *time.Time `gorm:"type:timestamp;index"`
-	Duration  int64      `gorm:"type:bigint;not null;default:0"` // 暂停时长（秒）
-	CreatedAt time.Time  `gorm:"type:timestamp;not null;index"`
-	UpdatedAt time.Time  `gorm:"type:timestamp;not null;index"`
+	ID             string     `gorm:"primaryKey;type:varchar(36)"`
+	TenantID       string     `gorm:"type:varchar(36);index;not null;default:''"`
+	TicketID       string     `gorm:"type:varchar(36);index;not null"`
+	Reason         string     `gorm:"type:varchar(32);not null;default:'';index"` // waiting_customer/waiting_parts/scheduled/on_hold
+	OwnerID        int64      `gorm:"type:bigint;not null;default:0;index" json:"owner_id"`
+	EffectiveAt    *time.Time `gorm:"type:timestamp;index" json:"effective_at,omitempty"`
+	Evidence       string     `gorm:"type:text;not null;default:''" json:"evidence"`
+	ApprovedBy     int64      `gorm:"type:bigint;not null;default:0;index" json:"approved_by"`
+	ApprovedByName string     `gorm:"type:varchar(128);not null;default:''" json:"approved_by_name"`
+	ApprovedAt     *time.Time `gorm:"type:timestamp;index" json:"approved_at,omitempty"`
+	ApprovalStatus string     `gorm:"type:varchar(20);not null;default:'approved';index" json:"approval_status"` // approved/rejected
+	PausedAt       time.Time  `gorm:"type:timestamp;not null;index"`
+	ResumedAt      *time.Time `gorm:"type:timestamp;index"`
+	Duration       int64      `gorm:"type:bigint;not null;default:0"` // 暂停时长（秒）
+	CreatedAt      time.Time  `gorm:"type:timestamp;not null;index"`
+	UpdatedAt      time.Time  `gorm:"type:timestamp;not null;index"`
 }
 
 func (SLAPauseRecord) TableName() string {
@@ -132,6 +141,20 @@ func newSLAService() *slaService {
 }
 
 type slaService struct{}
+
+// SLAPauseRequest contains the evidence and authorization context required to
+// pause an accountable SLA clock. Generic Pending is deliberately not a valid
+// reason; callers must select a specific, externally attributable wait state.
+type SLAPauseRequest struct {
+	Reason      string     `json:"reason"`
+	OwnerID     int64      `json:"ownerId"`
+	EffectiveAt *time.Time `json:"effectiveAt"`
+	Evidence    string     `json:"evidence"`
+}
+
+func canApproveSLAPause(op *dto.AuthPrincipal) bool {
+	return op != nil && (op.HasRole(EnterpriseRoleOwner) || op.HasRole(EnterpriseRoleAdmin) || op.HasRole(EnterpriseRoleServiceManager))
+}
 
 // CreateSLAPolicyInput 创建 SLA 策略的输入参数
 type CreateSLAPolicyInput struct {
@@ -536,45 +559,70 @@ func (s *slaService) addWorkingMinutes(from time.Time, minutes int, workDays []i
 	return t
 }
 
-// PauseSLA 暂停 SLA 计时
-// 当工单处于等待外部因素状态（等待客户、等待备件等）时调用此方法。
+// PauseSLA is retained only for source compatibility. New callers must use
+// PauseSLAForTenantWithApproval so every pause has an owner, evidence and an
+// approval subject.
 func (s *slaService) PauseSLA(ticketID, reason string) (*SLAPauseRecord, error) {
-	tenantID, err := s.resolveTicketTenant(ticketID)
+	return nil, errorsx.InvalidParam("governed SLA pause requires owner, evidence and approval")
+}
+
+// PauseSLAForTenant is retained only for source compatibility. It deliberately
+// refuses to create an ungoverned pause record.
+func (s *slaService) PauseSLAForTenant(tenantID, ticketID, reason string) (*SLAPauseRecord, error) {
+	return nil, errorsx.InvalidParam("governed SLA pause requires owner, evidence and approval")
+}
+
+// PauseSLAForTenantWithApproval is the HTTP-facing, governed pause path. It
+// requires a concrete reason, accountable owner, evidence, and an approval
+// subject. The approver is the authenticated operator; this keeps the legacy
+// service helper usable by historical callers without exposing a bypass route.
+func (s *slaService) PauseSLAForTenantWithApproval(tenantID, ticketID string, req SLAPauseRequest, op *dto.AuthPrincipal) (*SLAPauseRecord, error) {
+	if !canApproveSLAPause(op) {
+		return nil, errorsx.Forbidden("只有服务负责人、管理员或具备工单配置权限的主体可以批准暂停 SLA")
+	}
+	if tenantID == "" || ticketID == "" {
+		return nil, errorsx.InvalidParam("tenant_id and ticket_id are required")
+	}
+	if !isValidPauseReason(req.Reason) || req.Reason == "generic_pending" {
+		return nil, errorsx.InvalidParam("generic pending cannot pause accountable SLA clocks")
+	}
+	if strings.TrimSpace(req.Evidence) == "" {
+		return nil, errorsx.InvalidParam("evidence is required when pausing SLA")
+	}
+	ticket, err := s.getTicketForTenant(tenantID, ticketID)
 	if err != nil {
 		return nil, err
 	}
-	return s.PauseSLAForTenant(tenantID, ticketID, reason)
-}
-
-// PauseSLAForTenant pauses an owned ticket and treats duplicate requests as idempotent.
-func (s *slaService) PauseSLAForTenant(tenantID, ticketID, reason string) (*SLAPauseRecord, error) {
-	if tenantID == "" {
-		return nil, errorsx.InvalidParam("tenant_id is required")
+	ownerID := req.OwnerID
+	if ownerID <= 0 {
+		ownerID = ticket.CurrentAssigneeID
+		if ownerID <= 0 {
+			ownerID = ticket.CaseOwnerID
+		}
 	}
-	if ticketID == "" {
-		return nil, errorsx.InvalidParam("ticket_id is required")
+	if ownerID <= 0 {
+		return nil, errorsx.InvalidParam("owner_id is required when no ticket owner is assigned")
 	}
-	if !isValidPauseReason(reason) {
-		return nil, errorsx.InvalidParam("invalid pause reason: " + reason)
-	}
-
-	if _, err := s.getTicketForTenant(tenantID, ticketID); err != nil {
-		return nil, err
+	now := time.Now().UTC()
+	effectiveAt := now
+	if req.EffectiveAt != nil {
+		effectiveAt = req.EffectiveAt.UTC()
+		if effectiveAt.After(now.Add(time.Minute)) {
+			return nil, errorsx.InvalidParam("effective_at cannot be in the future")
+		}
 	}
 	if active := s.GetActivePauseForTenant(tenantID, ticketID); active != nil {
 		return active, nil
 	}
-
+	approvedAt := now
 	record := &SLAPauseRecord{
-		ID:        uuid.NewString(),
-		TenantID:  tenantID,
-		TicketID:  ticketID,
-		Reason:    reason,
-		PausedAt:  time.Now(),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID: uuid.NewString(), TenantID: tenantID, TicketID: ticketID,
+		Reason: req.Reason, OwnerID: ownerID, EffectiveAt: &effectiveAt,
+		Evidence: strings.TrimSpace(req.Evidence), ApprovedBy: op.UserID,
+		ApprovedByName: op.Username, ApprovedAt: &approvedAt,
+		ApprovalStatus: "approved", PausedAt: effectiveAt,
+		CreatedAt: now, UpdatedAt: now,
 	}
-
 	result := sqls.DB().Clauses(clause.OnConflict{DoNothing: true}).Create(record)
 	if result.Error != nil {
 		return nil, result.Error
@@ -584,6 +632,18 @@ func (s *slaService) PauseSLAForTenant(tenantID, ticketID, reason string) (*SLAP
 			return active, nil
 		}
 		return nil, errorsx.BusinessError(1, "unable to pause SLA")
+	}
+	if sqls.DB().Migrator().HasTable(&models.AuditLog{}) {
+		if auditErr := AuditService.RecordAudit(context.Background(), RecordAuditInput{
+			TenantID: ticket.TenantID, ActorID: strconv.FormatInt(op.UserID, 10), ActorType: "user",
+			Domain: "ticket", ResourceType: "sla_pause", ResourceID: record.ID, Action: "sla.pause.approved",
+			AfterState: map[string]any{
+				"ticket_id": ticket.ID, "reason_code": record.Reason, "owner_id": record.OwnerID,
+				"effective_at": effectiveAt, "evidence": record.Evidence, "approved_by": record.ApprovedBy,
+			},
+		}); auditErr != nil {
+			slog.Warn("SLA pause approval audit failed", "pause_id", record.ID, "error", auditErr)
+		}
 	}
 	return record, nil
 }

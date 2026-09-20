@@ -211,10 +211,11 @@ var (
 	PermissionAIConfigDelete = Permission{Name: "删除 AI 配置", Code: "aiConfig.delete", Type: "api", GroupName: "aiConfig", Method: "POST", APIPath: "/api/dashboard/ai-config/delete", SortNo: 1420}
 
 	// 知识库相关权限
-	PermissionKnowledgeBaseView   = Permission{Name: "查看知识库", Code: "knowledgeBase.view", Type: "api", GroupName: "knowledgeBase", Method: "ANY", APIPath: "/api/dashboard/knowledge-base/list", SortNo: 1410}
-	PermissionKnowledgeBaseCreate = Permission{Name: "创建知识库", Code: "knowledgeBase.create", Type: "api", GroupName: "knowledgeBase", Method: "POST", APIPath: "/api/dashboard/knowledge-base/create", SortNo: 1420}
-	PermissionKnowledgeBaseUpdate = Permission{Name: "更新知识库", Code: "knowledgeBase.update", Type: "api", GroupName: "knowledgeBase", Method: "POST", APIPath: "/api/dashboard/knowledge-base/update", SortNo: 1430}
-	PermissionKnowledgeBaseDelete = Permission{Name: "删除知识库", Code: "knowledgeBase.delete", Type: "api", GroupName: "knowledgeBase", Method: "POST", APIPath: "/api/dashboard/knowledge-base/delete", SortNo: 1440}
+	PermissionKnowledgeBaseView    = Permission{Name: "查看知识库", Code: "knowledgeBase.view", Type: "api", GroupName: "knowledgeBase", Method: "ANY", APIPath: "/api/dashboard/knowledge-base/list", SortNo: 1410}
+	PermissionKnowledgeBaseCreate  = Permission{Name: "创建知识库", Code: "knowledgeBase.create", Type: "api", GroupName: "knowledgeBase", Method: "POST", APIPath: "/api/dashboard/knowledge-base/create", SortNo: 1420}
+	PermissionKnowledgeBaseUpdate  = Permission{Name: "更新知识库", Code: "knowledgeBase.update", Type: "api", GroupName: "knowledgeBase", Method: "POST", APIPath: "/api/dashboard/knowledge-base/update", SortNo: 1430}
+	PermissionKnowledgeBaseDelete  = Permission{Name: "删除知识库", Code: "knowledgeBase.delete", Type: "api", GroupName: "knowledgeBase", Method: "POST", APIPath: "/api/dashboard/knowledge-base/delete", SortNo: 1440}
+	PermissionKnowledgeBasePublish = Permission{Name: "审核发布知识库", Code: "knowledgeBase.publish", Type: "api", GroupName: "knowledgeBase", Method: "POST", APIPath: "/api/enterprise/v1/knowledge/entries/:id/_publish", SortNo: 1450}
 
 	// 知识文档相关权限
 	PermissionKnowledgeDocumentView   = Permission{Name: "查看知识文档", Code: "knowledgeDocument.view", Type: "api", GroupName: "knowledgeDocument", Method: "ANY", APIPath: "/api/dashboard/knowledge-document/list", SortNo: 1510}
@@ -242,6 +243,7 @@ var (
 	PermissionDataBreachView       = Permission{Name: "查看数据泄露事件", Code: "dataBreach.view", Type: "api", GroupName: "privacy", Method: "GET", APIPath: "/api/enterprise/v1/gdpr/breach/list", SortNo: 1750}
 	PermissionDataBreachManage     = Permission{Name: "处理数据泄露事件", Code: "dataBreach.manage", Type: "api", GroupName: "privacy", Method: "POST", APIPath: "/api/enterprise/v1/gdpr/breach/report", SortNo: 1760}
 	PermissionDataRetentionView    = Permission{Name: "查看数据保留策略", Code: "dataRetention.view", Type: "api", GroupName: "privacy", Method: "GET", APIPath: "/api/enterprise/v1/gdpr/retention-policy", SortNo: 1770}
+	PermissionDataRetentionApprove = Permission{Name: "批准项目数据保留策略", Code: "dataRetention.approve", Type: "api", GroupName: "privacy", Method: "POST", APIPath: "/api/enterprise/v1/ticket-settings/configuration/retention", SortNo: 1771}
 
 	// 平台审计治理权限。
 	PermissionAuditRetentionManage = Permission{Name: "管理审计留存策略", Code: "audit.retention.manage", Type: "api", GroupName: "audit", Method: "POST", APIPath: "/api/platform/audit/retention", SortNo: 1780}
@@ -390,6 +392,7 @@ var Permissions = []Permission{
 	PermissionKnowledgeBaseCreate,
 	PermissionKnowledgeBaseUpdate,
 	PermissionKnowledgeBaseDelete,
+	PermissionKnowledgeBasePublish,
 	PermissionKnowledgeDocumentView,
 	PermissionKnowledgeDocumentCreate,
 	PermissionKnowledgeDocumentUpdate,
@@ -409,6 +412,7 @@ var Permissions = []Permission{
 	PermissionDataBreachView,
 	PermissionDataBreachManage,
 	PermissionDataRetentionView,
+	PermissionDataRetentionApprove,
 	PermissionAuditRetentionManage,
 	PermissionSystemIntroView,
 	PermissionSystemIntroCreate,

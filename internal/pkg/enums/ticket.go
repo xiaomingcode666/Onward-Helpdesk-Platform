@@ -5,17 +5,17 @@ type TicketStatus string
 type TicketProgressEventType string
 
 const (
-	TicketProgressEventCreated         TicketProgressEventType = "ticket_created"
-	TicketProgressEventAccepted        TicketProgressEventType = "ticket_accepted"
-	TicketProgressEventAssigned        TicketProgressEventType = "ticket_assigned"
-	TicketProgressEventProcessing      TicketProgressEventType = "ticket_processing"
-	TicketProgressEventEscalated       TicketProgressEventType = "ticket_escalated"
-	TicketProgressEventRepairCompleted TicketProgressEventType = "repair_completed"
-	TicketProgressEventClosed          TicketProgressEventType = "ticket_closed"
-	TicketProgressEventReopened        TicketProgressEventType = "ticket_reopened"
-	TicketProgressEventMeetingEnded    TicketProgressEventType = "meeting_ended"
+	TicketProgressEventCreated          TicketProgressEventType = "ticket_created"
+	TicketProgressEventAccepted         TicketProgressEventType = "ticket_accepted"
+	TicketProgressEventAssigned         TicketProgressEventType = "ticket_assigned"
+	TicketProgressEventProcessing       TicketProgressEventType = "ticket_processing"
+	TicketProgressEventEscalated        TicketProgressEventType = "ticket_escalated"
+	TicketProgressEventRepairCompleted  TicketProgressEventType = "repair_completed"
+	TicketProgressEventClosed           TicketProgressEventType = "ticket_closed"
+	TicketProgressEventReopened         TicketProgressEventType = "ticket_reopened"
+	TicketProgressEventMeetingEnded     TicketProgressEventType = "meeting_ended"
 	TicketProgressEventSupportReadiness TicketProgressEventType = "support_readiness"
-	TicketProgressEventProgress        TicketProgressEventType = "progress"
+	TicketProgressEventProgress         TicketProgressEventType = "progress"
 )
 
 const (

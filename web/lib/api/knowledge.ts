@@ -7,6 +7,8 @@
 // PATCH  /api/enterprise/v1/knowledge/entries/{id}         — update entry
 // POST   /api/enterprise/v1/knowledge/entries/{id}/_submit — submit for review
 // GET    /api/enterprise/v1/knowledge/entries/{id}/versions — version history
+// Tenant uploaded documents use the same review lifecycle through the
+// /knowledge-bases/{id}/documents/{documentId}/_* endpoints below.
 // ============================================================
 
 import { apiDelete, apiGet, apiPost, apiPatch, listQueryToParams, buildFilterQuery } from "@/lib/api/client"
@@ -435,6 +437,18 @@ export async function reprocessTenantKnowledgeDocument(
   documentId: number,
 ): Promise<ApiResponse<ProductKnowledgeDocumentFile>> {
   return apiPost<ProductKnowledgeDocumentFile>(`/knowledge-bases/${knowledgeBaseId}/documents/${documentId}/_reprocess`)
+}
+
+export async function submitTenantKnowledgeDocument(knowledgeBaseId: number, documentId: number) {
+  return apiPost<ProductKnowledgeDocumentFile>(`/knowledge-bases/${knowledgeBaseId}/documents/${documentId}/_submit`)
+}
+
+export async function publishTenantKnowledgeDocument(knowledgeBaseId: number, documentId: number) {
+  return apiPost<ProductKnowledgeDocumentFile>(`/knowledge-bases/${knowledgeBaseId}/documents/${documentId}/_publish`)
+}
+
+export async function deprecateTenantKnowledgeDocument(knowledgeBaseId: number, documentId: number) {
+  return apiPost<ProductKnowledgeDocumentFile>(`/knowledge-bases/${knowledgeBaseId}/documents/${documentId}/_deprecate`)
 }
 
 export async function deleteTenantKnowledgeDocument(
