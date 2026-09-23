@@ -5714,7 +5714,7 @@
     "columns": { "ticket": "Ticket", "reasons": "Reasons", "priority": "Priority", "ticketStatus": "Ticket status", "assignee": "Assignee", "sampledAt": "Sampled at", "qaStatus": "Review status", "actions": "Actions" },
     "reasons": { "random": "Random", "high_priority": "High priority", "new_agent": "New agent", "complaint": "Complaint", "reopened": "Reopened", "risk": "Risk ticket" },
     "status": { "pending": "Pending", "in_progress": "In progress", "completed": "Completed" },
-    "actions": { "generate": "Generate samples", "refresh": "Refresh", "start": "Start review", "complete": "Complete review", "save": "Save", "cancel": "Cancel" },
+    "actions": { "generate": "Generate samples", "refresh": "Refresh", "start": "Start review", "review": "Quality review", "complete": "Complete review", "save": "Save", "cancel": "Cancel" },
     "completeModal": { "title": "Complete quality review", "placeholder": "Record the review conclusion or issue" },
     "messages": { "generated": "Generated {count} sample records" },
     "errors": { "load": "Could not load quality samples", "generate": "Could not generate quality samples", "update": "Could not update sample status" },

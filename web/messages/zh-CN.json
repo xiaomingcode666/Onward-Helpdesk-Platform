@@ -5714,7 +5714,7 @@
     "columns": { "ticket": "工单", "reasons": "抽检原因", "priority": "优先级", "ticketStatus": "工单状态", "assignee": "负责人", "sampledAt": "抽取时间", "qaStatus": "检查状态", "actions": "操作" },
     "reasons": { "random": "随机抽取", "high_priority": "高优先级", "new_agent": "新客服", "complaint": "客户投诉", "reopened": "重新打开", "risk": "风险工单" },
     "status": { "pending": "待检查", "in_progress": "检查中", "completed": "已完成" },
-    "actions": { "generate": "生成本期抽检", "refresh": "刷新", "start": "开始检查", "complete": "完成检查", "save": "保存", "cancel": "取消" },
+    "actions": { "generate": "生成本期抽检", "refresh": "刷新", "start": "开始检查", "review": "质量评估", "complete": "完成检查", "save": "保存", "cancel": "取消" },
     "completeModal": { "title": "完成质量检查", "placeholder": "记录检查结论或问题" },
     "messages": { "generated": "已生成 {count} 条抽检记录" },
     "errors": { "load": "加载抽检记录失败", "generate": "生成抽检记录失败", "update": "更新抽检状态失败" },

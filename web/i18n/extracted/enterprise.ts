@@ -482,7 +482,8 @@ export const enterpriseMessages = {
         "sectionTabs": {
           "overview": "指标概览",
           "insights": "问题洞察",
-          "details": "明细列表"
+          "details": "明细列表",
+          "quality": "质量抽检"
         },
         "tableFilterTabs": {
           "all": "全部",
@@ -2295,7 +2296,8 @@ export const enterpriseMessages = {
         "sectionTabs": {
           "overview": "Metric overview",
           "insights": "Issue insights",
-          "details": "Detail list"
+          "details": "Detail list",
+          "quality": "Quality sampling"
         },
         "tableFilterTabs": {
           "all": "All",
@@ -4108,7 +4110,8 @@ export const enterpriseMessages = {
         "sectionTabs": {
           "overview": "Resumen de metricas",
           "insights": "Analisis de incidencias",
-          "details": "Lista detallada"
+          "details": "Lista detallada",
+          "quality": "Muestreo de calidad"
         },
         "tableFilterTabs": {
           "all": "Todo",

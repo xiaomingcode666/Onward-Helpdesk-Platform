@@ -2,6 +2,7 @@
 
 import { translateCurrentMessage } from "@/i18n/messages"
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
+import { useSearchParams } from "next/navigation"
 import {
   AlertCircleIcon,
   DownloadIcon,
@@ -40,6 +41,7 @@ import {
 import { fetchTickets, type TicketListResponse } from "@/lib/api/enterprise-tickets"
 import type { TicketListItem } from "@/lib/api/types"
 import { cn } from "@/lib/utils"
+import { TicketQualityContent } from "@/app/enterprise/ticket-quality/page"
 
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
@@ -57,7 +59,7 @@ function ee(key: string, values?: Record<string, unknown>) {
 }
 
 type ReportRole = "admin" | "engineer" | "supplier"
-type ReportSectionTab = "overview" | "insights" | "details"
+type ReportSectionTab = "overview" | "insights" | "details" | "quality"
 type TicketFilter = "all" | "processing" | "done"
 type Tone = "good" | "info" | "warn" | "bad" | "slate"
 
@@ -95,6 +97,7 @@ const sectionTabs: Array<{ key: ReportSectionTab; labelKey: string }> = [
   { key: "overview", labelKey: "reports.sectionTabs.overview" },
   { key: "insights", labelKey: "reports.sectionTabs.insights" },
   { key: "details", labelKey: "reports.sectionTabs.details" },
+  { key: "quality", labelKey: "reports.sectionTabs.quality" },
 ]
 
 const tableFilterTabs: Array<{ key: TicketFilter; labelKey: string }> = [
@@ -903,8 +906,13 @@ function ReportTableFrame({
 }
 
 export default function EnterpriseReportsPage() {
+  const searchParams = useSearchParams()
   const [role, setRole] = useState<ReportRole>("admin")
   const [sectionTab, setSectionTab] = useState<ReportSectionTab>("overview")
+
+  useEffect(() => {
+    if (searchParams.get("section") === "quality") setSectionTab("quality")
+  }, [searchParams])
   const [filter, setFilter] = useState<TicketFilter>("all")
   const [periodKey, setPeriodKey] = useState<DateRangeKey>("current_month")
   const [query, setQuery] = useState("")
@@ -1108,6 +1116,8 @@ export default function EnterpriseReportsPage() {
               <ReportsTable data={data} query={query} role={role} />
             </section>
           ) : null}
+
+          {sectionTab === "quality" ? <TicketQualityContent embedded /> : null}
         </div>
       )}
     </PageShell>

@@ -414,6 +414,13 @@ export interface TicketQualityReview {
   total_score: number
   max_score: number
   result: string
+  outcome: string
+  score: number
+  defect_codes: string[]
+  evidence: string
+  dispute_status: "none" | "open" | "resolved" | string
+  dispute_note: string
+  coaching_action: string
   remark: string
   reviewer_id: number
   reviewed_at: string
@@ -429,7 +436,16 @@ export async function fetchTicketQualityReviews(ticketId: number): Promise<ApiRe
 
 export async function createTicketQualityReview(
   ticketId: number,
-  payload: { answers: Record<string, number>; remark: string },
+  payload: {
+    answers: Record<string, number>
+    remark: string
+    defect_codes: string[]
+    evidence: string
+    dispute_status: string
+    dispute_note: string
+    outcome?: string
+    coaching_action: string
+  },
 ): Promise<ApiResponse<TicketQualityReview>> {
   return apiPost<TicketQualityReview>(`/tickets/${ticketId}/quality-reviews`, payload)
 }

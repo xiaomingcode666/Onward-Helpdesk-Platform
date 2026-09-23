@@ -699,6 +699,7 @@ func registerEnterpriseTicketRoutes(group *gin.RouterGroup) {
 	group.GET("/tickets/customer-options", require(constants.PermissionTicketCreate), enterprise.TicketCustomerOptions)
 	group.POST("/tickets/customer-invitation-drafts", require(constants.PermissionTicketCreate), enterprise.TicketCustomerInvitationDraftCreate)
 	group.GET("/tickets/summary", require(constants.PermissionTicketView), enterprise.TicketSummary)
+	group.GET("/ticket-quality/analysis", require(constants.PermissionTicketView), enterprise.TicketQualityAnalysisGet)
 	group.GET("/ticket-quality/scorecard/active", require(constants.PermissionTicketView), enterprise.TicketQualityScorecardActive)
 	group.POST("/ticket-quality/scorecard/versions", require(constants.PermissionTicketUpdate), enterprise.TicketQualityScorecardVersionCreate)
 	group.POST("/ticket-quality/scorecard/versions/:id/publish", require(constants.PermissionTicketUpdate), enterprise.TicketQualityScorecardVersionPublish)
