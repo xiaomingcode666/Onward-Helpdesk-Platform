@@ -479,8 +479,8 @@ func TestProductAIAgentEnsureReplacesUnsafePlatformWorkflowRelease(t *testing.T)
 	if old == nil || old.DeploymentStatus != models.AIAgentReleaseDeploymentRetired {
 		t.Fatalf("unsafe release was not retired: %+v", old)
 	}
-	if defaultAfterSalesWorkflowAutoHandoffOnKnowledgeFailure(currentVersion) {
-		t.Fatal("current platform default workflow still auto-handoffs on knowledge failure")
+	if defaultAfterSalesWorkflowAutoHandoffOnExecutionFailure(currentVersion) {
+		t.Fatal("current platform default workflow still auto-handoffs on execution failure")
 	}
 }
 
@@ -488,7 +488,7 @@ func unsafeAfterSalesWorkflowDefinitionForTest(t *testing.T) dsl.Definition {
 	t.Helper()
 	definition := AIWorkflowService.DefaultAgentWorkflowDefinition()
 	for i := range definition.Nodes {
-		if definition.Nodes[i].ID != "answerability_route_1" {
+		if definition.Nodes[i].ID != "diagnosis_failure_route_1" {
 			continue
 		}
 		config := dsl.ConditionConfig{}
@@ -500,7 +500,7 @@ func unsafeAfterSalesWorkflowDefinitionForTest(t *testing.T) dsl.Definition {
 			Name:         "转人工处理",
 			TargetNodeID: "handoff_1",
 			Condition: &dsl.Condition{
-				Left:     &dsl.VariableSelector{NodeID: "service_access_1", Field: "allowHumanHandoff"},
+				Left:     &dsl.VariableSelector{NodeID: "answerability_1", Field: "answerability"},
 				Operator: "is_true",
 			},
 		})
@@ -511,8 +511,8 @@ func unsafeAfterSalesWorkflowDefinitionForTest(t *testing.T) dsl.Definition {
 		definition.Nodes[i].Config = raw
 	}
 	definition.Edges = append(definition.Edges, dsl.Edge{
-		ID:     "edge_answerability_handoff_unsafe",
-		Source: "answerability_route_1",
+		ID:     "edge_diagnosis_failure_handoff_unsafe",
+		Source: "diagnosis_failure_route_1",
 		Target: "handoff_1",
 	})
 	return definition

@@ -115,17 +115,14 @@ func TestRelayoutPlatformDefaultHandoffWorkflowKeepsAIFallbackPathForward(t *tes
 	if err := json.Unmarshal(answerabilityRoute.Config, &answerabilityConfig); err != nil {
 		t.Fatalf("unmarshal answerability route config: %v", err)
 	}
-	foundSafeFallback := false
+	foundLowConfidenceHandoff := false
 	for _, branch := range answerabilityConfig.Branches {
-		if branch.TargetNodeID == "handoff_1" {
-			t.Fatal("unanswerable diagnosis must not automatically hand off")
-		}
-		if branch.Default && branch.TargetNodeID == "diagnostic_safe_reply_1" {
-			foundSafeFallback = true
+		if branch.Default && branch.TargetNodeID == "handoff_1" {
+			foundLowConfidenceHandoff = true
 		}
 	}
-	if !foundSafeFallback {
-		t.Fatal("answerability must use the safe AI fallback when knowledge is insufficient")
+	if !foundLowConfidenceHandoff {
+		t.Fatal("unanswerable diagnosis must hand off to a human")
 	}
 	var policyConfig dsl.ConditionConfig
 	if err := json.Unmarshal(policyRoute.Config, &policyConfig); err != nil {

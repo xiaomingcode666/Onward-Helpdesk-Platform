@@ -326,7 +326,7 @@ func (s *productAIAgentService) ensureProductAgentManagedSafetyReleaseDB(agentID
 		if !s.productActiveReleaseNeedsSafetyReplacement(ctx.Tx, agent) {
 			return nil
 		}
-		if defaultAfterSalesWorkflowAutoHandoffOnKnowledgeFailure(version) {
+		if defaultAfterSalesWorkflowAutoHandoffOnExecutionFailure(version) {
 			return errorsx.InvalidParam("platform default aftersales workflow still allows automatic handoff on diagnosis failure")
 		}
 		definition := dsl.Definition{}
@@ -405,7 +405,7 @@ func (s *productAIAgentService) productActiveReleaseNeedsSafetyReplacement(db *g
 		activeVersion.WorkflowID != activeWorkflow.ID {
 		return false
 	}
-	return defaultAfterSalesWorkflowAutoHandoffOnKnowledgeFailure(activeVersion)
+	return defaultAfterSalesWorkflowAutoHandoffOnExecutionFailure(activeVersion)
 }
 
 func (s *productAIAgentService) activateProductManagedReleaseDB(db *gorm.DB, agent *models.AIAgent, release *models.AIAgentRelease, now time.Time, reviewComment string, operator *dto.AuthPrincipal) error {
@@ -462,7 +462,7 @@ func (s *productAIAgentService) activateProductManagedReleaseDB(db *gorm.DB, age
 	})
 }
 
-func defaultAfterSalesWorkflowAutoHandoffOnKnowledgeFailure(version *models.AIWorkflowVersion) bool {
+func defaultAfterSalesWorkflowAutoHandoffOnExecutionFailure(version *models.AIWorkflowVersion) bool {
 	if version == nil || strings.TrimSpace(version.Definition) == "" {
 		return true
 	}
@@ -470,10 +470,7 @@ func defaultAfterSalesWorkflowAutoHandoffOnKnowledgeFailure(version *models.AIWo
 	if err := json.Unmarshal([]byte(version.Definition), &definition); err != nil {
 		return true
 	}
-	unsafeSources := map[string]bool{
-		"answerability_route_1":     true,
-		"diagnosis_failure_route_1": true,
-	}
+	unsafeSources := map[string]bool{"diagnosis_failure_route_1": true}
 	for _, node := range definition.Nodes {
 		if !unsafeSources[node.ID] || node.Type != "condition" {
 			continue

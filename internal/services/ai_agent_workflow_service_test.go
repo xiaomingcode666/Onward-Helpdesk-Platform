@@ -99,8 +99,7 @@ func TestAIAgentServiceCreatesDefaultWorkflow(t *testing.T) {
 	assertConditionBranchToNodeType(t, stored, "policy_route_1", workflowregistry.NodeTypeHandoffToHuman, "eq", "handoff_to_human")
 	assertConditionBranchToNodeType(t, stored, "policy_route_1", workflowregistry.NodeTypePrepareTicketDraft, "eq", "prepare_ticket")
 	assertConditionBranchToNodeID(t, stored, "answerability_route_1", "reply_1", "eq", "answerable")
-	assertConditionRouteExcludesNodeID(t, stored, "answerability_route_1", "handoff_1")
-	assertDefaultBranchToNodeID(t, stored, "answerability_route_1", "diagnostic_safe_reply_1")
+	assertDefaultBranchToNodeID(t, stored, "answerability_route_1", "handoff_1")
 	if !workflowEdgeExists(stored, "create_ticket_1", "ticket_result_reply_1") {
 		t.Fatalf("expected create_ticket to flow into a customer-visible result reply")
 	}
@@ -173,7 +172,7 @@ func TestAIWorkflowServiceDefaultAgentWorkflowDefinitionIsValid(t *testing.T) {
 	if !workflowHasNodeType(definition, workflowregistry.NodeTypeCreateTicket) {
 		t.Fatalf("expected default workflow to include ticket creation node")
 	}
-	assertDefaultBranchToNodeID(t, definition, "answerability_route_1", "diagnostic_safe_reply_1")
+	assertDefaultBranchToNodeID(t, definition, "answerability_route_1", "handoff_1")
 	assertConditionBranchToNodeID(t, definition, "policy_route_1", "handoff_1", "eq", "handoff_to_human")
 	for nodeID, targetID := range map[string]string{
 		"entry_context_1":  "quick_fallback_reply_1",
@@ -598,15 +597,6 @@ func assertDefaultBranchToNodeID(t *testing.T, def dsl.Definition, sourceID stri
 		}
 	}
 	t.Fatalf("expected default branch from %s to %s", sourceID, targetID)
-}
-
-func assertConditionRouteExcludesNodeID(t *testing.T, def dsl.Definition, sourceID string, targetID string) {
-	t.Helper()
-	for _, branch := range conditionBranches(t, def, sourceID) {
-		if branch.TargetNodeID == targetID {
-			t.Fatalf("condition route %s must not target %s", sourceID, targetID)
-		}
-	}
 }
 
 func conditionBranches(t *testing.T, def dsl.Definition, nodeID string) []dsl.ConditionBranch {
