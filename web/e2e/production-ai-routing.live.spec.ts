@@ -561,19 +561,17 @@ test("正式客户链路覆盖默认 Agent、两类 Workflow、多产品与同�
       collaborationConversation,
       collaboration,
       "E2E_UNKNOWN_NO_KNOWLEDGE：设备出现量子相位漂移，知识库没有答案，请继续处理。",
-      "diagnostic_safe_reply_1",
+      "handoff_1",
     )
-    expect(collaborationUnknown.detail.humanHandling?.handoffOccurred ?? false).toBe(false)
-    expect(collaborationUnknown.detail.nodes.some((node) => node.nodeType === "handoff_to_human")).toBe(false)
+    expect(collaborationUnknown.detail.humanHandling?.handoffOccurred).toBe(true)
+    expect(collaborationUnknown.detail.nodes.some((node) => node.nodeType === "handoff_to_human")).toBe(true)
     await waitForWorkflowReply(
       request,
       customerSession,
       collaborationConversation.id,
       collaborationUnknown.message.id,
-      /暂时无法|不足|转人工|不会自动转人工或创建工单/,
+      /正在为你接入人工|转人工/,
     )
-    await expectTicketCount(request, adminSession, collaborationConversation.id, 0)
-    await requestHuman(request, customerSession, collaborationConversation.id, true)
     await expectTicketCount(request, adminSession, collaborationConversation.id, 1)
 
     const secondaryConversation = await createFreshRouteConversation(request, customerSession, adminSession, collaborationSecondary)
