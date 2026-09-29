@@ -73,7 +73,7 @@ func (s *knowledgeDocumentService) UploadEnterpriseTenantDocument(
 	}
 	document := &models.KnowledgeDocument{
 		TenantID: tenantID, KnowledgeBaseID: knowledgeBaseID,
-		Title: firstNonBlank(strings.TrimSpace(file.Filename), fmt.Sprintf("Knowledge document %d", asset.ID)),
+		Title:       firstNonBlank(strings.TrimSpace(file.Filename), fmt.Sprintf("Knowledge document %d", asset.ID)),
 		ContentType: enums.KnowledgeDocumentContentTypeMarkdown, Content: strings.TrimSpace(content),
 		SourceAssetID: asset.ID, SourceType: "uploaded_document", SourceReferenceID: asset.ID,
 		ReviewStatus: "draft", Language: "default", TagsJSON: "[]", FaultCodesJSON: "[]",
