@@ -288,6 +288,7 @@ function resolveMessageTranslationTarget(content: string, selectedTarget: string
 }
 
 type WorkbenchAttachment = {
+  key: string
   label: string
   desc: string
   status: string
@@ -3675,7 +3676,7 @@ function WorkbenchContextPane({
             <div className="space-y-2">
               {detail.attachments.map((attachment) => (
                 <ContextRow
-                  key={`${attachment.label}-${attachment.desc}`}
+                  key={attachment.key}
                   label={attachment.label}
                   value={attachment.desc}
                   badge={attachment.status}
@@ -4834,6 +4835,7 @@ function buildAggregateAttachments(assets: AssetRefDTO[] | undefined): Workbench
     return []
   }
   return assets.map((asset) => ({
+    key: `asset-${asset.id}`,
     label: asset.file_type || ee("ticketWorkbench.text161"),
     desc: asset.file_name,
     status: ee("ticketWorkbench.text303"),

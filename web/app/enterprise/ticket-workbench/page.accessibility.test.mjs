@@ -36,6 +36,13 @@ test("enterprise ticket workbench visible textareas have explicit accessible nam
   }
 })
 
+test("enterprise ticket workbench keys duplicate filenames by asset identity", () => {
+  assert.match(enterpriseSource, /type WorkbenchAttachment = \{\s*key: string/)
+  assert.match(enterpriseSource, /key=\{attachment\.key\}/)
+  assert.match(enterpriseSource, /key: `asset-\$\{asset\.id\}`/)
+  assert.doesNotMatch(enterpriseSource, /key=\{`\$\{attachment\.label\}-\$\{attachment\.desc\}`\}/)
+})
+
 test("enterprise ticket workbench uses contextual loading skeletons and terse service labels", () => {
   assert.match(enterpriseSource, /import \{ Skeleton \} from "@\/components\/ui\/skeleton"/)
   assert.match(enterpriseSource, /role="status"/)
