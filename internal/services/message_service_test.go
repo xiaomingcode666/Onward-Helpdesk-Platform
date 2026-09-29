@@ -277,6 +277,7 @@ func setupMessageWelcomeTestDB(t *testing.T) *gorm.DB {
 		&models.ProductServiceProfile{},
 		&models.ServiceCode{},
 		&models.CustomerDeviceBinding{},
+		&models.Ticket{},
 		&models.Message{},
 		&models.AIReplyJob{},
 	); err != nil {

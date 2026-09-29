@@ -247,7 +247,7 @@ func TestProjectConfigurationDeploymentRequiresPinnedProduction(t *testing.T) {
 
 func TestProjectConfigurationDeploymentActivation(t *testing.T) {
 	t.Setenv("RHD_BOOTSTRAP_ADMIN_PASSWORD", "Configuration-test-only-2026!")
-	t.Setenv("RHD_PROJECT_ENVIRONMENT", "production")
+	t.Setenv("RHD_PROJECT_ENVIRONMENT", "staging")
 	t.Setenv("RHD_PROJECT_CONFIG_FILE", "")
 	t.Setenv("RHD_PROJECT_SECRET_DIR", "")
 	setupTicketTestDB(t)
@@ -257,7 +257,7 @@ func TestProjectConfigurationDeploymentActivation(t *testing.T) {
 	op.Permissions = []string{constants.PermissionTicketUpdate.Code}
 	view, err := services.GetProjectConfiguration(tenant.ID)
 	if err != nil || !view.DeploymentManaged {
-		t.Fatalf("production not marked deployment managed: %v", err)
+		t.Fatalf("staging not marked deployment managed: %v", err)
 	}
 	save := func(base int64, key string) *services.ProjectConfigVersion {
 		t.Helper()
@@ -295,7 +295,7 @@ func TestProjectConfigurationDeploymentActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := services.InitializeProjectConfigurationVersion(tenant.ID, v2.ID); err == nil {
-		t.Fatal("initializer replaced existing production configuration")
+		t.Fatal("initializer replaced existing deployment configuration")
 	}
 	writeBundle(v2)
 	if err := services.VerifyProjectConfigurationDeployment(); err == nil {
@@ -315,11 +315,11 @@ func TestProjectConfigurationDeploymentActivation(t *testing.T) {
 		t.Fatal("cross tenant deployment accepted")
 	}
 	t.Setenv("RHD_PROJECT_CONFIG_TENANT_ID", fmt.Sprint(tenant.ID))
-	t.Setenv("RHD_PROJECT_ENVIRONMENT", "staging")
+	t.Setenv("RHD_PROJECT_ENVIRONMENT", "production")
 	if err := services.ApplyProjectConfigurationDeployment(); err == nil {
 		t.Fatal("wrong environment deployment accepted")
 	}
-	t.Setenv("RHD_PROJECT_ENVIRONMENT", "production")
+	t.Setenv("RHD_PROJECT_ENVIRONMENT", "staging")
 	for i := 0; i < 2; i++ {
 		if err := services.ApplyProjectConfigurationDeployment(); err != nil {
 			t.Fatal(err)

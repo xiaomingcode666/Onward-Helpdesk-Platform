@@ -89,6 +89,7 @@ func (s *ticketLifecycleService) accept(ticketID int64, assigneeID int64, operat
 		if err := requireTicketTenantAccess(ticket, operator); err != nil {
 			return err
 		}
+		originalAssigneeID := ticket.CurrentAssigneeID
 		knowledgeSupport := TenantCapabilityService.KnowledgeSupportDB(ctx.Tx, ticket.TenantID)
 		if assigneeID > 0 && assigneeID != operator.UserID {
 			return errorsx.Forbidden("operators can only accept tickets for themselves")
@@ -239,7 +240,7 @@ func (s *ticketLifecycleService) accept(ticketID int64, assigneeID int64, operat
 		acceptedAssigneeID = effectiveAssigneeID
 		content := "受理工单"
 		if takingOver {
-			previousAssigneeID = ticket.CurrentAssigneeID
+			previousAssigneeID = originalAssigneeID
 			content = "同产品维修组成员接管并受理"
 			if knowledgeSupport {
 				content = "技术支持组成员接管并受理"
@@ -277,7 +278,7 @@ func (s *ticketLifecycleService) accept(ticketID int64, assigneeID int64, operat
 			input.RiskLevel = models.RiskLevelLow
 			input.BeforeState = map[string]any{
 				"status":           ticket.Status,
-				"assigneeId":       ticket.CurrentAssigneeID,
+				"assigneeId":       originalAssigneeID,
 				"acceptDeadlineAt": ticket.AcceptDeadlineAt,
 			}
 			afterState := map[string]any{
