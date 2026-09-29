@@ -156,6 +156,16 @@ func checkProjectDeploymentIdentityDB(db *gorm.DB, id *deploymentidentity.Identi
 	if conflicting > 0 {
 		return fmt.Errorf("未绑定实例的数据库已有其他公司或环境的生效配置，不能直接接管；请核对项目并先迁移到独立数据库")
 	}
+	if db.Migrator().HasTable(&models.ProjectConfigurationVersion{}) {
+		if err := db.Model(&models.ProjectConfigurationVersion{}).
+			Where("tenant_id <> ? OR environment <> ?", id.TenantID, id.Environment).
+			Count(&conflicting).Error; err != nil {
+			return err
+		}
+		if conflicting > 0 {
+			return fmt.Errorf("未绑定实例的数据库已有其他公司或环境的配置版本，不能直接接管；请核对项目并先迁移到独立数据库")
+		}
+	}
 	return nil
 }
 
