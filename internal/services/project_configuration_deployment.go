@@ -206,6 +206,32 @@ func InitializeProjectConfigurationDocumentWithOptions(doc projectconfig.Documen
 		if err != nil {
 			return err
 		}
+		if state.ActiveVersionID == 0 {
+			var pending models.ProjectConfigurationVersion
+			if err := db.Where("tenant_id = ? AND environment = ? AND request_key LIKE ?", doc.TenantID, doc.Environment, "initial:%").Order("id ASC").Limit(1).Find(&pending).Error; err != nil {
+				return err
+			}
+			if pending.ID > 0 {
+				parsed, err := decodeProjectVersion(pending)
+				if err != nil {
+					return err
+				}
+				if parsed.Digest != projectconfig.Digest(doc) || (options.ExistingVersionID > 0 && options.ExistingVersionID != pending.ID) {
+					return fmt.Errorf("已有待审批初始配置与本次初始化不一致，不会修改公司或覆盖文件")
+				}
+				if err := ensureDeploymentAdministratorDB(db, doc.TenantID, options.Administrator, op); err != nil {
+					return err
+				}
+				if err := bindProjectDeploymentIdentityDB(db, id); err != nil {
+					return err
+				}
+				result = &parsed
+				return nil
+			}
+			if options.ExistingVersionID > 0 {
+				return fmt.Errorf("已有输出配置在数据库中不存在，不会修改公司或覆盖文件")
+			}
+		}
 		if options.ExistingVersionID > 0 && options.ExistingVersionID != state.ActiveVersionID {
 			return fmt.Errorf("已有输出配置不是此数据库的当前生效版本，不会修改公司或覆盖文件")
 		}

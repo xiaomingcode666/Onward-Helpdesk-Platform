@@ -17,7 +17,7 @@ import (
 
 func TestInitializeProjectConfigurationIsScopedAndNonDestructive(t *testing.T) {
 	t.Setenv("RHD_BOOTSTRAP_ADMIN_PASSWORD", "Configuration-test-only-2026!")
-	t.Setenv("RHD_PROJECT_ENVIRONMENT", "production")
+	t.Setenv("RHD_PROJECT_ENVIRONMENT", "staging")
 	t.Setenv("RHD_PROJECT_SECRET_DIR", "")
 	previous := config.CurrentOrDefault()
 	t.Cleanup(func() { config.SetCurrent(&previous) })
@@ -29,7 +29,7 @@ func TestInitializeProjectConfigurationIsScopedAndNonDestructive(t *testing.T) {
 	if err := os.WriteFile(configPath, []byte(settings), 0600); err != nil {
 		t.Fatal(err)
 	}
-	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 1, Environment: "production", Projects: []projectconfig.Project{}, SecretRefs: []string{}}
+	doc := projectconfig.Document{SchemaVersion: 1, TenantID: 1, Environment: "staging", Projects: []projectconfig.Project{}, SecretRefs: []string{}}
 	writeInput := func() {
 		b, _ := json.Marshal(doc)
 		if err := os.WriteFile(inputPath, b, 0600); err != nil {
@@ -39,10 +39,10 @@ func TestInitializeProjectConfigurationIsScopedAndNonDestructive(t *testing.T) {
 	writeInput()
 	outputPath := filepath.Join(dir, "current.json")
 	options := services.ProjectDeploymentInitialization{Administrator: services.ProjectDeploymentAdministrator{Username: "configuration.admin", Password: "Configuration-admin-fixture-2026!"}}
-	if err := initializeProjectConfigurationWithOptions(configPath, inputPath, outputPath, 1, "production", "", options); err != nil {
+	if err := initializeProjectConfigurationWithOptions(configPath, inputPath, outputPath, 1, "staging", "", options); err != nil {
 		t.Fatal(err)
 	}
-	first, err := projectconfig.ReadDeployment(outputPath, 1, "production", projectconfig.Digest(doc), "")
+	first, err := projectconfig.ReadDeployment(outputPath, 1, "staging", projectconfig.Digest(doc), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestInitializeProjectConfigurationIsScopedAndNonDestructive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := initializeProjectConfiguration(configPath, inputPath, outputPath, 1, "production", ""); err != nil {
+	if err := initializeProjectConfiguration(configPath, inputPath, outputPath, 1, "staging", ""); err != nil {
 		t.Fatal("same output retry rejected", err)
 	}
 	after, err := os.ReadFile(outputPath)
@@ -64,16 +64,16 @@ func TestInitializeProjectConfigurationIsScopedAndNonDestructive(t *testing.T) {
 		t.Fatal("existing output overwritten", err)
 	}
 	retryPath := filepath.Join(dir, "retry.json")
-	if err := initializeProjectConfiguration(configPath, inputPath, retryPath, 1, "production", ""); err != nil {
+	if err := initializeProjectConfiguration(configPath, inputPath, retryPath, 1, "staging", ""); err != nil {
 		t.Fatal(err)
 	}
-	retry, err := projectconfig.ReadDeployment(retryPath, 1, "production", projectconfig.Digest(doc), "")
+	retry, err := projectconfig.ReadDeployment(retryPath, 1, "staging", projectconfig.Digest(doc), "")
 	if err != nil || retry.VersionID != first.VersionID {
 		t.Fatalf("retry changed version: %v", err)
 	}
 	doc.Projects = []projectconfig.Project{{Key: "different", Name: "不同配置"}}
 	writeInput()
-	if err := initializeProjectConfiguration(configPath, inputPath, filepath.Join(dir, "rejected.json"), 1, "production", ""); err == nil {
+	if err := initializeProjectConfiguration(configPath, inputPath, filepath.Join(dir, "rejected.json"), 1, "staging", ""); err == nil {
 		t.Fatal("initializer replaced active configuration")
 	}
 	if _, err := os.Stat(filepath.Join(dir, "rejected.json")); !os.IsNotExist(err) {

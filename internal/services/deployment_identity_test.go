@@ -2,11 +2,13 @@ package services
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/constants"
 	"remotehelpdesk/internal/pkg/deploymentidentity"
@@ -93,17 +95,26 @@ func TestDeploymentIdentityInitialCompanyAndConfigurationAreAtomic(t *testing.T)
 	options := ProjectDeploymentInitialization{TenantName: "Acme fixture", Administrator: ProjectDeploymentAdministrator{Username: "atomic.admin", Password: "Atomic-admin-fixture-2026!"}}
 	_, err := InitializeProjectConfigurationDocument(doc, "")
 	require.ErrorContains(t, err, "-project-tenant-name")
-	require.NoError(t, db.Migrator().DropTable(&models.OutboxRecord{}))
+	require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:reject-initial-project-version", func(tx *gorm.DB) {
+		if _, ok := tx.Statement.Dest.(*models.ProjectConfigurationVersion); ok {
+			tx.AddError(errors.New("synthetic initial version failure"))
+		}
+	}))
 	_, err = InitializeProjectConfigurationDocumentWithOptions(doc, options)
 	require.Error(t, err)
+	require.NoError(t, db.Callback().Create().Remove("test:reject-initial-project-version"))
 	for _, model := range []any{&models.Tenant{}, &models.User{}, &models.TenantMember{}, &models.AuthRoleBinding{}, &models.AuthAuditLog{}, &models.ProjectConfigurationVersion{}, &models.ProjectConfigurationState{}, &deploymentidentity.Record{}} {
 		var count int64
 		require.NoError(t, db.Model(model).Count(&count).Error)
 		require.Zero(t, count, "failed first install left partial rows for %T", model)
 	}
-	require.NoError(t, db.AutoMigrate(&models.OutboxRecord{}))
 	version, err := InitializeProjectConfigurationDocumentWithOptions(doc, options)
 	require.NoError(t, err)
+	retriedWithOutput, err := InitializeProjectConfigurationDocumentWithOptions(doc, ProjectDeploymentInitialization{ExistingVersionID: version.ID})
+	require.NoError(t, err)
+	require.Equal(t, version.ID, retriedWithOutput.ID)
+	_, err = InitializeProjectConfigurationDocumentWithOptions(doc, ProjectDeploymentInitialization{ExistingVersionID: version.ID + 1})
+	require.ErrorContains(t, err, "待审批初始配置")
 	retried, err := InitializeProjectConfigurationDocument(doc, "Must not rename existing company")
 	require.NoError(t, err)
 	require.Equal(t, version.ID, retried.ID)
@@ -114,10 +125,10 @@ func TestDeploymentIdentityInitialCompanyAndConfigurationAreAtomic(t *testing.T)
 	require.NoError(t, CheckDeploymentIdentityBeforeMigrations(db, false))
 	doc.Projects = []projectconfig.Project{{Key: "new", Name: "different"}}
 	_, err = InitializeProjectConfigurationDocument(doc, "Acme fixture")
-	require.ErrorContains(t, err, "不会替换")
+	require.ErrorContains(t, err, "不会修改")
 	state, err := projectState(db, 27)
 	require.NoError(t, err)
-	require.Equal(t, version.ID, state.ActiveVersionID)
+	require.Zero(t, state.ActiveVersionID, "production bootstrap must remain pending until approval")
 }
 
 func TestDeploymentIdentityCannotAdoptLegacyOtherEnvironmentOrCompany(t *testing.T) {
