@@ -159,7 +159,7 @@ export function ProjectConfigurationEditor() {
         {error && <div role="alert" className="text-sm text-destructive">{error}</div>}
         {message && <div role="status" className="rounded border p-3 text-sm">{message}</div>}
         {view && document && <>
-          <div className="text-sm text-muted-foreground">当前公司 #{document.tenant_id} · {environments[document.environment] || document.environment}环境 · 当前生效：{view.active_version_id ? `V${view.active_version_id}` : "原有规则（尚未应用版本）"}</div>
+          <div className="text-sm text-muted-foreground">{environments[document.environment] || document.environment}环境 · {view.active_version_id ? `运营配置 V${view.active_version_id}（生效中）` : "当前使用原有配置（未启用版本管理）"}</div>
           <p className="text-sm">保存草稿不会改变现有规则。检查通过并应用后，新工单才使用新版本。渠道开关只限制录单来源，不会自动接通邮件或其他外部渠道。</p>
           {view.deployment_managed && <p className="rounded border p-3 text-sm">当前环境由部署管理。请保存、检查并导出草稿，交给负责部署的工程师应用；导出不会改变现有规则。部署成功后点击“重新加载”查看生效版本。</p>}
           <fieldset disabled={busy} className="grid min-w-0 gap-4">

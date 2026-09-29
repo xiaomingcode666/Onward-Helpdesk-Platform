@@ -152,6 +152,7 @@ type WhatsAppChannelConfig struct {
 	MetaPhoneNumberID                string `json:"metaPhoneNumberId"`
 	MetaBusinessAccountID            string `json:"metaBusinessAccountId"`
 	MetaAccessTokenSecretRef         string `json:"metaAccessTokenSecretRef"`
+	MetaAppSecretSecretRef           string `json:"metaAppSecretSecretRef"`
 	WebhookVerifyTokenSecretRef      string `json:"webhookVerifyTokenSecretRef"`
 	ProjectConfigurationApproved     bool   `json:"projectConfigurationApproved"`
 	CommercialResponsibilityApproved bool   `json:"commercialResponsibilityApproved"`

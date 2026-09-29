@@ -350,6 +350,7 @@ func validateRuntime(doc Document, add func(string, string, string)) {
 
 // AddMinutes and WorkingMinutes share a calendar, including holidays and DST.
 func (c Calendar) AddMinutes(from time.Time, minutes int) time.Time {
+	inputLocation := from.Location()
 	loc, _ := time.LoadLocation(c.Timezone)
 	if loc == nil {
 		loc = time.UTC
@@ -367,12 +368,12 @@ func (c Calendar) AddMinutes(from time.Time, minutes int) time.Time {
 		}
 		available := end.Sub(t)
 		if remaining <= available {
-			return t.Add(remaining)
+			return t.Add(remaining).In(inputLocation)
 		}
 		remaining -= available
 		t = end
 	}
-	return t
+	return t.In(inputLocation)
 }
 func (c Calendar) WorkingMinutes(from, to time.Time) int {
 	loc, _ := time.LoadLocation(c.Timezone)

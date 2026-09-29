@@ -1,6 +1,5 @@
 "use client"
 import { TicketEmailPanel } from "./ticket-email-panel"
-import { TicketQualityPanel } from "./ticket-quality-panel"
 
 import { translateCurrentMessage } from "@/i18n/messages"
 import {
@@ -881,10 +880,6 @@ export function EnterpriseTicketDetailContent({
         </div>
       ) : null}
 
-      <div className="mb-3">
-        <TicketQualityPanel ticketID={ticket.id} />
-      </div>
-
       <div className="rhd-railops-ticket-detail-tabs">
         <UnderlineTabs
           ariaLabel={ee("ticketDetail.text089")}
@@ -1103,7 +1098,10 @@ function RecordRow({
         </div>
       </div>
       {meta ? (
-        <div className="max-w-28 shrink-0 truncate text-right text-rhd-xs text-muted-foreground">
+        <div
+          className="max-w-[70%] shrink-0 whitespace-normal break-words text-right text-rhd-xs leading-5 text-muted-foreground"
+          title={meta}
+        >
           {meta}
         </div>
       ) : null}

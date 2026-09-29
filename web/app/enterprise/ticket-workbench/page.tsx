@@ -122,6 +122,7 @@ import {
 import { displayTicketStatus, isCaseStatus, isProcessingTicketStatus, isTerminalTicketStatus } from "@/lib/ticket-lifecycle"
 import { caseLabel, caseStatusLabel, localizeCaseTimelineContent } from "@/lib/ticket-case-labels"
 import { TicketCaseLifecycle } from "@/app/enterprise/tickets/_components/ticket-case-lifecycle"
+import { TicketCreateModal } from "@/app/enterprise/tickets/_components/ticket-create-modal"
 import { TicketClassificationFields, TicketGovernancePanel } from "@/app/enterprise/tickets/_components/ticket-governance"
 import { governanceLabel, type CaseType } from "@/lib/ticket-governance"
 import { sortWorkbenchQueueItems } from "@/lib/ticket-workbench-queue"
@@ -2864,6 +2865,7 @@ function WorkbenchContextPane({
   const [loadingTickets, setLoadingTickets] = useState(false)
   const [loadingAggregate, setLoadingAggregate] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [childCreateParentTicketId, setChildCreateParentTicketId] = useState(0)
   const [recordOpen, setRecordOpen] = useState(false)
   const [recordText, setRecordText] = useState("")
   const [recordVisibleToCustomer, setRecordVisibleToCustomer] = useState(false)
@@ -3594,7 +3596,7 @@ function WorkbenchContextPane({
           {aggregate.clocks ? <TicketClockSummary clocks={aggregate.clocks} /> : null}
           <TicketCaseLifecycle key={aggregate.ticket.id} aggregate={aggregate} onSaved={async (value) => { setAggregate(value); await onTicketUpdated() }} />
         </div> : null}
-        {aggregate ? <div className="p-3"><TicketGovernancePanel key={`governance-${aggregate.ticket.id}`} aggregate={aggregate} onSaved={async (value) => { setAggregate(value); await onTicketUpdated() }} /></div> : null}
+        {aggregate ? <div className="p-3"><TicketGovernancePanel key={`governance-${aggregate.ticket.id}`} aggregate={aggregate} onCreateChild={setChildCreateParentTicketId} onSaved={async (value) => { setAggregate(value); await onTicketUpdated() }} /></div> : null}
         <ContextSection title={ee("ticketWorkbench.text210")}>
           <p className="text-xs leading-5 text-foreground">{hasDeviceConcept ? detail.serviceSummary : item?.title || detail.serviceSummary}</p>
           {contextTicket ? (
@@ -4333,6 +4335,20 @@ function WorkbenchContextPane({
             </div>
 	            
 </StandardModal>
+        <TicketCreateModal
+          open={childCreateParentTicketId > 0}
+          parentTicketId={childCreateParentTicketId}
+          onOpenChange={(open) => {
+            if (!open) setChildCreateParentTicketId(0)
+          }}
+          onCreated={async () => {
+            if (contextTicketId) {
+              const result = await fetchTicketAggregate(contextTicketId)
+              if (result.success && result.data) setAggregate(result.data)
+            }
+            await onTicketUpdated()
+          }}
+        />
     </div>
   )
 }

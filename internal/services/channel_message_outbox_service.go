@@ -137,8 +137,16 @@ func (s *channelMessageOutboxService) EnqueueWhatsAppMessage(conversation *model
 	if message.SenderType != enums.IMSenderTypeAgent && message.SenderType != enums.IMSenderTypeAI && message.SenderType != enums.IMSenderTypePartner {
 		return nil
 	}
-	if message.MessageType != enums.IMMessageTypeText && message.MessageType != enums.IMMessageTypeHTML {
+	if message.MessageType != enums.IMMessageTypeText && message.MessageType != enums.IMMessageTypeHTML &&
+		message.MessageType != enums.IMMessageTypeImage && message.MessageType != enums.IMMessageTypeAudio &&
+		message.MessageType != enums.IMMessageTypeAttachment {
 		return nil
+	}
+	if message.MessageType == enums.IMMessageTypeImage || message.MessageType == enums.IMMessageTypeAudio || message.MessageType == enums.IMMessageTypeAttachment {
+		cfg, err := ChannelService.ParseWhatsAppChannelConfig(channel.ConfigJSON)
+		if err != nil || cfg.MetaPhoneNumberID == "" || cfg.MetaAccessTokenSecretRef == "" {
+			return nil
+		}
 	}
 	if existing := s.GetByMessageID(enums.ChannelTypeWhatsApp, message.ID); existing != nil {
 		return nil
@@ -181,4 +189,28 @@ func (s *channelMessageOutboxService) ListPending(channelType string, limit int)
 		Asc("id").
 		Limit(limit)
 	return s.Find(cnd)
+}
+
+func (s *channelMessageOutboxService) ApplyWhatsAppProviderStatus(externalMessageID, status string) bool {
+	externalMessageID = strings.TrimSpace(externalMessageID)
+	status = strings.ToLower(strings.TrimSpace(status))
+	if externalMessageID == "" || (status != "sent" && status != "delivered" && status != "read" && status != "failed") {
+		return false
+	}
+	outbox := s.Take("channel_type = ? AND external_message_id = ?", enums.ChannelTypeWhatsApp, externalMessageID)
+	if outbox == nil {
+		return false
+	}
+	now := time.Now()
+	updates := map[string]any{"provider_status": status, "updated_at": now}
+	switch status {
+	case "delivered":
+		updates["delivered_at"] = now
+	case "read":
+		updates["delivered_at"] = now
+		updates["read_at"] = now
+	case "failed":
+		updates["failed_at"] = now
+	}
+	return s.Updates(outbox.ID, updates) == nil
 }

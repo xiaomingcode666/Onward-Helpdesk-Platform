@@ -11,6 +11,7 @@ import (
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/httpx"
+	"remotehelpdesk/internal/pkg/projectconfig"
 	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/repositories"
 	"remotehelpdesk/internal/wxwork"
@@ -287,6 +288,7 @@ func (s *channelService) ParseWhatsAppChannelConfig(raw string) (*dto.WhatsAppCh
 	cfg.MetaPhoneNumberID = strings.TrimSpace(cfg.MetaPhoneNumberID)
 	cfg.MetaBusinessAccountID = strings.TrimSpace(cfg.MetaBusinessAccountID)
 	cfg.MetaAccessTokenSecretRef = strings.TrimSpace(cfg.MetaAccessTokenSecretRef)
+	cfg.MetaAppSecretSecretRef = strings.TrimSpace(cfg.MetaAppSecretSecretRef)
 	cfg.WebhookVerifyTokenSecretRef = strings.TrimSpace(cfg.WebhookVerifyTokenSecretRef)
 	return cfg, nil
 }
@@ -296,10 +298,19 @@ func (s *channelService) requireWhatsAppActivation(raw string) error {
 	if err != nil {
 		return errorsx.InvalidParam("invalid WhatsApp configuration")
 	}
-	if cfg.ProjectKey == "" || cfg.MetaPhoneNumberID == "" || cfg.MetaBusinessAccountID == "" || cfg.MetaAccessTokenSecretRef == "" || cfg.WebhookVerifyTokenSecretRef == "" {
+	if !validWhatsAppChannelConfig(cfg) {
 		return errorsx.InvalidParam("WhatsApp requires project, Meta identifiers and secret references")
 	}
 	return nil
+}
+
+func validWhatsAppChannelConfig(cfg *dto.WhatsAppChannelConfig) bool {
+	if cfg == nil || cfg.ProjectKey == "" || cfg.MetaPhoneNumberID == "" || cfg.MetaBusinessAccountID == "" {
+		return false
+	}
+	return projectconfig.ValidSecretReference(cfg.MetaAccessTokenSecretRef) &&
+		projectconfig.ValidSecretReference(cfg.MetaAppSecretSecretRef) &&
+		projectconfig.ValidSecretReference(cfg.WebhookVerifyTokenSecretRef)
 }
 
 func (s *channelService) GetUserTokenSecret(channel *models.Channel) string {
@@ -413,6 +424,24 @@ func (s *channelService) GetEnabledWhatsAppChannelByChannelID(channelID string) 
 		Eq("channel_type", enums.ChannelTypeWhatsApp).
 		Eq("channel_id", channelID).
 		Eq("status", enums.StatusOk))
+}
+
+func (s *channelService) GetEnabledWhatsAppChannelByPhoneNumberID(phoneNumberID string) *models.Channel {
+	phoneNumberID = strings.TrimSpace(phoneNumberID)
+	if phoneNumberID == "" {
+		return nil
+	}
+	channels := s.Find(sqls.NewCnd().
+		Eq("channel_type", enums.ChannelTypeWhatsApp).
+		Eq("status", enums.StatusOk).
+		Asc("id"))
+	for i := range channels {
+		cfg, err := s.ParseWhatsAppChannelConfig(channels[i].ConfigJSON)
+		if err == nil && cfg.MetaPhoneNumberID == phoneNumberID {
+			return &channels[i]
+		}
+	}
+	return nil
 }
 
 func (s *channelService) GetDefaultEnabledWebChannel() *models.Channel {
@@ -551,7 +580,7 @@ func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRe
 		if err != nil {
 			return nil, errorsx.InvalidParam("invalid WhatsApp configuration")
 		}
-		if cfg.ProjectKey == "" || cfg.MetaPhoneNumberID == "" || cfg.MetaBusinessAccountID == "" || cfg.MetaAccessTokenSecretRef == "" || cfg.WebhookVerifyTokenSecretRef == "" {
+		if !validWhatsAppChannelConfig(cfg) {
 			return nil, errorsx.InvalidParam("WhatsApp requires project, Meta identifiers and secret references")
 		}
 		configBytes, err := json.Marshal(cfg)

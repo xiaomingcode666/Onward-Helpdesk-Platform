@@ -97,6 +97,19 @@ test("users without edit permission have no priority mutation or proposal action
   await expect(panel).toContainText("P1")
 })
 
+test("creating a child opens the form in place without navigating", async ({ page }) => {
+  await fixture(page)
+  const originalUrl = page.url()
+
+  await page.getByTestId("ticket-governance").getByRole("button", { name: "创建子工单", exact: true }).click()
+
+  const dialog = page.getByRole("dialog", { name: "新建工单", exact: true })
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText("父工单 #84001")
+  await expect(page).toHaveURL(originalUrl)
+  await expect(page.getByTestId("ticket-governance")).toBeVisible()
+})
+
 test("duplicate association selects first parent and retains child urgency and state", async ({ page }) => {
   const { requests, aggregate, view } = await fixture(page)
   await page.getByTestId("ticket-governance").getByRole("button", { name: "关联父工单" }).click()

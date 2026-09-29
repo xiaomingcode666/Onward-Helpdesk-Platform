@@ -21,6 +21,13 @@ export type TicketQualitySample = {
   sampled_at: string
   started_at: string
   completed_at: string
+  latest_review?: {
+    total_score: number
+    max_score: number
+    result: string
+    outcome: string
+    reviewed_at: string
+  }
 }
 
 export type TicketQualitySummary = {

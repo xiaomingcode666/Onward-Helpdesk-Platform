@@ -3,8 +3,9 @@
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircle2Icon, ClipboardCheckIcon, ExternalLinkIcon, PlayIcon, RefreshCwIcon } from "lucide-react"
-import { Input, Select, Tag, type TableColumnsType } from "antd"
+import dayjs from "dayjs"
+import { ClipboardCheckIcon, ExternalLinkIcon, EyeIcon, PlayIcon, RefreshCwIcon, SparklesIcon } from "lucide-react"
+import { DatePicker, Empty, Input, Select, Tag, type TableColumnsType } from "antd"
 import {
   ContentModule,
   DataTable,
@@ -20,9 +21,9 @@ import { toast } from "sonner"
 
 import { useRouteBreadcrumbItems } from "@/components/layout/route-breadcrumbs"
 import { translateCurrentMessage } from "@/i18n/messages"
+import { useAppLocale } from "@/i18n/provider"
 import { TicketQualityPanel } from "@/app/enterprise/tickets/_components/ticket-quality-panel"
 import {
-  completeTicketQualitySample,
   fetchTicketQualitySamples,
   fetchTicketQualityAnalysis,
   type TicketQualityAnalysis,
@@ -39,9 +40,19 @@ function t(key: string, values?: Record<string, string | number>) {
 
 const PAGE_SIZE = 10
 const reasonKeys: TicketQualityReason[] = ["random", "high_priority", "new_agent", "complaint", "reopened", "risk"]
+const qualityStatuses = ["pending", "in_progress", "completed"] as const
+const qualityCategoryCodes = new Set(["user_case", "incident", "major_incident", "problem", "known_error", "service_request"])
+const qualityChannelCodes = new Set(["enterprise", "phone", "im", "web", "email", "wechat_mp", "wxwork_kf", "whatsapp"])
+
+const ticketStatuses = new Set([
+  "draft", "pending", "pending_acceptance", "pending_dispatch", "accepted", "assigned",
+  "pending_assignee_accept", "in_progress", "processing", "video_support", "supplier_support",
+  "escalated", "waiting_customer", "resolved", "pending_customer_confirm", "closed",
+  "quality_review", "reopened", "done", "cancelled",
+])
 
 function reasonLabel(reason: string) {
-  return t(`reasons.${reason}`)
+  return reasonKeys.includes(reason) ? t(`reasons.${reason}`) : reason
 }
 
 function statusTone(status: string): StatusTagTone {
@@ -51,19 +62,55 @@ function statusTone(status: string): StatusTagTone {
 }
 
 function statusLabel(status: string) {
-  return t(`status.${status}`)
+  return qualityStatuses.includes(status as (typeof qualityStatuses)[number]) ? t(`status.${status}`) : status
 }
 
-function formatDate(value: string) {
+function reviewResultLabel(result: string) {
+  if (result === "pass") return t("review.result.pass")
+  if (result === "needs_improvement") return t("review.result.needsImprovement")
+  return t("review.result.fail")
+}
+
+function reviewResultTone(result: string): StatusTagTone {
+  if (result === "pass") return "success"
+  if (result === "needs_improvement") return "warning"
+  return "error"
+}
+
+function ticketStatusLabel(status: string) {
+  return ticketStatuses.has(status) ? t(`ticketStatus.${status}`) : status || "-"
+}
+
+function priorityLabel(priority: string) {
+  const normalized = priority.trim().toLowerCase()
+  const key = ({ critical: "p1", high: "p2", medium: "p3", low: "p4" } as Record<string, string>)[normalized] ?? normalized
+  return ["p1", "p2", "p3", "p4"].includes(key) ? t(`priority.${key}`) : priority || "-"
+}
+
+function formatDate(value: string, locale: string) {
   if (!value) return "-"
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString(locale, { hour12: false })
+}
+
+function analysisBucketLabel(dimension: string, item: TicketQualityAnalysisBucket) {
+  const missingKey = ({
+    __unset__: "unset",
+    __ungrouped__: "ungrouped",
+    __unassigned__: "unassigned",
+    __uncategorized__: "uncategorized",
+  } as Record<string, string>)[item.value]
+  if (missingKey) return t(`analysis.values.${missingKey}`)
+  if (dimension === "category" && qualityCategoryCodes.has(item.value)) return t(`analysis.values.categories.${item.value}`)
+  if (dimension === "channel" && qualityChannelCodes.has(item.value)) return t(`analysis.values.channels.${item.value}`)
+  return item.label || item.value || "-"
 }
 
 type TicketQualityContentProps = { embedded?: boolean }
 
 export function TicketQualityContent({ embedded = false }: TicketQualityContentProps) {
-  const [periodKey, setPeriodKey] = useState(() => new Date().toISOString().slice(0, 10))
+  const { locale } = useAppLocale()
+  const [periodKey, setPeriodKey] = useState(() => dayjs().format("YYYY-MM-DD"))
   const [status, setStatus] = useState("")
   const [reason, setReason] = useState("")
   const [search, setSearch] = useState("")
@@ -71,7 +118,6 @@ export function TicketQualityContent({ embedded = false }: TicketQualityContentP
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<Awaited<ReturnType<typeof fetchTicketQualitySamples>>["data"] | null>(null)
   const [reviewTarget, setReviewTarget] = useState<TicketQualitySample | null>(null)
-  const [note, setNote] = useState("")
   const [analysis, setAnalysis] = useState<TicketQualityAnalysis | null>(null)
   const [analysisFrom, setAnalysisFrom] = useState("")
   const [analysisTo, setAnalysisTo] = useState("")
@@ -145,17 +191,9 @@ export function TicketQualityContent({ embedded = false }: TicketQualityContentP
     }
   }, [load])
 
-  const complete = async () => {
-    if (!reviewTarget) return
-    try {
-      const response = await completeTicketQualitySample(reviewTarget.id, note)
-      if (!response.success) throw new Error(response.error?.message || t("errors.update"))
-      setReviewTarget(null)
-      setNote("")
-      await load()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("errors.update"))
-    }
+  const handleReviewSubmitted = async () => {
+    setReviewTarget(null)
+    await load()
   }
 
   const columns = useMemo<TableColumnsType<TicketQualitySample>>(() => [
@@ -176,10 +214,20 @@ export function TicketQualityContent({ embedded = false }: TicketQualityContentP
       key: "reasons",
       render: (_, item) => <div className="flex flex-wrap gap-1">{item.reasons.map((value) => <Tag key={value}>{reasonLabel(value)}</Tag>)}</div>,
     },
-    { title: t("columns.priority"), dataIndex: "priority", key: "priority" },
-    { title: t("columns.ticketStatus"), dataIndex: "ticket_status", key: "ticket_status" },
+    { title: t("columns.priority"), key: "priority", render: (_, item) => priorityLabel(item.priority) },
+    { title: t("columns.ticketStatus"), key: "ticket_status", render: (_, item) => ticketStatusLabel(item.ticket_status) },
     { title: t("columns.assignee"), key: "assignee", render: (_, item) => item.assignee_name || "-" },
-    { title: t("columns.sampledAt"), key: "sampled_at", render: (_, item) => formatDate(item.sampled_at) },
+    { title: t("columns.sampledAt"), key: "sampled_at", render: (_, item) => formatDate(item.sampled_at, locale) },
+    {
+      title: t("columns.reviewResult"),
+      key: "review_result",
+      render: (_, item) => item.latest_review ? (
+        <div className="flex flex-col gap-0.5">
+          <span className="font-medium tabular-nums">{item.latest_review.total_score}/{item.latest_review.max_score}</span>
+          <StatusTag tone={reviewResultTone(item.latest_review.outcome || item.latest_review.result)}>{reviewResultLabel(item.latest_review.outcome || item.latest_review.result)}</StatusTag>
+        </div>
+      ) : <span className="text-slate-400">{t("review.notEvaluated")}</span>,
+    },
     {
       title: t("columns.qaStatus"),
       key: "status",
@@ -190,50 +238,62 @@ export function TicketQualityContent({ embedded = false }: TicketQualityContentP
       key: "actions",
       render: (_, item) => (
         <div className="flex gap-1">
-          {item.status === "pending" ? <RailopsButton size="small" onClick={() => void start(item)}><PlayIcon className="size-3.5" />{t("actions.start")}</RailopsButton> : null}
-          {item.status === "in_progress" ? <RailopsButton size="small" onClick={() => setReviewTarget(item)}><CheckCircle2Icon className="size-3.5" />{t("actions.review")}</RailopsButton> : null}
+          {item.latest_review ? <RailopsButton size="small" onClick={() => setReviewTarget(item)}><EyeIcon className="size-3.5" />{t("actions.viewResult")}</RailopsButton> : null}
+          {!item.latest_review && item.status === "pending" ? <RailopsButton size="small" onClick={() => void start(item)}><PlayIcon className="size-3.5" />{t("actions.start")}</RailopsButton> : null}
+          {!item.latest_review && item.status !== "pending" ? <RailopsButton size="small" onClick={() => setReviewTarget(item)}><SparklesIcon className="size-3.5" />{t("actions.autoReview")}</RailopsButton> : null}
         </div>
       ),
     },
-  ], [start])
+  ], [locale, start])
 
   const summary = data?.summary ?? { total: 0, pending: 0, in_progress: 0, completed: 0 }
 
   const actions = <div className="flex gap-2"><RailopsButton onClick={() => void generate()} disabled={loading}><ClipboardCheckIcon className="size-4" />{t("actions.generate")}</RailopsButton><RailopsButton onClick={refresh} disabled={loading}><RefreshCwIcon className={loading ? "size-4 animate-spin" : "size-4"} />{t("actions.refresh")}</RailopsButton></div>
-  const analysisCards: Array<[string, TicketQualityAnalysisBucket | undefined]> = [
-    ["总体", analysis?.summary],
-    ["Project", analysis?.by_project?.[0]],
-    ["Team", analysis?.by_team?.[0]],
-    [analysis?.can_view_agents ? "Agent" : "Agent（受限）", analysis?.by_agent?.[0]],
-    ["Category", analysis?.by_category?.[0]],
+  const analysisCards: Array<[string, string, TicketQualityAnalysisBucket | undefined]> = [
+    ["overall", t("analysis.cards.overall"), analysis?.summary],
+    ["project", t("analysis.cards.project"), analysis?.by_project?.[0]],
+    ["team", t("analysis.cards.team"), analysis?.by_team?.[0]],
+    ["agent", t(analysis?.can_view_agents ? "analysis.cards.agent" : "analysis.cards.agentRestricted"), analysis?.by_agent?.[0]],
+    ["category", t("analysis.cards.category"), analysis?.by_category?.[0]],
   ]
-  const analysisLists: Array<[string, TicketQualityAnalysisBucket[] | undefined]> = [
-    ["按 Project", analysis?.by_project],
-    ["按 Team", analysis?.by_team],
-    ["按 Category", analysis?.by_category],
-    ["按 Channel", analysis?.by_channel],
-    ...(analysis?.can_view_agents ? [["按 Agent", analysis.by_agent ?? []] as [string, TicketQualityAnalysisBucket[]]] : []),
+  const analysisLists: Array<[string, string, TicketQualityAnalysisBucket[] | undefined]> = [
+    ["project", t("analysis.groups.project"), analysis?.by_project],
+    ["team", t("analysis.groups.team"), analysis?.by_team],
+    ["category", t("analysis.groups.category"), analysis?.by_category],
+    ["channel", t("analysis.groups.channel"), analysis?.by_channel],
+    ...(analysis?.can_view_agents ? [["agent", t("analysis.groups.agent"), analysis.by_agent ?? []] as [string, string, TicketQualityAnalysisBucket[]]] : []),
   ]
+  const hasAnalysis = Boolean(analysis && analysis.summary.reviews > 0)
   const content = (
     <>
       {embedded ? <ContentModule><div className="flex items-center justify-between gap-3"><div><div className="text-sm font-semibold">{t("title")}</div><div className="text-xs text-slate-500">{t("description")}</div></div>{actions}</div></ContentModule> : null}
       <ContentModule>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-xs text-slate-500">开始日期<Input type="date" value={analysisFrom} onChange={(event) => setAnalysisFrom(event.target.value)} /></label>
-          <label className="flex flex-col gap-1 text-xs text-slate-500">结束日期<Input type="date" value={analysisTo} onChange={(event) => setAnalysisTo(event.target.value)} /></label>
-          <label className="flex flex-col gap-1 text-xs text-slate-500">Project<Input value={analysisProject} onChange={(event) => setAnalysisProject(event.target.value)} placeholder="项目 key" /></label>
-          <label className="flex flex-col gap-1 text-xs text-slate-500">Team ID<Input value={analysisTeamID} onChange={(event) => setAnalysisTeamID(event.target.value.replace(/\D/g, ""))} /></label>
-          <label className="flex flex-col gap-1 text-xs text-slate-500">Agent ID<Input value={analysisAgentID} onChange={(event) => setAnalysisAgentID(event.target.value.replace(/\D/g, ""))} /></label>
-          <label className="flex flex-col gap-1 text-xs text-slate-500">Category<Input value={analysisCategory} onChange={(event) => setAnalysisCategory(event.target.value)} /></label>
-          <label className="flex flex-col gap-1 text-xs text-slate-500">Channel<Input value={analysisChannel} onChange={(event) => setAnalysisChannel(event.target.value)} /></label>
-          <RailopsButton onClick={refreshAnalysis} disabled={analysisLoading}><RefreshCwIcon className={analysisLoading ? "size-4 animate-spin" : "size-4"} />分析</RailopsButton>
+        <div className="mb-4">
+          <div className="text-sm font-semibold">{t("analysis.title")}</div>
+          <div className="mt-0.5 text-xs text-slate-500">{t("analysis.description")}</div>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          {analysisCards.map(([label, bucket]) => <div key={label} className="rounded-md border border-border p-3"><div className="text-xs text-slate-500">{label}</div><div className="mt-1 text-lg font-semibold">{bucket ? `${bucket.average.toFixed(1)} 分` : "-"}</div><div className="text-xs text-slate-500">{bucket ? `${bucket.reviews} 次评估 · 通过率 ${bucket.pass_rate.toFixed(0)}%` : "暂无数据"}</div></div>)}
+        <div className="grid items-end gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.startDate")}<DatePicker className="ticket-quality-date-picker h-9 w-full" value={analysisFrom ? dayjs(analysisFrom) : null} format="YYYY-MM-DD" placeholder={t("analysis.filters.datePlaceholder")} onChange={(value) => setAnalysisFrom(value?.format("YYYY-MM-DD") ?? "")} /></label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.endDate")}<DatePicker className="ticket-quality-date-picker h-9 w-full" value={analysisTo ? dayjs(analysisTo) : null} format="YYYY-MM-DD" placeholder={t("analysis.filters.datePlaceholder")} onChange={(value) => setAnalysisTo(value?.format("YYYY-MM-DD") ?? "")} /></label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.project")}<Input className="h-9 w-full" value={analysisProject} onChange={(event) => setAnalysisProject(event.target.value)} placeholder={t("analysis.filters.projectPlaceholder")} /></label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.team")}<Input className="h-9 w-full" value={analysisTeamID} onChange={(event) => setAnalysisTeamID(event.target.value.replace(/\D/g, ""))} placeholder={t("analysis.filters.idPlaceholder")} /></label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.agent")}<Input className="h-9 w-full" value={analysisAgentID} onChange={(event) => setAnalysisAgentID(event.target.value.replace(/\D/g, ""))} placeholder={t("analysis.filters.idPlaceholder")} /></label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.category")}<Input className="h-9 w-full" value={analysisCategory} onChange={(event) => setAnalysisCategory(event.target.value)} placeholder={t("analysis.filters.optionalPlaceholder")} /></label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.channel")}<Input className="h-9 w-full" value={analysisChannel} onChange={(event) => setAnalysisChannel(event.target.value)} placeholder={t("analysis.filters.optionalPlaceholder")} /></label>
+          <RailopsButton className="h-9 w-full" onClick={refreshAnalysis} disabled={analysisLoading}><RefreshCwIcon className={analysisLoading ? "size-4 animate-spin" : "size-4"} />{t("analysis.actions.analyze")}</RailopsButton>
         </div>
-        <div className="mt-4 grid gap-4 xl:grid-cols-2">
-          {analysisLists.map(([title, values]) => <div key={title} className="rounded-md border border-border p-3"><div className="mb-2 text-sm font-semibold">{title}</div><div className="space-y-1.5">{values?.slice(0, 8).map((item) => <div key={item.value} className="flex justify-between gap-3 text-xs"><span className="truncate">{item.label}</span><span className="shrink-0">{item.average.toFixed(1)} 分 · {item.reviews} 次 · {item.pass_rate.toFixed(0)}%</span></div>)}</div></div>)}
-        </div>
+        {!hasAnalysis ? (
+          <div className="mt-4 border-t border-border py-8"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={analysis ? t("analysis.empty") : t("analysis.notRun")} /></div>
+        ) : (
+          <>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              {analysisCards.map(([dimension, label, bucket]) => <div key={dimension} className="rounded-md border border-border p-3"><div className="text-xs text-slate-500">{label}</div>{bucket && dimension !== "overall" ? <div className="mt-1 truncate text-sm font-medium">{analysisBucketLabel(dimension, bucket)}</div> : null}<div className="mt-1 text-lg font-semibold">{bucket ? t("analysis.metrics.score", { value: bucket.average.toFixed(1) }) : "-"}</div><div className="text-xs text-slate-500">{bucket ? t("analysis.metrics.summary", { reviews: bucket.reviews, rate: bucket.pass_rate.toFixed(0) }) : t("analysis.empty")}</div></div>)}
+            </div>
+            <div className="mt-4 grid gap-4 xl:grid-cols-2">
+              {analysisLists.filter(([, , values]) => Boolean(values?.length)).map(([dimension, title, values]) => <div key={dimension} className="rounded-md border border-border p-3"><div className="mb-2 text-sm font-semibold">{title}</div><div className="space-y-1.5">{values?.slice(0, 8).map((item) => <div key={item.value} className="flex justify-between gap-3 text-xs"><span className="truncate">{analysisBucketLabel(dimension, item)}</span><span className="shrink-0">{t("analysis.metrics.row", { value: item.average.toFixed(1), reviews: item.reviews, rate: item.pass_rate.toFixed(0) })}</span></div>)}</div></div>)}
+            </div>
+          </>
+        )}
       </ContentModule>
 
       <StatGrid>
@@ -244,11 +304,11 @@ export function TicketQualityContent({ embedded = false }: TicketQualityContentP
       </StatGrid>
 
       <ContentModule>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-xs text-slate-500">{t("filters.period")}<Input type="date" value={periodKey} onChange={(event) => { setPage(1); setPeriodKey(event.target.value) }} /></label>
-          <label className="flex flex-col gap-1 text-xs text-slate-500">{t("filters.status")}<Select className="min-w-40" value={status || undefined} allowClear placeholder={t("filters.all")} onChange={(value) => { setPage(1); setStatus(value || "") }} options={["pending", "in_progress", "completed"].map((value) => ({ value, label: statusLabel(value) }))} /></label>
-          <label className="flex flex-col gap-1 text-xs text-slate-500">{t("filters.reason")}<Select className="min-w-44" value={reason || undefined} allowClear placeholder={t("filters.all")} onChange={(value) => { setPage(1); setReason(value || "") }} options={reasonKeys.map((value) => ({ value, label: reasonLabel(value) }))} /></label>
-          <label className="flex min-w-64 flex-1 flex-col gap-1 text-xs text-slate-500">{t("filters.search")}<Input value={search} allowClear placeholder={t("filters.searchPlaceholder")} onChange={(event) => { setPage(1); setSearch(event.target.value) }} /></label>
+        <div className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("filters.period")}<DatePicker className="ticket-quality-date-picker h-9 w-full" allowClear={false} value={dayjs(periodKey)} format="YYYY-MM-DD" placeholder={t("analysis.filters.datePlaceholder")} onChange={(value) => { if (!value) return; setPage(1); setPeriodKey(value.format("YYYY-MM-DD")) }} /></label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("filters.status")}<Select className="h-9 w-full" value={status || undefined} allowClear placeholder={t("filters.all")} onChange={(value) => { setPage(1); setStatus(value || "") }} options={["pending", "in_progress", "completed"].map((value) => ({ value, label: statusLabel(value) }))} /></label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("filters.reason")}<Select className="h-9 w-full" value={reason || undefined} allowClear placeholder={t("filters.all")} onChange={(value) => { setPage(1); setReason(value || "") }} options={reasonKeys.map((value) => ({ value, label: reasonLabel(value) }))} /></label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("filters.search")}<Input className="h-9 w-full" value={search} allowClear placeholder={t("filters.searchPlaceholder")} onChange={(event) => { setPage(1); setSearch(event.target.value) }} /></label>
         </div>
       </ContentModule>
 
@@ -266,9 +326,8 @@ export function TicketQualityContent({ embedded = false }: TicketQualityContentP
         />
       </ContentModule>
 
-      <StandardModal width={760} title={t("completeModal.title")} open={Boolean(reviewTarget)} onCancel={() => setReviewTarget(null)} onOk={() => void complete()} okText={t("actions.save")} cancelText={t("actions.cancel")}>
-        {reviewTarget ? <TicketQualityPanel ticketID={reviewTarget.ticket_id} /> : null}
-        <Input.TextArea rows={5} value={note} onChange={(event) => setNote(event.target.value)} placeholder={t("completeModal.placeholder")} />
+      <StandardModal width={760} title={reviewTarget?.latest_review ? t("completeModal.resultTitle") : t("completeModal.title")} open={Boolean(reviewTarget)} onCancel={() => setReviewTarget(null)} footer={null}>
+        {reviewTarget ? <TicketQualityPanel key={reviewTarget.ticket_id} ticketID={reviewTarget.ticket_id} sampleID={reviewTarget.id} onSubmitted={handleReviewSubmitted} /> : null}
       </StandardModal>
     </>
   )

@@ -42,3 +42,9 @@ test("ticket service profile and target are rendered from the configuration snap
   assert.match(source, /ee\("tickets\.text103"\)/)
   assert.match(source, /ee\("tickets\.text108"\)/)
 })
+
+test("ticket detail metadata remains fully visible at narrow widths", () => {
+  assert.match(source, /max-w-\[70%\].*whitespace-normal.*break-words/)
+  assert.match(source, /title=\{meta\}/)
+  assert.doesNotMatch(source, /max-w-28 shrink-0 truncate/)
+})

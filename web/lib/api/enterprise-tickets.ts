@@ -426,6 +426,29 @@ export interface TicketQualityReview {
   reviewed_at: string
 }
 
+export interface TicketQualityAutoAssessmentItem {
+  code: string
+  title: string
+  score: number
+  max: number
+  confidence: "high" | "medium" | "low" | string
+  evidence_key: string
+  requires_review: boolean
+}
+
+export interface TicketQualityAutoAssessment {
+  source: "rules" | string
+  version: string
+  scorecard_version: string
+  answers: Record<string, number>
+  items: TicketQualityAutoAssessmentItem[]
+  defect_codes: string[]
+  total_score: number
+  max_score: number
+  result: "pass" | "needs_improvement" | "fail" | string
+  review_required_count: number
+}
+
 export async function fetchActiveTicketQualityScorecard(): Promise<ApiResponse<TicketQualityScorecard>> {
   return apiGet<TicketQualityScorecard>("/ticket-quality/scorecard/active")
 }
@@ -434,9 +457,14 @@ export async function fetchTicketQualityReviews(ticketId: number): Promise<ApiRe
   return apiGet<TicketQualityReview[]>(`/tickets/${ticketId}/quality-reviews`)
 }
 
+export async function fetchTicketQualityAutoAssessment(ticketId: number): Promise<ApiResponse<TicketQualityAutoAssessment>> {
+  return apiGet<TicketQualityAutoAssessment>(`/tickets/${ticketId}/quality-reviews/auto-assessment`)
+}
+
 export async function createTicketQualityReview(
   ticketId: number,
   payload: {
+    sample_id?: number
     answers: Record<string, number>
     remark: string
     defect_codes: string[]

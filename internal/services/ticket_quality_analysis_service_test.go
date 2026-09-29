@@ -37,3 +37,28 @@ func TestAnalyzeTicketQualityFiltersTenantDimensionsAndMasksAgents(t *testing.T)
 	require.Len(t, report.ByProject, 1)
 	require.Empty(t, report.ByAgent)
 }
+
+func TestAnalyzeTicketQualityReturnsLocaleNeutralDimensionCodes(t *testing.T) {
+	db := setupSLATenantTestDB(t)
+	require.NoError(t, db.AutoMigrate(models.Models...))
+	ticket := models.Ticket{TenantID: 1, TicketNo: "QA-EMPTY", Title: "缺少维度", Status: enums.TicketStatusClosed}
+	require.NoError(t, db.Create(&ticket).Error)
+	operator := &dto.AuthPrincipal{TenantID: 1, UserID: 9, Roles: []string{EnterpriseRoleOwner}, Permissions: []string{"ticket.view", "ticket.progress"}}
+	card, err := GetActiveTicketQualityScorecard(1)
+	require.NoError(t, err)
+	answers := make(map[string]int, len(card.Items))
+	for _, item := range card.Items {
+		answers[item.Code] = 2
+	}
+	_, err = CreateTicketQualityReview(ticket.ID, answers, "", operator)
+	require.NoError(t, err)
+
+	report, err := AnalyzeTicketQuality(1, TicketQualityAnalysisFilter{}, operator)
+	require.NoError(t, err)
+	require.Equal(t, qualityAnalysisUnsetValue, report.ByProject[0].Value)
+	require.Equal(t, qualityAnalysisUnsetValue, report.ByProject[0].Label)
+	require.Equal(t, qualityAnalysisUngroupedValue, report.ByTeam[0].Value)
+	require.Equal(t, qualityAnalysisUnassignedValue, report.ByAgent[0].Value)
+	require.Equal(t, qualityAnalysisUncategorizedValue, report.ByCategory[0].Value)
+	require.Equal(t, qualityAnalysisUnsetValue, report.ByChannel[0].Value)
+}

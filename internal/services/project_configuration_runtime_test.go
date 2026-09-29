@@ -28,7 +28,7 @@ func setupProjectRuntime(t *testing.T) (*gorm.DB, *dto.AuthPrincipal, projectcon
 	t.Setenv("RHD_PROJECT_CONFIG_FILE", "")
 	t.Setenv("RHD_PROJECT_CONFIG_REQUIRED", "")
 	db := setupSLATenantTestDB(t)
-	require.NoError(t, db.AutoMigrate(&models.Tenant{}, &models.TenantBranding{}, &models.Customer{}, &models.ProjectConfigurationState{}, &models.ProjectConfigurationVersion{}, &models.ProjectConfigurationActivation{}, &ServiceCalendar{}, &models.DataRegionPolicy{}, &models.TenantIntegrationConfig{}, &models.TenantMailSetting{}, &models.AuditLog{}, &models.Conversation{}, &models.ConversationEventLog{}, &models.Notification{}, &models.CustomerPrivacyConsent{}, &models.TicketServiceMetric{}))
+	require.NoError(t, db.AutoMigrate(&models.Tenant{}, &models.TenantBranding{}, &models.Customer{}, &models.ProjectConfigurationState{}, &models.ProjectConfigurationVersion{}, &models.ProjectConfigurationActivation{}, &ServiceCalendar{}, &models.DataRegionPolicy{}, &models.TenantIntegrationConfig{}, &models.TenantMailSetting{}, &models.AuditLog{}, &models.Conversation{}, &models.ConversationEventLog{}, &models.Notification{}, &models.CustomerPrivacyConsent{}, &models.TicketServiceMetric{}, &models.AgentTeam{}, &models.TicketNoSequence{}, &models.TicketTag{}, &models.TicketContextSnapshot{}))
 	require.NoError(t, db.Create(&models.Tenant{ID: 1, Name: "Runtime fixture", ServiceScene: "knowledge_support", DefaultLocale: "zh-CN", Timezone: "UTC", SupportedLocalesJSON: `["zh-CN"]`, Status: enums.StatusOk}).Error)
 	op := &dto.AuthPrincipal{TenantID: 1, UserID: 7, Username: "fixture", Roles: []string{EnterpriseRoleAdmin}, Permissions: []string{constants.PermissionTicketUpdate.Code}}
 	d, err := UpgradeProjectConfiguration(1)
@@ -95,6 +95,46 @@ func TestProjectRuntimeActivationRestoreAndPinnedSLA(t *testing.T) {
 	_, err = ApplyProjectConfiguration(1, v.ID, op)
 	require.Error(t, err)
 }
+
+func TestProjectRuntimeConversationTicketUsesConfiguredResolutionSLA(t *testing.T) {
+	db, op, doc := setupProjectRuntime(t)
+	activateRuntime(t, doc, op)
+	conversation := models.Conversation{
+		TenantID: doc.TenantID,
+		Status:   enums.IMConversationStatusAIServing,
+	}
+	require.NoError(t, db.Create(&conversation).Error)
+
+	ticket, err := TicketService.CreateFromConversation(request.CreateTicketFromConversationRequest{
+		ConversationID: conversation.ID,
+		Title:          "Conversation handoff SLA regression",
+		Description:    "A customer requested human support.",
+	}, op)
+	require.NoError(t, err)
+	require.NotNil(t, ticket.SLADueAt)
+	require.WithinDuration(t, ticket.CreatedAt.Add(120*time.Minute), *ticket.SLADueAt, time.Second)
+}
+
+func TestRepairCollapsedProjectSLADeadlines(t *testing.T) {
+	db, op, doc := setupProjectRuntime(t)
+	activateRuntime(t, doc, op)
+	ticket := models.Ticket{
+		TenantID:    doc.TenantID,
+		TicketNo:    "COLLAPSED-SLA",
+		Channel:     "manual",
+		Status:      enums.TicketStatusPending,
+		AuditFields: models.AuditFields{CreatedAt: time.Date(2026, 9, 28, 10, 6, 29, 0, time.FixedZone("Asia/Shanghai", 8*60*60))},
+	}
+	require.NoError(t, TicketService.Create(&ticket))
+	require.NoError(t, db.Model(&models.Ticket{}).Where("id = ?", ticket.ID).Update("sla_due_at", ticket.CreatedAt).Error)
+
+	repaired, err := RepairCollapsedProjectSLADeadlinesDB(db)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, repaired)
+	require.NoError(t, db.First(&ticket, ticket.ID).Error)
+	require.WithinDuration(t, ticket.CreatedAt.Add(120*time.Minute), *ticket.SLADueAt, time.Second)
+}
+
 func TestProjectRuntimeMailResolutionAndMissingSecret(t *testing.T) {
 	_, op, doc := setupProjectRuntime(t)
 	root := t.TempDir()

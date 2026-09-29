@@ -56,7 +56,7 @@ func TestWhatsAppChannelUsesCloudAPIConfigurationToEnable(t *testing.T) {
 	agent := createChannelServiceTestAgent(t, db, 1001)
 	item, err := ChannelService.CreateChannel(request.CreateChannelRequest{
 		ChannelType: enums.ChannelTypeWhatsApp, AIAgentID: agent.ID, Name: "WhatsApp 项目",
-		Status: int(enums.StatusOk), ConfigJSON: `{"projectKey":"p1","chatwootCoreUrl":"https://cw","chatwootAccountId":"1","chatwootInboxId":"2","metaPhoneNumberId":"3","metaBusinessAccountId":"4","metaAccessTokenSecretRef":"secret://wa","webhookVerifyTokenSecretRef":"secret://verify"}`,
+		Status: int(enums.StatusOk), ConfigJSON: `{"projectKey":"p1","chatwootCoreUrl":"https://cw","chatwootAccountId":"1","chatwootInboxId":"2","metaPhoneNumberId":"3","metaBusinessAccountId":"4","metaAccessTokenSecretRef":"secret://wa","metaAppSecretSecretRef":"secret://meta-app","webhookVerifyTokenSecretRef":"secret://verify"}`,
 	}, channelServiceTestOperator())
 	if err != nil {
 		t.Fatalf("create whatsapp channel: %v", err)
@@ -66,6 +66,45 @@ func TestWhatsAppChannelUsesCloudAPIConfigurationToEnable(t *testing.T) {
 	}
 	if err := ChannelService.UpdateStatus(item.ID, int(enums.StatusOk), channelServiceTestOperator()); err != nil {
 		t.Fatalf("enable whatsapp: %v", err)
+	}
+}
+
+func TestWhatsAppChannelRejectsMissingMetaAppSecretReference(t *testing.T) {
+	db := setupChannelServiceTestDB(t)
+	agent := createChannelServiceTestAgent(t, db, 1001)
+	_, err := ChannelService.CreateChannel(request.CreateChannelRequest{
+		ChannelType: enums.ChannelTypeWhatsApp, AIAgentID: agent.ID, Name: "WhatsApp 项目",
+		Status: int(enums.StatusOk), ConfigJSON: `{"projectKey":"p1","metaPhoneNumberId":"3","metaBusinessAccountId":"4","metaAccessTokenSecretRef":"secret://wa","webhookVerifyTokenSecretRef":"secret://verify"}`,
+	}, channelServiceTestOperator())
+	if err == nil {
+		t.Fatal("WhatsApp channel accepted configuration without Meta app secret reference")
+	}
+}
+
+func TestWhatsAppChannelRejectsRawSecrets(t *testing.T) {
+	db := setupChannelServiceTestDB(t)
+	agent := createChannelServiceTestAgent(t, db, 1001)
+	_, err := ChannelService.CreateChannel(request.CreateChannelRequest{
+		ChannelType: enums.ChannelTypeWhatsApp, AIAgentID: agent.ID, Name: "WhatsApp 项目",
+		Status: int(enums.StatusOk), ConfigJSON: `{"projectKey":"p1","metaPhoneNumberId":"3","metaBusinessAccountId":"4","metaAccessTokenSecretRef":"raw-access-token","metaAppSecretSecretRef":"raw-app-secret","webhookVerifyTokenSecretRef":"raw-verify-token"}`,
+	}, channelServiceTestOperator())
+	if err == nil {
+		t.Fatal("WhatsApp channel accepted raw secrets instead of secret references")
+	}
+}
+
+func TestChannelServiceFindsEnabledWhatsAppChannelByPhoneNumberID(t *testing.T) {
+	db := setupChannelServiceTestDB(t)
+	agent := createChannelServiceTestAgent(t, db, 1001)
+	item := createChannelServiceTestChannel(t, db, agent.ID, "wa-channel", enums.ChannelTypeWhatsApp, enums.StatusOk)
+	item.ConfigJSON = `{"metaPhoneNumberId":"phone-1"}`
+	if err := db.Save(item).Error; err != nil {
+		t.Fatalf("save channel config: %v", err)
+	}
+
+	got := ChannelService.GetEnabledWhatsAppChannelByPhoneNumberID("phone-1")
+	if got == nil || got.ID != item.ID {
+		t.Fatalf("GetEnabledWhatsAppChannelByPhoneNumberID() = %#v, want channel %d", got, item.ID)
 	}
 }
 

@@ -142,6 +142,21 @@ func TestRuntimeCalendarHolidayRangeAndAllDay(t *testing.T) {
 	}
 }
 
+func TestRuntimeCalendarAddMinutesPreservesInputLocationForTimestampStorage(t *testing.T) {
+	calendar := Calendar{Timezone: "UTC", WorkDays: []int{0, 1, 2, 3, 4, 5, 6}, Start: "00:00", End: "24:00"}
+	location := time.FixedZone("Asia/Shanghai", 8*60*60)
+	createdAt := time.Date(2026, 9, 28, 10, 6, 29, 0, location)
+
+	deadline := calendar.AddMinutes(createdAt, 8*60)
+
+	if deadline.Location() != createdAt.Location() {
+		t.Fatalf("deadline location = %s, want %s", deadline.Location(), createdAt.Location())
+	}
+	if got := deadline.Format("2006-01-02 15:04:05"); got != "2026-09-28 18:06:29" {
+		t.Fatalf("deadline wall time = %s, want 2026-09-28 18:06:29", got)
+	}
+}
+
 func TestRetentionPolicyAsCodeEffectiveDays(t *testing.T) {
 	d := runtimeTestDocument()
 	d.Runtime.Retention.TicketDays = 730

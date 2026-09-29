@@ -193,6 +193,10 @@ func Init() {
 		if count > 0 {
 			slog.Info("wxwork kf outbox dispatched", "count", count)
 		}
+		metaCount := services.MetaWhatsAppOutboundService.DispatchPendingOutbox()
+		if metaCount > 0 {
+			slog.Info("Meta WhatsApp outbox dispatched", "count", metaCount)
+		}
 		twilioCount := services.TwilioWhatsAppOutboundService.DispatchPendingOutbox()
 		if twilioCount > 0 {
 			slog.Info("Twilio WhatsApp outbox dispatched", "count", twilioCount)

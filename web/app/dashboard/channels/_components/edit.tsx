@@ -59,7 +59,7 @@ type WechatMPChannelConfig = {
   userTokenSecret?: string
 }
 type WhatsAppChannelConfig = {
-  projectKey?: string; chatwootCoreUrl?: string; chatwootAccountId?: string; chatwootInboxId?: string; metaPhoneNumberId?: string; metaBusinessAccountId?: string; metaAccessTokenSecretRef?: string; webhookVerifyTokenSecretRef?: string; projectConfigurationApproved?: boolean; commercialResponsibilityApproved?: boolean; readinessApproved?: boolean
+  projectKey?: string; chatwootCoreUrl?: string; chatwootAccountId?: string; chatwootInboxId?: string; metaPhoneNumberId?: string; metaBusinessAccountId?: string; metaAccessTokenSecretRef?: string; metaAppSecretSecretRef?: string; webhookVerifyTokenSecretRef?: string; projectConfigurationApproved?: boolean; commercialResponsibilityApproved?: boolean; readinessApproved?: boolean
 }
 
 function getDefaultWebChannelConfig(t: Translate): Required<WebChannelConfig> {
@@ -87,7 +87,7 @@ function createSchema(t: Translate) {
       widgetWidth: z.string().trim(),
       userTokenSecret: z.string().trim(),
       remark: z.string().trim(),
-      projectKey: z.string().trim(), chatwootCoreUrl: z.string().trim(), chatwootAccountId: z.string().trim(), chatwootInboxId: z.string().trim(), metaPhoneNumberId: z.string().trim(), metaBusinessAccountId: z.string().trim(), metaAccessTokenSecretRef: z.string().trim(), webhookVerifyTokenSecretRef: z.string().trim(), projectConfigurationApproved: z.boolean(), commercialResponsibilityApproved: z.boolean(), readinessApproved: z.boolean(),
+      projectKey: z.string().trim(), chatwootCoreUrl: z.string().trim(), chatwootAccountId: z.string().trim(), chatwootInboxId: z.string().trim(), metaPhoneNumberId: z.string().trim(), metaBusinessAccountId: z.string().trim(), metaAccessTokenSecretRef: z.string().trim(), metaAppSecretSecretRef: z.string().trim(), webhookVerifyTokenSecretRef: z.string().trim(), projectConfigurationApproved: z.boolean(), commercialResponsibilityApproved: z.boolean(), readinessApproved: z.boolean(),
     })
     .superRefine((values, ctx) => {
       if (values.channelType === "wxwork_kf" && !values.openKfId.trim()) {
@@ -103,6 +103,7 @@ function createSchema(t: Translate) {
           ["metaPhoneNumberId", "channel.metaPhoneNumberIdRequired"],
           ["metaBusinessAccountId", "channel.metaBusinessAccountIdRequired"],
           ["metaAccessTokenSecretRef", "channel.metaAccessTokenSecretRefRequired"],
+          ["metaAppSecretSecretRef", "channel.metaAppSecretSecretRefRequired"],
           ["webhookVerifyTokenSecretRef", "channel.webhookVerifyTokenSecretRefRequired"],
         ]
         for (const [field, messageKey] of required) {
@@ -124,7 +125,7 @@ type EditForm = {
   widgetWidth: string
   userTokenSecret: string
   remark: string
-  projectKey: string; chatwootCoreUrl: string; chatwootAccountId: string; chatwootInboxId: string; metaPhoneNumberId: string; metaBusinessAccountId: string; metaAccessTokenSecretRef: string; webhookVerifyTokenSecretRef: string; projectConfigurationApproved: boolean; commercialResponsibilityApproved: boolean; readinessApproved: boolean
+  projectKey: string; chatwootCoreUrl: string; chatwootAccountId: string; chatwootInboxId: string; metaPhoneNumberId: string; metaBusinessAccountId: string; metaAccessTokenSecretRef: string; metaAppSecretSecretRef: string; webhookVerifyTokenSecretRef: string; projectConfigurationApproved: boolean; commercialResponsibilityApproved: boolean; readinessApproved: boolean
 }
 
 function createEmptyForm(t: Translate): EditForm {
@@ -141,7 +142,7 @@ function createEmptyForm(t: Translate): EditForm {
     widgetWidth: defaultWebChannelConfig.width,
     userTokenSecret: "",
     remark: "",
-    projectKey: "", chatwootCoreUrl: "", chatwootAccountId: "", chatwootInboxId: "", metaPhoneNumberId: "", metaBusinessAccountId: "", metaAccessTokenSecretRef: "", webhookVerifyTokenSecretRef: "", projectConfigurationApproved: false, commercialResponsibilityApproved: false, readinessApproved: false,
+    projectKey: "", chatwootCoreUrl: "", chatwootAccountId: "", chatwootInboxId: "", metaPhoneNumberId: "", metaBusinessAccountId: "", metaAccessTokenSecretRef: "", metaAppSecretSecretRef: "", webhookVerifyTokenSecretRef: "", projectConfigurationApproved: false, commercialResponsibilityApproved: false, readinessApproved: false,
   }
 }
 
@@ -233,7 +234,7 @@ function buildForm(item: AdminChannel | null, t: Translate): EditForm {
     widgetWidth: webConfig.width,
     userTokenSecret: wechatConfig?.userTokenSecret ?? webConfig.userTokenSecret,
     remark: item.remark || "",
-    projectKey: whatsappConfig.projectKey || "", chatwootCoreUrl: whatsappConfig.chatwootCoreUrl || "", chatwootAccountId: whatsappConfig.chatwootAccountId || "", chatwootInboxId: whatsappConfig.chatwootInboxId || "", metaPhoneNumberId: whatsappConfig.metaPhoneNumberId || "", metaBusinessAccountId: whatsappConfig.metaBusinessAccountId || "", metaAccessTokenSecretRef: whatsappConfig.metaAccessTokenSecretRef || "", webhookVerifyTokenSecretRef: whatsappConfig.webhookVerifyTokenSecretRef || "", projectConfigurationApproved: Boolean(whatsappConfig.projectConfigurationApproved), commercialResponsibilityApproved: Boolean(whatsappConfig.commercialResponsibilityApproved), readinessApproved: Boolean(whatsappConfig.readinessApproved),
+    projectKey: whatsappConfig.projectKey || "", chatwootCoreUrl: whatsappConfig.chatwootCoreUrl || "", chatwootAccountId: whatsappConfig.chatwootAccountId || "", chatwootInboxId: whatsappConfig.chatwootInboxId || "", metaPhoneNumberId: whatsappConfig.metaPhoneNumberId || "", metaBusinessAccountId: whatsappConfig.metaBusinessAccountId || "", metaAccessTokenSecretRef: whatsappConfig.metaAccessTokenSecretRef || "", metaAppSecretSecretRef: whatsappConfig.metaAppSecretSecretRef || "", webhookVerifyTokenSecretRef: whatsappConfig.webhookVerifyTokenSecretRef || "", projectConfigurationApproved: Boolean(whatsappConfig.projectConfigurationApproved), commercialResponsibilityApproved: Boolean(whatsappConfig.commercialResponsibilityApproved), readinessApproved: Boolean(whatsappConfig.readinessApproved),
   }
 }
 
@@ -253,7 +254,7 @@ function buildPayload(form: EditForm, status: number, t: Translate): CreateAdmin
     channelType === "wxwork_kf"
       ? JSON.stringify({ openKfId: form.openKfId.trim() })
       : channelType === "whatsapp"
-        ? JSON.stringify({ projectKey: form.projectKey.trim(), chatwootCoreUrl: form.chatwootCoreUrl.trim(), chatwootAccountId: form.chatwootAccountId.trim(), chatwootInboxId: form.chatwootInboxId.trim(), metaPhoneNumberId: form.metaPhoneNumberId.trim(), metaBusinessAccountId: form.metaBusinessAccountId.trim(), metaAccessTokenSecretRef: form.metaAccessTokenSecretRef.trim(), webhookVerifyTokenSecretRef: form.webhookVerifyTokenSecretRef.trim(), projectConfigurationApproved: form.projectConfigurationApproved, commercialResponsibilityApproved: form.commercialResponsibilityApproved, readinessApproved: form.readinessApproved })
+        ? JSON.stringify({ projectKey: form.projectKey.trim(), chatwootCoreUrl: form.chatwootCoreUrl.trim(), chatwootAccountId: form.chatwootAccountId.trim(), chatwootInboxId: form.chatwootInboxId.trim(), metaPhoneNumberId: form.metaPhoneNumberId.trim(), metaBusinessAccountId: form.metaBusinessAccountId.trim(), metaAccessTokenSecretRef: form.metaAccessTokenSecretRef.trim(), metaAppSecretSecretRef: form.metaAppSecretSecretRef.trim(), webhookVerifyTokenSecretRef: form.webhookVerifyTokenSecretRef.trim(), projectConfigurationApproved: form.projectConfigurationApproved, commercialResponsibilityApproved: form.commercialResponsibilityApproved, readinessApproved: form.readinessApproved })
       : channelType === "wechat_mp"
         ? JSON.stringify(webLikeConfig)
         : JSON.stringify({
@@ -638,7 +639,7 @@ function ChannelFormBody({
                 <div className="text-sm font-medium">{t("channel.whatsappConfigTitle")}</div>
                 <div className="text-xs text-muted-foreground">{t("channel.whatsappConfigDescription")}</div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {(["projectKey", "metaPhoneNumberId", "metaBusinessAccountId", "metaAccessTokenSecretRef", "webhookVerifyTokenSecretRef"] as const).map((name) => <Field key={name}><FieldLabel>{t(`channel.${name}`)}</FieldLabel><FieldContent><Input {...register(name)} /></FieldContent></Field>)}
+                  {(["projectKey", "metaPhoneNumberId", "metaBusinessAccountId", "metaAccessTokenSecretRef", "metaAppSecretSecretRef", "webhookVerifyTokenSecretRef"] as const).map((name) => <Field key={name}><FieldLabel>{t(`channel.${name}`)}</FieldLabel><FieldContent><Input {...register(name)} /></FieldContent></Field>)}
                 </div>
               </div>
             ) : null}

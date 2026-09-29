@@ -28,6 +28,7 @@ import {
 
 import { useRouteBreadcrumbItems } from "@/components/layout/route-breadcrumbs"
 import { ModuleLoading } from "@/components/shared/loading-states"
+import { useAppLocale } from "@/i18n/provider"
 import {
   fetchReportTeamPerformance,
   fetchReportSupplierPerformance,
@@ -136,7 +137,9 @@ function formatDate(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
-function getDateRange(key: DateRangeKey) {
+function getDateRange(key: DateRangeKey, locale: string) {
+  // The translator reads the active catalog globally; consuming locale keeps this derived label reactive.
+  void locale
   const now = new Date()
   const start = new Date(now)
   const end = new Date(now)
@@ -907,6 +910,7 @@ function ReportTableFrame({
 
 export default function EnterpriseReportsPage() {
   const searchParams = useSearchParams()
+  const { locale } = useAppLocale()
   const [role, setRole] = useState<ReportRole>("admin")
   const [sectionTab, setSectionTab] = useState<ReportSectionTab>("overview")
 
@@ -921,7 +925,7 @@ export default function EnterpriseReportsPage() {
   const [dataLoaded, setDataLoaded] = useState(false)
   const [error, setError] = useState("")
 
-  const range = useMemo(() => getDateRange(periodKey), [periodKey])
+  const range = useMemo(() => getDateRange(periodKey, locale), [locale, periodKey])
 
   const loadReports = useCallback(async () => {
     setLoading(true)

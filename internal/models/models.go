@@ -862,16 +862,21 @@ type WxWorkKFMessageRef struct {
 //
 //	用于记录平台消息提交后的渠道发送任务，保证第三方发送动作与主事务解耦。
 type ChannelMessageOutbox struct {
-	ID             int64      `gorm:"primaryKey;autoIncrement"`                                                  // ID 为投递任务主键。
-	ChannelType    string     `gorm:"type:varchar(30);not null;default:'';index;uniqueIndex:uk_channel_message"` // ChannelType 为目标渠道类型，如 wxwork_kf。
-	ConversationID int64      `gorm:"type:bigint;not null;default:0;index"`                                      // ConversationID 为所属平台会话ID。
-	MessageID      int64      `gorm:"type:bigint;not null;default:0;uniqueIndex:uk_channel_message"`             // MessageID 为待投递的平台消息ID。
-	Payload        string     `gorm:"type:text"`                                                                 // Payload 为渠道发送所需的标准化请求数据JSON。
-	SendStatus     string     `gorm:"type:varchar(30);not null;default:'';index"`                                // SendStatus 为当前投递状态，如 pending、sending、sent、failed。
-	RetryCount     int        `gorm:"type:int;not null;default:0"`                                               // RetryCount 为已重试次数。
-	NextRetryAt    *time.Time `gorm:"type:timestamp;index"`                                                      // NextRetryAt 为下一次允许重试时间。
-	LastError      string     `gorm:"type:text"`                                                                 // LastError 为最近一次发送失败信息。
-	SentAt         *time.Time `gorm:"type:timestamp;index"`                                                      // SentAt 为最终发送成功时间。
+	ID                int64      `gorm:"primaryKey;autoIncrement"`                                                  // ID 为投递任务主键。
+	ChannelType       string     `gorm:"type:varchar(30);not null;default:'';index;uniqueIndex:uk_channel_message"` // ChannelType 为目标渠道类型，如 wxwork_kf。
+	ConversationID    int64      `gorm:"type:bigint;not null;default:0;index"`                                      // ConversationID 为所属平台会话ID。
+	MessageID         int64      `gorm:"type:bigint;not null;default:0;uniqueIndex:uk_channel_message"`             // MessageID 为待投递的平台消息ID。
+	Payload           string     `gorm:"type:text"`                                                                 // Payload 为渠道发送所需的标准化请求数据JSON。
+	SendStatus        string     `gorm:"type:varchar(30);not null;default:'';index"`                                // SendStatus 为当前投递状态，如 pending、sending、sent、failed。
+	RetryCount        int        `gorm:"type:int;not null;default:0"`                                               // RetryCount 为已重试次数。
+	NextRetryAt       *time.Time `gorm:"type:timestamp;index"`                                                      // NextRetryAt 为下一次允许重试时间。
+	LastError         string     `gorm:"type:text"`                                                                 // LastError 为最近一次发送失败信息。
+	SentAt            *time.Time `gorm:"type:timestamp;index"`                                                      // SentAt 为最终发送成功时间。
+	ExternalMessageID string     `gorm:"type:varchar(255);not null;default:'';index"`                               // ExternalMessageID 为第三方平台返回的消息标识。
+	ProviderStatus    string     `gorm:"type:varchar(30);not null;default:'';index"`                                // ProviderStatus 为第三方回执状态。
+	DeliveredAt       *time.Time `gorm:"type:timestamp;index"`                                                      // DeliveredAt 为第三方确认送达时间。
+	ReadAt            *time.Time `gorm:"type:timestamp;index"`                                                      // ReadAt 为第三方确认已读时间。
+	FailedAt          *time.Time `gorm:"type:timestamp;index"`                                                      // FailedAt 为第三方确认失败时间。
 	AuditFields
 }
 

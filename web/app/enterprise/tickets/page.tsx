@@ -4,12 +4,11 @@ import { translateCurrentMessage } from "@/i18n/messages"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { CheckCircle2Icon, CopyIcon, EyeIcon, Loader2Icon, PlusIcon, RefreshCwIcon, UserRoundCheckIcon, XIcon } from "lucide-react"
-import { Input, Segmented, type TableColumnsType } from "antd"
+import { EyeIcon, Loader2Icon, PlusIcon, RefreshCwIcon, UserRoundCheckIcon, XIcon } from "lucide-react"
+import { type TableColumnsType } from "antd"
 import {
   DataTable,
   FilterTabs,
-  FormField,
   IconButton,
   PageShell,
   RailopsButton,
@@ -31,25 +30,16 @@ import { useRouteBreadcrumbItems } from "@/components/layout/route-breadcrumbs"
 import { useAuth } from "@/components/auth-provider"
 import { CanUseButton } from "@/components/layout/permission-guard"
 import { ModuleLoading } from "@/components/shared/loading-states"
-import {
-  createTicket,
-  createTicketCustomerInvitationDraft,
-  fetchTicketAggregate,
-  fetchTicketCustomerOptions,
-  fetchTickets,
-  fetchTicketSummary,
-  type TicketCustomerInvitationDraftResult,
-  type TicketCustomerOption,
-} from "@/lib/api/enterprise-tickets"
-import type { TicketAggregateDTO, TicketListItem, TicketPriority } from "@/lib/api/types"
+import { fetchTicketAggregate, fetchTickets, fetchTicketSummary } from "@/lib/api/enterprise-tickets"
+import type { TicketAggregateDTO, TicketListItem } from "@/lib/api/types"
 import { customerDisplayName } from "@/lib/customer-identity"
 import { caseStatuses, displayTicketStatus, isProcessingTicketStatus, isTerminalTicketStatus } from "@/lib/ticket-lifecycle"
 import { caseLabel, caseStatusLabel } from "@/lib/ticket-case-labels"
 import { TicketCaseLifecycle } from "./_components/ticket-case-lifecycle"
-import { TicketClassificationFields, TicketGovernancePanel } from "./_components/ticket-governance"
-import { caseTypes, governanceLabel as g, type CaseType } from "@/lib/ticket-governance"
+import { TicketGovernancePanel } from "./_components/ticket-governance"
+import { TicketCreateModal } from "./_components/ticket-create-modal"
+import { caseTypes, governanceLabel as g } from "@/lib/ticket-governance"
 import { ProjectConfigurationEditor } from "./_components/project-configuration-editor"
-import { toast } from "sonner"
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
     return translateCurrentMessage(`enterpriseExtract.${key}`)
@@ -64,21 +54,6 @@ function ee(key: string, values?: Record<string, unknown>) {
     ),
   )
 }
-
-function serviceProfileLabel(profile: string) {
-  if (profile === "enhanced") return ee("tickets.text105")
-  if (profile === "mission_critical") return ee("tickets.text106")
-  if (profile === "standard") return ee("tickets.text104")
-  return ee("tickets.text107")
-}
-
-function serviceProfileTone(profile: string): StatusTagTone {
-  if (profile === "mission_critical") return "error"
-  if (profile === "enhanced") return "warning"
-  if (profile === "standard") return "neutral"
-  return "disabled"
-}
-
 
 const PAGE_SIZE = 10
 
@@ -114,42 +89,6 @@ const EMPTY_SUMMARY: TicketSummary = {
   slaRisk: 0,
   urgent: 0,
   done: 0,
-}
-
-type TicketCustomerMode = "existing" | "invite"
-
-type TicketDraft = {
-  priorityOverride: string
-  priorityReason: string
-  caseType: CaseType
-  parentId: number
-  relationReason: string
-	channel: "enterprise" | "phone"
-  title: string
-  description: string
-  priority: TicketPriority
-  customerMode: TicketCustomerMode
-  customerId: number
-  inviteDisplayName: string
-  inviteEmail: string
-  inviteCustomerOrg: string
-}
-
-const EMPTY_TICKET_DRAFT: TicketDraft = {
-  priorityOverride: "",
-  priorityReason: "",
-  caseType: "user_case",
-  parentId: 0,
-  relationReason: "",
-  channel: "enterprise",
-  title: "",
-  description: "",
-  priority: "medium",
-  customerMode: "existing",
-  customerId: 0,
-  inviteDisplayName: "",
-  inviteEmail: "",
-  inviteCustomerOrg: "",
 }
 
 function parseDeviceRouteFilter(searchParams: Pick<URLSearchParams, "get">): DeviceRouteFilter | null {
@@ -293,15 +232,7 @@ export default function EnterpriseTicketsPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState("")
   const [createOpen, setCreateOpen] = useState(Number(searchParams.get("parent_ticket_id")) > 0)
-  const [createSaving, setCreateSaving] = useState(false)
-  const [createKey, setCreateKey] = useState(() => crypto.randomUUID())
-  const [createError, setCreateError] = useState("")
-  const [ticketDraft, setTicketDraft] = useState({ ...EMPTY_TICKET_DRAFT, parentId: Math.max(0, Number(searchParams.get("parent_ticket_id")) || 0) })
-  const [customerOptions, setCustomerOptions] = useState<TicketCustomerOption[]>([])
-  const [customerOptionsLoading, setCustomerOptionsLoading] = useState(false)
-  const [customerOptionsError, setCustomerOptionsError] = useState("")
-  const [createdInvitation, setCreatedInvitation] = useState<TicketCustomerInvitationDraftResult | null>(null)
-  const [invitationLinkCopied, setInvitationLinkCopied] = useState(false)
+  const [createParentTicketId, setCreateParentTicketId] = useState(Math.max(0, Number(searchParams.get("parent_ticket_id")) || 0))
   const canCreateTicket = CanUseButton("ticket.create", session?.permissions)
 
   const loadTickets = useCallback(async () => {
@@ -410,121 +341,10 @@ export default function EnterpriseTicketsPage() {
     setDetailOpen(false)
   }, [])
 
-  const closeCreateModal = useCallback(() => {
-    if (createSaving) return
-    setCreateOpen(false)
-    setCreateError("")
-    setCustomerOptionsError("")
-    setCreatedInvitation(null)
-    setInvitationLinkCopied(false)
-    setTicketDraft(EMPTY_TICKET_DRAFT)
-  }, [createSaving])
-
-  useEffect(() => {
-    if (!createOpen) return
-    let cancelled = false
-    async function loadCustomerOptions() {
-      setCustomerOptionsLoading(true)
-      setCustomerOptionsError("")
-      try {
-        const result = await fetchTicketCustomerOptions()
-        if (cancelled) return
-        if (!result.success) {
-          setCustomerOptions([])
-          setCustomerOptionsError(result.error?.message || ee("tickets.text098"))
-          return
-        }
-        const items = result.data || []
-        setCustomerOptions(items)
-        setTicketDraft((current) => ({
-          ...current,
-          customerMode: items.length === 0 ? "invite" : current.customerMode,
-        }))
-      } catch (error) {
-        if (!cancelled) {
-          setCustomerOptions([])
-          setCustomerOptionsError(error instanceof Error ? error.message : ee("tickets.text098"))
-        }
-      } finally {
-        if (!cancelled) setCustomerOptionsLoading(false)
-      }
-    }
-    void loadCustomerOptions()
-    return () => {
-      cancelled = true
-    }
-  }, [createOpen])
-
-  const submitCreateTicket = useCallback(async () => {
-    const title = ticketDraft.title.trim()
-    const description = ticketDraft.description.trim()
-    if (!title || !description) {
-      setCreateError(ee("tickets.text076"))
-      return
-    }
-    if (ticketDraft.customerMode === "existing" && ticketDraft.customerId <= 0) {
-      setCreateError(ee("tickets.text084"))
-      return
-    }
-    if (ticketDraft.customerMode === "invite" && (!ticketDraft.inviteDisplayName.trim() || !ticketDraft.inviteEmail.trim() || !ticketDraft.inviteCustomerOrg.trim())) {
-      setCreateError(ee("tickets.text091"))
-      return
-    }
-    if (ticketDraft.priorityOverride && !ticketDraft.priorityReason.trim()) { setCreateError(g("reasonRequired")); return }
-    setCreateSaving(true)
-    setCreateError("")
-    try {
-      const inviteCustomer = ticketDraft.customerMode === "invite"
-      const result = inviteCustomer
-        ? await createTicketCustomerInvitationDraft({
-            priority_level: ticketDraft.priorityOverride || undefined, priority_reason: ticketDraft.priorityOverride ? ticketDraft.priorityReason.trim() : undefined,
-            case_type: ticketDraft.caseType, parent_ticket_id: ticketDraft.parentId, relation_reason: ticketDraft.relationReason,
-            title,
-            description,
-            priority: ticketDraft.priority,
-            displayName: ticketDraft.inviteDisplayName.trim(),
-            email: ticketDraft.inviteEmail.trim(),
-            customerOrg: ticketDraft.inviteCustomerOrg.trim(),
-          })
-        : await createTicket({
-            priority_level: ticketDraft.priorityOverride || undefined, priority_reason: ticketDraft.priorityOverride ? ticketDraft.priorityReason.trim() : undefined,
-            case_type: ticketDraft.caseType, parent_ticket_id: ticketDraft.parentId, relation_reason: ticketDraft.relationReason,
-            source: "manual",
-            channel: ticketDraft.channel,
-            idempotency_key: createKey,
-            title,
-            description,
-            priority: ticketDraft.priority,
-            ...(ticketDraft.customerId > 0 ? { customer_id: ticketDraft.customerId } : {}),
-          })
-      if (!result.success || !result.data) {
-        setCreateError(result.error?.message || (inviteCustomer ? ee("tickets.text099") : ee("tickets.text075")))
-        return
-      }
-      setPage(1)
-      await Promise.all([loadTickets(), loadSummary()])
-      if (inviteCustomer) {
-        setCreatedInvitation(result.data as TicketCustomerInvitationDraftResult)
-        toast.success(ee("tickets.text092"))
-        return
-      }
-      toast.success(ee("tickets.text074"))
-      setCreateOpen(false)
-      setTicketDraft(EMPTY_TICKET_DRAFT)
-    } catch (error) {
-      setCreateError(error instanceof Error ? error.message : (ticketDraft.customerMode === "invite" ? ee("tickets.text099") : ee("tickets.text075")))
-    } finally {
-      setCreateSaving(false)
-    }
-  }, [loadSummary, loadTickets, ticketDraft, createKey])
-
-  const copyInvitationLink = useCallback(async () => {
-    const link = createdInvitation?.invitation.registrationUrl
-    if (!link) return
-    await navigator.clipboard.writeText(link)
-    setInvitationLinkCopied(true)
-    toast.success(ee("tickets.text096"))
-  }, [createdInvitation])
+  const openCreateModal = useCallback((parentTicketId = 0) => {
+    setCreateParentTicketId(parentTicketId)
+    setCreateOpen(true)
+  }, [])
 
   useEffect(() => {
     if (!detailOpen || detailTicketId == null) {
@@ -723,7 +543,7 @@ export default function EnterpriseTicketsPage() {
         <>
           <ProjectConfigurationEditor />
           {canCreateTicket ? (
-            <RailopsButton variant="primary" onClick={() => { setCreateKey(crypto.randomUUID()); setCreateOpen(true) }}>
+            <RailopsButton variant="primary" onClick={() => openCreateModal()}>
               <PlusIcon className="size-4" />{ee("tickets.text065")}
             </RailopsButton>
           ) : null}
@@ -856,155 +676,15 @@ export default function EnterpriseTicketsPage() {
         )}
       </section>
 
-      <StandardModal
-        centered
-        destroyOnHidden
+      <TicketCreateModal
         open={createOpen}
-        title={ee("tickets.text065")}
-        width={620}
-        styles={{ body: { maxHeight: "calc(100dvh - 180px)", overflowY: "auto", overflowX: "hidden" } }}
-        onCancel={closeCreateModal}
-        footer={
-          createdInvitation ? (
-            <RailopsButton variant="primary" onClick={closeCreateModal}>{ee("tickets.text097")}</RailopsButton>
-          ) : (
-            <>
-              <RailopsButton onClick={closeCreateModal} disabled={createSaving}>{ee("tickets.text073")}</RailopsButton>
-              <RailopsButton variant="primary" onClick={() => void submitCreateTicket()} disabled={createSaving}>
-                {createSaving ? ee("tickets.text072") : ee("tickets.text071")}
-              </RailopsButton>
-            </>
-          )
-        }
-      >
-        {createdInvitation ? (
-          <div className="grid gap-4">
-            <div className="flex items-start gap-3 border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-950">
-              <CheckCircle2Icon className="mt-0.5 size-5 shrink-0 text-emerald-600" />
-              <div className="grid gap-1">
-                <strong>{ee("tickets.text092")}</strong>
-                <span className="text-sm text-emerald-800">{ee("tickets.text093")}</span>
-                <div className="mt-1"><StatusTag tone="neutral">{ee("tickets.text101")} · {createdInvitation.ticket.ticket_no}</StatusTag></div>
-              </div>
-            </div>
-            <FormField label={ee("tickets.text094")}>
-              <div className="flex items-center gap-2">
-                <Input readOnly value={createdInvitation.invitation.registrationUrl} />
-                <IconButton
-                  icon={<CopyIcon className="size-4" />}
-                  tooltip={invitationLinkCopied ? ee("tickets.text096") : ee("tickets.text095")}
-                  aria-label={invitationLinkCopied ? ee("tickets.text096") : ee("tickets.text095")}
-                  onClick={() => void copyInvitationLink()}
-                />
-              </div>
-            </FormField>
-            {!createdInvitation.invitation.emailSent ? (
-              <div className="border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{ee("tickets.text100")}</div>
-            ) : null}
-          </div>
-        ) : (
-          <div className="grid gap-4">
-            <FormField label={ee("tickets.text078")} required>
-              <Segmented
-                block
-                value={ticketDraft.customerMode}
-                options={[
-                  { value: "existing", label: ee("tickets.text079") },
-                  { value: "invite", label: ee("tickets.text080") },
-                ]}
-                onChange={(value) => {
-                  setCreateError("")
-                  setTicketDraft((current) => ({ ...current, customerMode: value as TicketCustomerMode }))
-                }}
-              />
-            </FormField>
-            {ticketDraft.customerMode === "existing" ? (
-              <div className="grid gap-2">
-                <SelectField
-                  label={ee("tickets.text077")}
-                  required
-                  selectProps={{
-                    value: ticketDraft.customerId || undefined,
-                    loading: customerOptionsLoading,
-                    showSearch: true,
-                    optionFilterProp: "label",
-                    placeholder: customerOptionsLoading ? ee("tickets.text082") : ee("tickets.text081"),
-                    onChange: (customerId) => setTicketDraft((current) => ({ ...current, customerId: Number(customerId) || 0 })),
-                    options: customerOptions.map((customer) => ({
-                      value: customer.customer_id,
-                      label: [customer.display_name, customer.customer_org_name, customer.email].filter(Boolean).join(" · "),
-                    })),
-                  }}
-                />
-                {ticketDraft.customerId > 0 ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>{ee("tickets.text103")}</span>
-                    <StatusTag tone={serviceProfileTone(customerOptions.find((item) => item.customer_id === ticketDraft.customerId)?.service_profile || "")}>
-                      {serviceProfileLabel(customerOptions.find((item) => item.customer_id === ticketDraft.customerId)?.service_profile || "")}
-                    </StatusTag>
-                  </div>
-                ) : null}
-                {customerOptionsError ? <span className="text-sm text-destructive">{customerOptionsError}</span> : null}
-                {!customerOptionsLoading && !customerOptionsError && customerOptions.length === 0 ? (
-                  <span className="text-sm text-muted-foreground">{ee("tickets.text083")}</span>
-                ) : null}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormField label={ee("tickets.text085")} required>
-                  <Input
-                    value={ticketDraft.inviteDisplayName}
-                    maxLength={100}
-                    placeholder={ee("tickets.text088")}
-                    onChange={(event) => setTicketDraft((current) => ({ ...current, inviteDisplayName: event.target.value }))}
-                  />
-                </FormField>
-                <FormField label={ee("tickets.text086")} required>
-                  <Input
-                    type="email"
-                    value={ticketDraft.inviteEmail}
-                    maxLength={200}
-                    placeholder={ee("tickets.text089")}
-                    onChange={(event) => setTicketDraft((current) => ({ ...current, inviteEmail: event.target.value }))}
-                  />
-                </FormField>
-                <div className="sm:col-span-2">
-                  <FormField label={ee("tickets.text087")} required>
-                    <Input
-                      value={ticketDraft.inviteCustomerOrg}
-                      maxLength={200}
-                      placeholder={ee("tickets.text090")}
-                      onChange={(event) => setTicketDraft((current) => ({ ...current, inviteCustomerOrg: event.target.value }))}
-                    />
-                  </FormField>
-                </div>
-              </div>
-            )}
-            <FormField label={ee("tickets.text066")} required>
-              <Input
-                value={ticketDraft.title}
-                maxLength={200}
-                autoFocus
-                placeholder={ee("tickets.text069")}
-                onChange={(event) => setTicketDraft((current) => ({ ...current, title: event.target.value }))}
-              />
-            </FormField>
-            <FormField label={ee("tickets.text067")} required>
-              <Input.TextArea
-                value={ticketDraft.description}
-                rows={5}
-                maxLength={4000}
-                showCount
-                placeholder={ee("tickets.text070")}
-                onChange={(event) => setTicketDraft((current) => ({ ...current, description: event.target.value }))}
-              />
-            </FormField>
-            <TicketClassificationFields priorityOverride={ticketDraft.priorityOverride} priorityReason={ticketDraft.priorityReason} onPriorityChange={priorityOverride => setTicketDraft(current => ({ ...current, priorityOverride }))} onPriorityReasonChange={priorityReason => setTicketDraft(current => ({ ...current, priorityReason }))} value={ticketDraft.caseType} disabled={createSaving} onChange={caseType => setTicketDraft(current => ({ ...current, caseType }))} />
-            {ticketDraft.parentId > 0 ? <FormField label={`${g("parentTicket")} #${ticketDraft.parentId} · ${g("reason")}`} required><Input.TextArea value={ticketDraft.relationReason} maxLength={2000} onChange={e => setTicketDraft(current => ({ ...current, relationReason: e.target.value }))} /></FormField> : null}
-            {createError ? <div className="border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">{createError}</div> : null}
-          </div>
-        )}
-      </StandardModal>
+        parentTicketId={createParentTicketId}
+        onOpenChange={setCreateOpen}
+        onCreated={async () => {
+          setPage(1)
+          await Promise.all([loadTickets(), loadSummary()])
+        }}
+      />
 
       <StandardModal
         centered
@@ -1069,7 +749,7 @@ export default function EnterpriseTicketsPage() {
           ) : detailData ? (
             <div className="rhd-railops-ticket-detail-shell">
               <TicketCaseLifecycle key={detailData.ticket.id} active={detailOpen} aggregate={detailData} onSaved={(value) => { setDetailData((current) => current?.ticket.id === value.ticket.id ? value : current); void loadTickets(); void loadSummary() }} />
-              <TicketGovernancePanel key={`governance-${detailData.ticket.id}`} active={detailOpen} aggregate={detailData} onSaved={(value) => { setDetailData(current => current?.ticket.id === value.ticket.id ? value : current); void loadTickets(); void loadSummary() }} />
+              <TicketGovernancePanel key={`governance-${detailData.ticket.id}`} active={detailOpen} aggregate={detailData} onCreateChild={openCreateModal} onSaved={(value) => { setDetailData(current => current?.ticket.id === value.ticket.id ? value : current); void loadTickets(); void loadSummary() }} />
               <EnterpriseTicketDetailContent aggregate={detailData} showDeviceContext={hasDeviceConcept} />
             </div>
           ) : (

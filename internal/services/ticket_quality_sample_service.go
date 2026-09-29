@@ -166,12 +166,38 @@ func (s *ticketQualitySampleService) List(tenantID int64, q ticketQualitySampleQ
 	if err := db.Order("sampled_at DESC, id DESC").Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&items).Error; err != nil {
 		return nil, err
 	}
+	ticketIDs := make([]int64, 0, len(items))
+	for i := range items {
+		ticketIDs = append(ticketIDs, items[i].TicketID)
+	}
+	latestReviews := make(map[int64]models.TicketQualityReview, len(ticketIDs))
+	if len(ticketIDs) > 0 {
+		var reviews []models.TicketQualityReview
+		if err := sqls.DB().Where("tenant_id = ? AND ticket_id IN ?", tenantID, ticketIDs).Order("reviewed_at DESC, id DESC").Find(&reviews).Error; err != nil {
+			return nil, err
+		}
+		for i := range reviews {
+			if _, exists := latestReviews[reviews[i].TicketID]; !exists {
+				latestReviews[reviews[i].TicketID] = reviews[i]
+			}
+		}
+	}
 	result := &dto.TicketQualitySamplePageDTO{Items: make([]dto.TicketQualitySampleDTO, 0, len(items)), Total: total, Page: q.Page, PageSize: q.PageSize, TotalPages: int((total + int64(q.PageSize) - 1) / int64(q.PageSize))}
 	var summary []struct {
 		Status string
 		Count  int64
 	}
-	if err := sqls.DB().Model(&models.TicketQualitySample{}).Select("status, count(*) as count").Where("tenant_id = ?", tenantID).Group("status").Scan(&summary).Error; err == nil {
+	summaryDB := sqls.DB().Model(&models.TicketQualitySample{}).Where("tenant_id = ?", tenantID)
+	if q.PeriodKey != "" {
+		summaryDB = summaryDB.Where("period_key = ?", q.PeriodKey)
+	}
+	if q.Reason != "" {
+		summaryDB = summaryDB.Where("reasons_json LIKE ?", "%\""+q.Reason+"\"%")
+	}
+	if q.Search != "" {
+		summaryDB = summaryDB.Where("ticket_id IN (SELECT id FROM t_ticket WHERE tenant_id = ? AND (ticket_no LIKE ? OR title LIKE ?))", tenantID, "%"+q.Search+"%", "%"+q.Search+"%")
+	}
+	if err := summaryDB.Select("status, count(*) as count").Group("status").Scan(&summary).Error; err == nil {
 		for _, row := range summary {
 			switch row.Status {
 			case ticketQualitySamplePending:
@@ -185,7 +211,11 @@ func (s *ticketQualitySampleService) List(tenantID int64, q ticketQualitySampleQ
 	}
 	result.Summary.Total = result.Summary.Pending + result.Summary.InProgress + result.Summary.Completed
 	for _, item := range items {
-		result.Items = append(result.Items, s.buildDTO(item))
+		row := s.buildDTO(item)
+		if review, ok := latestReviews[item.TicketID]; ok {
+			row.LatestReview = &dto.TicketQualityReviewSummaryDTO{TotalScore: review.TotalScore, MaxScore: review.MaxScore, Result: review.Result, Outcome: review.Outcome, ReviewedAt: review.ReviewedAt.Format(time.RFC3339)}
+		}
+		result.Items = append(result.Items, row)
 	}
 	return result, nil
 }

@@ -1,22 +1,31 @@
 package dto
 
 type TicketQualitySampleDTO struct {
-	ID           int64    `json:"id"`
-	TicketID     int64    `json:"ticket_id"`
-	TicketNo     string   `json:"ticket_no"`
-	Title        string   `json:"title"`
-	Priority     string   `json:"priority"`
-	TicketStatus string   `json:"ticket_status"`
-	AssigneeID   int64    `json:"assignee_id"`
-	AssigneeName string   `json:"assignee_name"`
-	PeriodKey    string   `json:"period_key"`
-	Reasons      []string `json:"reasons"`
-	Status       string   `json:"status"`
-	ReviewerID   int64    `json:"reviewer_id"`
-	ReviewNote   string   `json:"review_note"`
-	SampledAt    string   `json:"sampled_at"`
-	StartedAt    string   `json:"started_at"`
-	CompletedAt  string   `json:"completed_at"`
+	ID           int64                          `json:"id"`
+	TicketID     int64                          `json:"ticket_id"`
+	TicketNo     string                         `json:"ticket_no"`
+	Title        string                         `json:"title"`
+	Priority     string                         `json:"priority"`
+	TicketStatus string                         `json:"ticket_status"`
+	AssigneeID   int64                          `json:"assignee_id"`
+	AssigneeName string                         `json:"assignee_name"`
+	PeriodKey    string                         `json:"period_key"`
+	Reasons      []string                       `json:"reasons"`
+	Status       string                         `json:"status"`
+	ReviewerID   int64                          `json:"reviewer_id"`
+	ReviewNote   string                         `json:"review_note"`
+	SampledAt    string                         `json:"sampled_at"`
+	StartedAt    string                         `json:"started_at"`
+	CompletedAt  string                         `json:"completed_at"`
+	LatestReview *TicketQualityReviewSummaryDTO `json:"latest_review,omitempty"`
+}
+
+type TicketQualityReviewSummaryDTO struct {
+	TotalScore int    `json:"total_score"`
+	MaxScore   int    `json:"max_score"`
+	Result     string `json:"result"`
+	Outcome    string `json:"outcome"`
+	ReviewedAt string `json:"reviewed_at"`
 }
 
 type TicketQualitySampleSummaryDTO struct {

@@ -44,6 +44,14 @@ type TicketQualityAnalysis struct {
 	ByChannel     []TicketQualityAnalysisBucket `json:"by_channel"`
 }
 
+const (
+	qualityAnalysisAllValue           = "__all__"
+	qualityAnalysisUnsetValue         = "__unset__"
+	qualityAnalysisUngroupedValue     = "__ungrouped__"
+	qualityAnalysisUnassignedValue    = "__unassigned__"
+	qualityAnalysisUncategorizedValue = "__uncategorized__"
+)
+
 func AnalyzeTicketQuality(tenantID int64, filter TicketQualityAnalysisFilter, operator *dto.AuthPrincipal) (*TicketQualityAnalysis, error) {
 	if operator == nil || tenantID <= 0 || operator.EffectiveTenantID() != tenantID || !operator.HasPermission(constants.PermissionTicketView.Code) {
 		return nil, errorsx.Forbidden("无质量分析查看权限")
@@ -90,7 +98,7 @@ func AnalyzeTicketQuality(tenantID int64, filter TicketQualityAnalysisFilter, op
 
 	type dimensions struct{ project, team, agent, category, channel string }
 	buckets := map[string]map[string]*TicketQualityAnalysisBucket{"project": {}, "team": {}, "agent": {}, "category": {}, "channel": {}}
-	summary := &TicketQualityAnalysisBucket{Value: "all", Label: "全部"}
+	summary := &TicketQualityAnalysisBucket{Value: qualityAnalysisAllValue, Label: qualityAnalysisAllValue}
 	for _, review := range reviews {
 		ticket, ok := ticketByID[review.TicketID]
 		if !ok {
@@ -113,23 +121,23 @@ func AnalyzeTicketQuality(tenantID int64, filter TicketQualityAnalysisFilter, op
 		}
 		d := dimensions{project: ticket.ProjectKey, team: teamNames[ticket.CurrentTeamID], agent: "", category: ticket.CaseType, channel: ticket.Channel}
 		if d.project == "" {
-			d.project = "未设置"
+			d.project = qualityAnalysisUnsetValue
 		}
 		if d.team == "" {
-			d.team = "未分组"
+			d.team = qualityAnalysisUngroupedValue
 		}
 		if d.category == "" {
-			d.category = "未分类"
+			d.category = qualityAnalysisUncategorizedValue
 		}
 		if d.channel == "" {
-			d.channel = "未设置"
+			d.channel = qualityAnalysisUnsetValue
 		}
 		if canViewAgents {
 			if user := repositories.UserRepository.Get(sqls.DB(), ticket.CurrentAssigneeID); user != nil {
 				d.agent = user.Nickname
 			}
 			if d.agent == "" {
-				d.agent = "未分配"
+				d.agent = qualityAnalysisUnassignedValue
 			}
 		}
 		summary.Reviews++
@@ -208,5 +216,5 @@ func formatQualityAnalysisTime(value time.Time) string {
 	return value.Format(time.RFC3339)
 }
 func emptyTicketQualityAnalysis(filter TicketQualityAnalysisFilter, canViewAgents bool) *TicketQualityAnalysis {
-	return &TicketQualityAnalysis{From: formatQualityAnalysisTime(filter.From), To: formatQualityAnalysisTime(filter.To), CanViewAgents: canViewAgents, Summary: TicketQualityAnalysisBucket{Value: "all", Label: "全部"}, ByProject: []TicketQualityAnalysisBucket{}, ByTeam: []TicketQualityAnalysisBucket{}, ByCategory: []TicketQualityAnalysisBucket{}, ByChannel: []TicketQualityAnalysisBucket{}, ByAgent: []TicketQualityAnalysisBucket{}}
+	return &TicketQualityAnalysis{From: formatQualityAnalysisTime(filter.From), To: formatQualityAnalysisTime(filter.To), CanViewAgents: canViewAgents, Summary: TicketQualityAnalysisBucket{Value: qualityAnalysisAllValue, Label: qualityAnalysisAllValue}, ByProject: []TicketQualityAnalysisBucket{}, ByTeam: []TicketQualityAnalysisBucket{}, ByCategory: []TicketQualityAnalysisBucket{}, ByChannel: []TicketQualityAnalysisBucket{}, ByAgent: []TicketQualityAnalysisBucket{}}
 }

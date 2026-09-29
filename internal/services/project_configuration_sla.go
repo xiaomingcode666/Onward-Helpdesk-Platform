@@ -34,6 +34,53 @@ func projectSLAWorkItems() ([]projectSLAWork, error) {
 	}
 	return items, nil
 }
+
+func RepairCollapsedProjectSLADeadlinesDB(db *gorm.DB) (int64, error) {
+	if db == nil {
+		return 0, nil
+	}
+	var repaired int64
+	err := db.Transaction(func(tx *gorm.DB) error {
+		var tickets []models.Ticket
+		if err := tx.Where("project_config_version_id > 0").
+			Where("sla_due_at = created_at").
+			Where(ticketCaseOpenSQL).
+			Find(&tickets).Error; err != nil {
+			return err
+		}
+		for i := range tickets {
+			ticket := &tickets[i]
+			runtime, _, err := projectRuntimeDB(tx, ticket.TenantID, ticket.ProjectConfigVersionID)
+			if err != nil {
+				return err
+			}
+			target, calendar, ok := projectTicketTargetForTicket(runtime, ticket.ProjectKey, ticket.ServiceProfile)
+			if !ok || target.ResolutionMinutes <= 0 {
+				continue
+			}
+			policy := SLAPolicy{ResolutionMinutes: target.ResolutionMinutes, runtimeCalendar: &calendar}
+			paused, err := policy.pausedDB(tx, *ticket, time.Now())
+			if err != nil {
+				return err
+			}
+			deadline := policy.deadline(ticket.CreatedAt, target.ResolutionMinutes, paused)
+			updates := map[string]any{"sla_due_at": deadline}
+			if ticket.DaypopClockPausedAt != nil {
+				updates["daypop_clock_paused_remaining_seconds"] = int64(deadline.Sub(*ticket.DaypopClockPausedAt) / time.Second)
+			}
+			result := tx.Model(&models.Ticket{}).
+				Where("id = ? AND tenant_id = ? AND sla_due_at = created_at", ticket.ID, ticket.TenantID).
+				Updates(updates)
+			if result.Error != nil {
+				return result.Error
+			}
+			repaired += result.RowsAffected
+		}
+		return nil
+	})
+	return repaired, err
+}
+
 func (p SLAPolicy) deadline(start time.Time, minutes int, paused time.Duration) time.Time {
 	if p.runtimeCalendar != nil {
 		return p.runtimeCalendar.AddMinutes(start, minutes+int(paused/time.Minute))

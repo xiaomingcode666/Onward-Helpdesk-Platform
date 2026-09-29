@@ -29,7 +29,7 @@ export function TicketClassificationFields({ value, onChange, disabled = false, 
   </div>
 }
 
-export function TicketGovernancePanel({ aggregate, onSaved, active = true }: { aggregate: TicketAggregateDTO; onSaved: (value: TicketAggregateDTO) => void | Promise<void>; active?: boolean }) {
+export function TicketGovernancePanel({ aggregate, onSaved, onCreateChild, active = true }: { aggregate: TicketAggregateDTO; onSaved: (value: TicketAggregateDTO) => void | Promise<void>; onCreateChild: (parentTicketId: number) => void; active?: boolean }) {
   const { session } = useAuth()
   const id = aggregate.ticket.id
   const [view, setView] = useState<GovernanceView | null>(null)
@@ -238,7 +238,7 @@ export function TicketGovernancePanel({ aggregate, onSaved, active = true }: { a
       <h4 className="text-sm font-semibold">{g("relations")}</h4>
       <div className="flex flex-wrap gap-2">
         {view.can_associate_duplicate ? <RailopsButton size="small" onClick={() => open("duplicate_child")}>{g("action.duplicate_child")}</RailopsButton> : null}
-        {view.can_manage && !terminal ? <RailopsButton size="small" href={`/enterprise/tickets?parent_ticket_id=${id}`}>{g("createChild")}</RailopsButton> : null}
+        {view.can_manage && !terminal ? <RailopsButton size="small" onClick={() => onCreateChild(id)}>{g("createChild")}</RailopsButton> : null}
       </div>
     </div>
     {view.merge?.into ? <p className="rounded-md bg-muted p-3 text-sm">{g("mergedInto")} <a className="underline" href={`/enterprise/ticket-workbench?ticket_id=${view.merge.into.other_id}`}>{view.merge.into.ticket_no} · {view.merge.into.title}</a></p> : null}

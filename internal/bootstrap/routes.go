@@ -509,6 +509,11 @@ func registerThirdTwilioWhatsAppRoutes(group *gin.RouterGroup) {
 	group.POST("/webhook", third.TwilioWhatsAppPostWebhook)
 }
 
+func registerThirdMetaWhatsAppRoutes(group *gin.RouterGroup) {
+	group.GET("/webhook", third.MetaWhatsAppGetWebhook)
+	group.POST("/webhook", third.MetaWhatsAppPostWebhook)
+}
+
 // ------ Enterprise 路由（SLA、升级） ------
 
 func registerEnterpriseSLARoutes(group *gin.RouterGroup) {
@@ -703,6 +708,7 @@ func registerEnterpriseTicketRoutes(group *gin.RouterGroup) {
 	group.GET("/ticket-quality/scorecard/active", require(constants.PermissionTicketView), enterprise.TicketQualityScorecardActive)
 	group.POST("/ticket-quality/scorecard/versions", require(constants.PermissionTicketUpdate), enterprise.TicketQualityScorecardVersionCreate)
 	group.POST("/ticket-quality/scorecard/versions/:id/publish", require(constants.PermissionTicketUpdate), enterprise.TicketQualityScorecardVersionPublish)
+	group.GET("/tickets/:id/quality-reviews/auto-assessment", require(constants.PermissionTicketView), enterprise.TicketQualityAutoAssessmentGet)
 	group.GET("/tickets/:id/quality-reviews", require(constants.PermissionTicketView), enterprise.TicketQualityReviewList)
 	group.POST("/tickets/:id/quality-reviews", require(constants.PermissionTicketProgress), enterprise.TicketQualityReviewCreate)
 	group.GET("/ticket-quality/samples", require(constants.PermissionTicketView), enterprise.TicketQualitySampleList)

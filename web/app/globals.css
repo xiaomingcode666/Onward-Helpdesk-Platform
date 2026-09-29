@@ -395,6 +395,13 @@
   }
 }
 
+.ticket-quality-date-picker .ant-picker-input > input {
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
 /* Product management - product detail tabs; colors mapped to current theme tokens for dark mode */
 .product-detail-tabs {
   display: grid;

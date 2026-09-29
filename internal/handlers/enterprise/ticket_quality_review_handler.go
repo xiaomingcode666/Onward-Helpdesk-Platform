@@ -84,6 +84,24 @@ func TicketQualityReviewList(ctx *gin.Context) {
 	httpx.WriteJSON(ctx, value)
 }
 
+func TicketQualityAutoAssessmentGet(ctx *gin.Context) {
+	operator, err := services.AuthService.RequirePermission(ctx, constants.PermissionTicketView)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	_, ticketID, ok := resolveEnterpriseTicketRoute(ctx)
+	if !ok {
+		return
+	}
+	value, err := services.BuildTicketQualityAutoAssessment(ticketID, operator)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, value)
+}
+
 func TicketQualityReviewCreate(ctx *gin.Context) {
 	operator, err := services.AuthService.RequirePermission(ctx, constants.PermissionTicketProgress)
 	if err != nil {
@@ -95,6 +113,7 @@ func TicketQualityReviewCreate(ctx *gin.Context) {
 		return
 	}
 	var req struct {
+		SampleID       int64          `json:"sample_id"`
 		Answers        map[string]int `json:"answers"`
 		Remark         string         `json:"remark"`
 		DefectCodes    []string       `json:"defect_codes"`
@@ -109,7 +128,7 @@ func TicketQualityReviewCreate(ctx *gin.Context) {
 		return
 	}
 	value, err := services.CreateTicketQualityReviewWithMetadata(ticketID, req.Answers, strings.TrimSpace(req.Remark), services.TicketQualityReviewMetadata{
-		DefectCodes: req.DefectCodes, Evidence: req.Evidence, DisputeStatus: req.DisputeStatus, DisputeNote: req.DisputeNote, Outcome: req.Outcome, CoachingAction: req.CoachingAction,
+		SampleID: req.SampleID, DefectCodes: req.DefectCodes, Evidence: req.Evidence, DisputeStatus: req.DisputeStatus, DisputeNote: req.DisputeNote, Outcome: req.Outcome, CoachingAction: req.CoachingAction,
 	}, operator)
 	if err != nil {
 		httpx.WriteJSON(ctx, err)

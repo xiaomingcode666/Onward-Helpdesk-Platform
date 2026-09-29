@@ -9,6 +9,7 @@ import (
 
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/dto"
+	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
 
 	"github.com/mlogclub/simple/sqls"
@@ -31,12 +32,48 @@ type TicketQualityScorecard struct {
 }
 
 type TicketQualityReviewMetadata struct {
+	SampleID       int64    `json:"sample_id"`
 	DefectCodes    []string `json:"defect_codes"`
 	Evidence       string   `json:"evidence"`
 	DisputeStatus  string   `json:"dispute_status"`
 	DisputeNote    string   `json:"dispute_note"`
 	Outcome        string   `json:"outcome"`
 	CoachingAction string   `json:"coaching_action"`
+}
+
+type TicketQualityAutoAssessmentItem struct {
+	Code           string `json:"code"`
+	Title          string `json:"title"`
+	Score          int    `json:"score"`
+	Max            int    `json:"max"`
+	Confidence     string `json:"confidence"`
+	EvidenceKey    string `json:"evidence_key"`
+	RequiresReview bool   `json:"requires_review"`
+}
+
+type TicketQualityAutoAssessment struct {
+	Source              string                            `json:"source"`
+	Version             string                            `json:"version"`
+	ScorecardVersion    string                            `json:"scorecard_version"`
+	Answers             map[string]int                    `json:"answers"`
+	Items               []TicketQualityAutoAssessmentItem `json:"items"`
+	DefectCodes         []string                          `json:"defect_codes"`
+	TotalScore          int                               `json:"total_score"`
+	MaxScore            int                               `json:"max_score"`
+	Result              string                            `json:"result"`
+	ReviewRequiredCount int                               `json:"review_required_count"`
+}
+
+func ticketQualityResult(total, max int) string {
+	passScore := (max*5 + 5) / 6
+	improvementScore := (max*5 + 8) / 9
+	if total >= passScore {
+		return "pass"
+	}
+	if total >= improvementScore {
+		return "needs_improvement"
+	}
+	return "fail"
 }
 
 var defaultTicketQualityScorecardItems = []TicketQualityScorecardItem{
@@ -72,6 +109,172 @@ func GetActiveTicketQualityScorecard(tenantID int64) (*TicketQualityScorecard, e
 		row = *created
 	}
 	return buildTicketQualityScorecard(&row)
+}
+
+func BuildTicketQualityAutoAssessment(ticketID int64, operator *dto.AuthPrincipal) (*TicketQualityAutoAssessment, error) {
+	if operator == nil || operator.TenantID <= 0 || !operator.HasPermission("ticket.view") {
+		return nil, errorsx.Forbidden("无质量评估查看权限")
+	}
+	var ticket models.Ticket
+	if err := sqls.DB().Where("id = ? AND tenant_id = ?", ticketID, operator.TenantID).First(&ticket).Error; err != nil {
+		return nil, err
+	}
+	scorecard, err := GetActiveTicketQualityScorecard(operator.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	var progresses []models.TicketProgress
+	if err := sqls.DB().Where("tenant_id = ? AND ticket_id = ?", operator.TenantID, ticket.ID).Find(&progresses).Error; err != nil {
+		return nil, err
+	}
+	var repairs []models.TicketRepairRecord
+	if err := sqls.DB().Where("tenant_id = ? AND ticket_id = ?", operator.TenantID, ticket.ID).Find(&repairs).Error; err != nil {
+		return nil, err
+	}
+
+	visibleProgressCount := 0
+	for i := range progresses {
+		if progresses[i].VisibleToCustomer {
+			visibleProgressCount++
+		}
+	}
+	hasRepairConclusion := false
+	for i := range repairs {
+		if strings.TrimSpace(repairs[i].Conclusion) != "" || strings.TrimSpace(repairs[i].Solution) != "" || strings.TrimSpace(repairs[i].RepairMethod) != "" {
+			hasRepairConclusion = true
+			break
+		}
+	}
+	missingContextCount := 0
+	var missingContext []string
+	if json.Unmarshal([]byte(ticket.MissingContextJSON), &missingContext) == nil {
+		missingContextCount = len(missingContext)
+	}
+
+	assessment := &TicketQualityAutoAssessment{
+		Source:           "rules",
+		Version:          "rules-v1",
+		ScorecardVersion: scorecard.Version,
+		Answers:          make(map[string]int, len(scorecard.Items)),
+		Items:            make([]TicketQualityAutoAssessmentItem, 0, len(scorecard.Items)),
+		DefectCodes:      []string{},
+	}
+	itemByCode := make(map[string]TicketQualityScorecardItem, len(scorecard.Items))
+	for _, item := range scorecard.Items {
+		itemByCode[item.Code] = item
+		assessment.MaxScore += item.Max
+	}
+	add := func(code string, score int, confidence, evidenceKey string, requiresReview bool) {
+		item, ok := itemByCode[code]
+		if !ok {
+			return
+		}
+		if score < 0 {
+			score = 0
+		}
+		if score > item.Max {
+			score = item.Max
+		}
+		assessment.Answers[code] = score
+		assessment.TotalScore += score
+		assessment.Items = append(assessment.Items, TicketQualityAutoAssessmentItem{Code: code, Title: item.Title, Score: score, Max: item.Max, Confidence: confidence, EvidenceKey: evidenceKey, RequiresReview: requiresReview})
+		if requiresReview {
+			assessment.ReviewRequiredCount++
+		}
+		if score == 0 {
+			assessment.DefectCodes = append(assessment.DefectCodes, code)
+		}
+	}
+
+	identityFacts := 0
+	if ticket.CustomerID > 0 {
+		identityFacts = 2
+	} else {
+		if strings.TrimSpace(ticket.CallerName) != "" {
+			identityFacts++
+		}
+		if strings.TrimSpace(ticket.CallerPhone) != "" {
+			identityFacts++
+		}
+	}
+	if identityFacts >= 2 {
+		add("identity_confirmation", 2, "high", "identity_complete", false)
+	} else if identityFacts == 1 {
+		add("identity_confirmation", 1, "medium", "identity_partial", true)
+	} else {
+		add("identity_confirmation", 0, "high", "identity_missing", false)
+	}
+
+	contextStatus := strings.ToLower(strings.TrimSpace(ticket.ContextStatus))
+	if missingContextCount > 0 {
+		add("information_completeness", 0, "high", "information_missing", false)
+	} else if contextStatus == "complete" || contextStatus == "completed" || contextStatus == "ready" || contextStatus == "sufficient" {
+		add("information_completeness", 2, "high", "information_complete", false)
+	} else {
+		add("information_completeness", 1, "low", "information_unverified", true)
+	}
+
+	if strings.TrimSpace(ticket.CaseType) != "" {
+		add("issue_classification", 2, "high", "classification_complete", false)
+	} else if strings.TrimSpace(ticket.TicketType) != "" {
+		add("issue_classification", 1, "medium", "classification_partial", true)
+	} else {
+		add("issue_classification", 0, "high", "classification_missing", false)
+	}
+
+	priorityValid := ticket.PriorityLevel == "p1" || ticket.PriorityLevel == "p2" || ticket.PriorityLevel == "p3" || ticket.PriorityLevel == "p4"
+	if priorityValid && !ticket.PriorityReviewRequired {
+		add("priority", 2, "high", "priority_complete", false)
+	} else if priorityValid || strings.TrimSpace(ticket.PriorityCode) != "" {
+		add("priority", 1, "medium", "priority_review", true)
+	} else {
+		add("priority", 0, "high", "priority_missing", false)
+	}
+
+	if ticket.FirstRespondedAt != nil && visibleProgressCount > 0 {
+		add("communication", 2, "medium", "communication_recorded", false)
+	} else if ticket.FirstRespondedAt != nil || visibleProgressCount > 0 {
+		add("communication", 1, "medium", "communication_partial", true)
+	} else {
+		add("communication", 0, "medium", "communication_missing", true)
+	}
+
+	add("data_protection", 1, "low", "data_protection_review", true)
+
+	if ticket.CurrentTeamID > 0 && ticket.CurrentAssigneeID > 0 && ticket.DispatchAttempts <= 1 {
+		add("handoff", 2, "high", "handoff_complete", false)
+	} else if ticket.CurrentTeamID > 0 || ticket.CurrentAssigneeID > 0 {
+		add("handoff", 1, "medium", "handoff_partial", true)
+	} else {
+		add("handoff", 0, "high", "handoff_missing", false)
+	}
+
+	if ticket.LastCustomerUpdateAt != nil && visibleProgressCount >= 2 {
+		add("follow_up", 2, "high", "follow_up_complete", false)
+	} else if ticket.LastCustomerUpdateAt != nil || visibleProgressCount > 0 {
+		add("follow_up", 1, "medium", "follow_up_partial", true)
+	} else {
+		add("follow_up", 0, "medium", "follow_up_missing", true)
+	}
+
+	closed := ticket.Status == enums.TicketStatusClosed || ticket.Status == enums.TicketStatusDone || ticket.Status == enums.TicketStatusResolved
+	hasResolution := strings.TrimSpace(ticket.CaseResolution) != "" || hasRepairConclusion
+	if closed && ticket.ResolvedAt != nil && hasResolution {
+		add("closure", 2, "high", "closure_complete", false)
+	} else if closed || ticket.ResolvedAt != nil || hasResolution {
+		add("closure", 1, "medium", "closure_partial", true)
+	} else {
+		add("closure", 0, "high", "closure_missing", false)
+	}
+	for _, item := range scorecard.Items {
+		if _, scored := assessment.Answers[item.Code]; !scored {
+			add(item.Code, item.Max/2, "low", "manual_only", true)
+		}
+	}
+
+	assessment.Result = ticketQualityResult(assessment.TotalScore, assessment.MaxScore)
+	return assessment, nil
 }
 
 func CreateTicketQualityScorecardVersion(version, name string, items []TicketQualityScorecardItem, operator *dto.AuthPrincipal) (*TicketQualityScorecard, error) {
@@ -138,13 +341,11 @@ func CreateTicketQualityReviewWithMetadata(ticketID int64, answers map[string]in
 		}
 		total += score
 	}
-	maxScore := len(scorecard.Items) * 2
-	result := "fail"
-	if total >= 15 {
-		result = "pass"
-	} else if total >= 10 {
-		result = "needs_improvement"
+	maxScore := 0
+	for _, item := range scorecard.Items {
+		maxScore += item.Max
 	}
+	result := ticketQualityResult(total, maxScore)
 	metadata.DisputeStatus = strings.ToLower(strings.TrimSpace(metadata.DisputeStatus))
 	if metadata.DisputeStatus == "" {
 		metadata.DisputeStatus = "none"
@@ -172,14 +373,31 @@ func CreateTicketQualityReviewWithMetadata(ticketID int64, answers map[string]in
 	if outcome == "" {
 		outcome = result
 	}
-	if outcome != "pass" && outcome != "needs_improvement" && outcome != "fail" {
-		return nil, errorsx.InvalidParam("结果必须为 pass、needs_improvement 或 fail")
+	if outcome != result {
+		return nil, errorsx.InvalidParam("评估结果与评分不一致")
 	}
 	defectJSON, _ := json.Marshal(defectCodes)
 	snapshot, _ := json.Marshal(map[string]any{"version": scorecard.Version, "items": scorecard.Items, "answers": answers})
 	now := time.Now().UTC()
 	review := &models.TicketQualityReview{TenantID: operator.TenantID, TicketID: ticket.ID, ScorecardVersionID: scorecard.ID, ScoreSnapshotJSON: string(snapshot), TotalScore: total, MaxScore: maxScore, Result: result, Outcome: outcome, DefectCodesJSON: string(defectJSON), Evidence: metadata.Evidence, DisputeStatus: metadata.DisputeStatus, DisputeNote: metadata.DisputeNote, CoachingAction: metadata.CoachingAction, Remark: strings.TrimSpace(remark), ReviewerID: operator.UserID, ReviewedAt: now}
-	if err := sqls.DB().Create(review).Error; err != nil {
+	if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
+		var sample models.TicketQualitySample
+		if metadata.SampleID > 0 {
+			if err := ctx.Tx.Where("id = ? AND tenant_id = ? AND ticket_id = ?", metadata.SampleID, operator.TenantID, ticket.ID).First(&sample).Error; err != nil {
+				return errorsx.InvalidParam("质量抽检记录不存在")
+			}
+		}
+		if err := ctx.Tx.Create(review).Error; err != nil {
+			return err
+		}
+		if metadata.SampleID > 0 && sample.Status != ticketQualitySampleCompleted {
+			updates := map[string]any{"status": ticketQualitySampleCompleted, "reviewer_id": operator.UserID, "completed_at": now, "updated_at": now}
+			if err := ctx.Tx.Model(&models.TicketQualitySample{}).Where("id = ? AND tenant_id = ?", sample.ID, operator.TenantID).Updates(updates).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 	return review, nil
