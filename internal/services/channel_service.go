@@ -83,15 +83,31 @@ func (s *channelService) CreateChannel(req request.CreateChannelRequest, operato
 	if operator == nil {
 		return nil, errorsx.UnauthorizedI18n("error.auth.expired")
 	}
-	item, err := s.buildChannelModel(0, req)
+	changes, err := s.normalizeChannelSecrets(req)
+	if err != nil {
+		return nil, err
+	}
+	item, err := s.buildChannelModel(0, req, changes)
 	if err != nil {
 		return nil, err
 	}
 	item.AuditFields = utils.BuildAuditFields(operator)
-	if err := repositories.ChannelRepository.Create(sqls.DB(), item); err != nil {
+	if err := sqls.WithTransaction(func(txCtx *sqls.TxContext) error {
+		if err := repositories.ChannelRepository.Create(txCtx.Tx, item); err != nil {
+			return err
+		}
+		return ChannelSecretService.ApplyTx(txCtx, item, changes, operator)
+	}); err != nil {
 		return nil, err
 	}
 	return item, nil
+}
+
+func (s *channelService) normalizeChannelSecrets(req request.CreateChannelRequest) (ChannelSecretChanges, error) {
+	if req.WhatsAppSecrets != nil && strings.TrimSpace(req.ChannelType) != enums.ChannelTypeWhatsApp {
+		return ChannelSecretChanges{}, errorsx.InvalidParam("whatsappSecrets is only supported for WhatsApp channels")
+	}
+	return NormalizeWhatsAppSecretsInput(req.WhatsAppSecrets)
 }
 
 func (s *channelService) UpdateChannel(req request.UpdateChannelRequest, operator *dto.AuthPrincipal) error {
@@ -102,21 +118,34 @@ func (s *channelService) UpdateChannel(req request.UpdateChannelRequest, operato
 	if current == nil || current.Status == enums.StatusDeleted {
 		return errorsx.InvalidParamI18n("error.e0208")
 	}
-	item, err := s.buildChannelModel(req.ID, req.CreateChannelRequest)
+	changes, err := s.normalizeChannelSecrets(req.CreateChannelRequest)
 	if err != nil {
 		return err
 	}
-	return repositories.ChannelRepository.Updates(sqls.DB(), req.ID, map[string]any{
-		"channel_type":     item.ChannelType,
-		"channel_id":       item.ChannelID,
-		"ai_agent_id":      item.AIAgentID,
-		"name":             item.Name,
-		"config_json":      item.ConfigJSON,
-		"status":           item.Status,
-		"remark":           item.Remark,
-		"update_user_id":   operator.UserID,
-		"update_user_name": operator.Username,
-		"updated_at":       time.Now(),
+	item, err := s.buildChannelModel(req.ID, req.CreateChannelRequest, changes)
+	if err != nil {
+		return err
+	}
+	item.ID = req.ID
+	return sqls.WithTransaction(func(txCtx *sqls.TxContext) error {
+		if err := repositories.ChannelRepository.Updates(txCtx.Tx, req.ID, map[string]any{
+			"channel_type":     item.ChannelType,
+			"channel_id":       item.ChannelID,
+			"ai_agent_id":      item.AIAgentID,
+			"name":             item.Name,
+			"config_json":      item.ConfigJSON,
+			"status":           item.Status,
+			"remark":           item.Remark,
+			"update_user_id":   operator.UserID,
+			"update_user_name": operator.Username,
+			"updated_at":       time.Now(),
+		}); err != nil {
+			return err
+		}
+		if item.ChannelType != enums.ChannelTypeWhatsApp {
+			return ChannelSecretService.DeleteAllTx(txCtx.Tx, req.ID)
+		}
+		return ChannelSecretService.ApplyTx(txCtx, item, changes, operator)
 	})
 }
 
@@ -132,7 +161,7 @@ func (s *channelService) UpdateStatus(id int64, status int, operator *dto.AuthPr
 		return errorsx.InvalidParamI18n("error.e0254")
 	}
 	if item.ChannelType == enums.ChannelTypeWhatsApp && status == int(enums.StatusOk) {
-		if err := s.requireWhatsAppActivation(item.ConfigJSON); err != nil {
+		if err := s.requireWhatsAppActivation(item); err != nil {
 			return err
 		}
 	}
@@ -152,11 +181,16 @@ func (s *channelService) DeleteChannel(id int64, operator *dto.AuthPrincipal) er
 	if item == nil || item.Status == enums.StatusDeleted {
 		return errorsx.InvalidParamI18n("error.e0208")
 	}
-	return s.Updates(id, map[string]any{
-		"status":           enums.StatusDeleted,
-		"update_user_id":   operator.UserID,
-		"update_user_name": operator.Username,
-		"updated_at":       time.Now(),
+	return sqls.WithTransaction(func(txCtx *sqls.TxContext) error {
+		if err := repositories.ChannelRepository.Updates(txCtx.Tx, id, map[string]any{
+			"status":           enums.StatusDeleted,
+			"update_user_id":   operator.UserID,
+			"update_user_name": operator.Username,
+			"updated_at":       time.Now(),
+		}); err != nil {
+			return err
+		}
+		return ChannelSecretService.DeleteAllTx(txCtx.Tx, id)
 	})
 }
 
@@ -293,24 +327,35 @@ func (s *channelService) ParseWhatsAppChannelConfig(raw string) (*dto.WhatsAppCh
 	return cfg, nil
 }
 
-func (s *channelService) requireWhatsAppActivation(raw string) error {
-	cfg, err := s.ParseWhatsAppChannelConfig(raw)
+func (s *channelService) requireWhatsAppActivation(item *models.Channel) error {
+	cfg, err := s.ParseWhatsAppChannelConfig(item.ConfigJSON)
 	if err != nil {
 		return errorsx.InvalidParam("invalid WhatsApp configuration")
 	}
-	if !validWhatsAppChannelConfig(cfg) {
-		return errorsx.InvalidParam("WhatsApp requires project, Meta identifiers and secret references")
+	if !validWhatsAppChannelConfig(cfg, ChannelSecretService.ConfiguredNames(item.ID)) {
+		return errorsx.InvalidParam("WhatsApp requires project, Meta identifiers and each secret entered or referenced")
 	}
 	return nil
 }
 
-func validWhatsAppChannelConfig(cfg *dto.WhatsAppChannelConfig) bool {
+// validWhatsAppChannelConfig requires every Meta secret to be either stored in
+// the database (configured) or referenced by a valid secret:// reference. A
+// non-empty reference must always be valid, so raw secrets are never accepted
+// in reference fields.
+func validWhatsAppChannelConfig(cfg *dto.WhatsAppChannelConfig, configured map[string]bool) bool {
 	if cfg == nil || cfg.ProjectKey == "" || cfg.MetaPhoneNumberID == "" || cfg.MetaBusinessAccountID == "" {
 		return false
 	}
-	return projectconfig.ValidSecretReference(cfg.MetaAccessTokenSecretRef) &&
-		projectconfig.ValidSecretReference(cfg.MetaAppSecretSecretRef) &&
-		projectconfig.ValidSecretReference(cfg.WebhookVerifyTokenSecretRef)
+	return whatsAppSecretSatisfied(cfg.MetaAccessTokenSecretRef, configured[ChannelSecretMetaAccessToken]) &&
+		whatsAppSecretSatisfied(cfg.MetaAppSecretSecretRef, configured[ChannelSecretMetaAppSecret]) &&
+		whatsAppSecretSatisfied(cfg.WebhookVerifyTokenSecretRef, configured[ChannelSecretWebhookVerifyToken])
+}
+
+func whatsAppSecretSatisfied(ref string, configured bool) bool {
+	if ref != "" && !projectconfig.ValidSecretReference(ref) {
+		return false
+	}
+	return configured || ref != ""
 }
 
 func (s *channelService) GetUserTokenSecret(channel *models.Channel) string {
@@ -470,7 +515,7 @@ func (s *channelService) GetEnabledChannel(ctx *gin.Context) *models.Channel {
 	return channel
 }
 
-func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRequest) (*models.Channel, error) {
+func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRequest, changes ChannelSecretChanges) (*models.Channel, error) {
 	channelType := strings.TrimSpace(req.ChannelType)
 	if channelType != enums.ChannelTypeWeb && channelType != enums.ChannelTypeWechatMP && channelType != enums.ChannelTypeWxWorkKF && channelType != enums.ChannelTypeWhatsApp {
 		return nil, errorsx.InvalidParamI18n("error.e0250")
@@ -580,8 +625,15 @@ func (s *channelService) buildChannelModel(id int64, req request.CreateChannelRe
 		if err != nil {
 			return nil, errorsx.InvalidParam("invalid WhatsApp configuration")
 		}
-		if !validWhatsAppChannelConfig(cfg) {
-			return nil, errorsx.InvalidParam("WhatsApp requires project, Meta identifiers and secret references")
+		configured := ChannelSecretService.ConfiguredNames(id)
+		for name := range changes.Set {
+			configured[name] = true
+		}
+		for name := range changes.Clear {
+			delete(configured, name)
+		}
+		if !validWhatsAppChannelConfig(cfg, configured) {
+			return nil, errorsx.InvalidParam("WhatsApp requires project, Meta identifiers and each secret entered or referenced")
 		}
 		configBytes, err := json.Marshal(cfg)
 		if err != nil {
