@@ -144,7 +144,7 @@ func (s *channelMessageOutboxService) EnqueueWhatsAppMessage(conversation *model
 	}
 	if message.MessageType == enums.IMMessageTypeImage || message.MessageType == enums.IMMessageTypeAudio || message.MessageType == enums.IMMessageTypeAttachment {
 		cfg, err := ChannelService.ParseWhatsAppChannelConfig(channel.ConfigJSON)
-		if err != nil || cfg.MetaPhoneNumberID == "" || cfg.MetaAccessTokenSecretRef == "" {
+		if err != nil || cfg.MetaPhoneNumberID == "" || !ChannelSecretService.Available(channel, ChannelSecretMetaAccessToken, cfg.MetaAccessTokenSecretRef) {
 			return nil
 		}
 	}

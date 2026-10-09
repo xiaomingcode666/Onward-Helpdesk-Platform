@@ -48,10 +48,10 @@ func (s *metaWhatsAppService) VerifyToken(provided string) bool {
 			continue
 		}
 		cfg, err := ChannelService.ParseWhatsAppChannelConfig(channels[i].ConfigJSON)
-		if err != nil || cfg.WebhookVerifyTokenSecretRef == "" {
+		if err != nil || !ChannelSecretService.Available(&channels[i], ChannelSecretWebhookVerifyToken, cfg.WebhookVerifyTokenSecretRef) {
 			continue
 		}
-		secret, err := resolveWhatsAppChannelSecret(&channels[i], cfg.WebhookVerifyTokenSecretRef)
+		secret, err := ChannelSecretService.Resolve(&channels[i], ChannelSecretWebhookVerifyToken, cfg.WebhookVerifyTokenSecretRef)
 		if err == nil && constantTimeStringEqual(provided, secret) {
 			return true
 		}
@@ -73,7 +73,7 @@ func (s *metaWhatsAppService) ProcessWebhook(ctx context.Context, body []byte, s
 	if err != nil {
 		return nil, errors.New("invalid Meta WhatsApp channel configuration")
 	}
-	appSecret, err := resolveWhatsAppChannelSecret(channel, cfg.MetaAppSecretSecretRef)
+	appSecret, err := ChannelSecretService.Resolve(channel, ChannelSecretMetaAppSecret, cfg.MetaAppSecretSecretRef)
 	if err != nil {
 		return nil, errors.New("Meta WhatsApp app secret is unavailable")
 	}
@@ -95,7 +95,7 @@ func (s *metaWhatsAppService) ProcessWebhook(ctx context.Context, body []byte, s
 		}
 		var media *WhatsAppInboundMedia
 		if messageType != enums.IMMessageTypeText {
-			accessToken, secretErr := resolveWhatsAppChannelSecret(channel, cfg.MetaAccessTokenSecretRef)
+			accessToken, secretErr := ChannelSecretService.Resolve(channel, ChannelSecretMetaAccessToken, cfg.MetaAccessTokenSecretRef)
 			if secretErr != nil {
 				return nil, errors.New("Meta WhatsApp access token is unavailable")
 			}

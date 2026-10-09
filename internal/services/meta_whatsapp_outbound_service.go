@@ -75,10 +75,10 @@ func (s *metaWhatsAppOutboundService) processOutbox(outboxID int64) (bool, error
 		return false, nil
 	}
 	cfg, err := ChannelService.ParseWhatsAppChannelConfig(channel.ConfigJSON)
-	if err != nil || cfg.MetaPhoneNumberID == "" || cfg.MetaAccessTokenSecretRef == "" {
+	if err != nil || cfg.MetaPhoneNumberID == "" || !ChannelSecretService.Available(channel, ChannelSecretMetaAccessToken, cfg.MetaAccessTokenSecretRef) {
 		return false, nil
 	}
-	accessToken, err := resolveWhatsAppChannelSecret(channel, cfg.MetaAccessTokenSecretRef)
+	accessToken, err := ChannelSecretService.Resolve(channel, ChannelSecretMetaAccessToken, cfg.MetaAccessTokenSecretRef)
 	if err != nil {
 		return true, s.markFailed(outbox, "Meta WhatsApp access token is unavailable")
 	}
