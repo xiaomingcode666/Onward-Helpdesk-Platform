@@ -179,7 +179,7 @@ func TestChannelSecretsRejectedForOperatorFromAnotherTenant(t *testing.T) {
 		}}, operator)
 	}
 	for name, operator := range map[string]*dto.AuthPrincipal{
-		"other tenant":     {UserID: 8, Username: "other", DomainType: "enterprise", TenantID: 9},
+		"other tenant":      {UserID: 8, Username: "other", DomainType: "enterprise", TenantID: 9},
 		"no tenant context": {UserID: 8, Username: "legacy"},
 	} {
 		if err := update(operator); err == nil {
