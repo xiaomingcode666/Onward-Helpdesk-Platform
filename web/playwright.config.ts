@@ -19,6 +19,7 @@ export default defineConfig({
     "login-prefill.live.spec.ts",
     "partner-engineer-isolation.live.spec.ts",
     "conversation-language.live.spec.ts",
+    "channel-whatsapp-secrets.spec.ts",
   ],
   timeout: 180_000,
   expect: { timeout: 30_000 },
