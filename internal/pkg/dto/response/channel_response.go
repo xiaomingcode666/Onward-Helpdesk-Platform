@@ -15,6 +15,15 @@ type ChannelResponse struct {
 	ConfigJSON  string       `json:"configJson"`
 	Status      enums.Status `json:"status"`
 	Remark      string       `json:"remark"`
+	// WhatsAppSecrets reports which Meta secrets are stored, keyed by request key.
+	WhatsAppSecrets map[string]ChannelSecretStatusResponse `json:"whatsappSecrets,omitempty"`
+}
+
+// ChannelSecretStatusResponse never carries the secret or its ciphertext.
+type ChannelSecretStatusResponse struct {
+	Configured        bool   `json:"configured"`
+	FingerprintSuffix string `json:"fingerprintSuffix,omitempty"`
+	UpdatedAt         string `json:"updatedAt,omitempty"`
 }
 
 type WxWorkKFAccountResponse struct {

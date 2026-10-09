@@ -130,6 +130,7 @@ var Models = []any{
 	&AIAgent{},
 	&AIAgentRelease{},
 	&Channel{},
+	&ChannelSecret{},
 	&AgentProfile{},
 	&AgentTeam{},
 	&AgentTeamMember{},
