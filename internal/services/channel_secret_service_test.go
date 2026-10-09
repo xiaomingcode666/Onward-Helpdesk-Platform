@@ -58,7 +58,7 @@ func createChannelSecretTestChannel(t *testing.T, db *gorm.DB, tenantID int64, c
 }
 
 func channelSecretTestOperator() *dto.AuthPrincipal {
-	return &dto.AuthPrincipal{UserID: 7, Username: "secret-admin"}
+	return &dto.AuthPrincipal{UserID: 7, Username: "secret-admin", DomainType: "enterprise", TenantID: 5}
 }
 
 func applyChannelSecretsForTest(t *testing.T, channel *models.Channel, in *request.WhatsAppSecretsInput) {

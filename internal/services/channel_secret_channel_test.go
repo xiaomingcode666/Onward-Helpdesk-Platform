@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"remotehelpdesk/internal/models"
+	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/dto/request"
 	"remotehelpdesk/internal/pkg/enums"
 
@@ -158,5 +159,37 @@ func TestChannelSecretsDeletedWhenTypeChangesOrChannelDeleted(t *testing.T) {
 	}
 	if got := ChannelSecretService.ConfiguredNames(deleted.ID); len(got) != 0 {
 		t.Fatalf("secrets kept after delete: %v", got)
+	}
+}
+
+func TestChannelSecretsRejectedForOperatorFromAnotherTenant(t *testing.T) {
+	setupChannelSecretTestDB(t)
+	agent := createWhatsAppAgentForChannelTest(t)
+	item, err := ChannelService.CreateChannel(request.CreateChannelRequest{
+		ChannelType: enums.ChannelTypeWhatsApp, AIAgentID: agent.ID, Name: "WA", Status: int(enums.StatusOk),
+		ConfigJSON: waIdentifiersOnly, WhatsAppSecrets: allWhatsAppSecrets(),
+	}, channelSecretTestOperator())
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	update := func(operator *dto.AuthPrincipal) error {
+		return ChannelService.UpdateChannel(request.UpdateChannelRequest{ID: item.ID, CreateChannelRequest: request.CreateChannelRequest{
+			ChannelType: enums.ChannelTypeWhatsApp, AIAgentID: agent.ID, Name: "WA", Status: int(enums.StatusOk), ConfigJSON: waIdentifiersOnly,
+			WhatsAppSecrets: &request.WhatsAppSecretsInput{MetaAppSecret: "attacker-secret"},
+		}}, operator)
+	}
+	for name, operator := range map[string]*dto.AuthPrincipal{
+		"other tenant":     {UserID: 8, Username: "other", DomainType: "enterprise", TenantID: 9},
+		"no tenant context": {UserID: 8, Username: "legacy"},
+	} {
+		if err := update(operator); err == nil {
+			t.Errorf("%s: cross-tenant secret write accepted", name)
+		}
+	}
+	if got, _ := ChannelSecretService.Resolve(item, ChannelSecretMetaAppSecret, ""); got != "app-1" {
+		t.Fatalf("secret overwritten by foreign operator: %q", got)
+	}
+	if err := update(&dto.AuthPrincipal{UserID: 1, Username: "platform", DomainType: "platform"}); err != nil {
+		t.Fatalf("platform staff rejected: %v", err)
 	}
 }

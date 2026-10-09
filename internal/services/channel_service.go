@@ -87,6 +87,11 @@ func (s *channelService) CreateChannel(req request.CreateChannelRequest, operato
 	if err != nil {
 		return nil, err
 	}
+	if !changes.Empty() {
+		if err := requireSecretWriteTenant(operator, req.AIAgentID); err != nil {
+			return nil, err
+		}
+	}
 	item, err := s.buildChannelModel(0, req, changes)
 	if err != nil {
 		return nil, err
@@ -101,6 +106,26 @@ func (s *channelService) CreateChannel(req request.CreateChannelRequest, operato
 		return nil, err
 	}
 	return item, nil
+}
+
+// requireSecretWriteTenant stops an operator from setting or clearing another
+// tenant's Meta credentials. Channel endpoints are not yet tenant-filtered, so
+// secret writes check the tenant of both the current and the requested agent.
+func requireSecretWriteTenant(operator *dto.AuthPrincipal, agentIDs ...int64) error {
+	if operator.IsPlatform() {
+		return nil
+	}
+	tenantID := operator.EffectiveTenantID()
+	if tenantID <= 0 {
+		return errorsx.Forbidden("WhatsApp secrets can only be changed within the operator's tenant")
+	}
+	for _, agentID := range agentIDs {
+		agent := AIAgentService.Get(agentID)
+		if agent == nil || agent.TenantID != tenantID {
+			return errorsx.Forbidden("WhatsApp secrets can only be changed within the operator's tenant")
+		}
+	}
+	return nil
 }
 
 func (s *channelService) normalizeChannelSecrets(req request.CreateChannelRequest) (ChannelSecretChanges, error) {
@@ -121,6 +146,11 @@ func (s *channelService) UpdateChannel(req request.UpdateChannelRequest, operato
 	changes, err := s.normalizeChannelSecrets(req.CreateChannelRequest)
 	if err != nil {
 		return err
+	}
+	if !changes.Empty() {
+		if err := requireSecretWriteTenant(operator, current.AIAgentID, req.AIAgentID); err != nil {
+			return err
+		}
 	}
 	item, err := s.buildChannelModel(req.ID, req.CreateChannelRequest, changes)
 	if err != nil {
