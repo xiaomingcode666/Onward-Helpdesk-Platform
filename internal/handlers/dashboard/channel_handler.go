@@ -163,5 +163,8 @@ func buildChannelResponse(item *models.Channel) response.ChannelResponse {
 	if aiAgent := services.AIAgentService.Get(item.AIAgentID); aiAgent != nil {
 		ret.AIAgentName = aiAgent.Name
 	}
+	if item.ChannelType == enums.ChannelTypeWhatsApp {
+		ret.WhatsAppSecrets = services.ChannelSecretService.Statuses(item.ID)
+	}
 	return ret
 }
