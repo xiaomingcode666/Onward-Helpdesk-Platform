@@ -190,6 +190,19 @@ export type AdminChannel = {
   configJson: string
   status: number
   remark: string
+  whatsappSecrets?: Partial<Record<WhatsAppSecretKey, ChannelSecretStatus>>
+}
+
+export type WhatsAppSecretKey = "metaAccessToken" | "metaAppSecret" | "webhookVerifyToken"
+
+export type ChannelSecretStatus = {
+  configured: boolean
+  fingerprintSuffix?: string
+  updatedAt?: string
+}
+
+export type WhatsAppSecretsInput = Partial<Record<WhatsAppSecretKey, string>> & {
+  clear?: WhatsAppSecretKey[]
 }
 
 export type WxWorkKFAccount = {
@@ -206,6 +219,7 @@ export type CreateAdminChannelPayload = {
   configJson: string
   status: number
   remark: string
+  whatsappSecrets?: WhatsAppSecretsInput
 }
 
 export type UpdateAdminChannelPayload = CreateAdminChannelPayload & {

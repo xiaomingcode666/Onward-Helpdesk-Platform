@@ -24,13 +24,22 @@ import {
   type AIAgent,
   type AdminChannel,
   type CreateAdminChannelPayload,
+  type WhatsAppSecretKey,
   type WxWorkKFAccount,
   fetchAIAgentsAll,
   fetchChannel,
   fetchWxWorkKFAccounts,
   resetChannelUserTokenSecret,
 } from "@/lib/api/admin"
+import {
+  WHATSAPP_SECRET_KEYS,
+  WHATSAPP_SECRET_REF_FIELD,
+  buildWhatsAppSecretsPayload,
+  isWhatsAppSecretSatisfied,
+} from "@/lib/whatsapp-channel-secrets"
 import { useI18n } from "@/i18n/provider"
+
+import { WhatsAppSecretField } from "./whatsapp-secret-field"
 
 type ChannelFormDialogProps = {
   whatsappOnly?: boolean
@@ -88,6 +97,7 @@ function createSchema(t: Translate) {
       userTokenSecret: z.string().trim(),
       remark: z.string().trim(),
       projectKey: z.string().trim(), chatwootCoreUrl: z.string().trim(), chatwootAccountId: z.string().trim(), chatwootInboxId: z.string().trim(), metaPhoneNumberId: z.string().trim(), metaBusinessAccountId: z.string().trim(), metaAccessTokenSecretRef: z.string().trim(), metaAppSecretSecretRef: z.string().trim(), webhookVerifyTokenSecretRef: z.string().trim(), projectConfigurationApproved: z.boolean(), commercialResponsibilityApproved: z.boolean(), readinessApproved: z.boolean(),
+      metaAccessToken: z.string(), metaAppSecret: z.string(), webhookVerifyToken: z.string(),
     })
     .superRefine((values, ctx) => {
       if (values.channelType === "wxwork_kf" && !values.openKfId.trim()) {
@@ -102,9 +112,6 @@ function createSchema(t: Translate) {
           ["projectKey", "channel.projectKeyRequired"],
           ["metaPhoneNumberId", "channel.metaPhoneNumberIdRequired"],
           ["metaBusinessAccountId", "channel.metaBusinessAccountIdRequired"],
-          ["metaAccessTokenSecretRef", "channel.metaAccessTokenSecretRefRequired"],
-          ["metaAppSecretSecretRef", "channel.metaAppSecretSecretRefRequired"],
-          ["webhookVerifyTokenSecretRef", "channel.webhookVerifyTokenSecretRefRequired"],
         ]
         for (const [field, messageKey] of required) {
           if (!String(values[field] ?? "").trim()) ctx.addIssue({ code: "custom", path: [field], message: t(messageKey) })
@@ -125,7 +132,7 @@ type EditForm = {
   widgetWidth: string
   userTokenSecret: string
   remark: string
-  projectKey: string; chatwootCoreUrl: string; chatwootAccountId: string; chatwootInboxId: string; metaPhoneNumberId: string; metaBusinessAccountId: string; metaAccessTokenSecretRef: string; metaAppSecretSecretRef: string; webhookVerifyTokenSecretRef: string; projectConfigurationApproved: boolean; commercialResponsibilityApproved: boolean; readinessApproved: boolean
+  projectKey: string; chatwootCoreUrl: string; chatwootAccountId: string; chatwootInboxId: string; metaPhoneNumberId: string; metaBusinessAccountId: string; metaAccessTokenSecretRef: string; metaAppSecretSecretRef: string; webhookVerifyTokenSecretRef: string; projectConfigurationApproved: boolean; commercialResponsibilityApproved: boolean; readinessApproved: boolean; metaAccessToken: string; metaAppSecret: string; webhookVerifyToken: string
 }
 
 function createEmptyForm(t: Translate): EditForm {
@@ -142,7 +149,7 @@ function createEmptyForm(t: Translate): EditForm {
     widgetWidth: defaultWebChannelConfig.width,
     userTokenSecret: "",
     remark: "",
-    projectKey: "", chatwootCoreUrl: "", chatwootAccountId: "", chatwootInboxId: "", metaPhoneNumberId: "", metaBusinessAccountId: "", metaAccessTokenSecretRef: "", metaAppSecretSecretRef: "", webhookVerifyTokenSecretRef: "", projectConfigurationApproved: false, commercialResponsibilityApproved: false, readinessApproved: false,
+    projectKey: "", chatwootCoreUrl: "", chatwootAccountId: "", chatwootInboxId: "", metaPhoneNumberId: "", metaBusinessAccountId: "", metaAccessTokenSecretRef: "", metaAppSecretSecretRef: "", webhookVerifyTokenSecretRef: "", projectConfigurationApproved: false, commercialResponsibilityApproved: false, readinessApproved: false, metaAccessToken: "", metaAppSecret: "", webhookVerifyToken: "",
   }
 }
 
@@ -235,10 +242,11 @@ function buildForm(item: AdminChannel | null, t: Translate): EditForm {
     userTokenSecret: wechatConfig?.userTokenSecret ?? webConfig.userTokenSecret,
     remark: item.remark || "",
     projectKey: whatsappConfig.projectKey || "", chatwootCoreUrl: whatsappConfig.chatwootCoreUrl || "", chatwootAccountId: whatsappConfig.chatwootAccountId || "", chatwootInboxId: whatsappConfig.chatwootInboxId || "", metaPhoneNumberId: whatsappConfig.metaPhoneNumberId || "", metaBusinessAccountId: whatsappConfig.metaBusinessAccountId || "", metaAccessTokenSecretRef: whatsappConfig.metaAccessTokenSecretRef || "", metaAppSecretSecretRef: whatsappConfig.metaAppSecretSecretRef || "", webhookVerifyTokenSecretRef: whatsappConfig.webhookVerifyTokenSecretRef || "", projectConfigurationApproved: Boolean(whatsappConfig.projectConfigurationApproved), commercialResponsibilityApproved: Boolean(whatsappConfig.commercialResponsibilityApproved), readinessApproved: Boolean(whatsappConfig.readinessApproved),
+    metaAccessToken: "", metaAppSecret: "", webhookVerifyToken: "",
   }
 }
 
-function buildPayload(form: EditForm, status: number, t: Translate): CreateAdminChannelPayload {
+function buildPayload(form: EditForm, status: number, t: Translate, clearedSecrets: ReadonlySet<WhatsAppSecretKey>): CreateAdminChannelPayload {
   const channelType = form.channelType
   const defaultWebChannelConfig = getDefaultWebChannelConfig(t)
   const webLikeConfig = {
@@ -270,6 +278,7 @@ function buildPayload(form: EditForm, status: number, t: Translate): CreateAdmin
     configJson,
     status,
     remark: form.remark.trim(),
+    whatsappSecrets: channelType === "whatsapp" ? buildWhatsAppSecretsPayload(form, clearedSecrets) : undefined,
   }
 }
 
@@ -330,6 +339,7 @@ function ChannelFormBody({
   const [wxWorkKFAccountsError, setWxWorkKFAccountsError] = useState("")
   const [channelDetail, setChannelDetail] = useState<AdminChannel | null>(null)
   const [currentStatus, setCurrentStatus] = useState(0)
+  const [clearedSecrets, setClearedSecrets] = useState<Set<WhatsAppSecretKey>>(() => new Set())
   const form = useForm<
     z.input<typeof schema>,
     undefined,
@@ -343,6 +353,7 @@ function ChannelFormBody({
     handleSubmit,
     register,
     reset,
+    setError,
     setValue,
     formState: { errors },
   } = form
@@ -350,6 +361,21 @@ function ChannelFormBody({
   const aiAgentId = useWatch({ control, name: "aiAgentId" })
   const openKfId = useWatch({ control, name: "openKfId" })
   const userTokenSecret = useWatch({ control, name: "userTokenSecret" })
+  const secretRefs = useWatch({ control, name: ["metaAccessTokenSecretRef", "metaAppSecretSecretRef", "webhookVerifyTokenSecretRef"] })
+  const secretRefByKey: Record<WhatsAppSecretKey, string> = {
+    metaAccessToken: secretRefs[0] ?? "",
+    metaAppSecret: secretRefs[1] ?? "",
+    webhookVerifyToken: secretRefs[2] ?? "",
+  }
+
+  function toggleClearedSecret(key: WhatsAppSecretKey) {
+    setClearedSecrets((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   useEffect(() => {
     async function loadAIAgents() {
@@ -369,6 +395,7 @@ function ChannelFormBody({
         setCurrentStatus(0)
         setChannelDetail(null)
         reset(emptyForm)
+        setClearedSecrets(new Set())
         return
       }
       setLoading(true)
@@ -377,6 +404,7 @@ function ChannelFormBody({
         setChannelDetail(data)
         setCurrentStatus(data.status)
         reset(buildForm(data, t))
+        setClearedSecrets(new Set())
       } catch (error) {
         console.error("Failed to load channel:", error)
       } finally {
@@ -461,7 +489,17 @@ function ChannelFormBody({
       toast.error(t("miscTailExtract.dashboardMisc.channels.publishFlowMissingToast"))
       return
     }
-    await onSubmit(buildPayload(values, currentStatus, t))
+    if (values.channelType === "whatsapp") {
+      let missing = false
+      for (const key of WHATSAPP_SECRET_KEYS) {
+        if (!isWhatsAppSecretSatisfied(key, values, channelDetail?.whatsappSecrets, clearedSecrets, values[WHATSAPP_SECRET_REF_FIELD[key]])) {
+          setError(key, { type: "custom", message: t(`channel.${key}Required`) })
+          missing = true
+        }
+      }
+      if (missing) return
+    }
+    await onSubmit(buildPayload(values, currentStatus, t, clearedSecrets))
   }
 
   async function handleResetUserTokenSecret() {
@@ -639,8 +677,34 @@ function ChannelFormBody({
                 <div className="text-sm font-medium">{t("channel.whatsappConfigTitle")}</div>
                 <div className="text-xs text-muted-foreground">{t("channel.whatsappConfigDescription")}</div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {(["projectKey", "metaPhoneNumberId", "metaBusinessAccountId", "metaAccessTokenSecretRef", "metaAppSecretSecretRef", "webhookVerifyTokenSecretRef"] as const).map((name) => <Field key={name}><FieldLabel>{t(`channel.${name}`)}</FieldLabel><FieldContent><Input {...register(name)} /></FieldContent></Field>)}
+                  {(["projectKey", "metaPhoneNumberId", "metaBusinessAccountId"] as const).map((name) => <Field key={name}><FieldLabel>{t(`channel.${name}`)}</FieldLabel><FieldContent><Input {...register(name)} /></FieldContent></Field>)}
                 </div>
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">{t("channel.whatsappSecretsTitle")}</div>
+                  <div className="text-xs text-muted-foreground">{t("channel.whatsappSecretsDescription")}</div>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  {WHATSAPP_SECRET_KEYS.map((key) => (
+                    <WhatsAppSecretField
+                      key={key}
+                      id={`channel-${key}`}
+                      label={t(`channel.${key}`)}
+                      status={channelDetail?.whatsappSecrets?.[key]}
+                      cleared={clearedSecrets.has(key)}
+                      hasReference={Boolean(secretRefByKey[key].trim())}
+                      error={errors[key]}
+                      registration={register(key)}
+                      onToggleClear={() => toggleClearedSecret(key)}
+                      t={t}
+                    />
+                  ))}
+                </div>
+                <details className="rounded-md border bg-background/60 p-3">
+                  <summary className="cursor-pointer text-sm">{t("channel.secretRefsAdvanced")}</summary>
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {(["metaAccessTokenSecretRef", "metaAppSecretSecretRef", "webhookVerifyTokenSecretRef"] as const).map((name) => <Field key={name}><FieldLabel>{t(`channel.${name}`)}</FieldLabel><FieldContent><Input {...register(name)} /></FieldContent></Field>)}
+                  </div>
+                </details>
               </div>
             ) : null}
 
