@@ -207,7 +207,7 @@ func BuildPartnerPortalMeetings(items []services.PartnerPortalMeetingAggregate) 
 	return ret
 }
 
-func BuildPartnerTicketDetail(item *services.PartnerTicketDetailAggregate) dto.PartnerTicketDetailDTO {
+func BuildPartnerTicketDetail(item *services.PartnerTicketDetailAggregate, locale string) dto.PartnerTicketDetailDTO {
 	ret := dto.PartnerTicketDetailDTO{
 		Participants: make([]dto.TicketSupplierParticipantDTO, 0),
 		Progresses:   make([]dto.PartnerTicketProgressDTO, 0),
@@ -237,7 +237,7 @@ func BuildPartnerTicketDetail(item *services.PartnerTicketDetailAggregate) dto.P
 		ret.Progresses = append(ret.Progresses, dto.PartnerTicketProgressDTO{
 			ID:         progress.Progress.ID,
 			EventType:  string(progress.Progress.EventType),
-			Content:    progress.Progress.Content,
+			Content:    progress.Progress.DisplayContent(locale),
 			AuthorID:   progress.Progress.AuthorID,
 			AuthorName: progress.AuthorName,
 			CreatedAt:  utils.FormatTime(progress.Progress.CreatedAt),

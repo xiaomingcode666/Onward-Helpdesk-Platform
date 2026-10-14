@@ -46,7 +46,7 @@ func TicketGovernance(ctx *gin.Context) {
 			return
 		}
 		if ctx.Query("merge_candidates") == "1" {
-			httpx.WriteJSON(ctx, errorsx.InvalidParam("重复问题已改为父子工单，请刷新页面"))
+			httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0018"))
 			return
 		}
 		if ctx.Query("duplicate_candidates") == "1" {
@@ -77,7 +77,7 @@ func TicketGovernance(ctx *gin.Context) {
 	}
 	var cmd services.TicketGovernanceCommand
 	if err := ctx.ShouldBindJSON(&cmd); err != nil {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("分类、等级或关联参数无效"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0019"))
 		return
 	}
 	value, err := services.ExecuteTicketGovernance(id, cmd, op)

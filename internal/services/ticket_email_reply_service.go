@@ -39,7 +39,7 @@ type TicketEmailIncoming struct {
 
 func GetTicketEmailHistory(ticketID int64, operator *dto.AuthPrincipal) (*TicketEmailHistory, error) {
 	if operator == nil || !operator.HasPermission(constants.PermissionTicketView.Code) {
-		return nil, errorsx.Forbidden("无工单查看权限")
+		return nil, errorsx.ForbiddenI18n("error.z0137")
 	}
 	if _, err := EnterpriseTicketService.GetAggregateForOperator(operator.TenantID, ticketID, operator); err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func GetTicketEmailHistory(ticketID int64, operator *dto.AuthPrincipal) (*Ticket
 
 func QueueTicketEmailReply(ticketID int64, body, key string, operator *dto.AuthPrincipal) (*models.TicketEmailReply, error) {
 	if operator == nil || !operator.HasPermission(constants.PermissionTicketProgress.Code) {
-		return nil, errorsx.Forbidden("无回复工单权限")
+		return nil, errorsx.ForbiddenI18n("error.z0138")
 	}
 	if _, err := EnterpriseTicketService.GetAggregateForOperator(operator.TenantID, ticketID, operator); err != nil {
 		return nil, err
@@ -72,14 +72,14 @@ func QueueTicketEmailReply(ticketID int64, body, key string, operator *dto.AuthP
 	body = strings.TrimSpace(body)
 	key = strings.TrimSpace(key)
 	if body == "" || len(body) > 64000 || key == "" || len(key) > 80 {
-		return nil, errorsx.InvalidParam("回复内容或请求编号无效")
+		return nil, errorsx.InvalidParamI18n("error.z0139")
 	}
 	var reply models.TicketEmailReply
 	err := sqls.DB().Transaction(func(db *gorm.DB) error {
 		hash := emailHash(fmt.Sprintf("%d:%s", operator.UserID, body))
 		var origin models.InboundEmail
 		if err := db.Where("tenant_id = ? AND ticket_id = ? AND status = ?", operator.TenantID, ticketID, InboundEmailCreated).Order("id").First(&origin).Error; err != nil {
-			return errorsx.InvalidParam("此工单没有可回复的邮件来源")
+			return errorsx.InvalidParamI18n("error.z0140")
 		}
 		var last models.InboundEmail
 		if err := db.Where("tenant_id = ? AND ticket_id = ? AND from_address = ?", operator.TenantID, ticketID, origin.FromAddress).Order("id DESC").First(&last).Error; err != nil {
@@ -103,7 +103,7 @@ func QueueTicketEmailReply(ticketID int64, body, key string, operator *dto.AuthP
 			return err
 		}
 		if reply.PayloadHash != hash {
-			return errorsx.InvalidParam("同一发送请求的内容发生变化，请刷新后重试")
+			return errorsx.InvalidParamI18n("error.z0141")
 		}
 		return nil
 	})

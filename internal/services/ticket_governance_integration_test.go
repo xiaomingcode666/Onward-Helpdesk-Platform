@@ -124,7 +124,7 @@ func TestTicketGovernanceAtomicChildCreationAndLegacyUpdate(t *testing.T) {
 			t.Fatal("internal relationship reasons leaked through generic timeline")
 		}
 	}
-	if builders.BuildTicketProgress(&models.TicketProgress{EventType: "ticket_governance", Content: "internal relationship reason"}) != nil {
+	if builders.BuildTicketProgress(&models.TicketProgress{EventType: "ticket_governance", Content: "internal relationship reason"}, "en-US") != nil {
 		t.Fatal("generic progress builder leaked governance")
 	}
 }

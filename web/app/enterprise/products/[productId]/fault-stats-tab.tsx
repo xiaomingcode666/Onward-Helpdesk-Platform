@@ -11,6 +11,7 @@ import { ErrorState, EmptyState, LoadingSkeleton } from "@/components/shared/err
 import { useI18n } from "@/i18n/provider"
 import type { FaultStat, ProductFaultStats } from "@/lib/api/enterprise-products"
 import { downloadCsv, type CsvRow } from "@/lib/csv-export"
+import { readStoredLocale } from "@/i18n/config"
 
 interface FaultStatsTabProps {
   productId: number
@@ -88,7 +89,7 @@ export function FaultStatsTab({ productId }: FaultStatsTabProps) {
       [t("exportsExtract.csvFaultStats.header.productId"), productId],
       [t("exportsExtract.csvFaultStats.header.range"), rangeLabel(t, range)],
       [t("exportsExtract.csvFaultStats.header.generatedAt"), stats.generated_at || ""],
-      [t("exportsExtract.csvFaultStats.header.exportedAt"), new Date().toLocaleString("zh-CN", { hour12: false })],
+      [t("exportsExtract.csvFaultStats.header.exportedAt"), new Date().toLocaleString(readStoredLocale(), { hour12: false })],
       [],
       [t("exportsExtract.csvFaultStats.header.summary")],
       [t("exportsExtract.csvFaultStats.header.faultTotal"), stats.total_faults],
@@ -385,7 +386,7 @@ function severityTone(severity: string): StatusTagTone {
 }
 
 function formatStatNumber(value: number) {
-  return new Intl.NumberFormat("zh-CN").format(Number.isFinite(value) ? value : 0)
+  return new Intl.NumberFormat(readStoredLocale()).format(Number.isFinite(value) ? value : 0)
 }
 
 function rangeLabel(t: I18nT, value: FaultRange) {

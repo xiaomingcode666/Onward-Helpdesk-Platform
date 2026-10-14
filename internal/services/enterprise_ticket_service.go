@@ -17,6 +17,7 @@ import (
 
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 var EnterpriseTicketService = newEnterpriseTicketService()
@@ -87,11 +88,11 @@ func (s *enterpriseTicketService) List(tenantID int64, query EnterpriseTicketQue
 		cnd.Eq("merged_into_id", 0)
 	case "":
 	default:
-		return nil, errorsx.InvalidParam("无效合并筛选")
+		return nil, errorsx.InvalidParamI18n("error.z0080")
 	}
 	if query.RelationRole != "" {
 		if !slices.Contains([]string{"parent", "child", "standalone"}, query.RelationRole) {
-			return nil, errorsx.InvalidParam("无效父子工单筛选")
+			return nil, errorsx.InvalidParamI18n("error.z0081")
 		}
 		relations := sqls.DB().Model(&models.TicketRelation{}).Where("tenant_id = ? AND kind = 'parent' AND active_key IS NOT NULL", tenantID)
 		if query.RelationRole == "parent" {
@@ -107,7 +108,7 @@ func (s *enterpriseTicketService) List(tenantID int64, query EnterpriseTicketQue
 	}
 	if query.CaseType != "" {
 		if !slices.Contains(ticketpolicy.Types, query.CaseType) {
-			return nil, errorsx.InvalidParam("无效工单分类")
+			return nil, errorsx.InvalidParamI18n("error.z0082")
 		}
 		cnd.Eq("case_type", query.CaseType)
 	}
@@ -528,6 +529,7 @@ func (s *enterpriseTicketService) GetAggregateForOperator(tenantID, ticketID int
 	result.Actions = s.BuildActionsForOperator(ticket, operator)
 	caseLifecycle := BuildTicketCaseLifecycle(ticket, operator)
 	result.CaseLifecycle = &caseLifecycle
+	localizeTicketAggregate(result, operatorLocale(operator))
 	teamNames := newAgentTeamDisplayNames(tenantID, operator)
 	result.Assignment.TeamName = teamNames.name(result.Assignment.TeamID, result.Assignment.TeamName)
 	for index := range result.AssignmentHistory {
@@ -850,6 +852,7 @@ func (s *enterpriseTicketService) buildHeader(ticket *models.Ticket) dto.TicketH
 		ServiceMetrics:       buildTicketServiceMetricsDTO(ticket),
 		SupportStatus:        ticket.SupportStatus,
 		SupportReason:        ticket.SupportReason,
+		SupportReasonText:    ticket.SupportReasonText,
 		SupportCheckedAt:     formatEnterpriseTimePtr(ticket.SupportCheckedAt),
 	}
 }
@@ -1425,20 +1428,22 @@ func (s *enterpriseTicketService) buildTimeline(ticket *models.Ticket) []dto.Tic
 			}
 		}
 		timeline = append(timeline, dto.TicketTimelineItemDTO{
-			ID:        item.ID,
-			Type:      string(eventType),
-			Content:   item.Content,
-			Actor:     actor,
-			Timestamp: formatEnterpriseTime(item.CreatedAt),
+			ID:          item.ID,
+			Type:        string(eventType),
+			Content:     item.Content,
+			ContentText: item.ContentText,
+			Actor:       actor,
+			Timestamp:   formatEnterpriseTime(item.CreatedAt),
 		})
 	}
 	if !hasCreatedProgress {
 		timeline = append([]dto.TicketTimelineItemDTO{{
-			ID:        ticket.ID,
-			Type:      "created",
-			Content:   "Ticket created",
-			Actor:     ticket.CreateUserName,
-			Timestamp: formatEnterpriseTime(ticket.CreatedAt),
+			ID:          ticket.ID,
+			Type:        "created",
+			Content:     canonicalText(i18nx.NewText("ticketProgress.created", nil)),
+			ContentText: i18nx.NewText("ticketProgress.created", nil),
+			Actor:       ticket.CreateUserName,
+			Timestamp:   formatEnterpriseTime(ticket.CreatedAt),
 		}}, timeline...)
 	}
 	return timeline
@@ -1478,4 +1483,19 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// localizeTicketAggregate 按请求语言渲染工单详情中的系统文本。
+func localizeTicketAggregate(result *dto.TicketAggregateDTO, locale string) {
+	if result == nil {
+		return
+	}
+	if !result.Ticket.SupportReasonText.IsZero() {
+		result.Ticket.SupportReason = result.Ticket.SupportReasonText.Render(locale)
+	}
+	for index := range result.Timeline {
+		if !result.Timeline[index].ContentText.IsZero() {
+			result.Timeline[index].Content = result.Timeline[index].ContentText.Render(locale)
+		}
+	}
 }

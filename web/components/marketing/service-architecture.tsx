@@ -1,3 +1,7 @@
+"use client"
+
+import { tm } from "@/components/marketing/marketing-i18n"
+import { useI18n } from "@/i18n/provider"
 import {
   BotMessageSquareIcon,
   Building2Icon,
@@ -12,25 +16,25 @@ import {
   WorkflowIcon,
 } from "lucide-react"
 
-const serviceEntries = [
-  { icon: CircleUserRoundIcon, title: "客户 H5", detail: "咨询、附件与转人工" },
-  { icon: Building2Icon, title: "企业工作台", detail: "知识与服务运营" },
-  { icon: NetworkIcon, title: "合作伙伴端", detail: "授权工单协作" },
-  { icon: KeyRoundIcon, title: "平台管理端", detail: "租户与能力治理" },
+const serviceEntries = () => [
+  { icon: CircleUserRoundIcon, title: tm("marketing.serviceArchitecture.t006"), detail: tm("marketing.serviceArchitecture.t007") },
+  { icon: Building2Icon, title: tm("marketing.serviceArchitecture.t008"), detail: tm("marketing.serviceArchitecture.t009") },
+  { icon: NetworkIcon, title: tm("marketing.serviceArchitecture.t010"), detail: tm("marketing.serviceArchitecture.t011") },
+  { icon: KeyRoundIcon, title: tm("marketing.serviceArchitecture.t012"), detail: tm("marketing.serviceArchitecture.t013") },
 ] as const
 
-const serviceCapabilities = [
-  { icon: BotMessageSquareIcon, title: "AI 问诊", detail: "检索、引用与追问" },
-  { icon: UsersRoundIcon, title: "人工接管", detail: "在原会话继续处理" },
-  { icon: TicketCheckIcon, title: "工单协同", detail: "派单、SLA 与状态" },
-  { icon: VideoIcon, title: "远程服务", detail: "工程师与专家协作" },
+const serviceCapabilities = () => [
+  { icon: BotMessageSquareIcon, title: tm("marketing.serviceArchitecture.t014"), detail: tm("marketing.serviceArchitecture.t015") },
+  { icon: UsersRoundIcon, title: tm("marketing.serviceArchitecture.t016"), detail: tm("marketing.serviceArchitecture.t017") },
+  { icon: TicketCheckIcon, title: tm("marketing.serviceArchitecture.t018"), detail: tm("marketing.serviceArchitecture.t019") },
+  { icon: VideoIcon, title: tm("marketing.serviceArchitecture.t020"), detail: tm("marketing.serviceArchitecture.t021") },
 ] as const
 
-const contextItems = ["客户", "会话", "诊断", "工单", "视频", "服务记录"] as const
+const contextItems = () => [tm("marketing.serviceArchitecture.t022"), tm("marketing.serviceArchitecture.t023"), tm("marketing.serviceArchitecture.t024"), tm("marketing.serviceArchitecture.t025"), tm("marketing.serviceArchitecture.t026"), tm("marketing.serviceArchitecture.t027")] as const
 
-const dataItems = ["客户资料", "企业知识", "产品 / 设备可选", "维修与审计记录"] as const
+const dataItems = () => [tm("marketing.serviceArchitecture.t028"), tm("marketing.serviceArchitecture.t029"), tm("marketing.serviceArchitecture.t030"), tm("marketing.serviceArchitecture.t031")] as const
 
-type ArchitectureNode = (typeof serviceEntries)[number] | (typeof serviceCapabilities)[number]
+type ArchitectureNode = ReturnType<typeof serviceEntries>[number] | ReturnType<typeof serviceCapabilities>[number]
 
 function DiagramNode({ node, side }: { node: ArchitectureNode; side: "entry" | "capability" }) {
   const Icon = node.icon
@@ -81,14 +85,14 @@ function ContextCore() {
         <span className="mx-auto grid size-11 place-items-center rounded-md border border-blue-300/30 bg-blue-300/10 text-blue-200 shadow-[0_0_28px_rgba(96,165,250,0.16)]">
           <WorkflowIcon className="size-5" />
         </span>
-        <h3 className="mt-4 text-xl font-semibold sm:text-2xl">统一服务上下文</h3>
+        <h3 className="mt-4 text-xl font-semibold sm:text-2xl">{tm("marketing.serviceArchitecture.t001")}</h3>
         <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-slate-300">
-          从客户发起到服务完成，每个角色使用同一份信息。
+          {tm("marketing.serviceArchitecture.t032")}
         </p>
       </div>
 
       <div className="mt-5 flex flex-wrap justify-center gap-2">
-        {contextItems.map((item) => (
+        {contextItems().map((item) => (
           <span key={item} className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5 text-[11px] text-slate-200">
             {item}
           </span>
@@ -96,9 +100,9 @@ function ContextCore() {
       </div>
 
       <div className="mt-6 grid grid-cols-3 border-t border-white/10 pt-4 text-center text-[11px] text-slate-300">
-        <span>身份权限</span>
-        <span className="border-x border-white/10">工作流引擎</span>
-        <span>审计通知</span>
+        <span>{tm("marketing.serviceArchitecture.t002")}</span>
+        <span className="border-x border-white/10">{tm("marketing.serviceArchitecture.t003")}</span>
+        <span>{tm("marketing.serviceArchitecture.t004")}</span>
       </div>
     </div>
   )
@@ -109,10 +113,10 @@ function DataFoundation() {
     <div className="rounded-md border border-dashed border-violet-300/25 bg-violet-300/[0.05] px-4 py-3 backdrop-blur-sm">
       <div className="flex items-center justify-center gap-2 text-xs font-semibold text-slate-200">
         <DatabaseIcon className="size-4 text-violet-300" />
-        租户隔离数据层
+        {tm("marketing.serviceArchitecture.t033")}
       </div>
       <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
-        {dataItems.map((item) => <span key={item}>{item}</span>)}
+        {dataItems().map((item) => <span key={item}>{item}</span>)}
       </div>
     </div>
   )
@@ -201,6 +205,7 @@ function DesktopFlowLines() {
 }
 
 export function ServiceArchitecture() {
+  useI18n()
   return (
     <div className="relative isolate overflow-hidden rounded-lg border border-slate-800 bg-[#091119] px-4 py-6 shadow-[0_34px_90px_rgba(2,8,23,0.28)] sm:px-6 sm:py-8 lg:px-8 lg:py-10">
       <style>{`
@@ -225,7 +230,7 @@ export function ServiceArchitecture() {
       <div className="flex flex-col gap-3 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-mono text-[10px] font-semibold text-blue-300">REMOTEHELPDESK / SERVICE FABRIC</p>
-          <p className="mt-2 text-sm text-slate-400">4 个服务入口 · 1 个上下文核心 · 4 个执行域</p>
+          <p className="mt-2 text-sm text-slate-400">{tm("marketing.serviceArchitecture.t005")}</p>
         </div>
         <span className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/[0.06] px-3 py-1.5 text-[10px] font-semibold text-emerald-300">
           <span className="size-1.5 rounded-full bg-emerald-300 motion-safe:animate-pulse" /> CONTEXT NETWORK ONLINE
@@ -238,14 +243,14 @@ export function ServiceArchitecture() {
         <div className="absolute left-0 top-0 z-10 w-[230px]">
           <p className="mb-3 font-mono text-[10px] font-semibold text-emerald-300">01 / SERVICE ENTRIES</p>
           <div className="grid gap-3">
-            {serviceEntries.map((node) => <DiagramNode key={node.title} node={node} side="entry" />)}
+            {serviceEntries().map((node) => <DiagramNode key={node.title} node={node} side="entry" />)}
           </div>
         </div>
 
         <div className="absolute right-0 top-0 z-10 w-[230px]">
           <p className="mb-3 text-right font-mono text-[10px] font-semibold text-blue-300">03 / SERVICE EXECUTION</p>
           <div className="grid gap-3">
-            {serviceCapabilities.map((node) => <DiagramNode key={node.title} node={node} side="capability" />)}
+            {serviceCapabilities().map((node) => <DiagramNode key={node.title} node={node} side="capability" />)}
           </div>
         </div>
 
@@ -261,7 +266,7 @@ export function ServiceArchitecture() {
       <div className="lg:hidden">
         <p className="mb-3 text-center font-mono text-[10px] font-semibold text-emerald-300">01 / SERVICE ENTRIES</p>
         <div className="grid grid-cols-2 gap-3">
-          {serviceEntries.map((node) => <DiagramNode key={node.title} node={node} side="entry" />)}
+          {serviceEntries().map((node) => <DiagramNode key={node.title} node={node} side="entry" />)}
         </div>
 
         <VerticalConnector />
@@ -270,7 +275,7 @@ export function ServiceArchitecture() {
 
         <p className="mb-3 text-center font-mono text-[10px] font-semibold text-blue-300">03 / SERVICE EXECUTION</p>
         <div className="grid grid-cols-2 gap-3">
-          {serviceCapabilities.map((node) => <DiagramNode key={node.title} node={node} side="capability" />)}
+          {serviceCapabilities().map((node) => <DiagramNode key={node.title} node={node} side="capability" />)}
         </div>
 
         <VerticalConnector />

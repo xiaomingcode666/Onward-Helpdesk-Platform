@@ -8,6 +8,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto/response"
 	"remotehelpdesk/internal/pkg/httpx"
 	"remotehelpdesk/internal/pkg/httpx/params"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -29,7 +30,7 @@ func AIWorkflowAnyList(ctx *gin.Context) {
 		cnd.Where("(tenant_id = ? OR (tenant_id = 0 AND scope = ?))", operator.TenantID, models.AIWorkflowScopePlatform)
 	}
 	list, paging := services.AIWorkflowService.FindPageByCnd(cnd)
-	httpx.WriteJSON(ctx, &web.PageResult{Results: builders.BuildAIWorkflowList(list), Page: paging})
+	httpx.WriteJSON(ctx, &web.PageResult{Results: builders.BuildAIWorkflowList(list, i18nx.Locale(ctx)), Page: paging})
 }
 
 func AIWorkflowGetBy(ctx *gin.Context) {
@@ -47,7 +48,7 @@ func AIWorkflowGetBy(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0002"))
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAIWorkflow(item))
+	httpx.WriteJSON(ctx, builders.BuildAIWorkflow(item, i18nx.Locale(ctx)))
 }
 
 func AIWorkflowPostCreate(ctx *gin.Context) {
@@ -66,7 +67,7 @@ func AIWorkflowPostCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAIWorkflow(item))
+	httpx.WriteJSON(ctx, builders.BuildAIWorkflow(item, i18nx.Locale(ctx)))
 }
 
 func AIWorkflowPostUpdate(ctx *gin.Context) {
@@ -172,7 +173,7 @@ func AIWorkflowGetByAgent(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAIWorkflow(item))
+	httpx.WriteJSON(ctx, builders.BuildAIWorkflow(item, i18nx.Locale(ctx)))
 }
 
 func AIWorkflowPostSaveAgent(ctx *gin.Context) {
@@ -191,7 +192,7 @@ func AIWorkflowPostSaveAgent(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAIWorkflow(item))
+	httpx.WriteJSON(ctx, builders.BuildAIWorkflow(item, i18nx.Locale(ctx)))
 }
 
 func AIWorkflowPostPublishAgent(ctx *gin.Context) {

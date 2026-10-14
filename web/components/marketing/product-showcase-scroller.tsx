@@ -1,42 +1,46 @@
 "use client"
 
+import { tm } from "@/components/marketing/marketing-i18n"
+import { useI18n } from "@/i18n/provider"
+
 import Image from "next/image"
 import { useCallback, useEffect, useState, type TransitionEvent } from "react"
 
-const showcases = [
+const showcases = () => [
   {
     number: "01",
-    title: "服务运营总览",
+    title: tm("marketing.productShowcaseScroller.t002"),
     image: "/images/home/operations-overview.png",
   },
   {
     number: "02",
-    title: "工程师处理工作台",
+    title: tm("marketing.productShowcaseScroller.t003"),
     image: "/images/home/ticket-workbench.png",
   },
   {
     number: "03",
-    title: "视频协作与参与记录",
+    title: tm("marketing.productShowcaseScroller.t004"),
     image: "/images/home/video-session.png",
   },
   {
     number: "04",
-    title: "工单处理与责任链",
+    title: tm("marketing.productShowcaseScroller.t005"),
     image: "/images/home/ticket-lifecycle.png",
   },
   {
     number: "05",
-    title: "组织排班与工单分配",
+    title: tm("marketing.productShowcaseScroller.t006"),
     image: "/images/home/team-dispatch.png",
   },
 ] as const
 
-const loopedShowcases = [...showcases, showcases[0]]
+const loopedShowcases = () => [...showcases(), showcases()[0]]
 
 export function ProductShowcaseScroller() {
+  useI18n()
   const [slideIndex, setSlideIndex] = useState(0)
   const [transitionEnabled, setTransitionEnabled] = useState(true)
-  const activeIndex = slideIndex % showcases.length
+  const activeIndex = slideIndex % showcases().length
 
   const resetLoop = useCallback(() => {
     setTransitionEnabled(false)
@@ -47,14 +51,14 @@ export function ProductShowcaseScroller() {
     const timer = window.setInterval(() => {
       setTransitionEnabled(true)
       // Wait at the cloned first slide until the loop has been reset.
-      setSlideIndex((current) => Math.min(current + 1, showcases.length))
+      setSlideIndex((current) => Math.min(current + 1, showcases().length))
     }, 4200)
 
     return () => window.clearInterval(timer)
   }, [])
 
   useEffect(() => {
-    if (slideIndex < showcases.length) return
+    if (slideIndex < showcases().length) return
 
     // Background tabs or interrupted transitions may never emit transitionend.
     const timer = window.setTimeout(resetLoop, 800)
@@ -63,7 +67,7 @@ export function ProductShowcaseScroller() {
 
   const handleTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget || event.propertyName !== "transform") return
-    if (slideIndex >= showcases.length) resetLoop()
+    if (slideIndex >= showcases().length) resetLoop()
   }
 
   return (
@@ -72,16 +76,16 @@ export function ProductShowcaseScroller() {
         <div className="grid min-h-12 grid-cols-[1fr_auto_1fr] items-center border-b border-white/10 px-4 sm:px-5">
           <span className="flex items-center gap-2" aria-hidden="true"><span className="size-2.5 rounded-full bg-rose-400" /><span className="size-2.5 rounded-full bg-amber-300" /><span className="size-2.5 rounded-full bg-emerald-400" /></span>
           <span className="hidden font-mono text-[10px] text-slate-500 sm:block">enterprise.remotehelpdesk</span>
-          <span className="justify-self-end font-mono text-[10px] text-emerald-300">LIVE · {showcases[activeIndex].number} / {String(showcases.length).padStart(2, "0")}</span>
+          <span className="justify-self-end font-mono text-[10px] text-emerald-300">LIVE · {showcases()[activeIndex].number} / {String(showcases().length).padStart(2, "0")}</span>
         </div>
 
-        <div className="overflow-hidden" aria-label="产品界面自动轮播" aria-live="off">
+        <div className="overflow-hidden" aria-label={tm("marketing.productShowcaseScroller.t001")} aria-live="off">
           <div
             className={transitionEnabled ? "flex transition-transform duration-700 ease-[cubic-bezier(0.65,0,0.35,1)]" : "flex"}
             style={{ transform: `translate3d(-${slideIndex * 100}%, 0, 0)` }}
             onTransitionEnd={handleTransitionEnd}
           >
-            {loopedShowcases.map((showcase, index) => (
+            {loopedShowcases().map((showcase, index) => (
               <figure key={`${showcase.number}-${index}`} className="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-[#eef2f6] sm:aspect-[2/1]">
                 <Image src={showcase.image} alt={showcase.title} fill priority={index === 0} unoptimized sizes="(min-width: 1280px) 1160px, calc(100vw - 32px)" className="object-cover object-top sm:object-contain" />
               </figure>
@@ -90,9 +94,9 @@ export function ProductShowcaseScroller() {
         </div>
 
         <div className="flex min-h-14 items-center justify-between gap-5 border-t border-white/10 px-5 sm:px-7">
-          <strong className="text-sm font-medium text-white sm:text-base">{showcases[activeIndex].title}</strong>
+          <strong className="text-sm font-medium text-white sm:text-base">{showcases()[activeIndex].title}</strong>
           <div className="flex w-24 gap-1.5" aria-hidden="true">
-            {showcases.map((showcase, index) => <span key={showcase.number} className={`h-0.5 flex-1 transition-colors duration-500 ${activeIndex === index ? "bg-emerald-300" : "bg-white/20"}`} />)}
+            {showcases().map((showcase, index) => <span key={showcase.number} className={`h-0.5 flex-1 transition-colors duration-500 ${activeIndex === index ? "bg-emerald-300" : "bg-white/20"}`} />)}
           </div>
         </div>
       </div>

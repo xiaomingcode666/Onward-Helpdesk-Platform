@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"remotehelpdesk/internal/pkg/i18nx"
+)
 
 // PriorityCode on Ticket remains a legacy SLA key; PriorityLevel is the P1-P4 business value.
 type TicketGovernance struct {
@@ -16,6 +20,7 @@ type TicketGovernance struct {
 	PriorityFactsJSON       string     `gorm:"type:text;not null;default:'{}'"`
 	PriorityPolicyJSON      string     `gorm:"type:text;not null;default:''"`
 	PriorityExplanation     string     `gorm:"type:text;not null;default:''"`
+	PriorityExplanationText i18nx.Text `gorm:"type:text;not null;default:''"` // 系统生成的优先级说明，展示时按语言渲染
 	PriorityConfigVersionID int64      `gorm:"not null;default:0"`
 	GovernanceRevision      int64      `gorm:"not null;default:0"`
 }

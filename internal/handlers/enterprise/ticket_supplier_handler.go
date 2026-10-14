@@ -12,6 +12,7 @@ import (
 	"remotehelpdesk/internal/services"
 
 	"github.com/gin-gonic/gin"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 func TicketSupplierCollaborationList(ctx *gin.Context) {
@@ -101,7 +102,7 @@ func TicketSupplierCollaborationDetail(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildPartnerTicketDetail(item))
+	httpx.WriteJSON(ctx, builders.BuildPartnerTicketDetail(item, i18nx.Locale(ctx)))
 }
 
 func TicketSupplierCollaborationProgress(ctx *gin.Context) {
@@ -131,7 +132,7 @@ func TicketSupplierCollaborationProgress(ctx *gin.Context) {
 	recordEnterpriseTicketAudit(ctx, operator, tenantID, ticketID, "ticket.supplier_collaboration.progress.created", models.RiskLevelLow, map[string]any{
 		"collaborationId": id,
 	})
-	httpx.WriteJSON(ctx, builders.BuildPartnerTicketDetail(item))
+	httpx.WriteJSON(ctx, builders.BuildPartnerTicketDetail(item, i18nx.Locale(ctx)))
 }
 
 func TicketSupplierCollaborationResolve(ctx *gin.Context) {

@@ -34,11 +34,10 @@ func handleProductCreatedInAppNotification(ctx context.Context, event events.Pro
 	if err != nil {
 		return err
 	}
-	content := fmt.Sprintf("产品 %s（%s）已创建，可进入产品中心检查维修组、知识库和机器人配置。", product.Name, product.Code)
 	return services.NotificationAudienceService.Deliver(recipients, request.CreateNotificationRequest{
 		TenantID:         product.TenantID,
-		Title:            fmt.Sprintf("产品 %s 已创建", product.Name),
-		Content:          content,
+		TitleText:        i18nx.NewText("notificationText.productCreated.title", i18nx.Params{"product": product.Name}),
+		ContentText:      i18nx.NewText("notificationText.productCreated.content", i18nx.Params{"product": product.Name, "code": product.Code}),
 		NotificationType: "product_created",
 		BizType:          "product",
 		BizID:            product.ID,
@@ -63,13 +62,13 @@ func handleTicketCreatedInAppNotification(ctx context.Context, event events.Tick
 		return err
 	}
 	ticketNo := strs.DefaultIfBlank(ticket.TicketNo, fmt.Sprintf("#%d", ticket.ID))
-	title := fmt.Sprintf("新工单 %s 待处理", ticketNo)
+	title := i18nx.NewText("notificationText.ticketCreated.title", i18nx.Params{"ticketNo": ticketNo})
 	if ticket.ConversationID > 0 {
-		title = fmt.Sprintf("转人工工单 %s 待处理", ticketNo)
+		title = i18nx.NewText("notificationText.ticketCreated.handoffTitle", i18nx.Params{"ticketNo": ticketNo})
 	}
-	content := strings.TrimSpace(ticket.Title)
+	content := i18nx.NewText("notificationText.ticketCreated.content", i18nx.Params{"ticketTitle": strings.TrimSpace(ticket.Title)})
 	if ticket.CurrentAssigneeID <= 0 {
-		content += "\n当前未指派处理人，请及时派工。"
+		content = i18nx.NewText("notificationText.ticketCreated.contentUnassigned", i18nx.Params{"ticketTitle": strings.TrimSpace(ticket.Title)})
 	}
 	level := "info"
 	if ticket.CurrentAssigneeID <= 0 {
@@ -80,8 +79,8 @@ func handleTicketCreatedInAppNotification(ctx context.Context, event events.Tick
 	}
 	return services.NotificationAudienceService.Deliver(recipients, request.CreateNotificationRequest{
 		TenantID:         ticket.TenantID,
-		Title:            title,
-		Content:          strings.TrimSpace(content),
+		TitleText:        title,
+		ContentText:      content,
 		NotificationType: "ticket_created",
 		BizType:          "ticket",
 		BizID:            ticket.ID,
@@ -113,12 +112,12 @@ func handleTicketAssignedInAppNotification(ctx context.Context, event events.Tic
 	if err := services.NotificationService.ReconcileTicketAssignedAfterReassignment(ticket, event.FromUserID, event.ToUserID); err != nil {
 		return err
 	}
-	content := i18nx.Getf(i18nx.DefaultLocale, "notification.ticketAssigned.line", strs.DefaultIfBlank(ticket.TicketNo, fmt.Sprintf("#%d", ticket.ID)))
+	contentLines := []any{i18nx.NewText("notificationText.ticketAssigned.line", i18nx.Params{"ticketNo": strs.DefaultIfBlank(ticket.TicketNo, fmt.Sprintf("#%d", ticket.ID))})}
 	if title := strings.TrimSpace(ticket.Title); title != "" {
-		content = content + "\n" + title
+		contentLines = append(contentLines, title)
 	}
 	if reason := strings.TrimSpace(event.Reason); reason != "" {
-		content = content + "\n" + i18nx.Getf(i18nx.DefaultLocale, "notification.ticketAssigned.reason", reason)
+		contentLines = append(contentLines, i18nx.NewText("notificationText.ticketAssigned.reason", i18nx.Params{"reason": services.SystemReasonParam(reason)}))
 	}
 	recipients, err := services.NotificationAudienceService.ResolveTicketAssignee(ticket, event.ToUserID)
 	if err != nil {
@@ -126,8 +125,8 @@ func handleTicketAssignedInAppNotification(ctx context.Context, event events.Tic
 	}
 	return services.NotificationAudienceService.Deliver(recipients, request.CreateNotificationRequest{
 		TenantID:         ticket.TenantID,
-		Title:            i18nx.Get("notification.ticketAssigned.title"),
-		Content:          content,
+		TitleText:        i18nx.NewText("notificationText.ticketAssigned.title", nil),
+		ContentText:      services.JoinTextLines(contentLines...),
 		NotificationType: "ticket_assigned",
 		BizType:          "ticket",
 		BizID:            ticket.ID,
@@ -143,6 +142,7 @@ func handleTicketAssignedInAppNotification(ctx context.Context, event events.Tic
 			"TicketTitle": strings.TrimSpace(ticket.Title),
 			"Reason":      strings.TrimSpace(event.Reason),
 		},
+		TextVariables: services.SystemReasonTextVariable("Reason", event.Reason),
 	})
 }
 
@@ -154,16 +154,16 @@ func handleConversationAssignedInAppNotification(ctx context.Context, event even
 	if conversation == nil {
 		return nil
 	}
-	content := i18nx.Getf(i18nx.DefaultLocale, "notification.conversationAssigned.line", fmt.Sprint(conversation.ID))
+	contentLines := []any{i18nx.NewText("notificationText.conversationAssigned.line", i18nx.Params{"conversationId": fmt.Sprint(conversation.ID)})}
 	if summary := strings.TrimSpace(services.ConversationService.BuildConversationSummary(conversation)); summary != "" {
-		content = content + "\n" + summary
+		contentLines = append(contentLines, summary)
 	}
 	if reason := strings.TrimSpace(event.Reason); reason != "" {
-		reasonKey := "notification.conversationAssigned.reason"
+		reasonKey := "notificationText.conversationAssigned.reason"
 		if strings.TrimSpace(event.AssignType) == events.ConversationAssignTypeTransfer {
-			reasonKey = "notification.conversationTransferred.reason"
+			reasonKey = "notificationText.conversationTransferred.reason"
 		}
-		content = content + "\n" + i18nx.Getf(i18nx.DefaultLocale, reasonKey, reason)
+		contentLines = append(contentLines, i18nx.NewText(reasonKey, i18nx.Params{"reason": services.SystemReasonParam(reason)}))
 	}
 	recipients, err := services.NotificationAudienceService.ResolveConversationAssignee(conversation, event.ToUserID)
 	if err != nil {
@@ -171,8 +171,8 @@ func handleConversationAssignedInAppNotification(ctx context.Context, event even
 	}
 	return services.NotificationAudienceService.Deliver(recipients, request.CreateNotificationRequest{
 		TenantID:         conversation.TenantID,
-		Title:            conversationAssignedNotifyTitle(event.AssignType),
-		Content:          content,
+		TitleText:        conversationAssignedNotifyTitleText(event.AssignType),
+		ContentText:      services.JoinTextLines(contentLines...),
 		NotificationType: "conversation_assigned",
 		BizType:          "conversation",
 		BizID:            conversation.ID,

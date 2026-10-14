@@ -12,6 +12,7 @@ import (
 	"remotehelpdesk/internal/services"
 
 	"github.com/gin-gonic/gin"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 func Profile(ctx *gin.Context) {
@@ -137,7 +138,7 @@ func TicketGet(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildPartnerTicketDetail(item))
+	httpx.WriteJSON(ctx, builders.BuildPartnerTicketDetail(item, i18nx.Locale(ctx)))
 }
 
 func TicketProgressCreate(ctx *gin.Context) {
@@ -159,7 +160,7 @@ func TicketProgressCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildPartnerTicketDetail(item))
+	httpx.WriteJSON(ctx, builders.BuildPartnerTicketDetail(item, i18nx.Locale(ctx)))
 }
 
 func TicketUploadImage(ctx *gin.Context) {
@@ -263,7 +264,7 @@ func TicketParticipantAdd(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildPartnerTicketDetail(item))
+	httpx.WriteJSON(ctx, builders.BuildPartnerTicketDetail(item, i18nx.Locale(ctx)))
 }
 
 func TicketParticipantRemove(ctx *gin.Context) {
@@ -285,7 +286,7 @@ func TicketParticipantRemove(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildPartnerTicketDetail(item))
+	httpx.WriteJSON(ctx, builders.BuildPartnerTicketDetail(item, i18nx.Locale(ctx)))
 }
 
 func TicketResolve(ctx *gin.Context) {

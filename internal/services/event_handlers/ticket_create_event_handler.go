@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"strings"
 	"time"
 
@@ -79,7 +80,7 @@ func buildTicketCreatedNotifyBody(ticket *models.Ticket) string {
 		fmt.Sprintf("工单号: %s", strs.DefaultIfBlank(ticket.TicketNo, fmt.Sprintf("#%d", ticket.ID))),
 		fmt.Sprintf("工单标题: %s", strs.DefaultIfBlank(ticket.Title, "-")),
 		fmt.Sprintf("工单来源: %s", strs.DefaultIfBlank(string(ticket.Source), "-")),
-		fmt.Sprintf("当前状态: %s", enums.GetTicketStatusLabel(ticket.Status)),
+		fmt.Sprintf("当前状态: %s", enums.GetTicketStatusLabel(ticket.Status, i18nx.DefaultLocale)),
 	}
 	if ticket.CurrentAssigneeID > 0 {
 		lines = append(lines, fmt.Sprintf("处理人: %s", resolveNotifyUserLabel(ticket.CurrentAssigneeID)))

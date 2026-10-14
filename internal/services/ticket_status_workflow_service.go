@@ -67,7 +67,7 @@ func validWorkflowProject(doc projectconfig.Document, key string) bool {
 
 func GetTicketStatusWorkflow(tenantID int64, key string, beforeID int64, op *dto.AuthPrincipal) (*TicketWorkflowView, error) {
 	if op == nil || tenantID <= 0 || op.EffectiveTenantID() != tenantID || !op.HasPermission(constants.PermissionTicketView.Code) {
-		return nil, errorsx.Forbidden("无权查看此公司的工单流程")
+		return nil, errorsx.ForbiddenI18n("error.z0175")
 	}
 	view, err := GetProjectConfigurationHistory(tenantID, beforeID)
 	if err != nil {

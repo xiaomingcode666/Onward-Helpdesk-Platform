@@ -18,6 +18,7 @@ import (
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 // ============================================================
@@ -782,8 +783,8 @@ func (s *dsarService) CheckDSARDeadlines() error {
 			_, err := NotificationQueueService.EnqueueCreate(context.Background(), request.CreateNotificationRequest{
 				TenantID:         tenantID,
 				RecipientUserID:  adminID,
-				Title:            "DSAR 请求即将到期",
-				Content:          fmt.Sprintf("DSAR 请求 %s（类型：%s）将在 %d 天后到期（截止日期：%s），请及时处理。", req.ID, req.RequestType, remainingDays, req.DeadlineAt.Format("2006-01-02")),
+				TitleText:        i18nx.NewText("notificationText.dsar.dueSoon.title", nil),
+				ContentText:      i18nx.NewText("notificationText.dsar.dueSoon.content", i18nx.Params{"id": req.ID, "type": req.RequestType, "days": remainingDays, "deadline": req.DeadlineAt.Format("2006-01-02")}),
 				NotificationType: "dsar_expiring",
 				BizType:          "dsar",
 				BizID:            0,
@@ -847,8 +848,8 @@ func (s *dsarService) CheckDSARDeadlines() error {
 			_, err := NotificationQueueService.EnqueueCreate(context.Background(), request.CreateNotificationRequest{
 				TenantID:         tenantID,
 				RecipientUserID:  adminID,
-				Title:            "DSAR 请求已逾期 — 监管违规",
-				Content:          fmt.Sprintf("DSAR 请求 %s（类型：%s）已超过法定处理期限（截止日期：%s），存在监管处罚风险，请立即处理。", req.ID, req.RequestType, req.DeadlineAt.Format("2006-01-02")),
+				TitleText:        i18nx.NewText("notificationText.dsar.overdue.title", nil),
+				ContentText:      i18nx.NewText("notificationText.dsar.overdue.content", i18nx.Params{"id": req.ID, "type": req.RequestType, "deadline": req.DeadlineAt.Format("2006-01-02")}),
 				NotificationType: "dsar_overdue",
 				BizType:          "dsar",
 				BizID:            0,

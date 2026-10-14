@@ -32,10 +32,10 @@ func (s *aiWorkflowService) TestRun(
 ) (*response.AIWorkflowTestRunResponse, error) {
 	workflow := s.GetForOperator(workflowID, operator)
 	if !s.IsReusableTemplateForOperator(workflow, operator) {
-		return nil, errorsx.InvalidParam("工作流不存在或无权测试")
+		return nil, errorsx.InvalidParamI18n("error.z0066")
 	}
 	if strings.TrimSpace(req.UserMessage) == "" {
-		return nil, errorsx.InvalidParam("请输入测试问题")
+		return nil, errorsx.InvalidParamI18n("error.z0067")
 	}
 	if validation := s.ValidateDefinition(req.Definition); !validation.Valid {
 		message := "工作流定义校验失败"
@@ -49,10 +49,10 @@ func (s *aiWorkflowService) TestRun(
 	}
 	agent := AIAgentService.Get(req.AIAgentID)
 	if agent == nil || agent.Status != enums.StatusOk {
-		return nil, errorsx.InvalidParam("测试产品机器人不存在或未启用")
+		return nil, errorsx.InvalidParamI18n("error.z0068")
 	}
 	if operator == nil || operator.TenantID <= 0 || agent.TenantID != operator.TenantID {
-		return nil, errorsx.Forbidden("测试产品机器人不在当前企业范围内")
+		return nil, errorsx.ForbiddenI18n("error.z0069")
 	}
 	if AIWorkflowTestRunHook == nil {
 		return nil, fmt.Errorf("workflow test runner is not initialized")

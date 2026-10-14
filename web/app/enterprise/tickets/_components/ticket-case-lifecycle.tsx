@@ -103,7 +103,7 @@ export function TicketCaseLifecycle({ aggregate, onSaved, active = true }: {
         {lifecycle.waiting_reason ? <div><dt className="text-xs text-muted-foreground">{caseLabel("waitingReason")}</dt><dd className="whitespace-pre-wrap">{lifecycle.waiting_reason}</dd></div> : null}
       </dl>
       {lifecycle.legacy_record ? <p className="text-xs text-amber-700" data-testid="ticket-case-legacy">{caseLabel("legacy")}</p> : null}
-      {lifecycle.workflow_version_id ? <p className="text-xs text-muted-foreground">工单流程版本 #{lifecycle.workflow_version_id}</p> : null}
+      {lifecycle.workflow_version_id ? <p className="text-xs text-muted-foreground">{caseLabel("workflowVersion", { id: lifecycle.workflow_version_id })}</p> : null}
       {lifecycle.workflow_error ? <p role="alert" className="text-sm text-destructive">{lifecycle.workflow_error}</p> : null}
       <div className="flex flex-wrap items-center gap-2">
         {lifecycle.allowed_actions?.length ? <RailopsButton size="small" data-testid="case-update-status" onClick={() => setActionsOpen((value) => !value)} aria-expanded={actionsOpen}>

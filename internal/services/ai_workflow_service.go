@@ -25,6 +25,7 @@ import (
 
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 var AIWorkflowService = newAIWorkflowService()
@@ -435,7 +436,7 @@ func (s *aiWorkflowService) BuildRunHumanHandlingAudit(run *models.AIWorkflowRun
 		HandoffReason:          strings.TrimSpace(conversation.HandoffReason),
 		HandledByHuman:         firstReply != nil || linkedTicket != nil,
 		ConversationStatus:     conversation.Status,
-		ConversationStatusName: enums.GetIMConversationStatusLabel(conversation.Status),
+		ConversationStatusName: enums.GetIMConversationStatusLabel(conversation.Status, i18nx.DefaultLocale),
 	}
 	if handoffOccurred {
 		if conversation.HandoffAt != nil {

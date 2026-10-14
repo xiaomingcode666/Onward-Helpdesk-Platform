@@ -63,7 +63,7 @@ func (s *platformSystemConfigService) GetSettings(operator *dto.AuthPrincipal) *
 
 func (s *platformSystemConfigService) UpdateSettings(req request.PlatformSystemPolicyUpdateRequest, operator *dto.AuthPrincipal) (*response.PlatformSystemPolicyResponse, error) {
 	if !canUpdatePlatformSystemPolicy(operator) {
-		return nil, errorsx.Forbidden("仅平台管理员可以修改系统级默认策略")
+		return nil, errorsx.ForbiddenI18n("error.z0106")
 	}
 	if err := validatePlatformSystemPolicy(req); err != nil {
 		return nil, err
@@ -133,13 +133,13 @@ func parsePlatformSystemPolicy(item *models.SystemConfig) (platformSystemPolicyS
 
 func validatePlatformSystemPolicy(req request.PlatformSystemPolicyUpdateRequest) error {
 	if req.FreeTenantDocumentLimit < 0 || req.PaidTenantDocumentLimit < 0 {
-		return errorsx.InvalidParam("租户文档配额不能为负数")
+		return errorsx.InvalidParamI18n("error.z0107")
 	}
 	if req.FreeTenantDocumentLimit > platformSystemPolicyMaxTenantDocs || req.PaidTenantDocumentLimit > platformSystemPolicyMaxTenantDocs {
-		return errorsx.InvalidParam("租户文档配额不能超过 10000000")
+		return errorsx.InvalidParamI18n("error.z0108")
 	}
 	if req.KnowledgeDocumentMaxMB < 0 || req.KnowledgeDocumentMaxMB > platformSystemPolicyMaxUploadMB {
-		return errorsx.InvalidParam("单文件上传限制需在 0 到 1024 MB 之间")
+		return errorsx.InvalidParamI18n("error.z0109")
 	}
 	return nil
 }

@@ -11,7 +11,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto/response"
 )
 
-func BuildAIWorkflow(item *models.AIWorkflow) response.AIWorkflowResponse {
+func BuildAIWorkflow(item *models.AIWorkflow, locale string) response.AIWorkflowResponse {
 	if item == nil {
 		return response.AIWorkflowResponse{}
 	}
@@ -21,8 +21,8 @@ func BuildAIWorkflow(item *models.AIWorkflow) response.AIWorkflowResponse {
 		TenantID:               item.TenantID,
 		Code:                   item.Code,
 		Scope:                  item.Scope,
-		Name:                   item.Name,
-		Description:            item.Description,
+		Name:                   item.DisplayName(locale),
+		Description:            item.DisplayDescription(locale),
 		AgentID:                item.AgentID,
 		Status:                 item.Status,
 		DraftDefinition:        definition,
@@ -40,10 +40,10 @@ func BuildAIWorkflow(item *models.AIWorkflow) response.AIWorkflowResponse {
 	}
 }
 
-func BuildAIWorkflowList(list []models.AIWorkflow) []response.AIWorkflowResponse {
+func BuildAIWorkflowList(list []models.AIWorkflow, locale string) []response.AIWorkflowResponse {
 	ret := make([]response.AIWorkflowResponse, 0, len(list))
 	for i := range list {
-		ret = append(ret, BuildAIWorkflow(&list[i]))
+		ret = append(ret, BuildAIWorkflow(&list[i], locale))
 	}
 	return ret
 }

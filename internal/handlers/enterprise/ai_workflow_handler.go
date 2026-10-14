@@ -11,6 +11,7 @@ import (
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/httpx"
 	"remotehelpdesk/internal/pkg/httpx/params"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/services"
 
@@ -58,7 +59,7 @@ func AIWorkflowSummary(ctx *gin.Context) {
 		Total:                   int64(len(workflows)),
 		Adopted:                 adopted,
 		Attention:               attention,
-		PlatformTemplates:       builders.BuildAIWorkflowList(platformTemplates),
+		PlatformTemplates:       builders.BuildAIWorkflowList(platformTemplates, i18nx.Locale(ctx)),
 		StableVersionByWorkflow: stableVersionByWorkflow,
 	})
 }
@@ -125,7 +126,7 @@ func AIWorkflowList(ctx *gin.Context) {
 	enterpriseAIWorkflowScopeCnd(cnd, operator)
 	enterpriseAIWorkflowCapabilityCnd(cnd, operator)
 	list, paging := services.AIWorkflowService.FindPageByCnd(cnd)
-	httpx.WriteJSON(ctx, &web.PageResult{Results: builders.BuildAIWorkflowList(list), Page: paging})
+	httpx.WriteJSON(ctx, &web.PageResult{Results: builders.BuildAIWorkflowList(list, i18nx.Locale(ctx)), Page: paging})
 }
 
 func enterpriseAIWorkflowBaseCnd(operator *dto.AuthPrincipal) *sqls.Cnd {
@@ -247,7 +248,7 @@ func AIWorkflowGet(ctx *gin.Context) {
 	if !enterpriseAIWorkflowCanUseTemplate(ctx, operator, item) {
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAIWorkflow(item))
+	httpx.WriteJSON(ctx, builders.BuildAIWorkflow(item, i18nx.Locale(ctx)))
 }
 
 func AIWorkflowVersionList(ctx *gin.Context) {
@@ -297,7 +298,7 @@ func AIWorkflowTemplateCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAIWorkflow(item))
+	httpx.WriteJSON(ctx, builders.BuildAIWorkflow(item, i18nx.Locale(ctx)))
 }
 
 func AIWorkflowDraftUpdate(ctx *gin.Context) {
@@ -328,7 +329,7 @@ func AIWorkflowDraftUpdate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAIWorkflow(item))
+	httpx.WriteJSON(ctx, builders.BuildAIWorkflow(item, i18nx.Locale(ctx)))
 }
 
 func AIWorkflowDelete(ctx *gin.Context) {
@@ -477,12 +478,12 @@ func AIAgentWorkflowBindingUpdate(ctx *gin.Context) {
 	}
 	version := services.AIWorkflowService.GetVersionForOperator(req.WorkflowVersionID, operator)
 	if version == nil {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("工作流版本不存在或无权访问"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0002"))
 		return
 	}
 	workflow := services.AIWorkflowService.GetForOperator(version.WorkflowID, operator)
 	if !services.AIWorkflowService.IsReusableTemplateForOperator(workflow, operator) {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("当前版本不属于可复用工作流模板"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0003"))
 		return
 	}
 	if err := services.AIWorkflowService.BindAgentWorkflowVersion(agentID, req.WorkflowVersionID, operator); err != nil {

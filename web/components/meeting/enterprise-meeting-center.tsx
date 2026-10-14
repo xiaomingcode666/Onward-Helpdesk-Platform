@@ -65,6 +65,7 @@ import { readSession } from "@/lib/auth"
 import { publishMeetingSync, subscribeMeetingSync } from "@/lib/meeting-sync"
 import { buildEnterpriseTicketWorkbenchPath } from "@/lib/ticket-workbench-route"
 import { cn } from "@/lib/utils"
+import { readStoredLocale } from "@/i18n/config"
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
     return translateCurrentMessage(`enterpriseExtract.${key}`)
@@ -1552,7 +1553,7 @@ function formatDateTime(value?: string) {
   if (!value) return "-"
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(readStoredLocale(), {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -1564,7 +1565,7 @@ function formatShortDate(value?: string) {
   if (!value) return "-"
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" }).format(date)
+  return new Intl.DateTimeFormat(readStoredLocale(), { month: "2-digit", day: "2-digit" }).format(date)
 }
 
 function durationText(seconds?: number) {
@@ -1583,7 +1584,7 @@ function transcriptTime(offsetMs: number, startedAt?: string) {
     return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
   }
   if (offsetMs > 0) {
-    return new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(offsetMs))
+    return new Intl.DateTimeFormat(readStoredLocale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(offsetMs))
   }
   return formatDateTime(startedAt)
 }

@@ -2,7 +2,6 @@ package services
 
 import (
 	"log/slog"
-	"strings"
 	"time"
 
 	"remotehelpdesk/internal/models"
@@ -13,6 +12,7 @@ import (
 	"remotehelpdesk/internal/repositories"
 
 	"github.com/mlogclub/simple/sqls"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 // ResolveSupervisorRecipients 解析工单主管收件人：维修组组长（LeaderUserID）
@@ -144,7 +144,7 @@ func resolveTicketRepairTeam(ticket *models.Ticket) *models.AgentTeam {
 
 // NotifySupervisors 向工单主管发送站内告警。idempotencyKeySuffix 用于幂等，
 // 同一工单同一事件（如按小时限频的派单失败、每次接单超时）不重复通知。
-func NotifySupervisors(ticket *models.Ticket, title, content, notificationType, idempotencyKeySuffix string) error {
+func NotifySupervisors(ticket *models.Ticket, title, content i18nx.Text, notificationType, idempotencyKeySuffix string) error {
 	if ticket == nil || ticket.TenantID <= 0 {
 		return nil
 	}
@@ -158,8 +158,8 @@ func NotifySupervisors(ticket *models.Ticket, title, content, notificationType, 
 	}
 	req := request.CreateNotificationRequest{
 		TenantID:         ticket.TenantID,
-		Title:            strings.TrimSpace(title),
-		Content:          strings.TrimSpace(content),
+		TitleText:        title,
+		ContentText:      content,
 		NotificationType: notificationType,
 		BizType:          "ticket",
 		BizID:            ticket.ID,

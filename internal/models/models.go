@@ -273,29 +273,31 @@ type TicketView struct {
 
 // Notification 站内通知。
 type Notification struct {
-	ID                    int64      `gorm:"primaryKey;autoIncrement"`
-	IdempotencyKey        *string    `gorm:"type:varchar(180);uniqueIndex:uk_notification_tenant_idempotency,priority:2"`
-	TenantID              int64      `gorm:"type:bigint;not null;default:0;index;uniqueIndex:uk_notification_tenant_idempotency,priority:1"`
-	EventKey              string     `gorm:"type:varchar(180);not null;default:'';index"`
-	RecipientUserID       int64      `gorm:"type:bigint;not null;default:0;index"`
-	Title                 string     `gorm:"type:varchar(255);not null;default:''"`
-	Content               string     `gorm:"type:text"`
-	NotificationType      string     `gorm:"type:varchar(50);not null;default:'';index"`
-	BizType               string     `gorm:"type:varchar(50);not null;default:'';index"`
-	BizID                 int64      `gorm:"type:bigint;not null;default:0;index"`
-	ActionURL             string     `gorm:"type:varchar(255);not null;default:''"`
-	TemplateID            int64      `gorm:"type:bigint;not null;default:0;index"`
-	TemplateCode          string     `gorm:"type:varchar(64);not null;default:'';index"`
-	Language              string     `gorm:"type:varchar(16);not null;default:''"`
-	DeliveryStatus        string     `gorm:"type:varchar(20);not null;default:'pending';index"` // pending / sent / failed / read
-	ExternalChannelStatus string     `gorm:"type:varchar(20);not null;default:'';index"`        // wxwork_sent / email_sent / sms_sent
-	Level                 string     `gorm:"type:varchar(20);not null;default:'info';index"`    // urgent / warning / info
-	Category              string     `gorm:"type:varchar(30);not null;default:'system';index"`  // ticket / sla / approval / quota / knowledge / video / system
-	RecipientName         string     `gorm:"type:varchar(120);not null;default:''"`             // 接收人展示名,如 "服务运营部 / 李主管"
-	Channels              string     `gorm:"type:varchar(60);not null;default:'in_app'"`        // 逗号分隔: in_app,email
-	ReadAt                *time.Time `gorm:"type:timestamp;index"`
-	Status                int        `gorm:"type:int;not null;default:0;index"`
-	CreatedAt             time.Time  `gorm:"type:timestamp;not null;index"`
+	ID               int64   `gorm:"primaryKey;autoIncrement"`
+	IdempotencyKey   *string `gorm:"type:varchar(180);uniqueIndex:uk_notification_tenant_idempotency,priority:2"`
+	TenantID         int64   `gorm:"type:bigint;not null;default:0;index;uniqueIndex:uk_notification_tenant_idempotency,priority:1"`
+	EventKey         string  `gorm:"type:varchar(180);not null;default:'';index"`
+	RecipientUserID  int64   `gorm:"type:bigint;not null;default:0;index"`
+	Title            string  `gorm:"type:varchar(255);not null;default:''"`
+	Content          string  `gorm:"type:text"`
+	NotificationType string  `gorm:"type:varchar(50);not null;default:'';index"`
+	BizType          string  `gorm:"type:varchar(50);not null;default:'';index"`
+	BizID            int64   `gorm:"type:bigint;not null;default:0;index"`
+	ActionURL        string  `gorm:"type:varchar(255);not null;default:''"`
+	TemplateID       int64   `gorm:"type:bigint;not null;default:0;index"`
+	TemplateCode     string  `gorm:"type:varchar(64);not null;default:'';index"`
+	// TemplateParams 保存渲染模板所用的参数（系统文本以 Text 保存），展示时按当前语言重新渲染。
+	TemplateParams        i18nx.Params `gorm:"type:text;not null;default:''"`
+	Language              string       `gorm:"type:varchar(16);not null;default:''"`
+	DeliveryStatus        string       `gorm:"type:varchar(20);not null;default:'pending';index"` // pending / sent / failed / read
+	ExternalChannelStatus string       `gorm:"type:varchar(20);not null;default:'';index"`        // wxwork_sent / email_sent / sms_sent
+	Level                 string       `gorm:"type:varchar(20);not null;default:'info';index"`    // urgent / warning / info
+	Category              string       `gorm:"type:varchar(30);not null;default:'system';index"`  // ticket / sla / approval / quota / knowledge / video / system
+	RecipientName         string       `gorm:"type:varchar(120);not null;default:''"`             // 接收人展示名,如 "服务运营部 / 李主管"
+	Channels              string       `gorm:"type:varchar(60);not null;default:'in_app'"`        // 逗号分隔: in_app,email
+	ReadAt                *time.Time   `gorm:"type:timestamp;index"`
+	Status                int          `gorm:"type:int;not null;default:0;index"`
+	CreatedAt             time.Time    `gorm:"type:timestamp;not null;index"`
 }
 
 // NotificationTemplate 通知模板定义。
@@ -1229,6 +1231,8 @@ type Ticket struct {
 	SupportReasonCode string `gorm:"type:varchar(64);not null;default:'';index"`
 	// SupportReason 是面向页面展示的支持受限原因。
 	SupportReason string `gorm:"type:text;not null;default:''"`
+	// SupportReasonText 为系统生成的支持受限原因，展示时按语言渲染。
+	SupportReasonText i18nx.Text `gorm:"type:text;not null;default:''"`
 	// SupportCheckedAt 是最近一次支持条件检查时间。
 	SupportCheckedAt *time.Time `gorm:"type:timestamp;index"`
 	AuditFields
@@ -1262,15 +1266,17 @@ type TicketTag struct {
 
 // TicketProgress 工单处理进展。
 type TicketProgress struct {
-	ID                int64                         `gorm:"primaryKey;autoIncrement"`
-	TenantID          int64                         `gorm:"type:bigint;not null;default:0;index"`
-	TicketID          int64                         `gorm:"type:bigint;not null;index"`
-	EventType         enums.TicketProgressEventType `gorm:"type:varchar(50);not null;default:'progress';index"`
-	Content           string                        `gorm:"type:text"`
-	VisibleToCustomer bool                          `gorm:"not null;default:false;index"`
-	MetadataJSON      string                        `gorm:"column:metadata_json;type:text;not null;default:'{}'"`
-	AuthorID          int64                         `gorm:"type:bigint;not null;default:0;index"`
-	CreatedAt         time.Time                     `gorm:"type:timestamp;not null;index"`
+	ID        int64                         `gorm:"primaryKey;autoIncrement"`
+	TenantID  int64                         `gorm:"type:bigint;not null;default:0;index"`
+	TicketID  int64                         `gorm:"type:bigint;not null;index"`
+	EventType enums.TicketProgressEventType `gorm:"type:varchar(50);not null;default:'progress';index"`
+	Content   string                        `gorm:"type:text"`
+	// ContentText 为系统生成的进度文本，展示时按语言渲染；为空表示内容由用户录入。
+	ContentText       i18nx.Text `gorm:"type:text;not null;default:''"`
+	VisibleToCustomer bool       `gorm:"not null;default:false;index"`
+	MetadataJSON      string     `gorm:"column:metadata_json;type:text;not null;default:'{}'"`
+	AuthorID          int64      `gorm:"type:bigint;not null;default:0;index"`
+	CreatedAt         time.Time  `gorm:"type:timestamp;not null;index"`
 }
 
 // TicketRepairRecord 工单维修记录。工单关闭时填写本次维修结论、根因、处理方法和测试结果。

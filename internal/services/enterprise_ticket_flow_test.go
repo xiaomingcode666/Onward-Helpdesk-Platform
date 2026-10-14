@@ -164,7 +164,7 @@ func TestTicketTimelineFallsBackForLegacyTicketWithoutCreatedProgress(t *testing
 	}
 
 	timeline := EnterpriseTicketService.buildTimeline(&ticket)
-	if len(timeline) != 1 || timeline[0].Content != "Ticket created" || timeline[0].Actor != "历史客服" {
+	if len(timeline) != 1 || timeline[0].ContentText.Key != "ticketProgress.created" || timeline[0].ContentText.Render("en-US") != "Ticket created" || timeline[0].Actor != "历史客服" {
 		t.Fatalf("unexpected legacy timeline fallback: %+v", timeline)
 	}
 }

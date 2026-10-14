@@ -1,5 +1,7 @@
 package dto
 
+import "remotehelpdesk/internal/pkg/i18nx"
+
 type EnterpriseListResponse[T any] struct {
 	Items      []T   `json:"items"`
 	Total      int64 `json:"total"`
@@ -70,30 +72,32 @@ type EnterpriseTicketInvitationDraftDTO struct {
 type TicketHeaderDTO struct {
 	TicketIntakeDTO
 	TicketCaseSummaryDTO
-	DeviceID         int64                    `json:"device_id"`
-	ServiceRegion    string                   `json:"service_region"`
-	ID               int64                    `json:"id"`
-	ProductID        int64                    `json:"product_id"`
-	ProductModuleID  int64                    `json:"product_module_id"`
-	KnowledgeBaseID  int64                    `json:"knowledge_base_id"`
-	TicketNo         string                   `json:"ticket_no"`
-	Title            string                   `json:"title"`
-	Description      string                   `json:"description"`
-	Status           string                   `json:"status"`
-	Priority         string                   `json:"priority"`
-	Source           string                   `json:"source"`
-	Channel          string                   `json:"channel"`
-	ConversationID   int64                    `json:"conversation_id"`
-	CreatedAt        string                   `json:"created_at"`
-	UpdatedAt        string                   `json:"updated_at"`
-	SLADeadline      string                   `json:"sla_deadline"`
-	Category         string                   `json:"category"`
-	ServiceProfile   string                   `json:"service_profile"`
-	ServiceTarget    *TicketServiceTargetDTO  `json:"service_target,omitempty"`
-	ServiceMetrics   []TicketServiceMetricDTO `json:"service_metrics,omitempty"`
-	SupportStatus    string                   `json:"support_status"`
-	SupportReason    string                   `json:"support_reason"`
-	SupportCheckedAt string                   `json:"support_checked_at"`
+	DeviceID        int64                    `json:"device_id"`
+	ServiceRegion   string                   `json:"service_region"`
+	ID              int64                    `json:"id"`
+	ProductID       int64                    `json:"product_id"`
+	ProductModuleID int64                    `json:"product_module_id"`
+	KnowledgeBaseID int64                    `json:"knowledge_base_id"`
+	TicketNo        string                   `json:"ticket_no"`
+	Title           string                   `json:"title"`
+	Description     string                   `json:"description"`
+	Status          string                   `json:"status"`
+	Priority        string                   `json:"priority"`
+	Source          string                   `json:"source"`
+	Channel         string                   `json:"channel"`
+	ConversationID  int64                    `json:"conversation_id"`
+	CreatedAt       string                   `json:"created_at"`
+	UpdatedAt       string                   `json:"updated_at"`
+	SLADeadline     string                   `json:"sla_deadline"`
+	Category        string                   `json:"category"`
+	ServiceProfile  string                   `json:"service_profile"`
+	ServiceTarget   *TicketServiceTargetDTO  `json:"service_target,omitempty"`
+	ServiceMetrics  []TicketServiceMetricDTO `json:"service_metrics,omitempty"`
+	SupportStatus   string                   `json:"support_status"`
+	SupportReason   string                   `json:"support_reason"`
+	// SupportReasonText 为系统生成的支持受限原因，返回前按请求语言渲染到 SupportReason。
+	SupportReasonText i18nx.Text `json:"-"`
+	SupportCheckedAt  string     `json:"support_checked_at"`
 }
 
 type TicketServiceTargetDTO struct {
@@ -245,6 +249,8 @@ type TicketTimelineItemDTO struct {
 	Content   string `json:"content"`
 	Actor     string `json:"actor"`
 	Timestamp string `json:"timestamp"`
+	// ContentText 为系统生成的时间线文本，返回前按请求语言渲染到 Content。
+	ContentText i18nx.Text `json:"-"`
 }
 
 type AuditRefDTO struct {

@@ -7,6 +7,7 @@ import (
 	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/pkg/routes"
 	"remotehelpdesk/internal/pkg/utils"
+	"remotehelpdesk/internal/services"
 	"strings"
 )
 
@@ -53,6 +54,9 @@ func BuildNotificationListWithLocale(list []models.Notification, locale string) 
 }
 
 func localizeNotificationText(item *models.Notification, locale string) (string, string) {
+	if len(item.TemplateParams) > 0 {
+		return services.NotificationTemplateService.LocalizedContent(item, locale)
+	}
 	title := item.Title
 	content := item.Content
 	if i18nx.NormalizeLocale(locale) != i18nx.LocaleEnUS {

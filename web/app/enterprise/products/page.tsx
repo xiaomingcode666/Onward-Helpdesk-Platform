@@ -49,6 +49,7 @@ import {
 import type { CreateProductPayload, ProductListItem, UpdateProductPayload } from "@/lib/api/types"
 import { cn } from "@/lib/utils"
 import { ProductDetailWorkspace } from "./[productId]/_components/product-detail-workspace"
+import { readStoredLocale } from "@/i18n/config"
 
 const WORKSPACE_TABS = [
   { value: "faultStats", labelKey: "productCenter.tabs.faultStats" },
@@ -160,7 +161,7 @@ function formatCurrency(value: number, currency = "USD") {
 }
 
 function formatProductNumber(value: number) {
-  return new Intl.NumberFormat("zh-CN").format(Number.isFinite(value) ? value : 0)
+  return new Intl.NumberFormat(readStoredLocale()).format(Number.isFinite(value) ? value : 0)
 }
 
 function getResourceStatusZh(t: I18nT, status?: string) {

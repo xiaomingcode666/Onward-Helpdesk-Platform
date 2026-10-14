@@ -111,6 +111,7 @@
     "retryHint": "El reintento usa los datos enviados. Para modificarlos, cancela e inicia de nuevo.",
     "invalidTicket": "El ticket cargado no coincide con tu selección. Vuelve a abrir el ticket.",
     "transition": "Fase del caso: {from} → {to}",
+    "workflowVersion": "Versión del flujo de ticket #{id}",
     "progress": {
       "new": "Se ha registrado el problema del cliente.",
       "acknowledged": "Un ingeniero ha aceptado el caso y realizará el seguimiento.",

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func BuildEngineerBriefingResponse(result *services.EngineerBriefingResult) *dto.EngineerBriefingDTO {
+func BuildEngineerBriefingResponse(result *services.EngineerBriefingResult, locale string) *dto.EngineerBriefingDTO {
 	if result == nil {
 		return nil
 	}
@@ -30,7 +30,7 @@ func BuildEngineerBriefingResponse(result *services.EngineerBriefingResult) *dto
 		}
 	}
 	for _, team := range result.Teams {
-		ret.Teams = append(ret.Teams, dto.EngineerTeamBriefDTO{ID: team.ID, Name: team.Name, ProductID: team.ProductID})
+		ret.Teams = append(ret.Teams, dto.EngineerTeamBriefDTO{ID: team.ID, Name: team.DisplayName(locale), ProductID: team.ProductID})
 	}
 	return ret
 }

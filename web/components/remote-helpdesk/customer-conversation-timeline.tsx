@@ -21,6 +21,7 @@ import type { ImMessage } from "@/lib/api/im"
 import type { ConversationMessageTranslationDTO } from "@/lib/api/types"
 import { renderIMMessageHTML } from "@/lib/im-message"
 import { cn } from "@/lib/utils"
+import { readStoredLocale } from "@/i18n/config"
 
 type CustomerConversationTimelineProps = {
   messages: ImMessage[]
@@ -78,7 +79,7 @@ function formatMessageTime(value?: string) {
   if (!value) return ""
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ""
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(readStoredLocale(), {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,

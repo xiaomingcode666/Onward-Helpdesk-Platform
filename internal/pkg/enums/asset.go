@@ -10,14 +10,14 @@ const (
 )
 
 var assetStatusLabelMap = map[AssetStatus]string{
-	AssetStatusPending: "处理中",
-	AssetStatusSuccess: "成功",
-	AssetStatusFailed:  "失败",
-	AssetStatusDeleted: "已删除",
+	AssetStatusPending: "enum.AssetStatusPending",
+	AssetStatusSuccess: "enum.AssetStatusSuccess",
+	AssetStatusFailed:  "enum.AssetStatusFailed",
+	AssetStatusDeleted: "enum.AssetStatusDeleted",
 }
 
-func GetAssetStatusLabel(status AssetStatus) string {
-	return assetStatusLabelMap[status]
+func GetAssetStatusLabel(status AssetStatus, locale string) string {
+	return enumLabel(locale, assetStatusLabelMap[status])
 }
 
 type AssetProvider string
@@ -29,11 +29,11 @@ const (
 )
 
 var assetProviderLabelMap = map[AssetProvider]string{
-	AssetProviderLocal: "本地存储",
-	AssetProviderOSS:   "对象存储",
-	AssetProviderMinIO: "MinIO 对象存储",
+	AssetProviderLocal: "enum.AssetProviderLocal",
+	AssetProviderOSS:   "enum.AssetProviderOSS",
+	AssetProviderMinIO: "enum.AssetProviderMinIO",
 }
 
-func GetAssetProviderLabel(provider AssetProvider) string {
-	return assetProviderLabelMap[provider]
+func GetAssetProviderLabel(provider AssetProvider, locale string) string {
+	return enumLabel(locale, assetProviderLabelMap[provider])
 }

@@ -17,6 +17,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/repositories"
 )
 
@@ -163,18 +164,34 @@ func ensureTicketCaseOwnershipDB(db *gorm.DB, ticket *models.Ticket, operator *d
 	if s, ok := columns["status"].(enums.TicketStatus); ok {
 		ticket.Status = s
 	}
-	return recordTicketCaseChangeDB(db, ticket, previous, next, "accept", "工程师接单并开始处理", operator, now)
+	return recordTicketCaseChangeDB(db, ticket, previous, next, "accept", i18nx.NewText("caseProgress.acceptReason", nil), operator, now)
 }
 
-func recordTicketCaseChangeDB(db *gorm.DB, ticket *models.Ticket, from, to, action, reason string, operator *dto.AuthPrincipal, now time.Time) error {
-	metadata, _ := json.Marshal(map[string]any{"from_case_status": from, "to_case_status": to, "action": action, "reason": reason, "case_owner_id": ticket.CaseOwnerID})
-	if err := db.Create(&models.TicketProgress{TenantID: ticket.TenantID, TicketID: ticket.ID, EventType: "case_status_changed", Content: "工单主状态：" + from + " → " + to + "；" + reason, MetadataJSON: string(metadata), AuthorID: operator.UserID, VisibleToCustomer: false, CreatedAt: now}).Error; err != nil {
+// caseProgressPublicStatuses 是向客户展示进展的主状态；其他状态只记录内部流转。
+var caseProgressPublicStatuses = map[string]bool{"acknowledged": true, "in_triage": true, "waiting": true, "assigned": true, "restored": true, "resolved": true, "closure_pending": true}
+
+// recordTicketCaseChangeDB 记录主状态流转。reason 为字符串时视为用户填写的说明，为 Text 时为系统说明。
+func recordTicketCaseChangeDB(db *gorm.DB, ticket *models.Ticket, from, to, action string, reason any, operator *dto.AuthPrincipal, now time.Time) error {
+	content := i18nx.NewText("caseProgress.transition", i18nx.Params{"from": caseStatusText(from), "to": caseStatusText(to)})
+	reasonValue := ""
+	switch typed := reason.(type) {
+	case i18nx.Text:
+		reasonValue = canonicalText(typed)
+		content = i18nx.NewText("caseProgress.transitionWithReason", i18nx.Params{"from": caseStatusText(from), "to": caseStatusText(to), "reason": typed})
+	case string:
+		reasonValue = typed
+		if strings.TrimSpace(typed) != "" {
+			content = i18nx.NewText("caseProgress.transitionWithReason", i18nx.Params{"from": caseStatusText(from), "to": caseStatusText(to), "reason": typed})
+		}
+	}
+	metadata, _ := json.Marshal(map[string]any{"from_case_status": from, "to_case_status": to, "action": action, "reason": reasonValue, "case_owner_id": ticket.CaseOwnerID})
+	if err := db.Create(&models.TicketProgress{TenantID: ticket.TenantID, TicketID: ticket.ID, EventType: "case_status_changed", Content: canonicalText(content), ContentText: content, MetadataJSON: string(metadata), AuthorID: operator.UserID, VisibleToCustomer: false, CreatedAt: now}).Error; err != nil {
 		return err
 	}
-	labels := map[string]string{"acknowledged": "已确认收到问题", "in_triage": "工程师正在分析问题", "waiting": "正在等待补充资料或处理条件", "assigned": "工程师已接单", "restored": "服务已恢复，问题仍在跟进", "resolved": "问题已解决", "closure_pending": "等待确认关闭"}
-	if label := labels[to]; label != "" {
+	if caseProgressPublicStatuses[to] {
+		label := i18nx.NewText("caseProgress.public."+to, nil)
 		publicMetadata, _ := json.Marshal(map[string]string{"case_status": to})
-		return db.Create(&models.TicketProgress{TenantID: ticket.TenantID, TicketID: ticket.ID, EventType: "case_status_changed", Content: label, MetadataJSON: string(publicMetadata), AuthorID: operator.UserID, VisibleToCustomer: true, CreatedAt: now}).Error
+		return db.Create(&models.TicketProgress{TenantID: ticket.TenantID, TicketID: ticket.ID, EventType: "case_status_changed", Content: canonicalText(label), ContentText: label, MetadataJSON: string(publicMetadata), AuthorID: operator.UserID, VisibleToCustomer: true, CreatedAt: now}).Error
 	}
 	return nil
 }

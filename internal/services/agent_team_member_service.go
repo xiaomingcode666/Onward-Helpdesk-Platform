@@ -248,7 +248,7 @@ func (s *agentTeamMemberService) RemoveMember(
 			return nil
 		}
 		if team.LeaderUserID == userID {
-			return errorsx.InvalidParam("该成员是当前产品组主管，请先更换主管再移出")
+			return errorsx.InvalidParamI18n("error.z0021")
 		}
 		var profile models.AgentProfile
 		profileQuery := ctx.Tx.Clauses(clause.Locking{Strength: "UPDATE"}).

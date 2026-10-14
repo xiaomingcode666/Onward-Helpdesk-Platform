@@ -7,6 +7,8 @@ import (
 	"gorm.io/gorm/clause"
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/i18nx"
+	"strings"
 	"time"
 )
 
@@ -101,5 +103,14 @@ func SyncTicketCaseColumns(db *gorm.DB, id int64, columns map[string]interface{}
 	case int:
 		actorID = int64(v)
 	}
-	return db.Create(&models.TicketProgress{TenantID: ticket.TenantID, TicketID: ticket.ID, EventType: "case_status_changed", Content: "工单主状态：" + ticket.CaseStatus + " → " + next, MetadataJSON: string(metadata), AuthorID: actorID, CreatedAt: time.Now()}).Error
+	content := i18nx.NewText("caseProgress.transition", i18nx.Params{"from": i18nx.NewText(ticketCaseStatusKey(ticket.CaseStatus), nil), "to": i18nx.NewText(ticketCaseStatusKey(next), nil)})
+	return db.Create(&models.TicketProgress{TenantID: ticket.TenantID, TicketID: ticket.ID, EventType: "case_status_changed", Content: content.Render(i18nx.LocaleZhCN), ContentText: content, MetadataJSON: string(metadata), AuthorID: actorID, CreatedAt: time.Now()}).Error
+}
+
+// ticketCaseStatusKey 返回主状态资源键；历史工单没有主状态时使用 caseStatus.none。
+func ticketCaseStatusKey(status string) string {
+	if strings.TrimSpace(status) == "" {
+		return "caseStatus.none"
+	}
+	return "caseStatus." + status
 }

@@ -16,6 +16,7 @@ import (
 	"remotehelpdesk/internal/pkg/constants"
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/errorsx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/pkg/ticketpolicy"
 	"remotehelpdesk/internal/repositories"
 )
@@ -55,7 +56,7 @@ type TicketPriorityPreview struct {
 
 func PreviewTicketPriorityChange(ticketID int64, priority string, op *dto.AuthPrincipal) (*TicketPriorityPreview, error) {
 	if op == nil || !ticketpolicy.ValidPriority(priority) {
-		return nil, errorsx.InvalidParam("请选择 P1–P4")
+		return nil, errorsx.InvalidParamI18n("error.z0142")
 	}
 	db := sqls.DB()
 	var t models.Ticket
@@ -63,7 +64,7 @@ func PreviewTicketPriorityChange(ticketID int64, priority string, op *dto.AuthPr
 		return nil, err
 	}
 	if !canManageTicketGovernance(&t, op) {
-		return nil, errorsx.Forbidden("无权评估该工单等级调整")
+		return nil, errorsx.ForbiddenI18n("error.z0143")
 	}
 	previous := t.SLADueAt
 	previousAccept := t.AcceptDeadlineAt
@@ -108,7 +109,7 @@ type TicketGovernanceHistory struct {
 
 func ticketGovernanceAccess(t *models.Ticket, op *dto.AuthPrincipal) error {
 	if op == nil || op.UserID <= 0 || op.IsCustomer() || op.IsPartner() || op.IsServiceAccount() || op.EffectiveTenantID() != t.TenantID || !op.HasPermission(constants.PermissionTicketView.Code) {
-		return errorsx.Forbidden("无权查看工单内部分类与评估")
+		return errorsx.ForbiddenI18n("error.z0144")
 	}
 	return requireTicketTenantAccess(t, op)
 }
@@ -161,10 +162,10 @@ func TicketPriorityPolicyForTenant(db *gorm.DB, tenantID int64) (ticketpolicy.Po
 // a verified/limited workaround, an affected component, risk (safety & impact), reach, and a permanent fix owner.
 func ValidateKnownErrorRequirements(t *models.Ticket, f ticketpolicy.Facts) error {
 	if t == nil {
-		return errorsx.InvalidParam("工单不存在")
+		return errorsx.InvalidParamI18n("error.z0145")
 	}
 	if !slices.Contains([]string{"verified", "limited"}, f.Workaround) || (strings.TrimSpace(f.Evidence) == "" && strings.TrimSpace(t.DiagnosisSummary) == "" && strings.TrimSpace(t.CaseResolution) == "") {
-		return errorsx.InvalidParam("已知错误必须关联有效的临时解决办法（Workaround 为 verified 或 limited）及核对依据")
+		return errorsx.InvalidParamI18n("error.z0146")
 	}
 	hasComponent := t.ProductModuleID > 0 || (t.ProductID > 0 && strings.TrimSpace(t.FaultCode) != "") || t.ProductID > 0
 	if !hasComponent {
@@ -180,16 +181,16 @@ func ValidateKnownErrorRequirements(t *models.Ticket, f ticketpolicy.Facts) erro
 		}
 	}
 	if !hasComponent {
-		return errorsx.InvalidParam("已知错误必须关联受影响组件（ProductModule、知识库分类或产品）")
+		return errorsx.InvalidParamI18n("error.z0147")
 	}
 	if !slices.Contains([]string{"high", "medium", "low"}, f.Impact) || !slices.Contains([]string{"critical", "none"}, f.Safety) {
-		return errorsx.InvalidParam("已知错误必须明确评估风险（业务影响 Impact 与安全风险 Safety）")
+		return errorsx.InvalidParamI18n("error.z0148")
 	}
 	if !slices.Contains([]string{"high", "medium", "low"}, f.Reach) {
-		return errorsx.InvalidParam("已知错误必须明确评估适用范围（Reach）")
+		return errorsx.InvalidParamI18n("error.z0149")
 	}
 	if t.CurrentAssigneeID <= 0 && t.CaseOwnerID <= 0 {
-		return errorsx.InvalidParam("已知错误必须指定永久修复责任人（Permanent Fix Owner）")
+		return errorsx.InvalidParamI18n("error.z0150")
 	}
 	return nil
 }
@@ -216,7 +217,7 @@ func initializeTicketGovernanceDB(db *gorm.DB, t *models.Ticket, caseType string
 
 func applyTicketClassificationDB(db *gorm.DB, t *models.Ticket, caseType string) error {
 	if !slices.Contains(ticketpolicy.Types, caseType) {
-		return errorsx.InvalidParam("请选择六种标准工单分类之一")
+		return errorsx.InvalidParamI18n("error.z0151")
 	}
 	p, id, err := loadTicketPriorityPolicyDB(db, t, false)
 	if err != nil {
@@ -227,7 +228,7 @@ func applyTicketClassificationDB(db *gorm.DB, t *models.Ticket, caseType string)
 	t.PriorityLevel = p.Defaults[caseType]
 	t.PrioritySuggested = t.PriorityLevel
 	t.PriorityReviewRequired = false
-	t.PriorityExplanation = "根据工单分类自动生成"
+	t.PriorityExplanation, t.PriorityExplanationText = systemText("ticketPriority.explanation.auto", nil)
 	// Preserve historical assessment evidence when correcting a classification.
 	if t.PriorityFactsJSON == "" {
 		t.PriorityFactsJSON = "{}"
@@ -293,7 +294,7 @@ func ticketEffectivePriority(t models.Ticket) string {
 
 func GetTicketGovernance(ticketID int64, op *dto.AuthPrincipal) (*TicketGovernanceView, error) {
 	if op == nil {
-		return nil, errorsx.Forbidden("请登录后操作")
+		return nil, errorsx.ForbiddenI18n("error.z0135")
 	}
 	db := sqls.DB()
 	var t models.Ticket
@@ -307,7 +308,7 @@ func GetTicketGovernance(ticketID int64, op *dto.AuthPrincipal) (*TicketGovernan
 	if err != nil {
 		return nil, err
 	}
-	v := &TicketGovernanceView{TicketID: t.ID, Revision: t.GovernanceRevision, CaseType: t.CaseType, Priority: ticketEffectivePriority(t), Suggested: t.PrioritySuggested, Explanation: t.PriorityExplanation, ReviewRequired: false, Overridden: t.PriorityOverridden, Legacy: t.PriorityLevel == "", Policy: p, CanManage: canManageTicketGovernance(&t, op), CanPropose: false, Proposals: []models.TicketPriorityProposal{}, History: []TicketGovernanceHistory{}}
+	v := &TicketGovernanceView{TicketID: t.ID, Revision: t.GovernanceRevision, CaseType: t.CaseType, Priority: ticketEffectivePriority(t), Suggested: t.PrioritySuggested, Explanation: t.DisplayPriorityExplanation(operatorLocale(op)), ReviewRequired: false, Overridden: t.PriorityOverridden, Legacy: t.PriorityLevel == "", Policy: p, CanManage: canManageTicketGovernance(&t, op), CanPropose: false, Proposals: []models.TicketPriorityProposal{}, History: []TicketGovernanceHistory{}}
 	if err := json.Unmarshal([]byte(t.PriorityFactsJSON), &v.Facts); t.PriorityFactsJSON != "" && err != nil {
 		return nil, err
 	}
@@ -356,7 +357,7 @@ func GetTicketGovernance(ticketID int64, op *dto.AuthPrincipal) (*TicketGovernan
 		}
 		var action string
 		_ = json.Unmarshal(data["action"], &action)
-		v.History = append(v.History, TicketGovernanceHistory{row.ID, action, row.Content, row.AuthorID, row.CreatedAt, json.RawMessage(row.MetadataJSON)})
+		v.History = append(v.History, TicketGovernanceHistory{row.ID, action, row.Content, row.AuthorID, row.CreatedAt, localizeGovernanceDetails(json.RawMessage(row.MetadataJSON), operatorLocale(op))})
 	}
 	return v, nil
 }
@@ -370,7 +371,7 @@ func recordGovernanceDB(db *gorm.DB, t *models.Ticket, op *dto.AuthPrincipal, ac
 }
 func ExecuteTicketGovernance(ticketID int64, cmd TicketGovernanceCommand, op *dto.AuthPrincipal) (*TicketGovernanceReceipt, error) {
 	if op == nil || op.UserID <= 0 || op.EffectiveTenantID() <= 0 {
-		return nil, errorsx.Forbidden("请登录后操作")
+		return nil, errorsx.ForbiddenI18n("error.z0135")
 	}
 	cmd.Reason = strings.TrimSpace(cmd.Reason)
 	if cmd.Action == "duplicate_child" && cmd.Reason == "" {
@@ -380,7 +381,7 @@ func ExecuteTicketGovernance(ticketID int64, cmd TicketGovernanceCommand, op *dt
 		cmd.Reason = "重复工单，合并至主工单"
 	}
 	if cmd.ExpectedRevision == nil || len(cmd.OperationKey) < 8 || len(cmd.OperationKey) > 100 || cmd.Reason == "" || len([]rune(cmd.Reason)) > 2000 {
-		return nil, errorsx.InvalidParam("请提供工单版本、操作编号和具体原因（最多 2000 字）")
+		return nil, errorsx.InvalidParamI18n("error.z0152")
 	}
 	payload, _ := json.Marshal(struct {
 		Command TicketGovernanceCommand
@@ -415,19 +416,19 @@ func ExecuteTicketGovernance(ticketID int64, cmd TicketGovernanceCommand, op *dt
 			return ErrTicketCaseConflict
 		}
 		if !canManageTicketGovernance(&t, op) {
-			return errorsx.Forbidden("需要工单管理权限才能执行此操作")
+			return errorsx.ForbiddenI18n("error.z0153")
 		}
 		if cmd.Action == "merge" || (cmd.Action == "link" && cmd.RelationKind == "duplicate") {
-			return errorsx.InvalidParam("重复问题已改为父子工单，请刷新页面后关联到首次工单")
+			return errorsx.InvalidParamI18n("error.z0154")
 		}
 		if slices.Contains([]string{"assess", "confirm", "propose", "approve", "reject"}, cmd.Action) {
-			return errorsx.InvalidParam("评估和建议审批流程已停用，请刷新页面后直接修改紧急程度并填写原因；历史建议不会自动生效")
+			return errorsx.InvalidParamI18n("error.z0155")
 		}
 		if t.MergedIntoID > 0 {
-			return errorsx.InvalidParam("该工单已合并，请在主工单继续处理")
+			return errorsx.InvalidParamI18n("error.z0156")
 		}
 		if ticketCaseClosed(t) && cmd.Action != "unlink" && cmd.Action != "duplicate_child" {
-			return errorsx.InvalidParam("已结束工单保留历史分类与优先级，请重新打开后操作")
+			return errorsx.InvalidParamI18n("error.z0157")
 		}
 		before := t.TicketGovernance
 		oldCode := t.PriorityCode
@@ -466,19 +467,19 @@ func ExecuteTicketGovernance(ticketID int64, cmd TicketGovernanceCommand, op *dt
 				if t.PriorityOverridden {
 					t.PriorityLevel = previous
 					t.PriorityCode = oldCode
-					t.PriorityExplanation = "人工调整"
+					t.PriorityExplanation, t.PriorityExplanationText = systemText("ticketPriority.explanation.manual", nil)
 				}
 			case "override":
 				if !ticketpolicy.ValidPriority(cmd.Priority) {
-					return errorsx.InvalidParam("请选择 P1–P4")
+					return errorsx.InvalidParamI18n("error.z0142")
 				}
 				t.PriorityLevel = cmd.Priority
 				t.PriorityCode = ticketpolicy.LegacyCode(cmd.Priority)
 				t.PriorityOverridden = true
 				t.PriorityReviewRequired = false
-				t.PriorityExplanation = "人工调整"
+				t.PriorityExplanation, t.PriorityExplanationText = systemText("ticketPriority.explanation.manual", nil)
 			default:
-				return errorsx.InvalidParam("未知工单分类或等级操作")
+				return errorsx.InvalidParamI18n("error.z0158")
 			}
 			if t.PriorityLevel == ticketpolicy.FromLegacy(oldCode) {
 				t.PriorityCode = oldCode
@@ -492,7 +493,7 @@ func ExecuteTicketGovernance(ticketID int64, cmd TicketGovernanceCommand, op *dt
 				t.AcceptDeadlineAt = oldAcceptDeadline
 			}
 			t.GovernanceRevision++
-			updates := map[string]any{"case_type": t.CaseType, "priority_level": t.PriorityLevel, "priority_suggested": t.PrioritySuggested, "priority_review_required": t.PriorityReviewRequired, "priority_overridden": t.PriorityOverridden, "priority_facts_json": t.PriorityFactsJSON, "priority_policy_json": t.PriorityPolicyJSON, "priority_explanation": t.PriorityExplanation, "priority_config_version_id": t.PriorityConfigVersionID, "governance_revision": t.GovernanceRevision, "priority_code": t.PriorityCode, "sla_due_at": t.SLADueAt, "accept_deadline_at": t.AcceptDeadlineAt, "updated_at": time.Now(), "update_user_id": op.UserID, "update_user_name": op.Username}
+			updates := map[string]any{"case_type": t.CaseType, "priority_level": t.PriorityLevel, "priority_suggested": t.PrioritySuggested, "priority_review_required": t.PriorityReviewRequired, "priority_overridden": t.PriorityOverridden, "priority_facts_json": t.PriorityFactsJSON, "priority_policy_json": t.PriorityPolicyJSON, "priority_explanation": t.PriorityExplanation, "priority_explanation_text": t.PriorityExplanationText, "priority_config_version_id": t.PriorityConfigVersionID, "governance_revision": t.GovernanceRevision, "priority_code": t.PriorityCode, "sla_due_at": t.SLADueAt, "accept_deadline_at": t.AcceptDeadlineAt, "updated_at": time.Now(), "update_user_id": op.UserID, "update_user_name": op.Username}
 			if t.ProductModuleID > 0 {
 				updates["product_module_id"] = t.ProductModuleID
 			}
@@ -517,4 +518,61 @@ func ExecuteTicketGovernance(ticketID int64, cmd TicketGovernanceCommand, op *dt
 		return db.Create(&models.TicketGovernanceOperation{TenantID: t.TenantID, TicketID: t.ID, OperationKey: cmd.OperationKey, PayloadHash: hash, ResultJSON: string(encoded), CreatedAt: time.Now()}).Error
 	})
 	return &result, err
+}
+
+// priorityExplanationTexts 是系统生成的优先级说明；历史快照只保存了中文规范值。
+var priorityExplanationTexts = []i18nx.Text{
+	i18nx.NewText("ticketPriority.explanation.auto", nil),
+	i18nx.NewText("ticketPriority.explanation.manual", nil),
+}
+
+// localizeGovernanceDetails 按请求语言渲染决策快照中的系统优先级说明，其余内容保持原样。
+func localizeGovernanceDetails(details json.RawMessage, locale string) json.RawMessage {
+	var data map[string]json.RawMessage
+	if json.Unmarshal(details, &data) != nil {
+		return details
+	}
+	changed := false
+	for _, side := range []string{"before", "after"} {
+		var snapshot map[string]json.RawMessage
+		if len(data[side]) == 0 || json.Unmarshal(data[side], &snapshot) != nil {
+			continue
+		}
+		var explanation string
+		if json.Unmarshal(snapshot["PriorityExplanation"], &explanation) != nil {
+			continue
+		}
+		var text i18nx.Text
+		if raw := snapshot["PriorityExplanationText"]; len(raw) > 0 {
+			_ = json.Unmarshal(raw, &text)
+		}
+		if text.IsZero() {
+			for _, candidate := range priorityExplanationTexts {
+				if canonicalText(candidate) == explanation {
+					text = candidate
+					break
+				}
+			}
+		}
+		if text.IsZero() {
+			continue
+		}
+		encoded, err := json.Marshal(text.Render(locale))
+		if err != nil {
+			continue
+		}
+		snapshot["PriorityExplanation"] = encoded
+		if data[side], err = json.Marshal(snapshot); err != nil {
+			return details
+		}
+		changed = true
+	}
+	if !changed {
+		return details
+	}
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		return details
+	}
+	return encoded
 }

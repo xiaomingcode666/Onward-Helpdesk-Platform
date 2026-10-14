@@ -52,7 +52,7 @@ func KnowledgeRetrieveLogAnyList(ctx *gin.Context) {
 	list, paging := services.KnowledgeRetrieveLogService.FindPageByParams(queryParams)
 	results := make([]response.KnowledgeRetrieveLogResponse, 0, len(list))
 	for _, item := range list {
-		resp := builders.BuildKnowledgeRetrieveLog(&item)
+		resp := builders.BuildKnowledgeRetrieveLog(&item, i18nx.Locale(ctx))
 		if knowledgeBase := services.KnowledgeBaseService.Get(item.KnowledgeBaseID); knowledgeBase != nil {
 			resp.KnowledgeBaseName = knowledgeBase.DisplayName(i18nx.Locale(ctx))
 		}
@@ -78,7 +78,7 @@ func KnowledgeRetrieveLogGetBy(ctx *gin.Context) {
 		return
 	}
 
-	logResp := builders.BuildKnowledgeRetrieveLog(logItem)
+	logResp := builders.BuildKnowledgeRetrieveLog(logItem, i18nx.Locale(ctx))
 	if knowledgeBase := services.KnowledgeBaseService.Get(logItem.KnowledgeBaseID); knowledgeBase != nil {
 		logResp.KnowledgeBaseName = knowledgeBase.DisplayName(i18nx.Locale(ctx))
 	}
@@ -86,7 +86,7 @@ func KnowledgeRetrieveLogGetBy(ctx *gin.Context) {
 	hits := services.KnowledgeRetrieveLogService.FindHitsByRetrieveLogID(id)
 	hitResults := make([]response.KnowledgeRetrieveHitResponse, 0, len(hits))
 	for _, item := range hits {
-		hitResults = append(hitResults, builders.BuildKnowledgeRetrieveHitResponse(&item))
+		hitResults = append(hitResults, builders.BuildKnowledgeRetrieveHitResponse(&item, i18nx.Locale(ctx)))
 	}
 
 	httpx.WriteJSON(ctx, response.KnowledgeRetrieveLogDetailResponse{

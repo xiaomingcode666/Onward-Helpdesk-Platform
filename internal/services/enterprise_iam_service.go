@@ -1199,10 +1199,10 @@ func (s *enterpriseIAMService) CreateDepartment(tenantID int64, req request.Ente
 			return errorsx.InvalidParam("parent department is deleted")
 		}
 		if s.isProtectedSupportDepartmentDB(tx, tenantID, parent) {
-			return errorsx.Forbidden("技术售后组和产品节点由系统维护，不能在这里创建子组织")
+			return errorsx.ForbiddenI18n("error.z0077")
 		}
 		if existing := repositories.EnterpriseIAMRepository.FindDepartmentByParentAndName(tx, tenantID, parent.ID, name); existing != nil {
-			return errorsx.BusinessError(2, "同级组织名称已存在")
+			return errorsx.BusinessErrorI18n(2, "error.z0078")
 		}
 		if req.ManagerMemberID > 0 {
 			if member := repositories.EnterpriseIAMRepository.GetTenantMember(tx, tenantID, req.ManagerMemberID); member == nil {
@@ -1370,7 +1370,7 @@ func (s *enterpriseIAMService) ExportAuditLogs(tenantID int64, query AuditLogQue
 		}
 		items = append(items, pageItems...)
 		if len(items) > 10000 {
-			return nil, errorsx.InvalidParam("审计记录超过 10000 条，请缩小时间或风险范围后导出")
+			return nil, errorsx.InvalidParamI18n("error.z0079")
 		}
 		if len(pageItems) == 0 || int64(query.Page*query.Limit) >= paging.Total {
 			break

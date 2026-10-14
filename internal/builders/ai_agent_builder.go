@@ -27,18 +27,18 @@ func BuildAIAgentWithLocale(item *models.AIAgent, locale string) response.AIAgen
 		Name:                item.DisplayName(locale),
 		Description:         item.DisplayDescription(locale),
 		Status:              item.Status,
-		StatusName:          enums.GetStatusLabel(item.Status),
+		StatusName:          enums.GetStatusLabel(item.Status, locale),
 		AIConfigID:          item.AIConfigID,
 		LLMModelName:        item.LLMModelName,
 		ServiceMode:         item.ServiceMode,
-		ServiceModeName:     enums.GetIMConversationServiceModeLabel(item.ServiceMode),
+		ServiceModeName:     enums.GetIMConversationServiceModeLabel(item.ServiceMode, locale),
 		SystemPrompt:        item.SystemPrompt,
 		WelcomeMessage:      item.WelcomeMessage,
 		ReplyTimeoutSeconds: item.ReplyTimeoutSeconds,
 		HandoffMode:         item.HandoffMode,
-		HandoffModeName:     enums.GetAIAgentHandoffModeLabel(item.HandoffMode),
+		HandoffModeName:     enums.GetAIAgentHandoffModeLabel(item.HandoffMode, locale),
 		FallbackMode:        item.FallbackMode,
-		FallbackModeName:    enums.GetAIAgentFallbackModeLabel(item.FallbackMode),
+		FallbackModeName:    enums.GetAIAgentFallbackModeLabel(item.FallbackMode, locale),
 		FallbackMessage:     item.FallbackMessage,
 		KnowledgeIDs:        utils.SplitInt64s(item.KnowledgeIDs),
 		SkillIDs:            utils.SplitInt64s(item.SkillIDs),
@@ -53,9 +53,9 @@ func BuildAIAgentWithLocale(item *models.AIAgent, locale string) response.AIAgen
 		DraftRevision:       item.DraftRevision,
 		WorkflowPublished:   item.WorkflowVersionID > 0,
 		WorkflowState:       aiAgentWorkflowState(item.WorkflowVersionID),
-		WorkflowStateText:   aiAgentWorkflowStateText(item.WorkflowVersionID),
+		WorkflowStateText:   aiAgentWorkflowStateText(item.WorkflowVersionID, locale),
 		ReviewStatus:        item.ReviewStatus,
-		ReviewStatusName:    enums.GetAIAgentReviewStatusLabel(item.ReviewStatus),
+		ReviewStatusName:    enums.GetAIAgentReviewStatusLabel(item.ReviewStatus, locale),
 		ReviewComment:       item.ReviewComment,
 		ReviewedAt:          utils.FormatTimePtr(item.ReviewedAt),
 		ReviewedByName:      item.ReviewedByName,
@@ -192,11 +192,11 @@ func aiAgentWorkflowState(workflowVersionID int64) string {
 	return "draft"
 }
 
-func aiAgentWorkflowStateText(workflowVersionID int64) string {
+func aiAgentWorkflowStateText(workflowVersionID int64, locale string) string {
 	if workflowVersionID > 0 {
-		return "已发布"
+		return i18nx.NewText("aiAgent.workflowState.published", nil).Render(locale)
 	}
-	return "未发布"
+	return i18nx.NewText("aiAgent.workflowState.draft", nil).Render(locale)
 }
 
 func appendGraphToolCodeIfMissing(items []string, toolCode string) []string {

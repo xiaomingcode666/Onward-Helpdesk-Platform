@@ -90,7 +90,7 @@ func (s *tenantIntegrationConfigService) Update(req request.UpdateTenantIntegrat
 		m["app_secret_fingerprint"] = secretFingerprint
 	}
 	if req.TenantID != old.TenantID {
-		return errorsx.InvalidParam("接入配置不能移动到其他公司，请在目标公司新建")
+		return errorsx.InvalidParamI18n("error.z0083")
 	}
 	return legacyProjectSettingsWrite(req.TenantID, func(db *gorm.DB) error { return repositories.TenantIntegrationConfigRepository.Updates(db, req.ID, m) })
 }

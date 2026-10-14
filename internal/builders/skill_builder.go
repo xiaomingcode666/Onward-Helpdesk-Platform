@@ -8,7 +8,7 @@ import (
 	"remotehelpdesk/internal/pkg/enums"
 )
 
-func BuildSkillDefinitionResponse(item *models.SkillDefinition) response.SkillDefinitionResponse {
+func BuildSkillDefinitionResponse(item *models.SkillDefinition, locale string) response.SkillDefinitionResponse {
 	examples := make([]string, 0)
 	if raw := item.Examples; raw != "" {
 		_ = json.Unmarshal([]byte(raw), &examples)
@@ -26,7 +26,7 @@ func BuildSkillDefinitionResponse(item *models.SkillDefinition) response.SkillDe
 		Examples:       examples,
 		ToolWhitelist:  toolWhitelist,
 		Status:         int(item.Status),
-		StatusName:     getSkillStatusName(item.Status),
+		StatusName:     getSkillStatusName(item.Status, locale),
 		Remark:         item.Remark,
 		CreatedAt:      item.CreatedAt,
 		UpdatedAt:      item.UpdatedAt,
@@ -35,8 +35,8 @@ func BuildSkillDefinitionResponse(item *models.SkillDefinition) response.SkillDe
 	}
 }
 
-func getSkillStatusName(status enums.Status) string {
-	if label := enums.GetStatusLabel(status); label != "" {
+func getSkillStatusName(status enums.Status, locale string) string {
+	if label := enums.GetStatusLabel(status, locale); label != "" {
 		return label
 	}
 	return "未知"

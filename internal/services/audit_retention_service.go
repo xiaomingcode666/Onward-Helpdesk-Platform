@@ -201,10 +201,10 @@ func normalizeAuditRetentionDays(days int) int {
 
 func validateAuditRetentionDays(days int) error {
 	if days < auditRetentionMinDays {
-		return errorsx.InvalidParam("审计日志留存天数至少为 1 天")
+		return errorsx.InvalidParamI18n("error.z0070")
 	}
 	if days > auditRetentionMaxDays {
-		return errorsx.InvalidParam("审计日志最多只能保留 180 天")
+		return errorsx.InvalidParamI18n("error.z0071")
 	}
 	return nil
 }

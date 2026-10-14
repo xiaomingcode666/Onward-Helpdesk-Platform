@@ -21,6 +21,7 @@ import (
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 var TicketLifecycleService = newTicketLifecycleService()
@@ -238,32 +239,24 @@ func (s *ticketLifecycleService) accept(ticketID int64, assigneeID int64, operat
 		}
 		conversationID = ticket.ConversationID
 		acceptedAssigneeID = effectiveAssigneeID
-		content := "受理工单"
+		teamSuffix := ".product"
+		if knowledgeSupport {
+			teamSuffix = ".support"
+		}
+		contentKey := "ticketProgress.accepted"
 		if takingOver {
 			previousAssigneeID = originalAssigneeID
-			content = "同产品维修组成员接管并受理"
-			if knowledgeSupport {
-				content = "技术支持组成员接管并受理"
-			}
+			contentKey = "ticketProgress.takeover" + teamSuffix
 			switch takeoverKind {
 			case ticketTakeoverExpiredAcceptance:
-				content = "原处理人接单超时，产品组成员接管并受理"
-				if knowledgeSupport {
-					content = "原处理人接单超时，技术支持组成员接管并受理"
-				}
+				contentKey = "ticketProgress.takeoverExpiredAcceptance" + teamSuffix
 			case ticketTakeoverUnansweredCustomer:
-				content = "原处理人长期未回复客户，产品组成员接管并受理"
-				if knowledgeSupport {
-					content = "原处理人长期未回复客户，技术支持组成员接管并受理"
-				}
+				contentKey = "ticketProgress.takeoverUnansweredCustomer" + teamSuffix
 			}
 		} else if options.ForceTakeover {
-			content = "产品组成员从待派单池转派给自己并受理"
-			if knowledgeSupport {
-				content = "技术支持组成员从待派单池转派给自己并受理"
-			}
+			contentKey = "ticketProgress.poolSelfAssign" + teamSuffix
 		}
-		if err := s.addProgress(ctx.Tx, ticket.ID, enums.TicketProgressEventAccepted, content, operator); err != nil {
+		if err := s.addProgress(ctx.Tx, ticket.ID, enums.TicketProgressEventAccepted, i18nx.NewText(contentKey, nil), operator); err != nil {
 			return err
 		}
 		if options.AuditInput != nil {
@@ -895,15 +888,11 @@ func (s *ticketLifecycleService) Assign(ticketID int64, assigneeID int64, reason
 				fromName = fromUser.Username
 			}
 		}
-		content := "分配工单"
+		content := i18nx.NewText("ticketProgress.assigned", i18nx.Params{"assignee": toUser.Username})
 		if fromName != "" {
-			content += "，原处理人：" + fromName
+			content = i18nx.NewText("ticketProgress.reassigned", i18nx.Params{"previousAssignee": fromName, "assignee": toUser.Username})
 		}
-		content += " -> " + toUser.Username
-		if trimmedReason := strings.TrimSpace(reason); trimmedReason != "" {
-			content += "，原因：" + trimmedReason
-		}
-		progress, err := s.createProgressTx(ctx.Tx, ticket.ID, enums.TicketProgressEventAssigned, content, operator)
+		progress, err := s.createProgressTx(ctx.Tx, ticket.ID, enums.TicketProgressEventAssigned, withReasonText(content, reason), operator)
 		if err != nil {
 			return err
 		}
@@ -1017,10 +1006,7 @@ func (s *ticketLifecycleService) Escalate(ticketID int64, reason string, operato
 		}); err != nil {
 			return err
 		}
-		content := "升级工单"
-		if trimmedReason := strings.TrimSpace(reason); trimmedReason != "" {
-			content += "，原因：" + trimmedReason
-		}
+		content := withReasonText(i18nx.NewText("ticketProgress.escalated", nil), reason)
 		return s.addProgress(ctx.Tx, ticket.ID, enums.TicketProgressEventEscalated, content, operator)
 	})
 }
@@ -1080,7 +1066,7 @@ func (s *ticketLifecycleService) Repair(record *models.TicketRepairRecord, opera
 				return err
 			}
 		}
-		return s.addProgress(ctx.Tx, ticket.ID, enums.TicketProgressEventRepairCompleted, "已填写维修记录", operator)
+		return s.addProgress(ctx.Tx, ticket.ID, enums.TicketProgressEventRepairCompleted, i18nx.NewText("ticketProgress.repairRecorded", nil), operator)
 	})
 }
 
@@ -1159,9 +1145,9 @@ func (s *ticketLifecycleService) close(ticketID int64, resolution string, operat
 			return err
 		}
 
-		content := "关闭工单"
+		content := i18nx.NewText("ticketProgress.closed", nil)
 		if trimmedResolution := strings.TrimSpace(resolution); trimmedResolution != "" {
-			content += "，结论：" + trimmedResolution
+			content = i18nx.NewText("ticketProgress.closedWithResolution", i18nx.Params{"resolution": trimmedResolution})
 		}
 		if err := s.addProgress(ctx.Tx, ticket.ID, enums.TicketProgressEventClosed, content, operator); err != nil {
 			return err
@@ -1212,7 +1198,7 @@ func (s *ticketLifecycleService) cancel(ticketID int64, reason string, operator 
 			switch ticket.CaseStatus {
 			case "new", "acknowledged", "in_triage", "assigned", "waiting", "restored":
 			default:
-				return errorsx.InvalidParam("只有尚未解决的工单可以取消")
+				return errorsx.InvalidParamI18n("error.z0159")
 			}
 		} else if !enums.IsValidAfterSalesTransition(string(status), string(enums.TicketStatusCancelled)) {
 			return errorsx.InvalidParamI18n("error.e0182")
@@ -1247,7 +1233,7 @@ func (s *ticketLifecycleService) cancel(ticketID int64, reason string, operator 
 			return err
 		}
 		cancelledAssigneeID = ticket.CurrentAssigneeID
-		if err := s.addProgress(ctx.Tx, ticket.ID, enums.TicketProgressEventClosed, "取消工单，原因："+reason, operator); err != nil {
+		if err := s.addProgress(ctx.Tx, ticket.ID, enums.TicketProgressEventClosed, i18nx.NewText("ticketProgress.cancelled", i18nx.Params{"reason": reason}), operator); err != nil {
 			return err
 		}
 		return recordTicketCaseCommandDB(ctx.Tx, ticket.ID, command, operator)
@@ -1785,14 +1771,14 @@ func (s *ticketLifecycleService) reopen(ticketID int64, reason string, operator 
 		}
 		if ticket.CaseStatus != "" {
 			if strings.TrimSpace(reason) == "" {
-				return errorsx.InvalidParam("请填写重新打开的原因")
+				return errorsx.InvalidParamI18n("error.z0160")
 			}
 			if ticket.CaseOwnerID <= 0 && ticket.CurrentAssigneeID <= 0 {
-				return errorsx.InvalidParam("请先由工程师接单，再重新打开工单")
+				return errorsx.InvalidParamI18n("error.z0161")
 			}
 		}
 		if ticket.CaseStatus != "" && ticket.CaseStatus != "resolved" && ticket.CaseStatus != "closure_pending" && ticket.CaseStatus != "closed" {
-			return errorsx.InvalidParam("只有已解决、待关闭或已关闭的工单可以重新打开")
+			return errorsx.InvalidParamI18n("error.z0162")
 		}
 		if ticket.CaseStatus == "" && !enums.IsValidTicketStatusTransition(string(ticket.Status), string(enums.TicketStatusReopened)) && !enums.IsValidAfterSalesTransition(string(ticket.Status), string(enums.TicketStatusReopened)) {
 			return errorsx.InvalidParamI18n("error.e0182")
@@ -1957,10 +1943,7 @@ func (s *ticketLifecycleService) reopen(ticketID int64, reason string, operator 
 				return err
 			}
 		}
-		content := "重新打开工单"
-		if trimmedReason := strings.TrimSpace(reason); trimmedReason != "" {
-			content += "，原因：" + trimmedReason
-		}
+		content := withReasonText(i18nx.NewText("ticketProgress.reopened", nil), reason)
 		if err := s.addProgress(ctx.Tx, ticket.ID, enums.TicketProgressEventReopened, content, operator); err != nil {
 			return err
 		}
@@ -2018,14 +2001,14 @@ func (s *ticketLifecycleService) reopen(ticketID int64, reason string, operator 
 	return nil
 }
 
-func (s *ticketLifecycleService) addProgress(tx *gorm.DB, ticketID int64, eventType enums.TicketProgressEventType, content string, operator *dto.AuthPrincipal) error {
+func (s *ticketLifecycleService) addProgress(tx *gorm.DB, ticketID int64, eventType enums.TicketProgressEventType, content i18nx.Text, operator *dto.AuthPrincipal) error {
 	_, err := s.createProgressTx(tx, ticketID, eventType, content, operator)
 	return err
 }
 
 // createProgressTx 写入工单进度并返回带主键的记录，供需要 progress.ID 作为
 // 事件幂等键的调用方（如 Assign 发布 ticket.assigned）使用。
-func (s *ticketLifecycleService) createProgressTx(tx *gorm.DB, ticketID int64, eventType enums.TicketProgressEventType, content string, operator *dto.AuthPrincipal) (*models.TicketProgress, error) {
+func (s *ticketLifecycleService) createProgressTx(tx *gorm.DB, ticketID int64, eventType enums.TicketProgressEventType, content i18nx.Text, operator *dto.AuthPrincipal) (*models.TicketProgress, error) {
 	tenantID := operator.TenantID
 	if ticket := repositories.TicketRepository.Get(tx, ticketID); ticket != nil {
 		tenantID = ticket.TenantID
@@ -2034,7 +2017,8 @@ func (s *ticketLifecycleService) createProgressTx(tx *gorm.DB, ticketID int64, e
 		TenantID:     tenantID,
 		TicketID:     ticketID,
 		EventType:    eventType,
-		Content:      content,
+		Content:      canonicalText(content),
+		ContentText:  content,
 		MetadataJSON: "{}",
 		AuthorID:     operator.UserID,
 		CreatedAt:    time.Now(),

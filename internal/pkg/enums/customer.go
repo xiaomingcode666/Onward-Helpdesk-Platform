@@ -2,8 +2,8 @@ package enums
 
 const CustomerSourceTypeWebChat = ExternalSourceGuest
 
-func GetCustomerSourceTypeLabel(sourceType ExternalSource) string {
-	return GetExternalSourceLabel(ExternalSource(sourceType))
+func GetCustomerSourceTypeLabel(sourceType ExternalSource, locale string) string {
+	return GetExternalSourceLabel(ExternalSource(sourceType), locale)
 }
 
 // 联系方式类型
@@ -17,13 +17,13 @@ const (
 )
 
 var contactTypeLabelMap = map[ContactType]string{
-	ContactTypeMobile: "手机号",
-	ContactTypeEmail:  "邮箱",
-	ContactTypeOther:  "其他",
+	ContactTypeMobile: "enum.ContactTypeMobile",
+	ContactTypeEmail:  "enum.ContactTypeEmail",
+	ContactTypeOther:  "enum.ContactTypeOther",
 }
 
-func GetContactTypeLabel(contactType ContactType) string {
-	return contactTypeLabelMap[contactType]
+func GetContactTypeLabel(contactType ContactType, locale string) string {
+	return enumLabel(locale, contactTypeLabelMap[contactType])
 }
 
 // IsValidContactType 判断字符串是否为合法联系方式类型。

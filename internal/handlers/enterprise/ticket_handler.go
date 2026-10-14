@@ -309,7 +309,7 @@ func TicketCreate(ctx *gin.Context) {
 	}
 	if err != nil {
 		if errors.Is(err, services.ErrTicketIdempotencyConflict) {
-			httpx.WriteHttpStatusJSON(ctx, 409, errorsx.InvalidParam("请求内容与此前相同请求编号不一致"))
+			httpx.WriteHttpStatusJSON(ctx, 409, errorsx.InvalidParamI18n("error.z0001"))
 			return
 		}
 		httpx.WriteJSON(ctx, err)

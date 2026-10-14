@@ -77,3 +77,19 @@ func TestAgentTeamAndDepartmentDisplay(t *testing.T) {
 		t.Fatalf("custom department DisplayName = %q", got)
 	}
 }
+
+// 平台内置流程未被改名时按语言显示；改名后的流程和租户自建流程按存储值显示。
+func TestAIWorkflowDisplayNameFollowsLocaleUntilRenamed(t *testing.T) {
+	builtin := &AIWorkflow{Scope: AIWorkflowScopePlatform, Code: "knowledge_customer_service_default", Name: "平台 AI 知识问答客服流程", Description: "基于租户通用知识库提供 AI 咨询，并支持用户主动转人工"}
+	if got := builtin.DisplayName(i18nx.LocaleEnUS); got != "AI knowledge Q&A service flow" {
+		t.Fatalf("builtin workflow en-US name = %q", got)
+	}
+	renamed := &AIWorkflow{Scope: AIWorkflowScopePlatform, Code: "knowledge_customer_service_default", Name: "我们自己的流程"}
+	if got := renamed.DisplayName(i18nx.LocaleEnUS); got != "我们自己的流程" {
+		t.Fatalf("renamed workflow should keep its name, got %q", got)
+	}
+	tenant := &AIWorkflow{Scope: "tenant", Code: "knowledge_customer_service_default", Name: "平台 AI 知识问答客服流程"}
+	if got := tenant.DisplayName(i18nx.LocaleEnUS); got != "平台 AI 知识问答客服流程" {
+		t.Fatalf("tenant workflow should keep its name, got %q", got)
+	}
+}

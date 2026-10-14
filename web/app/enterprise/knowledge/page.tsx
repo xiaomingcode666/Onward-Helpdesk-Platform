@@ -65,6 +65,7 @@ import {
   uploadProductKnowledgeDocument,
 } from "@/lib/api/enterprise-products"
 import type { ProductListItem } from "@/lib/api/types"
+import { readStoredLocale } from "@/i18n/config"
 import {
   getKnowledgeAccessGrants,
   replaceKnowledgeAccessGrants,
@@ -164,7 +165,7 @@ function formatDate(value: string | null | undefined) {
   if (!value) return "-"
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleDateString("zh-CN", {
+  return date.toLocaleDateString(readStoredLocale(), {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -181,7 +182,7 @@ function formatFileSize(bytes: number | null | undefined) {
 
 function formatQuotaCount(t: I18nT, value: number | null | undefined) {
   if (typeof value !== "number" || value < 0) return ke(t, "quota.unlimited")
-  return value.toLocaleString("zh-CN")
+  return value.toLocaleString(readStoredLocale())
 }
 
 function KnowledgeUploadQuotaStrip({

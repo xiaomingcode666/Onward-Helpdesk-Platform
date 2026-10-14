@@ -174,7 +174,7 @@ func BuildMessagesWithLocale(list []models.Message, locale string) []response.Me
 		return nil
 	}
 	agentReadState, customerReadState := services.ConversationReadStateService.GetConversationReadStates(list[0].ConversationID)
-	aiSenderNames, userSenderNames := collectMessageSenderNameMaps(list)
+	aiSenderNames, userSenderNames := collectMessageSenderNameMaps(list, locale)
 	agentProfiles := collectAgentProfilesByMessages(list)
 	ret := make([]response.MessageResponse, 0, len(list))
 	for i := range list {
@@ -248,7 +248,7 @@ func BuildMessageWithReadStatesAndLocale(item *models.Message, agentReadState, c
 			if aiSenderNames != nil {
 				ret.SenderName = aiSenderNames[item.SenderID]
 			} else if aiAgent := services.AIAgentService.Get(item.SenderID); aiAgent != nil {
-				ret.SenderName = aiAgent.Name
+				ret.SenderName = aiAgent.DisplayName(locale)
 			}
 		} else if item.SenderType == enums.IMSenderTypeAgent {
 			profile := agentProfiles[item.SenderID]
@@ -317,7 +317,7 @@ func collectAgentProfilesByMessages(list []models.Message) map[int64]*models.Age
 	return out
 }
 
-func collectMessageSenderNameMaps(list []models.Message) (aiNames map[int64]string, userNames map[int64]string) {
+func collectMessageSenderNameMaps(list []models.Message, locale string) (aiNames map[int64]string, userNames map[int64]string) {
 	aiNames = make(map[int64]string)
 	userNames = make(map[int64]string)
 	var aiIDs, userIDs []int64
@@ -343,7 +343,7 @@ func collectMessageSenderNameMaps(list []models.Message) (aiNames map[int64]stri
 		userIDs = append(userIDs, m.SenderID)
 	}
 	for _, a := range services.AIAgentService.FindByIds(aiIDs) {
-		aiNames[a.ID] = a.Name
+		aiNames[a.ID] = a.DisplayName(locale)
 	}
 	for _, u := range services.UserService.FindByIds(userIDs) {
 		name := u.Nickname

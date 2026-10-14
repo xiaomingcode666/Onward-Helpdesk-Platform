@@ -13,12 +13,12 @@ func BuildKnowledgeBase(item *models.KnowledgeBase, locale string) response.Know
 		Name:                  item.DisplayName(locale),
 		Description:           item.DisplayDescription(locale),
 		KnowledgeType:         item.KnowledgeType,
-		KnowledgeTypeName:     enums.GetKnowledgeBaseTypeLabel(enums.KnowledgeBaseType(item.KnowledgeType)),
+		KnowledgeTypeName:     enums.GetKnowledgeBaseTypeLabel(enums.KnowledgeBaseType(item.KnowledgeType), locale),
 		AccessScope:           item.AccessScope,
-		AccessScopeName:       enums.GetKnowledgeBaseAccessScopeLabel(enums.KnowledgeBaseAccessScope(item.AccessScope)),
+		AccessScopeName:       enums.GetKnowledgeBaseAccessScopeLabel(enums.KnowledgeBaseAccessScope(item.AccessScope), locale),
 		RagflowDatasetID:      item.RagflowDatasetID,
 		Status:                item.Status,
-		StatusName:            enums.GetStatusLabel(item.Status),
+		StatusName:            enums.GetStatusLabel(item.Status, locale),
 		DefaultTopK:           item.DefaultTopK,
 		DefaultScoreThreshold: item.DefaultScoreThreshold,
 		DefaultRerankLimit:    item.DefaultRerankLimit,
@@ -27,7 +27,7 @@ func BuildKnowledgeBase(item *models.KnowledgeBase, locale string) response.Know
 		ChunkMaxTokens:        item.ChunkMaxTokens,
 		ChunkOverlapTokens:    item.ChunkOverlapTokens,
 		AnswerMode:            item.AnswerMode,
-		AnswerModeName:        enums.GetKnowledgeAnswerModeLabel(enums.KnowledgeAnswerMode(item.AnswerMode)),
+		AnswerModeName:        enums.GetKnowledgeAnswerModeLabel(enums.KnowledgeAnswerMode(item.AnswerMode), locale),
 		Remark:                item.Remark,
 		CreatedAt:             item.CreatedAt,
 		UpdatedAt:             item.UpdatedAt,
@@ -36,16 +36,16 @@ func BuildKnowledgeBase(item *models.KnowledgeBase, locale string) response.Know
 	}
 }
 
-func BuildKnowledgeDocument(item *models.KnowledgeDocument) response.KnowledgeDocumentResponse {
+func BuildKnowledgeDocument(item *models.KnowledgeDocument, locale string) response.KnowledgeDocumentResponse {
 	return response.KnowledgeDocumentResponse{
 		ID:               item.ID,
 		KnowledgeBaseID:  item.KnowledgeBaseID,
 		DirectoryID:      item.DirectoryID,
 		Title:            item.Title,
 		Status:           item.Status,
-		StatusName:       enums.GetStatusLabel(item.Status),
+		StatusName:       enums.GetStatusLabel(item.Status, locale),
 		IndexStatus:      item.IndexStatus,
-		IndexStatusName:  enums.GetKnowledgeDocumentIndexStatusLabel(item.IndexStatus),
+		IndexStatusName:  enums.GetKnowledgeDocumentIndexStatusLabel(item.IndexStatus, locale),
 		IndexedAt:        item.IndexedAt,
 		IndexError:       item.IndexError,
 		ContentHash:      item.ContentHash,
@@ -62,16 +62,16 @@ func BuildKnowledgeDocument(item *models.KnowledgeDocument) response.KnowledgeDo
 	}
 }
 
-func BuildKnowledgeDocumentList(item *models.KnowledgeDocument) response.KnowledgeDocumentListResponse {
+func BuildKnowledgeDocumentList(item *models.KnowledgeDocument, locale string) response.KnowledgeDocumentListResponse {
 	return response.KnowledgeDocumentListResponse{
 		ID:               item.ID,
 		KnowledgeBaseID:  item.KnowledgeBaseID,
 		DirectoryID:      item.DirectoryID,
 		Title:            item.Title,
 		Status:           item.Status,
-		StatusName:       enums.GetStatusLabel(item.Status),
+		StatusName:       enums.GetStatusLabel(item.Status, locale),
 		IndexStatus:      item.IndexStatus,
-		IndexStatusName:  enums.GetKnowledgeDocumentIndexStatusLabel(item.IndexStatus),
+		IndexStatusName:  enums.GetKnowledgeDocumentIndexStatusLabel(item.IndexStatus, locale),
 		IndexedAt:        item.IndexedAt,
 		IndexError:       item.IndexError,
 		ContentHash:      item.ContentHash,
@@ -87,7 +87,7 @@ func BuildKnowledgeDocumentList(item *models.KnowledgeDocument) response.Knowled
 	}
 }
 
-func BuildKnowledgeFAQ(item *models.KnowledgeFAQ) response.KnowledgeFAQResponse {
+func BuildKnowledgeFAQ(item *models.KnowledgeFAQ, locale string) response.KnowledgeFAQResponse {
 	return response.KnowledgeFAQResponse{
 		ID:               item.ID,
 		KnowledgeBaseID:  item.KnowledgeBaseID,
@@ -96,9 +96,9 @@ func BuildKnowledgeFAQ(item *models.KnowledgeFAQ) response.KnowledgeFAQResponse 
 		Answer:           item.Answer,
 		SimilarQuestions: parseSimilarQuestions(item.SimilarQuestions),
 		Status:           item.Status,
-		StatusName:       enums.GetStatusLabel(item.Status),
+		StatusName:       enums.GetStatusLabel(item.Status, locale),
 		IndexStatus:      item.IndexStatus,
-		IndexStatusName:  enums.GetKnowledgeDocumentIndexStatusLabel(item.IndexStatus),
+		IndexStatusName:  enums.GetKnowledgeDocumentIndexStatusLabel(item.IndexStatus, locale),
 		IndexedAt:        item.IndexedAt,
 		IndexError:       item.IndexError,
 		Remark:           item.Remark,
@@ -113,7 +113,7 @@ func BuildKnowledgeFAQ(item *models.KnowledgeFAQ) response.KnowledgeFAQResponse 
 	}
 }
 
-func BuildKnowledgeDirectory(item *models.KnowledgeDirectory) response.KnowledgeDirectoryResponse {
+func BuildKnowledgeDirectory(item *models.KnowledgeDirectory, locale string) response.KnowledgeDirectoryResponse {
 	return response.KnowledgeDirectoryResponse{
 		ID:              item.ID,
 		KnowledgeBaseID: item.KnowledgeBaseID,
@@ -121,7 +121,7 @@ func BuildKnowledgeDirectory(item *models.KnowledgeDirectory) response.Knowledge
 		Name:            item.Name,
 		SortNo:          item.SortNo,
 		Status:          item.Status,
-		StatusName:      enums.GetStatusLabel(item.Status),
+		StatusName:      enums.GetStatusLabel(item.Status, locale),
 		Remark:          item.Remark,
 		CreatedAt:       item.CreatedAt,
 		UpdatedAt:       item.UpdatedAt,
@@ -131,7 +131,7 @@ func BuildKnowledgeDirectory(item *models.KnowledgeDirectory) response.Knowledge
 	}
 }
 
-func BuildKnowledgeRetrieveLog(item *models.KnowledgeRetrieveLog) response.KnowledgeRetrieveLogResponse {
+func BuildKnowledgeRetrieveLog(item *models.KnowledgeRetrieveLog, locale string) response.KnowledgeRetrieveLogResponse {
 	return response.KnowledgeRetrieveLogResponse{
 		ID:                 item.ID,
 		TenantID:           item.TenantID,
@@ -139,9 +139,9 @@ func BuildKnowledgeRetrieveLog(item *models.KnowledgeRetrieveLog) response.Knowl
 		CollectionName:     item.CollectionName,
 		IndexGenerationID:  item.IndexGenerationID,
 		Channel:            item.Channel,
-		ChannelName:        enums.GetKnowledgeRetrieveChannelLabel(enums.KnowledgeRetrieveChannel(item.Channel)),
+		ChannelName:        enums.GetKnowledgeRetrieveChannelLabel(enums.KnowledgeRetrieveChannel(item.Channel), locale),
 		Scene:              item.Scene,
-		SceneName:          enums.GetKnowledgeRetrieveSceneLabel(enums.KnowledgeRetrieveScene(item.Scene)),
+		SceneName:          enums.GetKnowledgeRetrieveSceneLabel(enums.KnowledgeRetrieveScene(item.Scene), locale),
 		SessionID:          item.SessionID,
 		ConversationID:     item.ConversationID,
 		RequestID:          item.RequestID,
@@ -149,7 +149,7 @@ func BuildKnowledgeRetrieveLog(item *models.KnowledgeRetrieveLog) response.Knowl
 		RewriteQuestion:    item.RewriteQuestion,
 		Answer:             item.Answer,
 		AnswerStatus:       item.AnswerStatus,
-		AnswerStatusName:   enums.GetKnowledgeAnswerStatusLabel(enums.KnowledgeAnswerStatus(item.AnswerStatus)),
+		AnswerStatusName:   enums.GetKnowledgeAnswerStatusLabel(enums.KnowledgeAnswerStatus(item.AnswerStatus), locale),
 		HitCount:           item.HitCount,
 		TopScore:           item.TopScore,
 		ChunkProvider:      item.ChunkProvider,
@@ -193,7 +193,7 @@ func BuildKnowledgeIndexGeneration(item *models.KnowledgeIndexGeneration) respon
 	}
 }
 
-func BuildKnowledgeRetrieveHitResponse(item *models.KnowledgeRetrieveHit) response.KnowledgeRetrieveHitResponse {
+func BuildKnowledgeRetrieveHitResponse(item *models.KnowledgeRetrieveHit, locale string) response.KnowledgeRetrieveHitResponse {
 	return response.KnowledgeRetrieveHitResponse{
 		ID:              item.ID,
 		RetrieveLogID:   item.RetrieveLogID,
@@ -207,7 +207,7 @@ func BuildKnowledgeRetrieveHitResponse(item *models.KnowledgeRetrieveHit) respon
 		Title:           item.Title,
 		SectionPath:     item.SectionPath,
 		ChunkType:       item.ChunkType,
-		ChunkTypeName:   enums.GetKnowledgeChunkTypeLabel(enums.KnowledgeChunkType(item.ChunkType)),
+		ChunkTypeName:   enums.GetKnowledgeChunkTypeLabel(enums.KnowledgeChunkType(item.ChunkType), locale),
 		Provider:        item.Provider,
 		RankNo:          item.RankNo,
 		Score:           item.Score,

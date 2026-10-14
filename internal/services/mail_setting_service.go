@@ -95,10 +95,10 @@ func (s *mailSettingService) Save(tenantID int64, req request.UpdateMailSettingR
 	}
 	if req.IMAPEnabled {
 		if req.IMAPHost == "" || strings.ContainsAny(req.IMAPHost, "/\r\n ") || req.IMAPPort < 1 || req.IMAPPort > 65535 || !req.IMAPUseTLS {
-			return nil, errorsx.InvalidParam("收件需填写有效 IMAP 地址、端口并使用 TLS")
+			return nil, errorsx.InvalidParamI18n("error.z0092")
 		}
 		if _, err := emailAddress(req.IMAPUsername); err != nil {
-			return nil, errorsx.InvalidParam("IMAP 账号必须是邮箱地址")
+			return nil, errorsx.InvalidParamI18n("error.z0093")
 		}
 	}
 	existing := repositories.TenantMailSettingRepository.GetByTenantID(sqls.DB(), tenantID)
@@ -130,7 +130,7 @@ func (s *mailSettingService) Save(tenantID int64, req request.UpdateMailSettingR
 		imapPassword = existing.IMAPPassword
 	}
 	if req.IMAPEnabled && imapPassword == "" {
-		return nil, errorsx.InvalidParam("请填写 IMAP 授权码")
+		return nil, errorsx.InvalidParamI18n("error.z0094")
 	}
 	item := &models.TenantMailSetting{
 		TenantID:    tenantID,

@@ -10,6 +10,7 @@ import (
 	"remotehelpdesk/internal/pkg/constants"
 	"remotehelpdesk/internal/pkg/dto/request"
 	"remotehelpdesk/internal/pkg/eventbus"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/pkg/routes"
 	"remotehelpdesk/internal/services"
 )
@@ -45,13 +46,14 @@ func handleDeviceAlarmRaisedInAppNotification(ctx context.Context, event events.
 		return err
 	}
 
-	deviceLabel := strings.TrimSpace(event.DeviceSerial)
+	var deviceLabel any = strings.TrimSpace(event.DeviceSerial)
 	if deviceLabel == "" {
-		deviceLabel = fmt.Sprintf("设备 #%d", event.DeviceID)
+		deviceLabel = i18nx.NewText("notificationText.deviceNumber", i18nx.Params{"id": event.DeviceID})
 	}
 	content := strings.TrimSpace(event.Message)
+	contentText := i18nx.Text{}
 	if content == "" {
-		content = fmt.Sprintf("设备 %s 上报故障码 %s。", deviceLabel, strings.TrimSpace(event.FaultCode))
+		contentText = i18nx.NewText("notificationText.deviceAlarm.content", i18nx.Params{"device": deviceLabel, "faultCode": strings.TrimSpace(event.FaultCode)})
 	}
 	bizID := event.DeviceID
 	if bizID <= 0 {
@@ -70,8 +72,9 @@ func handleDeviceAlarmRaisedInAppNotification(ctx context.Context, event events.
 	}
 	return services.NotificationAudienceService.Deliver(recipients, request.CreateNotificationRequest{
 		TenantID:         event.TenantID,
-		Title:            fmt.Sprintf("设备 %s 故障告警", deviceLabel),
+		TitleText:        i18nx.NewText("notificationText.deviceAlarm.title", i18nx.Params{"device": deviceLabel}),
 		Content:          content,
+		ContentText:      contentText,
 		NotificationType: "device_alarm_raised",
 		BizType:          "device_alarm",
 		BizID:            bizID,
@@ -98,8 +101,8 @@ func handleMeetingEndedInAppNotification(ctx context.Context, event events.Meeti
 	}
 	return services.NotificationAudienceService.Deliver(recipients, request.CreateNotificationRequest{
 		TenantID:         ticket.TenantID,
-		Title:            "视频协作已结束",
-		Content:          fmt.Sprintf("工单 %s 的视频协作已结束，会议时长 %s。", notificationTicketNo(ticket.ID, ticket.TicketNo), formatMeetingDuration(event.DurationMs)),
+		TitleText:        i18nx.NewText("notificationText.meetingEnded.title", nil),
+		ContentText:      i18nx.NewText("notificationText.meetingEnded.content", i18nx.Params{"ticketNo": notificationTicketNo(ticket.ID, ticket.TicketNo), "duration": services.MeetingDurationText(event.DurationMs)}),
 		NotificationType: "meeting_ended",
 		BizType:          "ticket",
 		BizID:            ticket.ID,
@@ -123,13 +126,15 @@ func handleKnowledgeCandidateCreatedInAppNotification(ctx context.Context, event
 		return err
 	}
 	content := strings.TrimSpace(event.Suggestion)
+	contentText := i18nx.Text{}
 	if content == "" {
-		content = "新的维修知识候选已生成，请及时审核。"
+		contentText = i18nx.NewText("notificationText.knowledgeCandidate.content", nil)
 	}
 	return services.NotificationAudienceService.Deliver(recipients, request.CreateNotificationRequest{
 		TenantID:         event.TenantID,
-		Title:            "新的知识候选待审核",
+		TitleText:        i18nx.NewText("notificationText.knowledgeCandidate.title", nil),
 		Content:          content,
+		ContentText:      contentText,
 		NotificationType: "knowledge_candidate_created",
 		BizType:          "knowledge_candidate",
 		BizID:            event.CandidateID,
@@ -150,15 +155,15 @@ func handleQuotaExceededInAppNotification(ctx context.Context, event events.Quot
 		return err
 	}
 	level := "warning"
-	title := "AI 用量接近额度上限"
+	title := i18nx.NewText("notificationText.quota.approachingTitle", nil)
 	if event.CurrentValue >= event.LimitValue {
 		level = "urgent"
-		title = "AI 用量已超过额度"
+		title = i18nx.NewText("notificationText.quota.exceededTitle", nil)
 	}
 	return services.NotificationAudienceService.Deliver(recipients, request.CreateNotificationRequest{
 		TenantID:         event.TenantID,
-		Title:            title,
-		Content:          fmt.Sprintf("%s 当前用量 %d，额度 %d。", quotaResourceLabel(event.ResourceType), event.CurrentValue, event.LimitValue),
+		TitleText:        title,
+		ContentText:      i18nx.NewText("notificationText.quota.content", i18nx.Params{"resource": quotaResourceText(event.ResourceType), "current": event.CurrentValue, "limit": event.LimitValue}),
 		NotificationType: "quota_exceeded",
 		BizType:          "product",
 		BizID:            event.ProductID,
@@ -186,8 +191,8 @@ func handleSLAWarningInAppNotification(ctx context.Context, event events.SLAWarn
 	level := notificationSeverityLevel(event.Severity)
 	return services.NotificationAudienceService.Deliver(recipients, request.CreateNotificationRequest{
 		TenantID:         ticket.TenantID,
-		Title:            fmt.Sprintf("工单 %s SLA 告警", notificationTicketNo(ticket.ID, ticket.TicketNo)),
-		Content:          fmt.Sprintf("%s目标 %d 分钟，当前已用 %d 分钟。", slaViolationLabel(event.ViolationType), event.TargetMinutes, event.ActualMinutes),
+		TitleText:        i18nx.NewText("notificationText.sla.title", i18nx.Params{"ticketNo": notificationTicketNo(ticket.ID, ticket.TicketNo)}),
+		ContentText:      i18nx.NewText("notificationText.sla.content", i18nx.Params{"target": slaViolationText(event.ViolationType), "targetMinutes": event.TargetMinutes, "actualMinutes": event.ActualMinutes}),
 		NotificationType: "sla_warning",
 		BizType:          "ticket",
 		BizID:            ticket.ID,
@@ -216,7 +221,7 @@ func handleSecurityAlertInAppNotification(ctx context.Context, event events.Secu
 	}
 	return services.NotificationAudienceService.Deliver(recipients, request.CreateNotificationRequest{
 		TenantID:         tenantID,
-		Title:            "安全告警",
+		TitleText:        i18nx.NewText("notificationText.securityAlert.title", nil),
 		Content:          strings.TrimSpace(event.Description),
 		NotificationType: "security_alert",
 		BizType:          "security",
@@ -235,29 +240,29 @@ func notificationTicketNo(ticketID int64, ticketNo string) string {
 	return fmt.Sprintf("#%d", ticketID)
 }
 
-func quotaResourceLabel(resourceType string) string {
+func quotaResourceText(resourceType string) i18nx.Text {
 	switch strings.TrimSpace(resourceType) {
 	case "tokens":
-		return "Token"
+		return i18nx.NewText("notificationText.quota.resource.tokens", nil)
 	case "requests":
-		return "请求次数"
+		return i18nx.NewText("notificationText.quota.resource.requests", nil)
 	case "cost":
-		return "调用费用"
+		return i18nx.NewText("notificationText.quota.resource.cost", nil)
 	default:
-		return "AI 资源"
+		return i18nx.NewText("notificationText.quota.resource.ai", nil)
 	}
 }
 
-func slaViolationLabel(violationType string) string {
+func slaViolationText(violationType string) i18nx.Text {
 	switch strings.TrimSpace(violationType) {
 	case "frt":
-		return "首次响应"
+		return i18nx.NewText("notificationText.sla.target.firstResponse", nil)
 	case "assignment":
-		return "派工"
+		return i18nx.NewText("notificationText.sla.target.assignment", nil)
 	case "resolution":
-		return "解决时长"
+		return i18nx.NewText("notificationText.sla.target.resolution", nil)
 	default:
-		return "处理时长"
+		return i18nx.NewText("notificationText.sla.target.handling", nil)
 	}
 }
 

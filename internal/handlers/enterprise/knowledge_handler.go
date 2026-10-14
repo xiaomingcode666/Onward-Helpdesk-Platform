@@ -52,7 +52,7 @@ func TenantKnowledgeAccessGrantsReplace(ctx *gin.Context) {
 	}
 	var req dto.EnterpriseKnowledgeAccessGrantsReplaceRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("请求内容不合法"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0004"))
 		return
 	}
 	items, err := services.ReplaceKnowledgeAccessGrants(

@@ -18,6 +18,7 @@ import (
 
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 var OIDCLoginService = newOIDCLoginService()
@@ -103,7 +104,7 @@ func (s *oidcLoginService) loginWithOIDCProfile(profile *oidcLoginProfile, authC
 		}
 
 		if err = repositories.UserIdentityRepository.Updates(ctx.Tx, identity.ID, map[string]any{
-			"provider_name":    enums.GetThirdProviderLabel(enums.ThirdProviderOIDC),
+			"provider_name":    enums.GetThirdProviderLabel(enums.ThirdProviderOIDC, i18nx.LocaleZhCN),
 			"raw_profile":      profile.RawProfile,
 			"last_auth_at":     time.Now(),
 			"status":           enums.StatusOk,
@@ -139,10 +140,10 @@ func (s *oidcLoginService) createOIDCUser(ctx *sqls.TxContext, profile *oidcLogi
 		AuditFields: models.AuditFields{
 			CreatedAt:      now,
 			CreateUserID:   0,
-			CreateUserName: enums.GetThirdProviderLabel(enums.ThirdProviderOIDC),
+			CreateUserName: enums.GetThirdProviderLabel(enums.ThirdProviderOIDC, i18nx.LocaleZhCN),
 			UpdatedAt:      now,
 			UpdateUserID:   0,
-			UpdateUserName: enums.GetThirdProviderLabel(enums.ThirdProviderOIDC),
+			UpdateUserName: enums.GetThirdProviderLabel(enums.ThirdProviderOIDC, i18nx.LocaleZhCN),
 		},
 	}
 	if err := repositories.UserRepository.Create(ctx.Tx, user); err != nil {
@@ -154,7 +155,7 @@ func (s *oidcLoginService) createOIDCUser(ctx *sqls.TxContext, profile *oidcLogi
 		Provider:       enums.ThirdProviderOIDC,
 		ProviderUserID: strings.TrimSpace(profile.Subject),
 		ProviderCorpID: "",
-		ProviderName:   enums.GetThirdProviderLabel(enums.ThirdProviderOIDC),
+		ProviderName:   enums.GetThirdProviderLabel(enums.ThirdProviderOIDC, i18nx.LocaleZhCN),
 		RawProfile:     profile.RawProfile,
 		Status:         enums.StatusOk,
 		LastAuthAt:     &now,

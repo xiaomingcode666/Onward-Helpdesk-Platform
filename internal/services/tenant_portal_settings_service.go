@@ -83,7 +83,7 @@ func (s *tenantPortalSettingsService) saveBrandingDB(db *gorm.DB, tenantID int64
 		return nil, runtimeErr
 	}
 	if r != nil && defaultLocale != r.Locale {
-		return nil, errorsx.InvalidParam("默认语言已由项目配置版本管理")
+		return nil, errorsx.InvalidParamI18n("error.z0123")
 	}
 	brandName = strings.TrimSpace(brandName)
 	customDomain = strings.TrimSpace(customDomain)

@@ -108,6 +108,7 @@
   },
   "ticketCase": {
     "transition": "工单阶段：{from} → {to}",
+    "workflowVersion": "工单流程版本 #{id}",
     "progress": {
       "new": "客户的问题已登记。",
       "acknowledged": "工程师已接单并负责跟进。",

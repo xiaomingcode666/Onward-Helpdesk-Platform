@@ -204,7 +204,7 @@ func TestAgentProfileResponsePrefersCurrentTenantMemberName(t *testing.T) {
 		DisplayName: "旧档案姓名",
 		Avatar:      "https://example.invalid/profile-stale.png",
 		Status:      enums.StatusOk,
-	})
+	}, i18nx.LocaleZhCN)
 	if ret == nil {
 		t.Fatal("build agent profile response returned nil")
 	}

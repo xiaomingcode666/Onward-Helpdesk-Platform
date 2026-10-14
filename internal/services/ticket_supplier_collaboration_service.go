@@ -22,6 +22,7 @@ import (
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 const (
@@ -585,15 +586,17 @@ func (s *ticketSupplierCollaborationService) Invite(ticketID int64, req dto.Tick
 		if err := TicketClockService.OpenSupplierWaitTx(tx, ticket.ID, item.ID, now, operator); err != nil {
 			return err
 		}
-		progressContent := "升级供应商协作：" + company.Name
+		supplierTarget := company.Name
 		if moduleName != "" {
-			progressContent += " / " + moduleName
+			supplierTarget += " / " + moduleName
 		}
+		progressContent, progressText := systemText("ticketProgress.supplierEscalated", i18nx.Params{"target": supplierTarget})
 		if err := repositories.TicketProgressRepository.Create(tx, &models.TicketProgress{
 			TenantID:     ticket.TenantID,
 			TicketID:     ticket.ID,
 			EventType:    enums.TicketProgressEventEscalated,
 			Content:      progressContent,
+			ContentText:  progressText,
 			MetadataJSON: string(scopeRuleJSON),
 			AuthorID:     operator.UserID,
 			CreatedAt:    now,
@@ -755,7 +758,7 @@ func (s *ticketSupplierCollaborationService) expireSupplierAuthorization(id int6
 		if ticket == nil || ticket.TenantID != locked.TenantID {
 			return nil
 		}
-		content := "供应商协作授权已到期，供应商访问已回收，工单返回企业工程师继续处理。"
+		content, contentText := systemText("ticketProgress.supplierAuthorizationExpired", nil)
 		if err := repositories.TicketSupplierCollaborationRepository.Updates(tx, locked.ID, map[string]any{
 			"status":           SupplierCollaborationExpired,
 			"resolution":       content,
@@ -821,6 +824,7 @@ func (s *ticketSupplierCollaborationService) expireSupplierAuthorization(id int6
 			TicketID:          locked.TicketID,
 			EventType:         enums.TicketProgressEventProgress,
 			Content:           content,
+			ContentText:       contentText,
 			VisibleToCustomer: true,
 			MetadataJSON:      string(metadataJSON),
 			AuthorID:          operator.UserID,
@@ -889,7 +893,8 @@ func (s *ticketSupplierCollaborationService) Accept(id int64, operator *dto.Auth
 			TenantID:     locked.TenantID,
 			TicketID:     locked.TicketID,
 			EventType:    enums.TicketProgressEventAccepted,
-			Content:      "供应商已接单",
+			Content:      canonicalText(i18nx.NewText("ticketProgress.supplierAccepted", nil)),
+			ContentText:  i18nx.NewText("ticketProgress.supplierAccepted", nil),
 			MetadataJSON: metadataJSON,
 			AuthorID:     operator.UserID,
 			CreatedAt:    now,
@@ -937,6 +942,7 @@ type supplierCollaborationTimeoutResult struct {
 	ExpectedAssigneeID int64
 	ConversationTicket *models.Ticket
 	Content            string
+	ContentText        i18nx.Text
 }
 
 func (s *ticketSupplierCollaborationService) EscalateUnresponsiveInvitations(timeout time.Duration, limit int) (int, error) {
@@ -975,7 +981,7 @@ func (s *ticketSupplierCollaborationService) EscalateUnresponsiveInvitations(tim
 		if _, err := TicketDispatchService.EscalateToSupervisor(
 			result.TicketID,
 			result.ExpectedAssigneeID,
-			result.Content,
+			result.ContentText,
 			now,
 		); err != nil {
 			failures = append(failures, err)
@@ -1016,7 +1022,7 @@ func (s *ticketSupplierCollaborationService) timeoutSupplierInvitation(id int64,
 		if moduleName != "" {
 			targetName += " / " + moduleName
 		}
-		content := "供应商未响应超时，已升级企业侧继续处理：" + targetName
+		content, contentText := systemText("ticketProgress.supplierTimeoutEscalated", i18nx.Params{"target": targetName})
 		resolution := "供应商在响应窗口内未接单，系统已关闭本次供应商协作并升级企业侧兜底处理。"
 		if err := repositories.TicketSupplierCollaborationRepository.Updates(tx, locked.ID, map[string]any{
 			"status":           SupplierCollaborationTimeout,
@@ -1081,6 +1087,7 @@ func (s *ticketSupplierCollaborationService) timeoutSupplierInvitation(id int64,
 			TicketID:          locked.TicketID,
 			EventType:         enums.TicketProgressEventEscalated,
 			Content:           content,
+			ContentText:       contentText,
 			VisibleToCustomer: true,
 			MetadataJSON:      string(metadataJSON),
 			AuthorID:          operator.UserID,
@@ -1094,6 +1101,7 @@ func (s *ticketSupplierCollaborationService) timeoutSupplierInvitation(id int64,
 			ExpectedAssigneeID: ticket.CurrentAssigneeID,
 			ConversationTicket: ticket,
 			Content:            content,
+			ContentText:        contentText,
 		}
 		return nil
 	})
@@ -1239,7 +1247,8 @@ func (s *ticketSupplierCollaborationService) Assign(id, partnerAccountID int64, 
 			TenantID:     item.TenantID,
 			TicketID:     item.TicketID,
 			EventType:    enums.TicketProgressEventAssigned,
-			Content:      "供应商内部派工：" + target.DisplayName,
+			Content:      canonicalText(i18nx.NewText("ticketProgress.supplierInternalAssigned", i18nx.Params{"member": target.DisplayName})),
+			ContentText:  i18nx.NewText("ticketProgress.supplierInternalAssigned", i18nx.Params{"member": target.DisplayName}),
 			MetadataJSON: partnerProgressMetadata(item.ID),
 			AuthorID:     operator.UserID,
 			CreatedAt:    now,
@@ -1302,7 +1311,8 @@ func (s *ticketSupplierCollaborationService) AddParticipant(id, partnerAccountID
 			TenantID:     item.TenantID,
 			TicketID:     item.TicketID,
 			EventType:    enums.TicketProgressEventAssigned,
-			Content:      "供应商协作成员加入：" + target.DisplayName,
+			Content:      canonicalText(i18nx.NewText("ticketProgress.supplierMemberJoined", i18nx.Params{"member": target.DisplayName})),
+			ContentText:  i18nx.NewText("ticketProgress.supplierMemberJoined", i18nx.Params{"member": target.DisplayName}),
 			MetadataJSON: partnerProgressMetadata(item.ID),
 			AuthorID:     operator.UserID,
 			CreatedAt:    now,
@@ -1361,7 +1371,8 @@ func (s *ticketSupplierCollaborationService) RemoveParticipant(id, partnerAccoun
 			TenantID:     item.TenantID,
 			TicketID:     item.TicketID,
 			EventType:    enums.TicketProgressEventAssigned,
-			Content:      "供应商协作成员退出：" + account.DisplayName,
+			Content:      canonicalText(i18nx.NewText("ticketProgress.supplierMemberLeft", i18nx.Params{"member": account.DisplayName})),
+			ContentText:  i18nx.NewText("ticketProgress.supplierMemberLeft", i18nx.Params{"member": account.DisplayName}),
 			MetadataJSON: partnerProgressMetadata(item.ID),
 			AuthorID:     operator.UserID,
 			CreatedAt:    now,
@@ -1440,7 +1451,8 @@ func (s *ticketSupplierCollaborationService) Resolve(id int64, resolution string
 			TenantID:     locked.TenantID,
 			TicketID:     locked.TicketID,
 			EventType:    enums.TicketProgressEventProgress,
-			Content:      "供应商处理完成：" + resolution,
+			Content:      canonicalText(i18nx.NewText("ticketProgress.supplierResolved", i18nx.Params{"resolution": resolution})),
+			ContentText:  i18nx.NewText("ticketProgress.supplierResolved", i18nx.Params{"resolution": resolution}),
 			MetadataJSON: partnerProgressMetadata(item.ID),
 			AuthorID:     operator.UserID,
 			CreatedAt:    now,
@@ -1600,7 +1612,7 @@ func (s *ticketSupplierCollaborationService) buildTicketDetail(item *models.Tick
 		if message.SenderType == enums.IMSenderTypePartner && partnerMessageCollaborationID(message.Payload) != item.ID {
 			continue
 		}
-		senderName := enums.GetIMSenderTypeLabel(message.SenderType)
+		senderName := enums.GetIMSenderTypeLabel(message.SenderType, i18nx.DefaultLocale)
 		if user := users[message.SenderID]; user != nil {
 			senderName = strings.TrimSpace(user.Nickname)
 			if senderName == "" {
@@ -1920,6 +1932,7 @@ func (s *ticketSupplierCollaborationService) AddPartnerMessage(id int64, req dto
 	content := strings.TrimSpace(req.Content)
 	messagePayload := ""
 	progressContent := content
+	progressText := i18nx.Text{}
 	switch messageType {
 	case enums.IMMessageTypeText:
 		if content == "" {
@@ -1950,6 +1963,7 @@ func (s *ticketSupplierCollaborationService) AddPartnerMessage(id int64, req dto
 		}
 		content = strings.TrimSpace(asset.Filename)
 		progressContent = buildMessageSummary(messageType, content)
+		progressText = messageSummaryText(messageType, content)
 	default:
 		return nil, errorsx.InvalidParam("unsupported supplier message type")
 	}
@@ -1960,6 +1974,7 @@ func (s *ticketSupplierCollaborationService) AddPartnerMessage(id int64, req dto
 			TicketID:     item.TicketID,
 			EventType:    enums.TicketProgressEventProgress,
 			Content:      progressContent,
+			ContentText:  progressText,
 			MetadataJSON: partnerProgressMetadata(item.ID),
 			AuthorID:     operator.UserID,
 			CreatedAt:    now,

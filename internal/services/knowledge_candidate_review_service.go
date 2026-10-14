@@ -17,6 +17,7 @@ import (
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 // KnowledgeCandidateReviewService 知识候选处理（§7.4）。
@@ -551,10 +552,11 @@ func (s *knowledgeCandidateReviewService) writeCandidateRejectionProgressTx(tx *
 	if ticket == nil || ticket.TenantID != item.TenantID || ticket.Status == enums.TicketStatusCancelled {
 		return nil
 	}
-	content := "知识候选审核已驳回"
+	contentText := i18nx.NewText("ticketProgress.knowledgeCandidateRejected", nil)
 	if remark != "" {
-		content += "：" + remark
+		contentText = i18nx.NewText("ticketProgress.knowledgeCandidateRejectedWithRemark", i18nx.Params{"remark": remark})
 	}
+	content := canonicalText(contentText)
 	metadata, _ := json.Marshal(map[string]any{
 		"source":       "knowledge_candidate_review",
 		"candidateId":  item.ID,
@@ -570,6 +572,7 @@ func (s *knowledgeCandidateReviewService) writeCandidateRejectionProgressTx(tx *
 		TicketID:          item.TicketID,
 		EventType:         enums.TicketProgressEventProgress,
 		Content:           content,
+		ContentText:       contentText,
 		VisibleToCustomer: false,
 		MetadataJSON:      string(metadata),
 		AuthorID:          authorID,

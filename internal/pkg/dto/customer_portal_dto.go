@@ -1,5 +1,7 @@
 package dto
 
+import "remotehelpdesk/internal/pkg/i18nx"
+
 type CustomerPortalProfileDTO struct {
 	ID                      int64  `json:"id"`
 	Name                    string `json:"name"`
@@ -115,6 +117,27 @@ type CustomerPortalTicketProgressDTO struct {
 	Content   string            `json:"content"`
 	CreatedAt string            `json:"created_at"`
 	Metadata  map[string]string `json:"metadata,omitempty"`
+	// ContentText 为系统生成的进度文本，接口返回前按请求语言渲染到 Content。
+	ContentText i18nx.Text `json:"-"`
+}
+
+// LocalizeCustomerPortalTickets 按请求语言渲染工单中的系统文本。
+func LocalizeCustomerPortalTickets(items []CustomerPortalTicketDTO, locale string) {
+	for i := range items {
+		items[i].Localize(locale)
+	}
+}
+
+// Localize 按请求语言渲染工单中的系统文本。
+func (d *CustomerPortalTicketDTO) Localize(locale string) {
+	if d == nil {
+		return
+	}
+	for i := range d.Progress {
+		if !d.Progress[i].ContentText.IsZero() {
+			d.Progress[i].Content = d.Progress[i].ContentText.Render(locale)
+		}
+	}
 }
 
 type CustomerPortalTicketFeedbackDTO struct {

@@ -11,6 +11,7 @@ import { useI18n } from "@/i18n/provider"
 import type { ApiResponse } from "@/lib/api/types"
 import type { ProductResourcePage, ProductResourceQuery } from "@/lib/api/enterprise-products"
 import { downloadCsv, type CsvCell, type CsvRow } from "@/lib/csv-export"
+import { readStoredLocale } from "@/i18n/config"
 
 export type ProductResourceColumn<T> = {
   key: string
@@ -109,7 +110,7 @@ export function ProductResourceTable<T extends object>({
     if (!exportFilename || !items.length) return
     const rows: CsvRow[] = [
       [exportTitle || exportFilename.replace(/\.csv$/i, "")],
-      [t("exportsExtract.csvResourceTable.exportedAt"), new Date().toLocaleString("zh-CN", { hour12: false })],
+      [t("exportsExtract.csvResourceTable.exportedAt"), new Date().toLocaleString(readStoredLocale(), { hour12: false })],
       [t("exportsExtract.csvResourceTable.recordCount"), items.length],
       [],
       columns.map((column) => column.label),

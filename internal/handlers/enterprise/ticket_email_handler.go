@@ -44,7 +44,7 @@ func TicketEmailReply(ctx *gin.Context) {
 		RequestKey string `json:"request_key"`
 	}
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("邮件内容无效"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0014"))
 		return
 	}
 	row, err := services.QueueTicketEmailReply(id, req.Body, req.RequestKey, operator)
@@ -77,12 +77,12 @@ func MailReceiveStatus(ctx *gin.Context) {
 	}
 	var states []models.MailboxSyncState
 	if sqls.DB().Where("tenant_id = ?", operator.TenantID).Order("id DESC").Limit(5).Find(&states).Error != nil {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("收件状态读取失败"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0015"))
 		return
 	}
 	var pending int64
 	if sqls.DB().Model(&models.InboundEmail{}).Where("tenant_id = ? AND status = ?", operator.TenantID, services.InboundEmailPendingManual).Count(&pending).Error != nil {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("收件状态读取失败"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0015"))
 		return
 	}
 	type summary struct {
@@ -105,7 +105,7 @@ func MailPendingLinks(ctx *gin.Context) {
 	}
 	rows, err := services.ListPendingInboundEmailLinks(operator.TenantID)
 	if err != nil {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("待人工关联邮件读取失败"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0016"))
 		return
 	}
 	httpx.WriteJSON(ctx, rows)
@@ -125,7 +125,7 @@ func MailPendingLinkResolve(ctx *gin.Context) {
 		TicketID int64 `json:"ticket_id"`
 	}
 	if err := ctx.ShouldBindJSON(&req); err != nil || req.TicketID <= 0 {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("请选择目标工单"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0017"))
 		return
 	}
 	if err := services.ResolveInboundEmailManualLink(inboundEmailID, req.TicketID, operator); err != nil {

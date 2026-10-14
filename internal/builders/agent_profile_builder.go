@@ -13,7 +13,7 @@ import (
 	"github.com/mlogclub/simple/sqls"
 )
 
-func BuildAgentProfileList(items []models.AgentProfile) []response.AgentProfileResponse {
+func BuildAgentProfileList(items []models.AgentProfile, locale string) []response.AgentProfileResponse {
 	if len(items) == 0 {
 		return []response.AgentProfileResponse{}
 	}
@@ -59,27 +59,27 @@ func BuildAgentProfileList(items []models.AgentProfile) []response.AgentProfileR
 		if membersByUserID := tenantMemberMap[item.TenantID]; membersByUserID != nil {
 			member = membersByUserID[item.UserID]
 		}
-		if result := doBuildAgentProfileResponse(&item, userMap[item.UserID], teamMap[item.TeamID], member); result != nil {
+		if result := doBuildAgentProfileResponse(&item, userMap[item.UserID], teamMap[item.TeamID], member, locale); result != nil {
 			results = append(results, *result)
 		}
 	}
 	return results
 }
 
-func BuildAgentProfileResponse(item *models.AgentProfile) *response.AgentProfileResponse {
+func BuildAgentProfileResponse(item *models.AgentProfile, locale string) *response.AgentProfileResponse {
 	user := services.UserService.Get(item.UserID)
 	team := services.AgentTeamService.Get(item.TeamID)
 	member := repositories.EnterpriseIAMRepository.FindTenantMemberByUserID(sqls.DB(), item.TenantID, item.UserID)
-	return doBuildAgentProfileResponse(item, user, team, member)
+	return doBuildAgentProfileResponse(item, user, team, member, locale)
 }
 
-func BuildAgentDispatchCandidateList(items []services.DispatchCandidateProfile) []response.AgentDispatchCandidateResponse {
+func BuildAgentDispatchCandidateList(items []services.DispatchCandidateProfile, locale string) []response.AgentDispatchCandidateResponse {
 	if len(items) == 0 {
 		return []response.AgentDispatchCandidateResponse{}
 	}
 	ret := make([]response.AgentDispatchCandidateResponse, 0, len(items))
 	for _, item := range items {
-		base := BuildAgentProfileResponse(&item.Profile)
+		base := BuildAgentProfileResponse(&item.Profile, locale)
 		if base == nil {
 			continue
 		}
@@ -87,7 +87,7 @@ func BuildAgentDispatchCandidateList(items []services.DispatchCandidateProfile) 
 		base.TeamDispatchEnabled = item.TeamDispatchEnabled
 		base.DispatchWeight = item.DispatchWeight
 		if team := services.AgentTeamService.Get(item.TeamID); team != nil {
-			base.TeamName = team.Name
+			base.TeamName = team.DisplayName(locale)
 		}
 		capacityRemaining := 0
 		if base.MaxConcurrentCount > 0 && item.Workload < base.MaxConcurrentCount {
@@ -110,7 +110,7 @@ func BuildAgentDispatchCandidateList(items []services.DispatchCandidateProfile) 
 	return ret
 }
 
-func doBuildAgentProfileResponse(item *models.AgentProfile, user *models.User, team *models.AgentTeam, member *models.TenantMember) *response.AgentProfileResponse {
+func doBuildAgentProfileResponse(item *models.AgentProfile, user *models.User, team *models.AgentTeam, member *models.TenantMember, locale string) *response.AgentProfileResponse {
 	if item == nil {
 		return nil
 	}
@@ -161,7 +161,7 @@ func doBuildAgentProfileResponse(item *models.AgentProfile, user *models.User, t
 		ret.Nickname = user.Nickname
 	}
 	if team != nil {
-		ret.TeamName = team.Name
+		ret.TeamName = team.DisplayName(locale)
 	}
 	return ret
 }

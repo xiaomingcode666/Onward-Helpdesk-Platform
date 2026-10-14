@@ -28,6 +28,7 @@ import (
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 // MeetingRoomStatus 会议室状态
@@ -87,7 +88,7 @@ const (
 )
 
 func meetingEndedError() error {
-	return errorsx.BusinessError(meetingEndedBusinessCode, "会议已结束，请重新发起视频协作")
+	return errorsx.BusinessErrorI18n(meetingEndedBusinessCode, "error.z0099")
 }
 
 func isMeetingEndedStatus(status string) bool {
@@ -170,7 +171,7 @@ func (s *meetingService) CreateMeetingRoomForOperatorWithOptions(ctx context.Con
 			return nil, err
 		}
 		if ticket.CurrentAssigneeID <= 0 || ticket.CurrentAssigneeID != operator.UserID {
-			return nil, errorsx.Forbidden("只有当前工单负责人可以发起视频协作")
+			return nil, errorsx.ForbiddenI18n("error.z0100")
 		}
 	}
 	options.ParticipantType = enterpriseMeetingParticipantType(ticket, operator)
@@ -263,7 +264,7 @@ func (s *meetingService) CreateMeetingRoomWithOptions(ctx context.Context, ticke
 			if meetingCreateResponseNeedsToken(meeting.Status) {
 				token, err = generateMeetingTokenWithRetry(ctx, jp, meeting.RoomName, userInfo)
 				if err != nil {
-					return errorsx.BusinessError(100, "Jitsi 会议认证配置不完整")
+					return errorsx.BusinessErrorI18n(100, "error.z0101")
 				}
 			}
 			return nil
@@ -288,7 +289,7 @@ func (s *meetingService) CreateMeetingRoomWithOptions(ctx context.Context, ticke
 		if meetingCreateResponseNeedsToken(meeting.Status) {
 			token, err = generateMeetingTokenWithRetry(ctx, jp, meeting.RoomName, userInfo)
 			if err != nil {
-				return errorsx.BusinessError(100, "Jitsi 会议认证配置不完整")
+				return errorsx.BusinessErrorI18n(100, "error.z0101")
 			}
 		}
 		if err := tx.Create(&meeting).Error; err != nil {
@@ -296,17 +297,18 @@ func (s *meetingService) CreateMeetingRoomWithOptions(ctx context.Context, ticke
 		}
 		authorID, _ := strconv.ParseInt(hostUserID, 10, 64)
 		metadata := map[string]string{"meetingId": meeting.ID, "roomName": meeting.RoomName}
-		content := "发起视频协作，会议室：" + meeting.RoomName
+		contentText := i18nx.NewText("ticketProgress.meetingStarted", i18nx.Params{"room": meeting.RoomName})
 		if scheduledAt != nil {
 			metadata["scheduledAt"] = scheduledAt.Format(time.RFC3339)
-			content = "预定视频协作，计划时间：" + formatEnterpriseTimePtr(scheduledAt) + "，会议室：" + meeting.RoomName
+			contentText = i18nx.NewText("ticketProgress.meetingScheduled", i18nx.Params{"scheduledAt": formatEnterpriseTimePtr(scheduledAt), "room": meeting.RoomName})
 		}
 		metadataJSON, _ := json.Marshal(metadata)
 		return tx.Create(&models.TicketProgress{
 			TenantID:          tenantID,
 			TicketID:          ticketIDValue,
 			EventType:         enums.TicketProgressEventProgress,
-			Content:           content,
+			Content:           canonicalText(contentText),
+			ContentText:       contentText,
 			MetadataJSON:      string(metadataJSON),
 			AuthorID:          authorID,
 			VisibleToCustomer: true,
@@ -328,13 +330,14 @@ func (s *meetingService) CreateMeetingRoomWithOptions(ctx context.Context, ticke
 	ticket := repositories.TicketRepository.Get(sqls.DB(), ticketIDValue)
 	if ticket != nil {
 		scheduled := meeting.Status == "scheduled"
-		notificationTitle := "视频协作已发起"
-		notificationContent := fmt.Sprintf("工单 %s 已发起视频协作。", firstNonEmptyString(strings.TrimSpace(ticket.TicketNo), fmt.Sprintf("#%d", ticket.ID)))
+		notificationTicketNo := firstNonEmptyString(strings.TrimSpace(ticket.TicketNo), fmt.Sprintf("#%d", ticket.ID))
+		notificationTitle := i18nx.NewText("notificationText.meetingStarted.title", nil)
+		notificationContent := i18nx.NewText("notificationText.meetingStarted.content", i18nx.Params{"ticketNo": notificationTicketNo})
 		notificationType := "meeting_started"
 		idempotencyKey := "meeting.started:" + meeting.ID
 		if scheduled {
-			notificationTitle = "视频协作已预定"
-			notificationContent = fmt.Sprintf("工单 %s 已预定视频协作，计划时间：%s。", firstNonEmptyString(strings.TrimSpace(ticket.TicketNo), fmt.Sprintf("#%d", ticket.ID)), formatEnterpriseTimePtr(meeting.ScheduledAt))
+			notificationTitle = i18nx.NewText("notificationText.meetingScheduled.title", nil)
+			notificationContent = i18nx.NewText("notificationText.meetingScheduled.content", i18nx.Params{"ticketNo": notificationTicketNo, "scheduledAt": formatEnterpriseTimePtr(meeting.ScheduledAt)})
 			notificationType = "meeting_scheduled"
 			idempotencyKey = "meeting.scheduled:" + meeting.ID
 		}
@@ -342,8 +345,8 @@ func (s *meetingService) CreateMeetingRoomWithOptions(ctx context.Context, ticke
 			slog.Warn("resolve meeting notification recipients failed", "ticket_id", ticket.ID, "meeting_id", meeting.ID, "error", recipientErr)
 		} else if notifyErr := NotificationAudienceService.Deliver(recipients, request.CreateNotificationRequest{
 			TenantID:         ticket.TenantID,
-			Title:            notificationTitle,
-			Content:          notificationContent,
+			TitleText:        notificationTitle,
+			ContentText:      notificationContent,
 			NotificationType: notificationType,
 			BizType:          "ticket",
 			BizID:            ticket.ID,
@@ -411,10 +414,10 @@ func validateMeetingStartTicketStatus(status enums.TicketStatus) error {
 	normalized := enums.NormalizeTicketStatus(string(status))
 	switch normalized {
 	case enums.TicketStatusClosed, enums.TicketStatusDone, enums.TicketStatusCancelled:
-		return errorsx.InvalidParam("工单已结束，不能发起视频协作")
+		return errorsx.InvalidParamI18n("error.z0102")
 	}
 	if !canStartMeetingFromStatus(normalized) {
-		return errorsx.InvalidParam("工单受理后才能发起视频协作")
+		return errorsx.InvalidParamI18n("error.z0103")
 	}
 	return nil
 }
@@ -433,7 +436,7 @@ func validateMeetingStartManagedTicketStatus(status enums.TicketStatus) error {
 	normalized := enums.NormalizeTicketStatus(string(status))
 	switch normalized {
 	case enums.TicketStatusClosed, enums.TicketStatusDone, enums.TicketStatusCancelled:
-		return errorsx.InvalidParam("工单已结束，不能发起视频协作")
+		return errorsx.InvalidParamI18n("error.z0102")
 	default:
 		return nil
 	}
@@ -469,7 +472,7 @@ func (s *meetingService) recordMeetingCreationFailure(ticketID, tenantID int64, 
 		return
 	}
 	now := time.Now()
-	content := "视频协作暂时创建失败，已自动降级为文字/图片协同；工程师可以稍后重试发起视频。"
+	content, contentText := systemText("ticketProgress.meetingCreationFailed", nil)
 	errorMessage := ""
 	if cause != nil {
 		errorMessage = strings.TrimSpace(cause.Error())
@@ -493,6 +496,7 @@ func (s *meetingService) recordMeetingCreationFailure(ticketID, tenantID int64, 
 			TicketID:          ticket.ID,
 			EventType:         enums.TicketProgressEventProgress,
 			Content:           content,
+			ContentText:       contentText,
 			VisibleToCustomer: true,
 			MetadataJSON:      string(metadataJSON),
 			AuthorID:          authorID,
@@ -573,7 +577,7 @@ func (s *meetingService) JoinMeeting(ctx context.Context, meetingID, userID, use
 	}
 	token, err := jp.GenerateToken(meeting.RoomName, userInfo)
 	if err != nil {
-		return nil, errorsx.BusinessError(100, "Jitsi 入会认证配置不完整")
+		return nil, errorsx.BusinessErrorI18n(100, "error.z0104")
 	}
 
 	if err := s.recordParticipant(meetingID, userID, recordedUserType, userName, role, nil); err != nil {
@@ -744,7 +748,7 @@ func (s *meetingService) heartbeatParticipant(meeting *models.MeetingRoomJitsi, 
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return errorsx.BusinessError(100, "参会状态已失效，请重新进入会议")
+		return errorsx.BusinessErrorI18n(100, "error.z0105")
 	}
 	return sqls.DB().Model(&models.MeetingRoomJitsi{}).
 		Where("id = ? AND status = ?", meeting.ID, "active").
@@ -1100,16 +1104,13 @@ func ensureMeetingEndedTicketProgress(tx *gorm.DB, meeting *models.MeetingRoomJi
 	if existingCount > 0 {
 		return nil
 	}
-	durationText := formatMeetingDurationText(durationMs)
-	content := fmt.Sprintf("视频协作已结束，时长：%s", durationText)
-	if strings.TrimSpace(meeting.RoomName) != "" {
-		content = fmt.Sprintf("视频协作已结束，会议室：%s，时长：%s", meeting.RoomName, durationText)
-	}
+	contentText := MeetingEndedProgressText(meeting.RoomName, durationMs)
 	return tx.Create(&models.TicketProgress{
 		TenantID:          meeting.TenantID,
 		TicketID:          ticketID,
 		EventType:         enums.TicketProgressEventMeetingEnded,
-		Content:           content,
+		Content:           canonicalText(contentText),
+		ContentText:       contentText,
 		VisibleToCustomer: true,
 		MetadataJSON:      string(metadata),
 		CreatedAt:         endedAt,
@@ -1117,27 +1118,32 @@ func ensureMeetingEndedTicketProgress(tx *gorm.DB, meeting *models.MeetingRoomJi
 }
 
 func formatMeetingDurationText(ms int64) string {
+	return canonicalText(MeetingDurationText(ms))
+}
+
+// MeetingDurationText 返回会议时长的可翻译文本。
+func MeetingDurationText(ms int64) i18nx.Text {
 	if ms < 1000 {
-		return "不足 1 秒"
+		return i18nx.NewText("duration.lessThanSecond", nil)
 	}
 	seconds := ms / 1000
 	if seconds < 60 {
-		return fmt.Sprintf("%d 秒", seconds)
+		return i18nx.NewText("duration.seconds", i18nx.Params{"seconds": seconds})
 	}
 	minutes := seconds / 60
 	secs := seconds % 60
 	if minutes < 60 {
 		if secs > 0 {
-			return fmt.Sprintf("%d 分 %d 秒", minutes, secs)
+			return i18nx.NewText("duration.minutesSeconds", i18nx.Params{"minutes": minutes, "seconds": secs})
 		}
-		return fmt.Sprintf("%d 分", minutes)
+		return i18nx.NewText("duration.minutes", i18nx.Params{"minutes": minutes})
 	}
 	hours := minutes / 60
 	mins := minutes % 60
 	if mins > 0 {
-		return fmt.Sprintf("%d 小时 %d 分", hours, mins)
+		return i18nx.NewText("duration.hoursMinutes", i18nx.Params{"hours": hours, "minutes": mins})
 	}
-	return fmt.Sprintf("%d 小时", hours)
+	return i18nx.NewText("duration.hours", i18nx.Params{"hours": hours})
 }
 
 // ExpireStaleMeetings closes sessions left active after an abnormal client or
@@ -1671,4 +1677,12 @@ func (s *meetingService) Preview(req request.MeetingPreviewCreateRequest) (*Meet
 		return nil, err
 	}
 	return result, nil
+}
+
+// MeetingEndedProgressText 返回视频协作结束进度的可翻译文本。
+func MeetingEndedProgressText(roomName string, durationMs int64) i18nx.Text {
+	if strings.TrimSpace(roomName) != "" {
+		return i18nx.NewText("ticketProgress.meetingEndedWithRoom", i18nx.Params{"room": roomName, "duration": MeetingDurationText(durationMs)})
+	}
+	return i18nx.NewText("ticketProgress.meetingEnded", i18nx.Params{"duration": MeetingDurationText(durationMs)})
 }

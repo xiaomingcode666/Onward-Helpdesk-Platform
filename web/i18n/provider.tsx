@@ -155,7 +155,15 @@ export function AppI18nProvider({ children }: { children: ReactNode }) {
   }, [applyLocale])
 
   useEffect(() => {
-    document.title = translateMessage(locale, "app.metadataTitle")
+    // 服务端元数据按默认语言输出标题，页面跳转时 Next.js 会重新写入；这里始终改回当前语言。
+    const title = translateMessage(locale, "app.metadataTitle")
+    const syncTitle = () => {
+      if (document.title !== title) document.title = title
+    }
+    syncTitle()
+    const observer = new MutationObserver(syncTitle)
+    observer.observe(document.head, { subtree: true, childList: true, characterData: true })
+    return () => observer.disconnect()
   }, [locale])
 
   const value = useMemo<LocaleContextValue>(

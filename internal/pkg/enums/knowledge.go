@@ -31,12 +31,12 @@ const (
 )
 
 var knowledgeBaseTypeLabelMap = map[KnowledgeBaseType]string{
-	KnowledgeBaseTypeDocument: "文档知识库",
-	KnowledgeBaseTypeFAQ:      "FAQ知识库",
+	KnowledgeBaseTypeDocument: "enum.KnowledgeBaseTypeDocument",
+	KnowledgeBaseTypeFAQ:      "enum.KnowledgeBaseTypeFAQ",
 }
 
-func GetKnowledgeBaseTypeLabel(knowledgeType KnowledgeBaseType) string {
-	return knowledgeBaseTypeLabelMap[knowledgeType]
+func GetKnowledgeBaseTypeLabel(knowledgeType KnowledgeBaseType, locale string) string {
+	return enumLabel(locale, knowledgeBaseTypeLabelMap[knowledgeType])
 }
 
 type KnowledgeBaseAccessScope string
@@ -47,12 +47,12 @@ const (
 )
 
 var knowledgeBaseAccessScopeLabelMap = map[KnowledgeBaseAccessScope]string{
-	KnowledgeBaseAccessScopeTenant:  "租户通用",
-	KnowledgeBaseAccessScopeProduct: "产品专属",
+	KnowledgeBaseAccessScopeTenant:  "enum.KnowledgeBaseAccessScopeTenant",
+	KnowledgeBaseAccessScopeProduct: "enum.KnowledgeBaseAccessScopeProduct",
 }
 
-func GetKnowledgeBaseAccessScopeLabel(scope KnowledgeBaseAccessScope) string {
-	return knowledgeBaseAccessScopeLabelMap[scope]
+func GetKnowledgeBaseAccessScopeLabel(scope KnowledgeBaseAccessScope, locale string) string {
+	return enumLabel(locale, knowledgeBaseAccessScopeLabelMap[scope])
 }
 
 func IsValidKnowledgeBaseAccessScope(scope string) bool {
@@ -88,13 +88,13 @@ var KnowledgeDocumentIndexStatusValues = []KnowledgeDocumentIndexStatus{
 }
 
 var knowledgeDocumentIndexStatusLabelMap = map[KnowledgeDocumentIndexStatus]string{
-	KnowledgeDocumentIndexStatusPending: "待索引",
-	KnowledgeDocumentIndexStatusIndexed: "已索引",
-	KnowledgeDocumentIndexStatusFailed:  "索引失败",
+	KnowledgeDocumentIndexStatusPending: "enum.KnowledgeDocumentIndexStatusPending",
+	KnowledgeDocumentIndexStatusIndexed: "enum.KnowledgeDocumentIndexStatusIndexed",
+	KnowledgeDocumentIndexStatusFailed:  "enum.KnowledgeDocumentIndexStatusFailed",
 }
 
-func GetKnowledgeDocumentIndexStatusLabel(status KnowledgeDocumentIndexStatus) string {
-	return knowledgeDocumentIndexStatusLabelMap[status]
+func GetKnowledgeDocumentIndexStatusLabel(status KnowledgeDocumentIndexStatus, locale string) string {
+	return enumLabel(locale, knowledgeDocumentIndexStatusLabelMap[status])
 }
 
 func IsValidKnowledgeDocumentIndexStatus(status string) bool {
@@ -144,14 +144,14 @@ const (
 )
 
 var knowledgeChunkTypeLabelMap = map[KnowledgeChunkType]string{
-	KnowledgeChunkTypeText:  "文本",
-	KnowledgeChunkTypeFAQ:   "问答",
-	KnowledgeChunkTypeTable: "表格",
-	KnowledgeChunkTypeCode:  "代码",
+	KnowledgeChunkTypeText:  "enum.KnowledgeChunkTypeText",
+	KnowledgeChunkTypeFAQ:   "enum.KnowledgeChunkTypeFAQ",
+	KnowledgeChunkTypeTable: "enum.KnowledgeChunkTypeTable",
+	KnowledgeChunkTypeCode:  "enum.KnowledgeChunkTypeCode",
 }
 
-func GetKnowledgeChunkTypeLabel(chunkType KnowledgeChunkType) string {
-	return knowledgeChunkTypeLabelMap[chunkType]
+func GetKnowledgeChunkTypeLabel(chunkType KnowledgeChunkType, locale string) string {
+	return enumLabel(locale, knowledgeChunkTypeLabelMap[chunkType])
 }
 
 type KnowledgeChunkProvider string
@@ -164,14 +164,14 @@ const (
 )
 
 var knowledgeChunkProviderLabelMap = map[KnowledgeChunkProvider]string{
-	KnowledgeChunkProviderFixed:      "固定长度",
-	KnowledgeChunkProviderStructured: "结构化分块",
-	KnowledgeChunkProviderFAQ:        "问答式分块",
-	KnowledgeChunkProviderSemantic:   "语义分块",
+	KnowledgeChunkProviderFixed:      "enum.KnowledgeChunkProviderFixed",
+	KnowledgeChunkProviderStructured: "enum.KnowledgeChunkProviderStructured",
+	KnowledgeChunkProviderFAQ:        "enum.KnowledgeChunkProviderFAQ",
+	KnowledgeChunkProviderSemantic:   "enum.KnowledgeChunkProviderSemantic",
 }
 
-func GetKnowledgeChunkProviderLabel(provider KnowledgeChunkProvider) string {
-	return knowledgeChunkProviderLabelMap[provider]
+func GetKnowledgeChunkProviderLabel(provider KnowledgeChunkProvider, locale string) string {
+	return enumLabel(locale, knowledgeChunkProviderLabelMap[provider])
 }
 
 type KnowledgeRetrieveChannel string
@@ -184,14 +184,14 @@ const (
 )
 
 var knowledgeRetrieveChannelLabelMap = map[KnowledgeRetrieveChannel]string{
-	KnowledgeRetrieveChannelIM:          "客服会话",
-	KnowledgeRetrieveChannelAgentAssist: "客服助手",
-	KnowledgeRetrieveChannelAPI:         "API接口",
-	KnowledgeRetrieveChannelDebug:       "调试",
+	KnowledgeRetrieveChannelIM:          "enum.KnowledgeRetrieveChannelIM",
+	KnowledgeRetrieveChannelAgentAssist: "enum.KnowledgeRetrieveChannelAgentAssist",
+	KnowledgeRetrieveChannelAPI:         "enum.KnowledgeRetrieveChannelAPI",
+	KnowledgeRetrieveChannelDebug:       "enum.KnowledgeRetrieveChannelDebug",
 }
 
-func GetKnowledgeRetrieveChannelLabel(channel KnowledgeRetrieveChannel) string {
-	return knowledgeRetrieveChannelLabelMap[channel]
+func GetKnowledgeRetrieveChannelLabel(channel KnowledgeRetrieveChannel, locale string) string {
+	return enumLabel(locale, knowledgeRetrieveChannelLabelMap[channel])
 }
 
 type KnowledgeRetrieveScene string
@@ -205,15 +205,15 @@ const (
 )
 
 var knowledgeRetrieveSceneLabelMap = map[KnowledgeRetrieveScene]string{
-	KnowledgeRetrieveSceneFirstResponse: "首次回复",
-	KnowledgeRetrieveSceneAssist:        "辅助回复",
-	KnowledgeRetrieveSceneRuntime:       "运行时检索",
-	KnowledgeRetrieveSceneDiagnosis:     "诊断检索",
-	KnowledgeRetrieveSceneQA:            "问答",
+	KnowledgeRetrieveSceneFirstResponse: "enum.KnowledgeRetrieveSceneFirstResponse",
+	KnowledgeRetrieveSceneAssist:        "enum.KnowledgeRetrieveSceneAssist",
+	KnowledgeRetrieveSceneRuntime:       "enum.KnowledgeRetrieveSceneRuntime",
+	KnowledgeRetrieveSceneDiagnosis:     "enum.KnowledgeRetrieveSceneDiagnosis",
+	KnowledgeRetrieveSceneQA:            "enum.KnowledgeRetrieveSceneQA",
 }
 
-func GetKnowledgeRetrieveSceneLabel(scene KnowledgeRetrieveScene) string {
-	return knowledgeRetrieveSceneLabelMap[scene]
+func GetKnowledgeRetrieveSceneLabel(scene KnowledgeRetrieveScene, locale string) string {
+	return enumLabel(locale, knowledgeRetrieveSceneLabelMap[scene])
 }
 
 type KnowledgeAnswerStatus int
@@ -226,14 +226,14 @@ const (
 )
 
 var knowledgeAnswerStatusLabelMap = map[KnowledgeAnswerStatus]string{
-	KnowledgeAnswerStatusNormal:   "正常",
-	KnowledgeAnswerStatusNoAnswer: "无答案",
-	KnowledgeAnswerStatusFallback: "兜底回复",
-	KnowledgeAnswerStatusBlocked:  "已屏蔽",
+	KnowledgeAnswerStatusNormal:   "enum.KnowledgeAnswerStatusNormal",
+	KnowledgeAnswerStatusNoAnswer: "enum.KnowledgeAnswerStatusNoAnswer",
+	KnowledgeAnswerStatusFallback: "enum.KnowledgeAnswerStatusFallback",
+	KnowledgeAnswerStatusBlocked:  "enum.KnowledgeAnswerStatusBlocked",
 }
 
-func GetKnowledgeAnswerStatusLabel(status KnowledgeAnswerStatus) string {
-	return knowledgeAnswerStatusLabelMap[status]
+func GetKnowledgeAnswerStatusLabel(status KnowledgeAnswerStatus, locale string) string {
+	return enumLabel(locale, knowledgeAnswerStatusLabelMap[status])
 }
 
 type KnowledgeFeedbackType int
@@ -247,15 +247,15 @@ const (
 )
 
 var knowledgeFeedbackTypeLabelMap = map[KnowledgeFeedbackType]string{
-	KnowledgeFeedbackTypeLike:          "点赞",
-	KnowledgeFeedbackTypeDislike:       "点踩",
-	KnowledgeFeedbackTypeNotHelpful:    "无帮助",
-	KnowledgeFeedbackTypeWrongCitation: "引用错误",
-	KnowledgeFeedbackTypeOther:         "其他",
+	KnowledgeFeedbackTypeLike:          "enum.KnowledgeFeedbackTypeLike",
+	KnowledgeFeedbackTypeDislike:       "enum.KnowledgeFeedbackTypeDislike",
+	KnowledgeFeedbackTypeNotHelpful:    "enum.KnowledgeFeedbackTypeNotHelpful",
+	KnowledgeFeedbackTypeWrongCitation: "enum.KnowledgeFeedbackTypeWrongCitation",
+	KnowledgeFeedbackTypeOther:         "enum.KnowledgeFeedbackTypeOther",
 }
 
-func GetKnowledgeFeedbackTypeLabel(feedbackType KnowledgeFeedbackType) string {
-	return knowledgeFeedbackTypeLabelMap[feedbackType]
+func GetKnowledgeFeedbackTypeLabel(feedbackType KnowledgeFeedbackType, locale string) string {
+	return enumLabel(locale, knowledgeFeedbackTypeLabelMap[feedbackType])
 }
 
 type KnowledgeAnswerMode int
@@ -266,10 +266,10 @@ const (
 )
 
 var knowledgeAnswerModeLabelMap = map[KnowledgeAnswerMode]string{
-	KnowledgeAnswerModeStrict: "严格模式",
-	KnowledgeAnswerModeAssist: "辅助模式",
+	KnowledgeAnswerModeStrict: "enum.KnowledgeAnswerModeStrict",
+	KnowledgeAnswerModeAssist: "enum.KnowledgeAnswerModeAssist",
 }
 
-func GetKnowledgeAnswerModeLabel(mode KnowledgeAnswerMode) string {
-	return knowledgeAnswerModeLabelMap[mode]
+func GetKnowledgeAnswerModeLabel(mode KnowledgeAnswerMode, locale string) string {
+	return enumLabel(locale, knowledgeAnswerModeLabelMap[mode])
 }

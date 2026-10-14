@@ -23,7 +23,7 @@ type TicketCaseCommandResult struct {
 func GetTicketCaseCommandResult(tenantID, ticketID int64, operationKey string) (*TicketCaseCommandResult, error) {
 	operationKey = strings.TrimSpace(operationKey)
 	if tenantID <= 0 || ticketID <= 0 || operationKey == "" {
-		return nil, errorsx.InvalidParam("工单操作回执参数无效")
+		return nil, errorsx.InvalidParamI18n("error.z0134")
 	}
 	var operation models.TicketCaseOperation
 	if err := sqls.DB().Where("tenant_id = ? AND ticket_id = ? AND operation_key = ?", tenantID, ticketID, operationKey).First(&operation).Error; err != nil {

@@ -492,7 +492,7 @@ func (s *messageService) createAIWelcomeMessage(ctx *sqls.TxContext, conversatio
 		enums.IMEventTypeMessageSend,
 		enums.IMSenderTypeAI,
 		0,
-		enums.GetIMSenderTypeLabel(enums.IMSenderTypeAI)+"发送消息",
+		i18nx.NewText("conversationEvent.messageSent", i18nx.Params{"sender": enums.GetIMSenderTypeLabel(enums.IMSenderTypeAI, i18nx.LocaleZhCN)}).Render(i18nx.LocaleZhCN),
 		"",
 	); err != nil {
 		return nil, err
@@ -699,7 +699,7 @@ func (s *messageService) sendValidatedMessage(conversation *models.Conversation,
 				}
 				return 0
 			}(),
-			enums.GetIMSenderTypeLabel(senderType)+"发送消息",
+			i18nx.NewText("conversationEvent.messageSent", i18nx.Params{"sender": enums.GetIMSenderTypeLabel(senderType, i18nx.LocaleZhCN)}).Render(i18nx.LocaleZhCN),
 			"",
 		); err != nil {
 			return err

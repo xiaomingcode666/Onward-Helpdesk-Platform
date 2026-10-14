@@ -73,23 +73,23 @@ func caseOwnerPermissionsDB(db *gorm.DB, tenantID, memberID, userID int64) ([]st
 // the ticket. The user lock serializes ownership changes with account disabling.
 func ValidateCaseOwnerDB(tx *gorm.DB, tenantID, ownerID int64) error {
 	if tx == nil || tenantID <= 0 || ownerID <= 0 {
-		return errorsx.InvalidParam("请选择负责处理这张工单的工程师")
+		return errorsx.InvalidParamI18n("error.z0124")
 	}
 	var user models.User
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", ownerID).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errorsx.InvalidParam("处理人账号不存在或已删除")
+			return errorsx.InvalidParamI18n("error.z0125")
 		}
 		return err
 	}
 	if user.Status != enums.StatusOk {
-		return errorsx.InvalidParam("处理人账号已停用，请选择其他工程师")
+		return errorsx.InvalidParamI18n("error.z0126")
 	}
 	var member models.TenantMember
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("tenant_id = ? AND user_id = ? AND status = ?", tenantID, ownerID, enums.StatusOk).First(&member).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errorsx.InvalidParam("处理人必须是本公司启用中的成员，不能选择客户或外部账号")
+			return errorsx.InvalidParamI18n("error.z0127")
 		}
 		return err
 	}
@@ -98,7 +98,7 @@ func ValidateCaseOwnerDB(tx *gorm.DB, tenantID, ownerID int64) error {
 		return err
 	}
 	if !hasCaseOwnerPermissions(permissions) {
-		return errorsx.InvalidParam("处理人需要有工单处理权限，不能选择只读成员")
+		return errorsx.InvalidParamI18n("error.z0128")
 	}
 	return nil
 }
@@ -107,7 +107,7 @@ func ValidateCaseOwnerDB(tx *gorm.DB, tenantID, ownerID int64) error {
 // historical owner. Read-only access never calls this guard.
 func RequireTicketCaseOwnerDB(tx *gorm.DB, ticket *models.Ticket) error {
 	if ticket == nil || ticket.CaseOwnerID <= 0 {
-		return errorsx.InvalidParam("这张工单尚未由工程师接单，请先接单再继续处理")
+		return errorsx.InvalidParamI18n("error.z0129")
 	}
 	return ValidateCaseOwnerDB(tx, ticket.TenantID, ticket.CaseOwnerID)
 }
@@ -117,7 +117,7 @@ func RequireTicketCaseOwnerDB(tx *gorm.DB, ticket *models.Ticket) error {
 // an inverse lock order while still preventing disable/accept races.
 func requireNoActiveCaseOwnershipDB(tx *gorm.DB, userID int64) error {
 	if tx == nil || userID <= 0 {
-		return errorsx.InvalidParam("账号不存在")
+		return errorsx.InvalidParamI18n("error.z0130")
 	}
 	var user models.User
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userID).First(&user).Error; err != nil {
@@ -132,7 +132,7 @@ func requireNoActiveCaseOwnershipDB(tx *gorm.DB, userID int64) error {
 		return err
 	}
 	if count > 0 {
-		return errorsx.InvalidParam("该账号还有工单需要跟进，请先转派给其他工程师，再停用或删除账号")
+		return errorsx.InvalidParamI18n("error.z0131")
 	}
 	return nil
 }
@@ -149,7 +149,7 @@ func validateOwnedCasesAfterPermissionChangeDB(tx *gorm.DB, tenantID, userID int
 		return nil
 	}
 	if err := ValidateCaseOwnerDB(tx, tenantID, userID); err != nil {
-		return errorsx.InvalidParam("该成员仍有工单需要跟进，请先转派给其他工程师，再撤销工单处理权限")
+		return errorsx.InvalidParamI18n("error.z0132")
 	}
 	return nil
 }
@@ -178,7 +178,7 @@ func lockCaseOwnerIAMChangesDB(tx *gorm.DB) error {
 		return err
 	}
 	if !acquired {
-		return errorsx.InvalidParam("公司成员或角色权限正在更新，请稍后重试")
+		return errorsx.InvalidParamI18n("error.z0133")
 	}
 	return nil
 }

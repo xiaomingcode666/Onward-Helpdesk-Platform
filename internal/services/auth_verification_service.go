@@ -38,7 +38,7 @@ func (s *authVerificationService) Send(req request.AuthVerificationCodeRequest) 
 		return err
 	}
 	if !smtpRuntimeConfigured(config.CurrentOrDefault().Email) {
-		return errorsx.InvalidParam("平台 SMTP 未配置，请先在平台侧配置 SMTP Server")
+		return errorsx.InvalidParamI18n("error.z0072")
 	}
 	code, err := generateNumericVerificationCode(6)
 	if err != nil {

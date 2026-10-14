@@ -85,13 +85,13 @@ func (s *conversationHumanDispatchService) TryOffHoursHandoffByAIWithRequestID(c
 		return false, errorsx.InvalidParamI18n("error.e0116")
 	}
 	if isRestrictedTenantDefaultGeneralConversation(conversation, &aiAgent) {
-		return false, errorsx.Forbidden("通用咨询仅支持 AI 自助，不支持转人工或创建工单")
+		return false, errorsx.ForbiddenI18n("error.z0073")
 	}
 	if err := requireTenantOwnedConversationForHumanDispatch(conversation); err != nil {
 		return false, err
 	}
 	if !AIWorkflowService.AgentAllowsHumanHandoff(&aiAgent) {
-		return false, errorsx.Forbidden("当前产品仅提供 AI 客服，不支持转人工")
+		return false, errorsx.ForbiddenI18n("error.z0074")
 	}
 	tenantID, productID, scopeOK := resolveConversationDispatchScope(conversation, &aiAgent)
 	teamIDs := orderedPositiveIDs(aiAgent.TeamIDs)
@@ -133,13 +133,13 @@ func (s *conversationHumanDispatchService) HandoffByAIWithRequestIDForLocale(con
 		return nil, errorsx.InvalidParamI18n("error.e0116")
 	}
 	if isRestrictedTenantDefaultGeneralConversation(conversation, &aiAgent) {
-		return nil, errorsx.Forbidden("通用咨询仅支持 AI 自助，不支持转人工或创建工单")
+		return nil, errorsx.ForbiddenI18n("error.z0073")
 	}
 	if err := requireTenantOwnedConversationForHumanDispatch(conversation); err != nil {
 		return nil, err
 	}
 	if !AIWorkflowService.AgentAllowsHumanHandoff(&aiAgent) {
-		return nil, errorsx.Forbidden("当前产品仅提供 AI 客服，不支持转人工")
+		return nil, errorsx.ForbiddenI18n("error.z0074")
 	}
 	if conversation.Status == enums.IMConversationStatusClosed {
 		return nil, errorsx.InvalidParam("conversation is closed")
@@ -269,7 +269,7 @@ func (s *conversationHumanDispatchService) claimHandoffWithTicket(conversation *
 		return nil, false, false, errorsx.InvalidParamI18n("error.e0116")
 	}
 	if isRestrictedTenantDefaultGeneralConversation(conversation, &aiAgent) {
-		return nil, false, false, errorsx.Forbidden("通用咨询仅支持 AI 自助，不支持转人工或创建工单")
+		return nil, false, false, errorsx.ForbiddenI18n("error.z0073")
 	}
 	if conversation.TenantID <= 0 {
 		return nil, false, false, errorsx.InvalidParam("conversation must belong to a tenant before human handoff")
@@ -311,7 +311,7 @@ func (s *conversationHumanDispatchService) claimHandoffWithTicketTx(ctx *sqls.Tx
 		return nil, false, false, err
 	}
 	if isRestrictedTenantDefaultGeneralConversation(current, &aiAgent) {
-		return nil, false, false, errorsx.Forbidden("通用咨询仅支持 AI 自助，不支持转人工或创建工单")
+		return nil, false, false, errorsx.ForbiddenI18n("error.z0073")
 	}
 	if current.Status == enums.IMConversationStatusClosed {
 		return nil, false, false, errorsx.InvalidParam("conversation is closed")
@@ -379,7 +379,7 @@ func (s *conversationHumanDispatchService) ensureHandoffTicket(conversation *mod
 		return nil, false, errorsx.InvalidParam("conversation must belong to a tenant before human handoff")
 	}
 	if isRestrictedTenantDefaultGeneralConversation(conversation, &aiAgent) {
-		return nil, false, errorsx.Forbidden("通用咨询仅支持 AI 自助，不支持转人工或创建工单")
+		return nil, false, errorsx.ForbiddenI18n("error.z0073")
 	}
 	if existing := repositories.TicketRepository.FindOne(sqls.DB(), sqls.NewCnd().
 		Eq("tenant_id", conversation.TenantID).
@@ -599,7 +599,7 @@ func (s *conversationHumanDispatchService) RequestByCustomerForLocale(conversati
 		return errorsx.InvalidParamI18n("error.e0002")
 	}
 	if isRestrictedTenantDefaultGeneralConversation(conversation, aiAgent) {
-		return errorsx.Forbidden("通用咨询仅支持 AI 自助，不支持转人工或创建工单")
+		return errorsx.ForbiddenI18n("error.z0073")
 	}
 	if err := requireTenantOwnedConversationForHumanDispatch(conversation); err != nil {
 		return err
@@ -611,7 +611,7 @@ func (s *conversationHumanDispatchService) RequestByCustomerForLocale(conversati
 		return errorsx.InvalidParam("conversation is closed")
 	}
 	if !AIWorkflowService.AgentAllowsHumanHandoff(aiAgent) {
-		return errorsx.Forbidden("当前产品仅提供 AI 客服，不支持转人工")
+		return errorsx.ForbiddenI18n("error.z0074")
 	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" {

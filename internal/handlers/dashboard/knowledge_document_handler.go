@@ -7,6 +7,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto/response"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/httpx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 
 	"remotehelpdesk/internal/pkg/httpx/params"
@@ -49,7 +50,7 @@ func KnowledgeDocumentAnyList(ctx *gin.Context) {
 	directoryPaths := services.KnowledgeDirectoryService.PathMap(knowledgeBaseID)
 	results := make([]response.KnowledgeDocumentListResponse, 0, len(list))
 	for _, item := range list {
-		resp := builders.BuildKnowledgeDocumentList(&item)
+		resp := builders.BuildKnowledgeDocumentList(&item, i18nx.Locale(ctx))
 		fillKnowledgeDocumentDirectory(&resp, directoryPaths)
 		results = append(results, resp)
 	}
@@ -72,7 +73,7 @@ func KnowledgeDocumentGetBy(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0218"))
 		return
 	}
-	resp := builders.BuildKnowledgeDocument(item)
+	resp := builders.BuildKnowledgeDocument(item, i18nx.Locale(ctx))
 	fillKnowledgeDocumentDirectory(&resp, services.KnowledgeDirectoryService.PathMap(item.KnowledgeBaseID))
 	httpx.WriteJSON(ctx, resp)
 }
@@ -105,7 +106,7 @@ func KnowledgeDocumentPostCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildKnowledgeDocument(item))
+	httpx.WriteJSON(ctx, builders.BuildKnowledgeDocument(item, i18nx.Locale(ctx)))
 }
 
 func KnowledgeDocumentPostUpdate(ctx *gin.Context) {

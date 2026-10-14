@@ -269,7 +269,7 @@ func (s *productAIAgentService) ensureProductAgentInitialReleaseDB(agentID int64
 			NotEq("status", enums.StatusDeleted).
 			Desc("release_no"))
 		now := time.Now()
-		reviewComment := "产品创建时自动部署默认售后接待机器人"
+		reviewComment := canonicalText(ProductAgentAutoDeployReviewText)
 		if len(existing) > 0 {
 			return s.activateProductManagedReleaseDB(ctx.Tx, agent, &existing[0], now, reviewComment, operator)
 		}

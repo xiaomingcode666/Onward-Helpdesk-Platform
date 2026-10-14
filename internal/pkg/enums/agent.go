@@ -13,8 +13,8 @@ var ServiceStatusValues = []ServiceStatus{
 }
 
 var serviceStatusLabelMap = map[ServiceStatus]string{
-	ServiceStatusIdle: "空闲",
-	ServiceStatusBusy: "忙碌",
+	ServiceStatusIdle: "enum.ServiceStatusIdle",
+	ServiceStatusBusy: "enum.ServiceStatusBusy",
 }
 
 func IsValidServiceStatus(status ServiceStatus) bool {
@@ -26,6 +26,6 @@ func IsValidServiceStatus(status ServiceStatus) bool {
 	return false
 }
 
-func GetServiceStatusLabel(status ServiceStatus) string {
-	return serviceStatusLabelMap[status]
+func GetServiceStatusLabel(status ServiceStatus, locale string) string {
+	return enumLabel(locale, serviceStatusLabelMap[status])
 }

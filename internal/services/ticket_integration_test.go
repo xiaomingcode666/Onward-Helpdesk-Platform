@@ -201,7 +201,8 @@ func TestTicketLifecycle(t *testing.T) {
 	// 验证时间线记录（progress）
 	progressList := services.TicketProgressService.Find(sqls.NewCnd().Eq("ticket_id", created.ID))
 	assert.Len(t, progressList, 1, "创建工单应产生一条progress记录")
-	assert.Equal(t, "Created ticket", progressList[0].Content)
+	assert.Equal(t, "ticketProgress.created", progressList[0].ContentText.Key)
+	assert.Equal(t, "Ticket created", progressList[0].DisplayContent("en-US"))
 
 	// 2. 受理工单（走 lifecycle，写时间线）
 	require.NoError(t, services.TicketLifecycleService.Accept(created.ID, 0, f.Operator))

@@ -37,3 +37,42 @@ func (m *AgentTeam) DisplayDescription(locale string) string {
 func (m *Department) DisplayName(locale string) string {
 	return displayText(m.NameText, m.Name, locale)
 }
+
+func (m *TicketProgress) DisplayContent(locale string) string {
+	return displayText(m.ContentText, m.Content, locale)
+}
+
+func (m *Ticket) DisplaySupportReason(locale string) string {
+	return displayText(m.SupportReasonText, m.SupportReason, locale)
+}
+
+func (m *TicketGovernance) DisplayPriorityExplanation(locale string) string {
+	return displayText(m.PriorityExplanationText, m.PriorityExplanation, locale)
+}
+
+// builtinWorkflowText 平台内置流程按编码提供多语言名称和描述；内容被修改后按存储值显示。
+func (m *AIWorkflow) builtinWorkflowText(field, stored string) (i18nx.Text, bool) {
+	if m.Scope != AIWorkflowScopePlatform || m.Code == "" {
+		return i18nx.Text{}, false
+	}
+	key := "builtin.aiWorkflow." + m.Code + "." + field
+	if !i18nx.HasKey(key) {
+		return i18nx.Text{}, false
+	}
+	text := i18nx.NewText(key, nil)
+	return text, text.MatchesAnyLocale(stored)
+}
+
+func (m *AIWorkflow) DisplayName(locale string) string {
+	if text, ok := m.builtinWorkflowText("name", m.Name); ok {
+		return text.Render(locale)
+	}
+	return m.Name
+}
+
+func (m *AIWorkflow) DisplayDescription(locale string) string {
+	if text, ok := m.builtinWorkflowText("description", m.Description); ok {
+		return text.Render(locale)
+	}
+	return m.Description
+}

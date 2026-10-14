@@ -2,6 +2,7 @@ package builders
 
 import (
 	"encoding/json"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"testing"
 	"time"
 
@@ -46,10 +47,10 @@ func TestBuildAIWorkflowDerivesHumanHandoffCapabilityFromDefinition(t *testing.T
 		t.Fatalf("marshal AI-only definition: %v", err)
 	}
 
-	if response := BuildAIWorkflow(&models.AIWorkflow{DraftDefinition: string(withHandoff)}); !response.HumanHandoffEnabled {
+	if response := BuildAIWorkflow(&models.AIWorkflow{DraftDefinition: string(withHandoff)}, i18nx.LocaleEnUS); !response.HumanHandoffEnabled {
 		t.Fatal("expected handoff capability from handoff_to_human node")
 	}
-	if response := BuildAIWorkflow(&models.AIWorkflow{DraftDefinition: string(withoutHandoff)}); response.HumanHandoffEnabled {
+	if response := BuildAIWorkflow(&models.AIWorkflow{DraftDefinition: string(withoutHandoff)}, i18nx.LocaleEnUS); response.HumanHandoffEnabled {
 		t.Fatal("expected AI-only capability without handoff_to_human node")
 	}
 }

@@ -13,15 +13,15 @@ const (
 )
 
 var externalSourceLabelMap = map[ExternalSource]string{
-	ExternalSourceGuest:    "历史外部身份",
-	ExternalSourceWxWorkKF: "企业微信客服",
-	ExternalSourceWhatsApp: "WhatsApp",
-	ExternalSourceUser:     "用户",
+	ExternalSourceGuest:    "enum.ExternalSourceGuest",
+	ExternalSourceWxWorkKF: "enum.ExternalSourceWxWorkKF",
+	ExternalSourceWhatsApp: "enum.ExternalSourceWhatsApp",
+	ExternalSourceUser:     "enum.ExternalSourceUser",
 }
 
-func GetExternalSourceLabel(v ExternalSource) string {
+func GetExternalSourceLabel(v ExternalSource, locale string) string {
 	if s, ok := externalSourceLabelMap[v]; ok {
-		return s
+		return enumLabel(locale, s)
 	}
 	return string(v)
 }

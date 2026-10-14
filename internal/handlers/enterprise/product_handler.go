@@ -1107,7 +1107,7 @@ func ProductRepairHistory(ctx *gin.Context) {
 func productResourceQuery(ctx *gin.Context) services.ProductResourceQuery {
 	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(ctx.DefaultQuery("page_size", ctx.DefaultQuery("limit", "20")))
-	return services.ProductResourceQuery{Page: page, PageSize: pageSize, Search: ctx.Query("search")}
+	return services.ProductResourceQuery{Page: page, PageSize: pageSize, Search: ctx.Query("search"), Locale: i18nx.Locale(ctx)}
 }
 
 func productKnowledgePreviewLimit(ctx *gin.Context) int {

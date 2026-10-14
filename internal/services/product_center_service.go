@@ -396,6 +396,8 @@ type ProductResourceQuery struct {
 	Page     int
 	PageSize int
 	Search   string
+	// Locale 为请求语言，用于渲染状态等系统名称。
+	Locale string
 }
 
 func normalizeProductResourceQuery(query ProductResourceQuery) ProductResourceQuery {
@@ -574,8 +576,8 @@ func (s *productCenterService) ListProductConversations(tenantID, productID int6
 			ID:            item.ID,
 			Channel:       channelName,
 			CustomerName:  item.CustomerName,
-			Status:        enums.GetIMConversationStatusLabel(item.Status),
-			ServiceMode:   enums.GetIMConversationServiceModeLabel(item.ServiceMode),
+			Status:        enums.GetIMConversationStatusLabel(item.Status, query.Locale),
+			ServiceMode:   enums.GetIMConversationServiceModeLabel(item.ServiceMode, query.Locale),
 			Summary:       item.LastMessageSummary,
 			LastMessageAt: formatEnterpriseTime(item.LastMessageAt),
 			HandoffReason: item.HandoffReason,

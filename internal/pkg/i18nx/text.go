@@ -189,3 +189,58 @@ func (t Text) MatchesAnyLocale(value string) bool {
 	}
 	return false
 }
+
+// RenderValue 按指定语言渲染单个参数值：Text 渲染为当前语言，其他值转为字符串。
+func RenderValue(value any, locale string) string {
+	return renderParam(value, NormalizeLocale(locale), lookup)
+}
+
+// UnmarshalJSON 解码参数，并把 {"key": ..., "params": ...} 形式的值还原为嵌套 Text。
+func (p *Params) UnmarshalJSON(data []byte) error {
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if len(raw) == 0 {
+		*p = nil
+		return nil
+	}
+	decoded := make(Params, len(raw))
+	for name, value := range raw {
+		decoded[name] = decodeNestedText(value)
+	}
+	*p = decoded
+	return nil
+}
+
+// Value 将参数以 JSON 字符串写入数据库；空参数写入空字符串。
+func (p Params) Value() (driver.Value, error) {
+	if len(p) == 0 {
+		return "", nil
+	}
+	data, err := json.Marshal(map[string]any(p))
+	if err != nil {
+		return nil, err
+	}
+	return string(data), nil
+}
+
+func (p *Params) Scan(src any) error {
+	var data []byte
+	switch typed := src.(type) {
+	case nil:
+		*p = nil
+		return nil
+	case string:
+		data = []byte(typed)
+	case []byte:
+		data = typed
+	default:
+		return fmt.Errorf("i18nx.Params: unsupported scan type %T", src)
+	}
+	if len(strings.TrimSpace(string(data))) == 0 {
+		*p = nil
+		return nil
+	}
+	return json.Unmarshal(data, p)
+}

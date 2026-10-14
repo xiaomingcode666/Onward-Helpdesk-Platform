@@ -46,20 +46,20 @@ var TicketStatusValues = []TicketStatus{
 }
 
 var ticketStatusLabelMap = map[TicketStatus]string{
-	TicketStatusPending:         "待处理",
-	TicketStatusAccepted:        "已受理",
-	TicketStatusAssigned:        "已分配",
-	TicketStatusInProgress:      "处理中",
-	TicketStatusEscalated:       "已升级",
-	TicketStatusWaitingCustomer: "等待客户",
-	TicketStatusResolved:        "已解决",
-	TicketStatusClosed:          "已关闭",
-	TicketStatusReopened:        "已重新打开",
-	TicketStatusDone:            "已完成",
+	TicketStatusPending:         "enum.TicketStatusPending",
+	TicketStatusAccepted:        "enum.TicketStatusAccepted",
+	TicketStatusAssigned:        "enum.TicketStatusAssigned",
+	TicketStatusInProgress:      "enum.TicketStatusInProgress",
+	TicketStatusEscalated:       "enum.TicketStatusEscalated",
+	TicketStatusWaitingCustomer: "enum.TicketStatusWaitingCustomer",
+	TicketStatusResolved:        "enum.TicketStatusResolved",
+	TicketStatusClosed:          "enum.TicketStatusClosed",
+	TicketStatusReopened:        "enum.TicketStatusReopened",
+	TicketStatusDone:            "enum.TicketStatusDone",
 }
 
-func GetTicketStatusLabel(status TicketStatus) string {
-	return ticketStatusLabelMap[status]
+func GetTicketStatusLabel(status TicketStatus, locale string) string {
+	return enumLabel(locale, ticketStatusLabelMap[status])
 }
 
 func IsValidTicketStatus(status string) bool {

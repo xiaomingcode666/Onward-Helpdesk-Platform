@@ -78,7 +78,7 @@ func (s *dataRetentionService) ArchiveOldData(ctx context.Context, tableName, te
 		}
 		if r != nil {
 			if r.Retention.LegalHold || !r.Retention.AutoDelete || r.Retention.ArchiveAfterDays == 0 {
-				return errorsx.InvalidParam("当前配置禁止归档移动")
+				return errorsx.InvalidParamI18n("error.z0076")
 			}
 			cutoff := time.Now().AddDate(0, 0, -r.Retention.ArchiveAfterDays)
 			if beforeDate.After(cutoff) {

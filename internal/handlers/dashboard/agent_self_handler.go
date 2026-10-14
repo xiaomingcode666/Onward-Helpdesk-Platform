@@ -26,7 +26,7 @@ func AgentSelfGetBriefing(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildEngineerBriefingResponse(result))
+	httpx.WriteJSON(ctx, builders.BuildEngineerBriefingResponse(result, i18nx.Locale(ctx)))
 }
 
 func AgentSelfGetWorkSchedule(ctx *gin.Context) {

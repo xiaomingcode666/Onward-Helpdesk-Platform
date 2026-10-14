@@ -107,7 +107,7 @@ func (s *knowledgeDebugService) DebugAnswer(ctx context.Context, req request.Kno
 		Question:         strings.TrimSpace(req.Question),
 		Answer:           answer,
 		AnswerStatus:     int(status),
-		AnswerStatusName: enums.GetKnowledgeAnswerStatusLabel(status),
+		AnswerStatusName: enums.GetKnowledgeAnswerStatusLabel(status, operatorLocale(operator)),
 		Citations:        buildKnowledgeCitationResponses(result.Citations),
 		Hits:             hits,
 		HitCount:         len(hits),

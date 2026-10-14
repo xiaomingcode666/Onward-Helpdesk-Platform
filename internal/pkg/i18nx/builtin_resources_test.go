@@ -6,7 +6,13 @@ import (
 	"testing"
 )
 
-// 内置数据名称直接展示给用户，每种语言都必须提供，且占位符一致。
+// localizedTextPrefixes 是以 Text 存储、展示时按语言渲染的系统文本；每种语言都必须提供，且占位符一致。
+var localizedTextPrefixes = []string{
+	"builtin.", "workbench.", "ticketProgress.", "caseProgress.", "caseStatus.", "ticketStatus.", "dispatchFailure.",
+	"supportReadiness.", "ticketPriority.", "customerProgress.", "duration.", "messageSummary.", "notificationText.", "text.lines.", "enum.", "aiAgent.workflowState.", "conversationEvent.", "aiAgentRelease.",
+}
+
+// 内置数据名称和系统文本直接展示给用户，每种语言都必须提供，且占位符一致。
 func TestBuiltinResourcesExistInEveryLocale(t *testing.T) {
 	loadMessages()
 	reference := builtinKeys(messages[LocaleZhCN])
@@ -29,8 +35,11 @@ func TestBuiltinResourcesExistInEveryLocale(t *testing.T) {
 func builtinKeys(values map[string]string) []string {
 	keys := make([]string, 0)
 	for key := range values {
-		if strings.HasPrefix(key, "builtin.") {
-			keys = append(keys, key)
+		for _, prefix := range localizedTextPrefixes {
+			if strings.HasPrefix(key, prefix) {
+				keys = append(keys, key)
+				break
+			}
 		}
 	}
 	sort.Strings(keys)

@@ -39,7 +39,7 @@ func requireRetentionApprover(op *dto.AuthPrincipal) error {
 	if op != nil && (op.HasRole(EnterpriseRoleOwner) || op.HasPermission(constants.PermissionDataRetentionApprove.Code)) {
 		return nil
 	}
-	return errorsx.Forbidden("只有租户所有者可以批准数据保留策略")
+	return errorsx.ForbiddenI18n("error.z0110")
 }
 
 func explicitRetentionError(doc projectconfig.Document) error {
@@ -110,11 +110,11 @@ func SubmitRetentionApproval(tenantID, versionID int64, op *dto.AuthPrincipal) (
 			return err
 		}
 		if state.ActiveVersionID == versionID {
-			return errorsx.InvalidParam("已经生效的 Production 配置不能补提交审批")
+			return errorsx.InvalidParamI18n("error.z0111")
 		}
 		var activation models.ProjectConfigurationActivation
 		if err := db.Where("tenant_id = ? AND version_id = ?", tenantID, versionID).First(&activation).Error; err == nil {
-			return errorsx.InvalidParam("已经应用过的配置版本不能提交 Production 审批")
+			return errorsx.InvalidParamI18n("error.z0112")
 		} else if err != gorm.ErrRecordNotFound {
 			return err
 		}
@@ -163,17 +163,17 @@ func ReviewRetentionApproval(tenantID, approvalID int64, approved bool, comment 
 			return err
 		}
 		if row.Status != RetentionApprovalPending {
-			return errorsx.InvalidParam("该审批不是待审批状态")
+			return errorsx.InvalidParamI18n("error.z0113")
 		}
 		if row.SubmittedBy == op.UserID {
-			return errorsx.InvalidParam("配置提交人不能批准自己的 Retention Policy")
+			return errorsx.InvalidParamI18n("error.z0114")
 		}
 		var v models.ProjectConfigurationVersion
 		if err := db.Where("id = ? AND tenant_id = ?", row.VersionID, tenantID).First(&v).Error; err != nil {
 			return err
 		}
 		if v.Digest != row.PolicyDigest {
-			return errorsx.InvalidParam("配置版本已变化，请重新提交审批")
+			return errorsx.InvalidParamI18n("error.z0115")
 		}
 		if _, err := validateRetentionVersion(v); err != nil {
 			return errorsx.InvalidParam(err.Error())
@@ -225,10 +225,10 @@ func RequireApprovedRetentionPolicies(db *gorm.DB, v models.ProjectConfiguration
 func decodeRetentionApprovalBody(data []byte) (retentionApprovalRequest, error) {
 	var req retentionApprovalRequest
 	if len(data) > 4096 {
-		return req, errorsx.InvalidParam("审批意见过长")
+		return req, errorsx.InvalidParamI18n("error.z0116")
 	}
 	if err := json.Unmarshal(data, &req); err != nil {
-		return req, errorsx.InvalidParam("审批请求格式不正确")
+		return req, errorsx.InvalidParamI18n("error.z0117")
 	}
 	return req, nil
 }

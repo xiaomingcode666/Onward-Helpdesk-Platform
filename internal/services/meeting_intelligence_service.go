@@ -201,7 +201,7 @@ func (s *meetingIntelligenceService) DetectFrameForOperator(ctx context.Context,
 
 	detectionProvider := providers.CurrentMeetingARDetectionProvider()
 	if detectionProvider == nil || !detectionProvider.Configured() {
-		return nil, errorsx.BusinessError(100, "AR 识别服务尚未配置")
+		return nil, errorsx.BusinessErrorI18n(100, "error.z0095")
 	}
 	reader, err := AssetService.OpenReader(asset)
 	if err != nil {
@@ -216,14 +216,14 @@ func (s *meetingIntelligenceService) DetectFrameForOperator(ctx context.Context,
 		FrameAssetID: frameAssetID, Filename: asset.Filename, ContentType: asset.MimeType, Image: reader,
 	})
 	if err != nil {
-		return nil, errorsx.BusinessError(100, "AR 识别服务当前不可用")
+		return nil, errorsx.BusinessErrorI18n(100, "error.z0096")
 	}
 	if len(detections) == 0 {
 		return []models.MeetingARAnnotation{}, nil
 	}
 	providerName := limitRunes(strings.TrimSpace(detectionProvider.Name()), 32)
 	if providerName == "" || providerName == "disabled" {
-		return nil, errorsx.BusinessError(100, "AR 识别服务尚未配置")
+		return nil, errorsx.BusinessErrorI18n(100, "error.z0095")
 	}
 	var items []models.MeetingARAnnotation
 	err = sqls.DB().Transaction(func(tx *gorm.DB) error {
@@ -253,14 +253,14 @@ func (s *meetingIntelligenceService) DetectFrameForOperator(ctx context.Context,
 			}
 			label := limitRunes(strings.TrimSpace(detection.Label), 128)
 			if label == "" || detection.Confidence < 0 || detection.Confidence > 1 {
-				return errorsx.BusinessError(100, "AR 识别服务返回了无效结果")
+				return errorsx.BusinessErrorI18n(100, "error.z0097")
 			}
 			metadataJSON := strings.TrimSpace(detection.MetadataJSON)
 			if metadataJSON == "" {
 				metadataJSON = "{}"
 			}
 			if !json.Valid([]byte(metadataJSON)) {
-				return errorsx.BusinessError(100, "AR 识别服务返回了无效元数据")
+				return errorsx.BusinessErrorI18n(100, "error.z0098")
 			}
 			color := strings.TrimSpace(detection.Color)
 			if color == "" {

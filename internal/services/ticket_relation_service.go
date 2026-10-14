@@ -62,7 +62,7 @@ func mutateTicketRelationDB(db *gorm.DB, t *models.Ticket, cmd TicketGovernanceC
 			source, target, kind = target, source, "parent"
 		}
 		if kind != "parent" || source <= 0 || target <= 0 || source == target {
-			return errorsx.InvalidParam("请选择其他工单，并选择父工单或子工单关系")
+			return errorsx.InvalidParamI18n("error.z0163")
 		}
 	}
 	otherID := target
@@ -71,29 +71,29 @@ func mutateTicketRelationDB(db *gorm.DB, t *models.Ticket, cmd TicketGovernanceC
 	}
 	var other models.Ticket
 	if err := db.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND tenant_id = ?", otherID, t.TenantID).First(&other).Error; err != nil {
-		return errorsx.InvalidParam("关联工单不可用")
+		return errorsx.InvalidParamI18n("error.z0164")
 	}
 	if !canManageTicketGovernance(&other, op) {
-		return errorsx.Forbidden("需要对关联双方的工单具有管理权限")
+		return errorsx.ForbiddenI18n("error.z0165")
 	}
 	if kind == "merged" || t.MergedIntoID > 0 || other.MergedIntoID > 0 {
-		return errorsx.InvalidParam("已合并工单保留原关联，请在主工单继续处理")
+		return errorsx.InvalidParamI18n("error.z0166")
 	}
 	if cmd.Action == "duplicate_child" {
 		if cmd.TargetRevision == nil {
-			return errorsx.InvalidParam("请选择首次工单并刷新预览")
+			return errorsx.InvalidParamI18n("error.z0167")
 		}
 		if other.GovernanceRevision != *cmd.TargetRevision {
 			return ErrTicketCaseConflict
 		}
 		if t.Status == "draft" || other.Status == "draft" || !ticketCreatedBefore(other, *t) {
-			return errorsx.InvalidParam("请选择比当前工单更早创建的首次工单")
+			return errorsx.InvalidParamI18n("error.z0168")
 		}
 	}
 	now := time.Now()
 	if cmd.Action == "link" || cmd.Action == "duplicate_child" {
 		if kind == "parent" && ticketCaseClosed(other) {
-			return errorsx.InvalidParam("已结束工单不能新增父子关系，请先重新打开")
+			return errorsx.InvalidParamI18n("error.z0169")
 		}
 		var graph []models.TicketRelation
 		if err := db.Where("tenant_id = ? AND kind = ? AND active_key IS NOT NULL", t.TenantID, kind).Find(&graph).Error; err != nil {
@@ -101,21 +101,21 @@ func mutateTicketRelationDB(db *gorm.DB, t *models.Ticket, cmd TicketGovernanceC
 		}
 		for _, edge := range graph {
 			if cmd.Action == "duplicate_child" && (edge.TargetID == source || edge.SourceID == target) {
-				return errorsx.InvalidParam("请选择最上级的首次工单；已有子工单的工单不能再次作为重复子单")
+				return errorsx.InvalidParamI18n("error.z0170")
 			}
 
 			if edge.SourceID == source && edge.TargetID == target {
-				return errorsx.InvalidParam("该工单关系已存在")
+				return errorsx.InvalidParamI18n("error.z0171")
 			}
 			if kind == "parent" && edge.TargetID == target {
-				return errorsx.InvalidParam("子工单已有父单，请先有理由地解除原关系")
+				return errorsx.InvalidParamI18n("error.z0172")
 			}
 			if kind == "duplicate" && (edge.SourceID == source || edge.SourceID == target) {
-				return errorsx.InvalidParam("重复单已有主单，或选择的主单本身已标记为重复")
+				return errorsx.InvalidParamI18n("error.z0173")
 			}
 		}
 		if kind != "related" && ticketGraphReaches(graph, target, source) {
-			return errorsx.InvalidParam("该关系会形成循环，无法保存")
+			return errorsx.InvalidParamI18n("error.z0174")
 		}
 		key := fmt.Sprintf("%s:%d:%d", kind, source, target)
 		row = models.TicketRelation{TenantID: t.TenantID, SourceID: source, TargetID: target, Kind: kind, ActiveKey: &key, Reason: cmd.Reason, CreatedBy: op.UserID, CreatedAt: now}
@@ -171,7 +171,7 @@ func ticketGraphReaches(rows []models.TicketRelation, from, to int64) bool {
 // Lookup returns only tickets the actor may manage, even when searching by an exact number.
 func SearchTicketRelationCandidates(ticketID int64, query string, op *dto.AuthPrincipal) ([]TicketRelationView, error) {
 	if op == nil {
-		return nil, errorsx.Forbidden("请登录后操作")
+		return nil, errorsx.ForbiddenI18n("error.z0135")
 	}
 	db := sqls.DB()
 	var current models.Ticket
@@ -179,7 +179,7 @@ func SearchTicketRelationCandidates(ticketID int64, query string, op *dto.AuthPr
 		return nil, err
 	}
 	if !canManageTicketGovernance(&current, op) {
-		return nil, errorsx.Forbidden("需要工单管理权限")
+		return nil, errorsx.ForbiddenI18n("error.z0136")
 	}
 	var rows []models.Ticket
 	q := db.Where("tenant_id = ? AND id <> ?", current.TenantID, current.ID)

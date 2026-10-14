@@ -12,6 +12,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/repositories"
 )
@@ -75,7 +76,7 @@ func defaultTicketKnowledgeBaseDB(db *gorm.DB, tenantID int64) *models.Knowledge
 func ListKnowledgeAccessGrants(tenantID, knowledgeBaseID int64) ([]dto.EnterpriseKnowledgeAccessGrantDTO, error) {
 	knowledgeBase := KnowledgeBaseService.Get(knowledgeBaseID)
 	if knowledgeBase == nil || knowledgeBase.TenantID != tenantID || knowledgeBase.Status == enums.StatusDeleted {
-		return nil, errorsx.InvalidParam("知识库不存在")
+		return nil, errorsx.InvalidParamI18n("error.z0084")
 	}
 	items, err := repositories.KnowledgeAccessGrantRepository.FindByKnowledgeBase(sqls.DB(), tenantID, knowledgeBaseID)
 	if err != nil {
@@ -112,39 +113,39 @@ func ReplaceKnowledgeAccessGrants(
 	operator *dto.AuthPrincipal,
 ) ([]dto.EnterpriseKnowledgeAccessGrantDTO, error) {
 	if operator == nil || operator.TenantID != tenantID {
-		return nil, errorsx.Forbidden("无权维护知识库访问授权")
+		return nil, errorsx.ForbiddenI18n("error.z0085")
 	}
 	knowledgeBase := KnowledgeBaseService.Get(knowledgeBaseID)
 	if knowledgeBase == nil || knowledgeBase.TenantID != tenantID || knowledgeBase.Status == enums.StatusDeleted {
-		return nil, errorsx.InvalidParam("知识库不存在")
+		return nil, errorsx.InvalidParamI18n("error.z0084")
 	}
 	if len(requests) > 100 {
-		return nil, errorsx.InvalidParam("知识库访问授权不能超过 100 项")
+		return nil, errorsx.InvalidParamI18n("error.z0086")
 	}
 	seen := map[string]bool{}
 	items := make([]models.KnowledgeAccessGrant, 0, len(requests))
 	for _, request := range requests {
 		subjectType := normalizeKnowledgeAccessSubjectType(request.SubjectType)
 		if subjectType == "" || request.SubjectID <= 0 {
-			return nil, errorsx.InvalidParam("访问授权主体不合法")
+			return nil, errorsx.InvalidParamI18n("error.z0087")
 		}
 		key := subjectType + ":" + formatID(request.SubjectID)
 		if seen[key] {
-			return nil, errorsx.InvalidParam("访问授权主体不能重复")
+			return nil, errorsx.InvalidParamI18n("error.z0088")
 		}
 		seen[key] = true
 		switch subjectType {
 		case KnowledgeAccessSubjectTeam:
 			if team := AgentTeamService.GetForTenant(request.SubjectID, tenantID); team == nil {
-				return nil, errorsx.InvalidParam("访问授权团队不存在或不属于当前公司")
+				return nil, errorsx.InvalidParamI18n("error.z0089")
 			}
 		case KnowledgeAccessSubjectUser:
 			user := repositories.UserRepository.Get(sqls.DB(), request.SubjectID)
 			if user == nil || user.Status != enums.StatusOk {
-				return nil, errorsx.InvalidParam("访问授权工程师不存在或已停用")
+				return nil, errorsx.InvalidParamI18n("error.z0090")
 			}
 			if repositories.EnterpriseIAMRepository.FindTenantMemberByUserID(sqls.DB(), tenantID, request.SubjectID) == nil {
-				return nil, errorsx.InvalidParam("访问授权工程师不属于当前公司")
+				return nil, errorsx.InvalidParamI18n("error.z0091")
 			}
 		}
 		items = append(items, models.KnowledgeAccessGrant{
@@ -205,15 +206,15 @@ func EvaluateTicketSupportReadinessDB(
 	knowledgeBase := repositories.KnowledgeBaseRepository.Get(db, ticket.KnowledgeBaseID)
 	if knowledgeBase == nil || knowledgeBase.TenantID != ticket.TenantID {
 		return updateTicketSupportReadinessDB(db, ticket, SupportStatusUnknown, SupportReasonKnowledgeNotMapped,
-			"未识别到有效的知识库", actorID, now)
+			i18nx.NewText("supportReadiness.reason.knowledgeNotMapped", nil), actorID, now)
 	}
 	if knowledgeBase.Status != enums.StatusOk {
 		return updateTicketSupportReadinessDB(db, ticket, SupportStatusRestricted, SupportReasonKnowledgeInactive,
-			"知识库已停用，当前不能提供正常支持", actorID, now)
+			i18nx.NewText("supportReadiness.reason.knowledgeInactive", nil), actorID, now)
 	}
 	if assigneeID <= 0 && teamID <= 0 {
 		return updateTicketSupportReadinessDB(db, ticket, SupportStatusUnknown, SupportReasonAssigneeNotAssigned,
-			"尚未分配支持团队或工程师，无法检查知识库访问权限", actorID, now)
+			i18nx.NewText("supportReadiness.reason.assigneeNotAssigned", nil), actorID, now)
 	}
 	hasAccess, err := repositories.KnowledgeAccessGrantRepository.HasActiveGrant(
 		db, ticket.TenantID, knowledgeBase.ID, assigneeID, teamID, now,
@@ -222,9 +223,10 @@ func EvaluateTicketSupportReadinessDB(
 		return err
 	}
 	if hasAccess {
-		return updateTicketSupportReadinessDB(db, ticket, SupportStatusReady, "", "", actorID, now)
+		return updateTicketSupportReadinessDB(db, ticket, SupportStatusReady, "", i18nx.Text{}, actorID, now)
 	}
 	subjectName := ""
+	knowledgeBaseName := knowledgeBaseNameParam(knowledgeBase)
 	if assigneeID > 0 {
 		if user := repositories.UserRepository.Get(db, assigneeID); user != nil {
 			subjectName = firstNonBlank(user.Nickname, user.Username)
@@ -235,9 +237,9 @@ func EvaluateTicketSupportReadinessDB(
 			subjectName = team.Name
 		}
 	}
-	reason := "当前支持团队或工程师缺少知识库“" + knowledgeBase.Name + "”的访问权限"
+	reason := i18nx.NewText("supportReadiness.reason.missingAccess", i18nx.Params{"knowledgeBase": knowledgeBaseName})
 	if subjectName != "" {
-		reason = subjectName + " 缺少知识库“" + knowledgeBase.Name + "”的访问权限"
+		reason = i18nx.NewText("supportReadiness.reason.subjectMissingAccess", i18nx.Params{"subject": subjectName, "knowledgeBase": knowledgeBaseName})
 	}
 	return updateTicketSupportReadinessDB(
 		db, ticket, SupportStatusRestricted, SupportReasonMissingAccess, reason, actorID, now,
@@ -279,16 +281,19 @@ func revaluateKnowledgeBaseTicketsDB(db *gorm.DB, tenantID, knowledgeBaseID int6
 func updateTicketSupportReadinessDB(
 	db *gorm.DB,
 	ticket *models.Ticket,
-	status, reasonCode, reason string,
+	status, reasonCode string,
+	reasonText i18nx.Text,
 	actorID int64,
 	now time.Time,
 ) error {
 	previousStatus := ticket.SupportStatus
 	previousReasonCode := ticket.SupportReasonCode
 	previousReason := ticket.SupportReason
+	reason := canonicalText(reasonText)
 	ticket.SupportStatus = status
 	ticket.SupportReasonCode = reasonCode
 	ticket.SupportReason = reason
+	ticket.SupportReasonText = reasonText
 	ticket.SupportCheckedAt = &now
 	if err := db.Model(&models.Ticket{}).
 		Where("id = ? AND tenant_id = ?", ticket.ID, ticket.TenantID).
@@ -296,6 +301,7 @@ func updateTicketSupportReadinessDB(
 			"support_status":      status,
 			"support_reason_code": reasonCode,
 			"support_reason":      reason,
+			"support_reason_text": reasonText,
 			"support_checked_at":  now,
 			"updated_at":          now,
 		}).Error; err != nil {
@@ -313,28 +319,29 @@ func updateTicketSupportReadinessDB(
 		"current_team_id":     ticket.CurrentTeamID,
 		"checked_at":          now.Format(time.RFC3339),
 	})
-	content := "支持状态检查：" + supportStatusLabel(status)
-	if reason != "" {
-		content += "，" + reason
+	content := i18nx.NewText("supportReadiness.progress", i18nx.Params{"status": supportStatusText(status)})
+	if !reasonText.IsZero() {
+		content = i18nx.NewText("supportReadiness.progressWithReason", i18nx.Params{"status": supportStatusText(status), "reason": reasonText})
 	}
 	return repositories.TicketProgressRepository.Create(db, &models.TicketProgress{
 		TenantID:     ticket.TenantID,
 		TicketID:     ticket.ID,
 		EventType:    enums.TicketProgressEventSupportReadiness,
-		Content:      content,
+		Content:      canonicalText(content),
+		ContentText:  content,
 		MetadataJSON: string(metadata),
 		AuthorID:     actorID,
 		CreatedAt:    now,
 	})
 }
 
-func supportStatusLabel(status string) string {
+func supportStatusText(status string) i18nx.Text {
 	switch status {
 	case SupportStatusReady:
-		return "支持正常"
+		return i18nx.NewText("supportReadiness.status.ready", nil)
 	case SupportStatusRestricted:
-		return "支持受限"
+		return i18nx.NewText("supportReadiness.status.restricted", nil)
 	default:
-		return "未评估"
+		return i18nx.NewText("supportReadiness.status.unknown", nil)
 	}
 }

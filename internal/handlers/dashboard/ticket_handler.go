@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mlogclub/simple/sqls"
 	"github.com/mlogclub/simple/web"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 func TicketAnyList(ctx *gin.Context) {
@@ -181,7 +182,7 @@ func TicketGetBy(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildTicketDetail(detail))
+	httpx.WriteJSON(ctx, builders.BuildTicketDetail(detail, i18nx.Locale(ctx)))
 }
 
 func TicketPostCreate(ctx *gin.Context) {
@@ -202,7 +203,7 @@ func TicketPostCreate(ctx *gin.Context) {
 	item, err := services.TicketService.CreateTicket(req, operator)
 	if err != nil {
 		if errors.Is(err, services.ErrTicketIdempotencyConflict) {
-			httpx.WriteHttpStatusJSON(ctx, 409, errorsx.InvalidParam("请求内容与此前相同请求编号不一致"))
+			httpx.WriteHttpStatusJSON(ctx, 409, errorsx.InvalidParamI18n("error.z0001"))
 			return
 		}
 		httpx.WriteJSON(ctx, err)
@@ -229,7 +230,7 @@ func TicketPostCreate_from_conversation(ctx *gin.Context) {
 	item, err := services.TicketService.CreateFromConversation(req, operator)
 	if err != nil {
 		if errors.Is(err, services.ErrTicketIdempotencyConflict) {
-			httpx.WriteHttpStatusJSON(ctx, 409, errorsx.InvalidParam("请求内容与此前相同请求编号不一致"))
+			httpx.WriteHttpStatusJSON(ctx, 409, errorsx.InvalidParamI18n("error.z0001"))
 			return
 		}
 		httpx.WriteJSON(ctx, err)
@@ -335,7 +336,7 @@ func TicketAnyProgressList(ctx *gin.Context) {
 		return
 	}
 	progresses := services.TicketProgressService.Find(sqls.NewCnd().Eq("tenant_id", ticket.TenantID).Eq("ticket_id", ticketID).Asc("id"))
-	httpx.WriteJSON(ctx, builders.BuildTicketProgressList(progresses))
+	httpx.WriteJSON(ctx, builders.BuildTicketProgressList(progresses, i18nx.Locale(ctx)))
 }
 
 func TicketPostProgressCreate(ctx *gin.Context) {
@@ -358,5 +359,5 @@ func ticketCreateProgress(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildTicketProgress(item))
+	httpx.WriteJSON(ctx, builders.BuildTicketProgress(item, i18nx.Locale(ctx)))
 }

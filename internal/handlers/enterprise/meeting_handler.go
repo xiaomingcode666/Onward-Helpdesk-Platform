@@ -109,7 +109,7 @@ func parseCreateMeetingScheduledAt(value string) (*time.Time, error) {
 		return nil, errorsx.InvalidParam("invalid scheduled_at")
 	}
 	if !parsed.After(time.Now().Add(time.Minute)) {
-		return nil, errorsx.InvalidParam("预约时间需晚于当前时间")
+		return nil, errorsx.InvalidParamI18n("error.z0005")
 	}
 	normalized := parsed.UTC()
 	return &normalized, nil

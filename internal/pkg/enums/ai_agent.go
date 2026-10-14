@@ -16,15 +16,15 @@ var AIAgentReviewStatusValues = []AIAgentReviewStatus{
 	AIAgentReviewStatusRejected,
 }
 
-func GetAIAgentReviewStatusLabel(status AIAgentReviewStatus) string {
+func GetAIAgentReviewStatusLabel(status AIAgentReviewStatus, locale string) string {
 	switch status {
 	case AIAgentReviewStatusPending:
-		return "待审核"
+		return enumLabel(locale, "enum.AIAgentReviewStatusPending")
 	case AIAgentReviewStatusApproved:
-		return "审核通过"
+		return enumLabel(locale, "enum.AIAgentReviewStatusApproved")
 	case AIAgentReviewStatusRejected:
-		return "已退回"
+		return enumLabel(locale, "enum.AIAgentReviewStatusRejected")
 	default:
-		return "未审核"
+		return enumLabel(locale, "enum.AIAgentReviewStatusUnreviewed")
 	}
 }

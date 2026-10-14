@@ -15,6 +15,7 @@ import (
 	"remotehelpdesk/internal/services"
 
 	"github.com/mlogclub/simple/sqls"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 func init() {
@@ -52,12 +53,8 @@ func handleMeetingEndedWriteTicketTimeline(ctx context.Context, event events.Mee
 	}
 
 	// 创建工单进展记录（协作纪要回写）
-	durationStr := formatMeetingDuration(event.DurationMs)
-	progressContent := fmt.Sprintf("视频协作已结束，时长：%s", durationStr)
-
-	if meeting.RoomName != "" {
-		progressContent = fmt.Sprintf("视频协作已结束，会议室：%s，时长：%s", meeting.RoomName, durationStr)
-	}
+	progressText := services.MeetingEndedProgressText(meeting.RoomName, event.DurationMs)
+	progressContent := progressText.Render(i18nx.LocaleZhCN)
 
 	metadata, err := json.Marshal(map[string]any{"meetingId": meeting.ID})
 	if err != nil {
@@ -76,6 +73,7 @@ func handleMeetingEndedWriteTicketTimeline(ctx context.Context, event events.Mee
 			TicketID:          ticketID,
 			EventType:         enums.TicketProgressEventMeetingEnded,
 			Content:           progressContent,
+			ContentText:       progressText,
 			VisibleToCustomer: true,
 			MetadataJSON:      string(metadata),
 			CreatedAt:         now,

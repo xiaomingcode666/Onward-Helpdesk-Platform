@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"remotehelpdesk/internal/repositories"
 
 	"github.com/mlogclub/simple/sqls"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 var EnterpriseNotificationService = newEnterpriseNotificationService()
@@ -33,7 +33,8 @@ type EnterpriseNotificationQuery struct {
 	Scope      string // personal / tenant;无租户级查看权限时强制降级为 personal
 	Page       int
 	PageSize   int
-	Limit      int // 兼容工作台等旧调用，优先级低于 PageSize
+	Limit      int    // 兼容工作台等旧调用，优先级低于 PageSize
+	Locale     string // 读者当前语言，用于渲染系统生成的通知文案
 }
 
 type enterpriseNotificationViewer struct {
@@ -72,6 +73,9 @@ func (s *enterpriseNotificationService) ListForOperator(tenantID int64, operator
 	canViewTenantScope := canViewAllTenantNotifications(operator)
 	viewer := enterpriseNotificationViewer{UserID: operator.UserID}
 	viewer.TenantWide = canViewTenantScope && strings.TrimSpace(query.Scope) == "tenant"
+	if strings.TrimSpace(query.Locale) == "" {
+		query.Locale = operatorLocale(operator)
+	}
 	return s.list(tenantID, viewer, canViewTenantScope, query)
 }
 
@@ -123,7 +127,7 @@ func (s *enterpriseNotificationService) list(tenantID int64, viewer enterpriseNo
 		filteredTotal = total
 		items = make([]dto.EnterpriseNotificationDTO, 0, len(events))
 		for i := range events {
-			items = append(items, buildEnterpriseNotificationEvent(events[i]))
+			items = append(items, buildEnterpriseNotificationEvent(events[i], query.Locale))
 		}
 	} else {
 		cnd := s.viewerScopeCnd(tenantID, viewer)
@@ -145,7 +149,7 @@ func (s *enterpriseNotificationService) list(tenantID int64, viewer enterpriseNo
 		list := repositories.NotificationRepository.Find(sqls.DB(), cnd)
 		items = make([]dto.EnterpriseNotificationDTO, 0, len(list))
 		for _, item := range list {
-			items = append(items, buildEnterpriseNotification(item, viewer.UserID))
+			items = append(items, buildEnterpriseNotification(item, viewer.UserID, query.Locale))
 		}
 	}
 	summary := s.summary(tenantID, viewer)
@@ -242,15 +246,19 @@ func (s *enterpriseNotificationService) MarkAllRead(tenantID, userID int64) erro
 	return repositories.NotificationRepository.MarkAllReadByTenant(sqls.DB(), tenantID, userID, time.Now())
 }
 
-func buildEnterpriseNotification(item models.Notification, viewerUserID int64) dto.EnterpriseNotificationDTO {
+func buildEnterpriseNotification(item models.Notification, viewerUserID int64, locale string) dto.EnterpriseNotificationDTO {
 	channels := parseNotificationChannels(item.Channels)
+	title, content := item.Title, normalizeLegacyNotificationContent(item)
+	if len(item.TemplateParams) > 0 {
+		title, content = NotificationTemplateService.LocalizedContent(&item, locale)
+	}
 	return dto.EnterpriseNotificationDTO{
 		ID:                    item.ID,
 		TenantID:              item.TenantID,
 		RecipientUserID:       item.RecipientUserID,
 		RecipientName:         item.RecipientName,
-		Title:                 item.Title,
-		Content:               normalizeLegacyNotificationContent(item),
+		Title:                 title,
+		Content:               content,
 		NotificationType:      item.NotificationType,
 		BizType:               item.BizType,
 		BizID:                 item.BizID,
@@ -269,14 +277,14 @@ func buildEnterpriseNotification(item models.Notification, viewerUserID int64) d
 	}
 }
 
-func buildEnterpriseNotificationEvent(event repositories.TenantNotificationEventAggregate) dto.EnterpriseNotificationDTO {
-	ret := buildEnterpriseNotification(event.Item, 0)
+func buildEnterpriseNotificationEvent(event repositories.TenantNotificationEventAggregate, locale string) dto.EnterpriseNotificationDTO {
+	ret := buildEnterpriseNotification(event.Item, 0, locale)
 	ret.IsEventSummary = true
 	ret.RecipientCount = event.RecipientCount
 	ret.UnreadCount = event.UnreadCount
 	ret.EmailPendingCount = event.EmailPendingCount
 	ret.EmailFailedCount = event.EmailFailedCount
-	ret.RecipientName = fmt.Sprintf("%d 位接收人", event.RecipientCount)
+	ret.RecipientName = i18nx.NewText("notification.recipientCount", i18nx.Params{"count": event.RecipientCount}).Render(locale)
 	ret.CanMarkRead = false
 	return ret
 }

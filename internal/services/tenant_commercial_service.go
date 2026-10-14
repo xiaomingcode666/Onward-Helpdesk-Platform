@@ -71,7 +71,7 @@ func (s *tenantCommercialService) RequireTenantAIWorkspaceForProductCreate(tenan
 	) {
 		return nil
 	}
-	return errorsx.Forbidden("租户 AI 服务未开通或默认租户密钥不可用")
+	return errorsx.ForbiddenI18n("error.z0118")
 }
 
 func (s *tenantCommercialService) RequireKnowledgeDocumentUpload(tenantID int64, productID int64, operator *dto.AuthPrincipal, fileSize int64) error {
@@ -79,22 +79,22 @@ func (s *tenantCommercialService) RequireKnowledgeDocumentUpload(tenantID int64,
 		return errorsx.InvalidParam("tenantId is required")
 	}
 	if limit, ok := s.resolveQuota(sqls.DB(), tenantID, 0, []string{QuotaKnowledgeDocumentSizeBytes}, "single"); ok && limit > 0 && fileSize > limit {
-		return errorsx.InvalidParam("上传文件超过当前租户允许的单文件大小")
+		return errorsx.InvalidParamI18n("error.z0119")
 	}
 	if limitMB, ok := s.resolveQuota(sqls.DB(), tenantID, 0, []string{QuotaKnowledgeDocumentSizeMB}, "single"); ok && limitMB > 0 && fileSize > limitMB*1024*1024 {
-		return errorsx.InvalidParam("上传文件超过当前租户允许的单文件大小")
+		return errorsx.InvalidParamI18n("error.z0119")
 	}
 	if limit, ok := s.resolveQuota(sqls.DB(), tenantID, 0, []string{QuotaKnowledgeDocumentsPerTenant}, "total"); ok && limit > 0 {
 		current := repositories.KnowledgeDocumentRepository.CountActiveByTenantID(sqls.DB(), tenantID)
 		if current >= limit {
-			return errorsx.Forbidden("当前租户知识库文档数量已达到平台配置上限")
+			return errorsx.ForbiddenI18n("error.z0120")
 		}
 	}
 	if productID > 0 {
 		if limit, ok := s.resolveKnowledgeProductDocumentQuota(sqls.DB(), tenantID, productID); ok && limit > 0 {
 			current := repositories.KnowledgeDocumentRepository.CountActiveByTenantProductID(sqls.DB(), tenantID, productID)
 			if current >= limit {
-				return errorsx.Forbidden("当前产品知识库文档数量已达到平台配置上限")
+				return errorsx.ForbiddenI18n("error.z0121")
 			}
 		}
 	}
@@ -102,7 +102,7 @@ func (s *tenantCommercialService) RequireKnowledgeDocumentUpload(tenantID int64,
 		if limit, ok := s.resolveKnowledgeUserDocumentQuota(sqls.DB(), tenantID, operator); ok && limit > 0 {
 			current := repositories.KnowledgeDocumentRepository.CountActiveByTenantUserID(sqls.DB(), tenantID, operator.UserID)
 			if current >= limit {
-				return errorsx.Forbidden("当前账号知识库文档数量已达到平台配置上限")
+				return errorsx.ForbiddenI18n("error.z0122")
 			}
 		}
 	}

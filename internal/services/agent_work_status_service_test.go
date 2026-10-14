@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"fmt"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"testing"
 	"time"
 
@@ -283,7 +284,7 @@ func TestAgentWorkStatusServiceBriefingScopesTeamAndPersonalTickets(t *testing.T
 	if result.UnassignedTicketCount != 2 || result.MyOpenTicketCount != 2 {
 		t.Fatalf("unexpected briefing counts: unassigned=%d mine=%d", result.UnassignedTicketCount, result.MyOpenTicketCount)
 	}
-	briefingDTO := builders.BuildEngineerBriefingResponse(result)
+	briefingDTO := builders.BuildEngineerBriefingResponse(result, i18nx.LocaleZhCN)
 	if briefingDTO == nil || len(briefingDTO.UnassignedTickets) == 0 {
 		t.Fatalf("briefing dto did not include unassigned tickets: %+v", briefingDTO)
 	}

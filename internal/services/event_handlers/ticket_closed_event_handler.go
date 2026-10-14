@@ -13,6 +13,7 @@ import (
 	"remotehelpdesk/internal/services"
 
 	"github.com/mlogclub/simple/common/strs"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 func init() {
@@ -55,7 +56,7 @@ func handleTicketClosedEvent(ctx context.Context, event events.TicketClosedEvent
 	}
 	return services.NotificationAudienceService.Deliver(recipients, request.CreateNotificationRequest{
 		TenantID:         ticket.TenantID,
-		Title:            fmt.Sprintf("工单 %s 已关闭", ticketNo),
+		TitleText:        i18nx.NewText("notificationText.ticketClosed.title", i18nx.Params{"ticketNo": ticketNo}),
 		Content:          content,
 		NotificationType: "ticket_closed",
 		BizType:          "ticket",

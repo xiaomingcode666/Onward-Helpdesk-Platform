@@ -123,7 +123,7 @@ func KnowledgeFAQAnyList(ctx *gin.Context) {
 	directoryPaths := services.KnowledgeDirectoryService.PathMap(knowledgeBaseID)
 	results := make([]response.KnowledgeFAQResponse, 0, len(list))
 	for _, item := range list {
-		resp := builders.BuildKnowledgeFAQ(&item)
+		resp := builders.BuildKnowledgeFAQ(&item, i18nx.Locale(ctx))
 		fillKnowledgeFAQDirectory(&resp, directoryPaths)
 		results = append(results, resp)
 	}
@@ -146,7 +146,7 @@ func KnowledgeFAQGetBy(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0025"))
 		return
 	}
-	resp := builders.BuildKnowledgeFAQ(item)
+	resp := builders.BuildKnowledgeFAQ(item, i18nx.Locale(ctx))
 	fillKnowledgeFAQDirectory(&resp, services.KnowledgeDirectoryService.PathMap(item.KnowledgeBaseID))
 	httpx.WriteJSON(ctx, resp)
 }
@@ -167,7 +167,7 @@ func KnowledgeFAQPostCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildKnowledgeFAQ(item))
+	httpx.WriteJSON(ctx, builders.BuildKnowledgeFAQ(item, i18nx.Locale(ctx)))
 }
 
 func KnowledgeFAQPostUpdate(ctx *gin.Context) {

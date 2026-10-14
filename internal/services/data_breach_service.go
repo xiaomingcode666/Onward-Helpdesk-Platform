@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mlogclub/simple/sqls"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 // ============================================================
@@ -210,8 +211,8 @@ func (s *dataBreachService) CheckBreachDeadlines() error {
 			_, _ = NotificationQueueService.EnqueueCreate(context.Background(), request.CreateNotificationRequest{
 				TenantID:         tenantID,
 				RecipientUserID:  adminID,
-				Title:            "数据泄露通知截止时间临近 — 紧急",
-				Content:          fmt.Sprintf("数据泄露事件 %s（类型：%s，严重级别：%s）的通知截止时间仅剩 %d 小时（截止时间：%s），请立即通知监管机构。", breach.ID, breach.BreachType, breach.Severity, remainingHours, breach.NotificationDeadline.Format("2006-01-02 15:04")),
+				TitleText:        i18nx.NewText("notificationText.dataBreach.dueSoon.title", nil),
+				ContentText:      i18nx.NewText("notificationText.dataBreach.dueSoon.content", i18nx.Params{"id": breach.ID, "type": breach.BreachType, "severity": breach.Severity, "hours": remainingHours, "deadline": breach.NotificationDeadline.Format("2006-01-02 15:04")}),
 				NotificationType: "data_breach_urgent",
 				BizType:          "data_breach",
 				BizID:            0,
@@ -252,8 +253,8 @@ func (s *dataBreachService) CheckBreachDeadlines() error {
 			_, _ = NotificationQueueService.EnqueueCreate(context.Background(), request.CreateNotificationRequest{
 				TenantID:         tenantID,
 				RecipientUserID:  adminID,
-				Title:            "数据泄露通知已逾期 — 合规违规",
-				Content:          fmt.Sprintf("数据泄露事件 %s（类型：%s）的通知截止时间已过（截止时间：%s），未按时通知监管机构构成合规违规，请立即处理并上报。", breach.ID, breach.BreachType, breach.NotificationDeadline.Format("2006-01-02 15:04")),
+				TitleText:        i18nx.NewText("notificationText.dataBreach.overdue.title", nil),
+				ContentText:      i18nx.NewText("notificationText.dataBreach.overdue.content", i18nx.Params{"id": breach.ID, "type": breach.BreachType, "deadline": breach.NotificationDeadline.Format("2006-01-02 15:04")}),
 				NotificationType: "data_breach_overdue",
 				BizType:          "data_breach",
 				BizID:            0,

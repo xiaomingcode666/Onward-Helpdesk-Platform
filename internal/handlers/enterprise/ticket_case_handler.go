@@ -22,7 +22,7 @@ func TicketCaseTransition(ctx *gin.Context) {
 	}
 	var command services.TicketCaseCommand
 	if err = ctx.ShouldBindJSON(&command); err != nil {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("工单操作参数无效"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0013"))
 		return
 	}
 	if err = services.ExecuteTicketCaseCommand(ticketID, command, operator); err != nil {

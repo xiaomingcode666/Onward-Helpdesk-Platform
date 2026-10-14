@@ -18,6 +18,7 @@ import (
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 // TicketDispatchService 负责独立工单（无关联会话）的自动派单与限时接单回收。
@@ -317,7 +318,7 @@ func (s *ticketDispatchService) handleUndispatchableTicket(ticket *models.Ticket
 		s.notifyUndispatchableTicket(ticket, reason, now)
 		return nil, nil
 	}
-	return s.EscalateToSupervisor(ticket.ID, ticket.CurrentAssigneeID, "持续无人可派，主管兜底接管："+reason, now)
+	return s.EscalateToSupervisor(ticket.ID, ticket.CurrentAssigneeID, i18nx.NewText("ticketProgress.supervisorTakeoverUndispatchable", i18nx.Params{"reason": dispatchFailureReasonText(reason)}), now)
 }
 
 func ticketDispatchWaitStartedAt(ticket *models.Ticket) time.Time {
@@ -346,8 +347,8 @@ func (s *ticketDispatchService) notifyUndispatchableTicket(ticket *models.Ticket
 	reason = normalizeDispatchFailureReason(reason)
 	bucket := now.Truncate(15 * time.Minute).Unix()
 	key := "ticket.dispatch_failure:" + strconv.FormatInt(ticket.ID, 10) + ":" + strconv.FormatInt(bucket, 10)
-	_ = NotifySupervisors(ticket, "工单暂无人可派",
-		"工单 "+ticket.TicketNo+" 无可用工程师，可能原因："+reason, "ticket_dispatch_failure", key)
+	_ = NotifySupervisors(ticket, i18nx.NewText("notificationText.supervisor.dispatchFailure.title", nil),
+		i18nx.NewText("notificationText.supervisor.dispatchFailure.content", i18nx.Params{"ticketNo": ticket.TicketNo, "reason": dispatchFailureReasonText(reason)}), "ticket_dispatch_failure", key)
 }
 
 func (s *ticketDispatchService) deferUndispatchableTicket(ticket *models.Ticket, reason string, now time.Time) error {
@@ -467,7 +468,8 @@ func normalizeDispatchFailureReason(reason string) string {
 
 // EscalateToSupervisor 将仍处于预期负责人状态的未完成工单交给主管兜底。
 // expectedAssigneeID 用于避免扫描期间人工指派或接单后被后台任务覆盖。
-func (s *ticketDispatchService) EscalateToSupervisor(ticketID, expectedAssigneeID int64, reason string, now time.Time) (*models.Ticket, error) {
+func (s *ticketDispatchService) EscalateToSupervisor(ticketID, expectedAssigneeID int64, reasonText i18nx.Text, now time.Time) (*models.Ticket, error) {
+	reason := canonicalText(reasonText)
 	if ticketID <= 0 {
 		return nil, nil
 	}
@@ -505,11 +507,11 @@ func (s *ticketDispatchService) EscalateToSupervisor(ticketID, expectedAssigneeI
 		}
 		bucket := now.Truncate(15 * time.Minute).Unix()
 		key := "ticket.supervisor_missing:" + strconv.FormatInt(ticketID, 10) + ":" + strconv.FormatInt(bucket, 10)
-		content := "工单 " + snapshot.TicketNo + " 已达到兜底条件，但未找到可接管负责人"
+		content := i18nx.NewText("notificationText.supervisor.missing.content", i18nx.Params{"ticketNo": snapshot.TicketNo})
 		if excludedAssigneeID > 0 {
-			content = "工单 " + snapshot.TicketNo + " 的原负责人已超时或不可用，且暂无其他可接管负责人"
+			content = i18nx.NewText("notificationText.supervisor.missing.contentAssigneeUnavailable", i18nx.Params{"ticketNo": snapshot.TicketNo})
 		}
-		_ = NotifySupervisors(snapshot, "工单需要主管兜底", content, "ticket_supervisor_missing", key)
+		_ = NotifySupervisors(snapshot, i18nx.NewText("notificationText.supervisor.missing.title", nil), content, "ticket_supervisor_missing", key)
 		return nil, nil
 	}
 	operator := systemDispatchPrincipal()
@@ -566,7 +568,7 @@ func (s *ticketDispatchService) EscalateToSupervisor(ticketID, expectedAssigneeI
 		}
 		progress := &models.TicketProgress{
 			TenantID: locked.TenantID, TicketID: locked.ID, EventType: enums.TicketProgressEventEscalated,
-			Content: reason, MetadataJSON: "{}", AuthorID: operator.UserID, CreatedAt: now,
+			Content: reason, ContentText: reasonText, MetadataJSON: "{}", AuthorID: operator.UserID, CreatedAt: now,
 		}
 		if err := repositories.TicketProgressRepository.Create(ctx.Tx, progress); err != nil {
 			return err
@@ -584,8 +586,8 @@ func (s *ticketDispatchService) EscalateToSupervisor(ticketID, expectedAssigneeI
 		return nil, err
 	}
 	key := "ticket.supervisor_takeover:" + strconv.FormatInt(ticketID, 10) + ":" + strconv.FormatInt(supervisorID, 10)
-	_ = NotifySupervisors(snapshot, "工单已由主管兜底接管",
-		"工单 "+snapshot.TicketNo+" 长时间无人响应，已自动交由主管处理", "ticket_supervisor_takeover", key)
+	_ = NotifySupervisors(snapshot, i18nx.NewText("notificationText.supervisor.takeover.title", nil),
+		i18nx.NewText("notificationText.supervisor.takeover.content", i18nx.Params{"ticketNo": snapshot.TicketNo}), "ticket_supervisor_takeover", key)
 	return repositories.TicketRepository.Get(sqls.DB(), ticketID), nil
 }
 
@@ -643,7 +645,8 @@ func (s *ticketDispatchService) tryAssignTicketTx(ticketID int64, candidate disp
 			TenantID:     ticket.TenantID,
 			TicketID:     ticket.ID,
 			EventType:    enums.TicketProgressEventAssigned,
-			Content:      "工单" + reason + " -> 等待工程师接单",
+			Content:      canonicalText(i18nx.NewText("ticketProgress.dispatchedAwaitingAccept", i18nx.Params{"reason": systemReasonParam(reason)})),
+			ContentText:  i18nx.NewText("ticketProgress.dispatchedAwaitingAccept", i18nx.Params{"reason": systemReasonParam(reason)}),
 			MetadataJSON: "{}",
 			AuthorID:     operator.UserID,
 			CreatedAt:    now,
@@ -1027,7 +1030,8 @@ func (s *ticketDispatchService) releaseDisabledTeamTicketPoolItem(ticketID, team
 			TenantID:     locked.TenantID,
 			TicketID:     locked.ID,
 			EventType:    enums.TicketProgressEventAssigned,
-			Content:      "团队已停用，工单回到全局待派池",
+			Content:      canonicalText(i18nx.NewText("ticketProgress.teamDisabledReturnedToPool", nil)),
+			ContentText:  i18nx.NewText("ticketProgress.teamDisabledReturnedToPool", nil),
 			MetadataJSON: "{}",
 			AuthorID:     operator.UserID,
 			CreatedAt:    now,
@@ -1206,7 +1210,8 @@ func (s *ticketDispatchService) recycleTicketAfterAssigneeUnavailableWithOptions
 			TenantID:     locked.TenantID,
 			TicketID:     locked.ID,
 			EventType:    enums.TicketProgressEventAssigned,
-			Content:      "负责人不可接单，重新派单",
+			Content:      canonicalText(i18nx.NewText("ticketProgress.assigneeUnavailableRedispatch", nil)),
+			ContentText:  i18nx.NewText("ticketProgress.assigneeUnavailableRedispatch", nil),
 			MetadataJSON: "{}",
 			AuthorID:     operator.UserID,
 			CreatedAt:    now,
@@ -1273,7 +1278,8 @@ func (s *ticketDispatchService) recycleTicketAfterAcceptTimeout(ticket *models.T
 			TenantID:     locked.TenantID,
 			TicketID:     locked.ID,
 			EventType:    enums.TicketProgressEventAssigned,
-			Content:      "接单超时，重新派单",
+			Content:      canonicalText(i18nx.NewText("ticketProgress.acceptTimeoutRedispatch", nil)),
+			ContentText:  i18nx.NewText("ticketProgress.acceptTimeoutRedispatch", nil),
 			MetadataJSON: "{}",
 			AuthorID:     operator.UserID,
 			CreatedAt:    now,
@@ -1294,8 +1300,8 @@ func (s *ticketDispatchService) escalateTicketAfterRepeatedTimeout(ticket *model
 	if supervisorID <= 0 {
 		bucket := now.Truncate(15 * time.Minute).Unix()
 		key := "ticket.supervisor_missing:" + strconv.FormatInt(ticket.ID, 10) + ":" + strconv.FormatInt(bucket, 10)
-		_ = NotifySupervisors(ticket, "工单接单超时且缺少兜底负责人",
-			"工单 "+ticket.TicketNo+" 已连续接单超时，但未找到可接管的组长或服务经理", "ticket_supervisor_missing", key)
+		_ = NotifySupervisors(ticket, i18nx.NewText("notificationText.supervisor.acceptTimeoutMissing.title", nil),
+			i18nx.NewText("notificationText.supervisor.acceptTimeoutMissing.content", i18nx.Params{"ticketNo": ticket.TicketNo}), "ticket_supervisor_missing", key)
 		return false, nil
 	}
 	escalated := false
@@ -1359,7 +1365,8 @@ func (s *ticketDispatchService) escalateTicketAfterRepeatedTimeout(ticket *model
 			TenantID:     locked.TenantID,
 			TicketID:     locked.ID,
 			EventType:    enums.TicketProgressEventEscalated,
-			Content:      "多次接单超时，自动升级主管",
+			Content:      canonicalText(i18nx.NewText("ticketProgress.repeatedAcceptTimeoutEscalated", nil)),
+			ContentText:  i18nx.NewText("ticketProgress.repeatedAcceptTimeoutEscalated", nil),
 			MetadataJSON: "{}",
 			AuthorID:     operator.UserID,
 			CreatedAt:    now,
@@ -1385,7 +1392,7 @@ func (s *ticketDispatchService) escalateTicketAfterRepeatedTimeout(ticket *model
 		return false, nil
 	}
 	key := "ticket.escalation:" + strconv.FormatInt(ticket.ID, 10) + ":" + strconv.FormatInt(int64(nextAttempt), 10)
-	_ = NotifySupervisors(ticket, "工单多次接单超时已升级",
-		"工单 "+ticket.TicketNo+" 连续 "+strconv.FormatInt(int64(nextAttempt), 10)+" 次接单超时，已升级，请及时处理", "ticket_escalation", key)
+	_ = NotifySupervisors(ticket, i18nx.NewText("notificationText.supervisor.escalated.title", nil),
+		i18nx.NewText("notificationText.supervisor.escalated.content", i18nx.Params{"ticketNo": ticket.TicketNo, "attempts": nextAttempt}), "ticket_escalation", key)
 	return true, nil
 }

@@ -111,6 +111,7 @@
     "retryHint": "Retry uses the submitted details. To change them, cancel and start again.",
     "invalidTicket": "The loaded ticket does not match your selection. Reopen the ticket.",
     "transition": "Case phase: {from} → {to}",
+    "workflowVersion": "Ticket workflow version #{id}",
     "progress": {
       "new": "The customer's issue has been recorded.",
       "acknowledged": "An engineer has taken the case and will follow up.",

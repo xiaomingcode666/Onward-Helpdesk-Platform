@@ -10,10 +10,10 @@ const (
 )
 
 var imConversationStatusLabelMap = map[IMConversationStatus]string{
-	IMConversationStatusAIServing: "AI接待中",
-	IMConversationStatusPending:   "待接入",
-	IMConversationStatusActive:    "处理中",
-	IMConversationStatusClosed:    "已关闭",
+	IMConversationStatusAIServing: "enum.IMConversationStatusAIServing",
+	IMConversationStatusPending:   "enum.IMConversationStatusPending",
+	IMConversationStatusActive:    "enum.IMConversationStatusActive",
+	IMConversationStatusClosed:    "enum.IMConversationStatusClosed",
 }
 
 var IMConversationStatusValues = []IMConversationStatus{
@@ -23,8 +23,8 @@ var IMConversationStatusValues = []IMConversationStatus{
 	IMConversationStatusClosed,
 }
 
-func GetIMConversationStatusLabel(status IMConversationStatus) string {
-	return imConversationStatusLabelMap[status]
+func GetIMConversationStatusLabel(status IMConversationStatus, locale string) string {
+	return enumLabel(locale, imConversationStatusLabelMap[status])
 }
 
 type IMConversationServiceMode int
@@ -42,13 +42,13 @@ var IMConversationServiceModeValues = []IMConversationServiceMode{
 }
 
 var imConversationServiceModeLabelMap = map[IMConversationServiceMode]string{
-	IMConversationServiceModeAIOnly:    "仅AI",
-	IMConversationServiceModeHumanOnly: "仅人工",
-	IMConversationServiceModeAIFirst:   "AI优先",
+	IMConversationServiceModeAIOnly:    "enum.IMConversationServiceModeAIOnly",
+	IMConversationServiceModeHumanOnly: "enum.IMConversationServiceModeHumanOnly",
+	IMConversationServiceModeAIFirst:   "enum.IMConversationServiceModeAIFirst",
 }
 
-func GetIMConversationServiceModeLabel(mode IMConversationServiceMode) string {
-	return imConversationServiceModeLabelMap[mode]
+func GetIMConversationServiceModeLabel(mode IMConversationServiceMode, locale string) string {
+	return enumLabel(locale, imConversationServiceModeLabelMap[mode])
 }
 
 type IMSenderType string
@@ -62,15 +62,15 @@ const (
 )
 
 var imSenderTypeLabelMap = map[IMSenderType]string{
-	IMSenderTypeAgent:    "客服",
-	IMSenderTypeCustomer: "客户",
-	IMSenderTypeAI:       "AI",
-	IMSenderTypePartner:  "供应商",
-	IMSenderTypeSystem:   "系统",
+	IMSenderTypeAgent:    "enum.IMSenderTypeAgent",
+	IMSenderTypeCustomer: "enum.IMSenderTypeCustomer",
+	IMSenderTypeAI:       "enum.IMSenderTypeAI",
+	IMSenderTypePartner:  "enum.IMSenderTypePartner",
+	IMSenderTypeSystem:   "enum.IMSenderTypeSystem",
 }
 
-func GetIMSenderTypeLabel(senderType IMSenderType) string {
-	return imSenderTypeLabelMap[senderType]
+func GetIMSenderTypeLabel(senderType IMSenderType, locale string) string {
+	return enumLabel(locale, imSenderTypeLabelMap[senderType])
 }
 
 type IMParticipantType string
@@ -84,15 +84,15 @@ const (
 )
 
 var imParticipantTypeLabelMap = map[IMParticipantType]string{
-	IMParticipantTypeCustomer: "客户",
-	IMParticipantTypeAgent:    "客服",
-	IMParticipantTypeAI:       "AI",
-	IMParticipantTypePartner:  "供应商",
-	IMParticipantTypeSystem:   "系统",
+	IMParticipantTypeCustomer: "enum.IMParticipantTypeCustomer",
+	IMParticipantTypeAgent:    "enum.IMParticipantTypeAgent",
+	IMParticipantTypeAI:       "enum.IMParticipantTypeAI",
+	IMParticipantTypePartner:  "enum.IMParticipantTypePartner",
+	IMParticipantTypeSystem:   "enum.IMParticipantTypeSystem",
 }
 
-func GetIMParticipantTypeLabel(participantType IMParticipantType) string {
-	return imParticipantTypeLabelMap[participantType]
+func GetIMParticipantTypeLabel(participantType IMParticipantType, locale string) string {
+	return enumLabel(locale, imParticipantTypeLabelMap[participantType])
 }
 
 type IMAssignmentType string
@@ -103,12 +103,12 @@ const (
 )
 
 var imAssignmentTypeLabelMap = map[IMAssignmentType]string{
-	IMAssignmentTypeAssign:   "分配",
-	IMAssignmentTypeTransfer: "转接",
+	IMAssignmentTypeAssign:   "enum.IMAssignmentTypeAssign",
+	IMAssignmentTypeTransfer: "enum.IMAssignmentTypeTransfer",
 }
 
-func GetIMAssignmentTypeLabel(assignType IMAssignmentType) string {
-	return imAssignmentTypeLabelMap[assignType]
+func GetIMAssignmentTypeLabel(assignType IMAssignmentType, locale string) string {
+	return enumLabel(locale, imAssignmentTypeLabelMap[assignType])
 }
 
 type IMAssignmentStatus int
@@ -119,12 +119,12 @@ const (
 )
 
 var imAssignmentStatusLabelMap = map[IMAssignmentStatus]string{
-	IMAssignmentStatusActive:   "进行中",
-	IMAssignmentStatusInactive: "已结束",
+	IMAssignmentStatusActive:   "enum.IMAssignmentStatusActive",
+	IMAssignmentStatusInactive: "enum.IMAssignmentStatusInactive",
 }
 
-func GetIMAssignmentStatusLabel(status IMAssignmentStatus) string {
-	return imAssignmentStatusLabelMap[status]
+func GetIMAssignmentStatusLabel(status IMAssignmentStatus, locale string) string {
+	return enumLabel(locale, imAssignmentStatusLabelMap[status])
 }
 
 type IMMessageType string
@@ -138,15 +138,15 @@ const (
 )
 
 var imMessageTypeLabelMap = map[IMMessageType]string{
-	IMMessageTypeText:       "文本",
-	IMMessageTypeImage:      "图片",
-	IMMessageTypeAudio:      "语音",
-	IMMessageTypeAttachment: "附件",
-	IMMessageTypeHTML:       "富文本",
+	IMMessageTypeText:       "enum.IMMessageTypeText",
+	IMMessageTypeImage:      "enum.IMMessageTypeImage",
+	IMMessageTypeAudio:      "enum.IMMessageTypeAudio",
+	IMMessageTypeAttachment: "enum.IMMessageTypeAttachment",
+	IMMessageTypeHTML:       "enum.IMMessageTypeHTML",
 }
 
-func GetIMMessageTypeLabel(messageType IMMessageType) string {
-	return imMessageTypeLabelMap[messageType]
+func GetIMMessageTypeLabel(messageType IMMessageType, locale string) string {
+	return enumLabel(locale, imMessageTypeLabelMap[messageType])
 }
 
 type IMMessageStatus int
@@ -161,16 +161,16 @@ const (
 )
 
 var imMessageStatusLabelMap = map[IMMessageStatus]string{
-	IMMessageStatusSending:   "发送中",
-	IMMessageStatusSent:      "已发送",
-	IMMessageStatusDelivered: "已送达",
-	IMMessageStatusRead:      "已读",
-	IMMessageStatusFailed:    "发送失败",
-	IMMessageStatusRecalled:  "已撤回",
+	IMMessageStatusSending:   "enum.IMMessageStatusSending",
+	IMMessageStatusSent:      "enum.IMMessageStatusSent",
+	IMMessageStatusDelivered: "enum.IMMessageStatusDelivered",
+	IMMessageStatusRead:      "enum.IMMessageStatusRead",
+	IMMessageStatusFailed:    "enum.IMMessageStatusFailed",
+	IMMessageStatusRecalled:  "enum.IMMessageStatusRecalled",
 }
 
-func GetIMMessageStatusLabel(status IMMessageStatus) string {
-	return imMessageStatusLabelMap[status]
+func GetIMMessageStatusLabel(status IMMessageStatus, locale string) string {
+	return enumLabel(locale, imMessageStatusLabelMap[status])
 }
 
 type IMEventType string
@@ -185,16 +185,16 @@ const (
 )
 
 var imEventTypeLabelMap = map[IMEventType]string{
-	IMEventTypeCreate:        "创建会话",
-	IMEventTypeAssign:        "分配会话",
-	IMEventTypeTransfer:      "转接会话",
-	IMEventTypeClose:         "关闭会话",
-	IMEventTypeMessageSend:   "发送消息",
-	IMEventTypeMessageRecall: "撤回消息",
+	IMEventTypeCreate:        "enum.IMEventTypeCreate",
+	IMEventTypeAssign:        "enum.IMEventTypeAssign",
+	IMEventTypeTransfer:      "enum.IMEventTypeTransfer",
+	IMEventTypeClose:         "enum.IMEventTypeClose",
+	IMEventTypeMessageSend:   "enum.IMEventTypeMessageSend",
+	IMEventTypeMessageRecall: "enum.IMEventTypeMessageRecall",
 }
 
-func GetIMEventTypeLabel(eventType IMEventType) string {
-	return imEventTypeLabelMap[eventType]
+func GetIMEventTypeLabel(eventType IMEventType, locale string) string {
+	return enumLabel(locale, imEventTypeLabelMap[eventType])
 }
 
 type AIAgentHandoffMode int
@@ -212,13 +212,13 @@ var AIAgentHandoffModeValues = []AIAgentHandoffMode{
 }
 
 var aiAgentHandoffModeLabelMap = map[AIAgentHandoffMode]string{
-	AIAgentHandoffModeWaitPool:        "进入待接入池",
-	AIAgentHandoffModeDefaultTeamPool: "产品维修组待认领",
-	AIAgentHandoffModeAIHoldAndNotify: "AI托底并提醒人工",
+	AIAgentHandoffModeWaitPool:        "enum.AIAgentHandoffModeWaitPool",
+	AIAgentHandoffModeDefaultTeamPool: "enum.AIAgentHandoffModeDefaultTeamPool",
+	AIAgentHandoffModeAIHoldAndNotify: "enum.AIAgentHandoffModeAIHoldAndNotify",
 }
 
-func GetAIAgentHandoffModeLabel(mode AIAgentHandoffMode) string {
-	return aiAgentHandoffModeLabelMap[mode]
+func GetAIAgentHandoffModeLabel(mode AIAgentHandoffMode, locale string) string {
+	return enumLabel(locale, aiAgentHandoffModeLabelMap[mode])
 }
 
 type AIAgentFallbackMode int
@@ -234,12 +234,12 @@ var AIAgentFallbackModeValues = []AIAgentFallbackMode{
 }
 
 var aiAgentFallbackModeLabelMap = map[AIAgentFallbackMode]string{
-	AIAgentFallbackModeNoAnswer:     "直接声明无答案",
-	AIAgentFallbackModeSuggestRetry: "建议补充信息",
+	AIAgentFallbackModeNoAnswer:     "enum.AIAgentFallbackModeNoAnswer",
+	AIAgentFallbackModeSuggestRetry: "enum.AIAgentFallbackModeSuggestRetry",
 }
 
-func GetAIAgentFallbackModeLabel(mode AIAgentFallbackMode) string {
-	return aiAgentFallbackModeLabelMap[mode]
+func GetAIAgentFallbackModeLabel(mode AIAgentFallbackMode, locale string) string {
+	return enumLabel(locale, aiAgentFallbackModeLabelMap[mode])
 }
 
 const (

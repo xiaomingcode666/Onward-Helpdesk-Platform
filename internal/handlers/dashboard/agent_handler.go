@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"remotehelpdesk/internal/pkg/i18nx"
 	"time"
 
 	"remotehelpdesk/internal/builders"
@@ -37,7 +38,7 @@ func AgentAnyList(ctx *gin.Context) {
 		cnd.Eq("tenant_id", tenantID)
 	}
 	list, paging := services.AgentProfileService.FindPageByCnd(cnd)
-	results := enrichAgentProfileTeamIDs(tenantID, builders.BuildAgentProfileList(list))
+	results := enrichAgentProfileTeamIDs(tenantID, builders.BuildAgentProfileList(list, i18nx.Locale(ctx)))
 	httpx.WriteJSON(ctx, &web.PageResult{Results: results, Page: paging})
 }
 
@@ -58,11 +59,11 @@ func AgentGetList_all(ctx *gin.Context) {
 		cnd.Eq("tenant_id", tenantID)
 	}
 	if teamID, ok := params.GetInt64(ctx, "teamId"); ok && teamID > 0 {
-		httpx.WriteJSON(ctx, buildAgentProfileListForTeam(tenantID, teamID))
+		httpx.WriteJSON(ctx, buildAgentProfileListForTeam(tenantID, teamID, i18nx.Locale(ctx)))
 		return
 	}
 	list := services.AgentProfileService.Find(cnd)
-	httpx.WriteJSON(ctx, enrichAgentProfileTeamIDs(tenantID, builders.BuildAgentProfileList(list)))
+	httpx.WriteJSON(ctx, enrichAgentProfileTeamIDs(tenantID, builders.BuildAgentProfileList(list, i18nx.Locale(ctx))))
 }
 
 func AgentGetDispatchCandidates(ctx *gin.Context) {
@@ -104,7 +105,7 @@ func AgentGetDispatchCandidates(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAgentDispatchCandidateList(candidates))
+	httpx.WriteJSON(ctx, builders.BuildAgentDispatchCandidateList(candidates, i18nx.Locale(ctx)))
 }
 
 func requireAgentDispatchCandidatePermission(ctx *gin.Context) (*dto.AuthPrincipal, error) {
@@ -141,7 +142,7 @@ func AgentGetBy(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0164"))
 		return
 	}
-	result := builders.BuildAgentProfileResponse(item)
+	result := builders.BuildAgentProfileResponse(item, i18nx.Locale(ctx))
 	if result != nil {
 		result.TeamIDs = services.AgentTeamMemberService.FindTeamIDsByUserID(sqls.DB(), operator.EffectiveTenantID(), result.UserID)
 	}
@@ -164,7 +165,7 @@ func AgentPostCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAgentProfileResponse(item))
+	httpx.WriteJSON(ctx, builders.BuildAgentProfileResponse(item, i18nx.Locale(ctx)))
 }
 
 func AgentPostUpdate(ctx *gin.Context) {
@@ -185,9 +186,9 @@ func AgentPostUpdate(ctx *gin.Context) {
 	httpx.WriteJSON(ctx, nil)
 }
 
-func buildAgentProfileListForTeam(tenantID, teamID int64) []response.AgentProfileResponse {
+func buildAgentProfileListForTeam(tenantID, teamID int64, locale string) []response.AgentProfileResponse {
 	profiles := services.AgentTeamMemberService.FindProfilesByTeamID(sqls.DB(), tenantID, teamID)
-	results := builders.BuildAgentProfileList(profiles)
+	results := builders.BuildAgentProfileList(profiles, locale)
 	members := services.AgentTeamMemberService.FindActiveMembersByTeamID(sqls.DB(), tenantID, teamID)
 	memberByUserID := make(map[int64]models.AgentTeamMember, len(members))
 	for _, member := range members {

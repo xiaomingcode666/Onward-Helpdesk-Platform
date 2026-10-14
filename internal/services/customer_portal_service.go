@@ -880,7 +880,7 @@ func (s *customerPortalService) resolveVisibleTicket(external openidentity.Exter
 			return scope, &items[i], nil
 		}
 	}
-	return nil, nil, errorsx.Forbidden("工单不存在或当前账号无权查看，请返回工单列表")
+	return nil, nil, errorsx.ForbiddenI18n("error.z0075")
 }
 
 func (s *customerPortalService) findTicketDTO(external openidentity.ExternalUser, ticketID int64) (*dto.CustomerPortalTicketDTO, error) {
@@ -1833,73 +1833,79 @@ func buildCustomerTicketProgressFallback(item models.Ticket, assigneeName string
 	if len(progress) > 0 {
 		return progress
 	}
+	createdAt := formatCustomerTime(firstNonZeroTime(item.UpdatedAt, item.CreatedAt))
 	// Old waiting_customer and unresolved pending_customer_confirm records do
 	// not prove a repair was completed. Keep their fallback explicit.
-	caseContent := ""
+	caseKey := ""
 	switch models.EffectiveTicketCaseStatus(item) {
 	case "waiting":
-		caseContent = "正在等待补充资料或处理条件，问题仍未解决。"
+		caseKey = "customerProgress.case.waiting"
 	case "restored":
-		caseContent = "服务已恢复，工程师仍在继续确认和解决问题。"
+		caseKey = "customerProgress.case.restored"
 	case "acknowledged":
 		if item.CaseStatus != "" {
-			caseContent = "客服已确认受理，正在安排后续处理。"
+			caseKey = "customerProgress.case.acknowledged"
 		}
 	case "in_triage":
 		if item.CaseStatus != "" {
-			caseContent = "正在排查问题并确认处理办法。"
+			caseKey = "customerProgress.case.inTriage"
 		}
 	}
-	if caseContent != "" {
-		return []dto.CustomerPortalTicketProgressDTO{{EventType: "progress", Content: caseContent, CreatedAt: formatCustomerTime(firstNonZeroTime(item.UpdatedAt, item.CreatedAt))}}
+	if caseKey != "" {
+		return []dto.CustomerPortalTicketProgressDTO{customerPortalSystemProgress("progress", i18nx.NewText(caseKey, nil), createdAt)}
 	}
-	content := ""
+	key := "customerProgress.fallback.created"
+	params := i18nx.Params(nil)
 	eventType := enums.TicketProgressEventCreated
 	switch enums.NormalizeTicketStatus(string(item.Status)) {
 	case enums.TicketStatusPendingDispatch:
-		content = "服务工单已创建，正在安排工程师。"
+		key = "customerProgress.fallback.pendingDispatch"
 	case enums.TicketStatusPendingAssigneeAccept:
-		if strings.TrimSpace(assigneeName) != "" {
-			content = "已分配给" + strings.TrimSpace(assigneeName) + "，等待工程师接单。"
-		} else {
-			content = "已分配工程师，等待接单。"
+		key = "customerProgress.fallback.pendingAssigneeAccept"
+		if name := strings.TrimSpace(assigneeName); name != "" {
+			key = "customerProgress.fallback.pendingAssigneeAcceptWithName"
+			params = i18nx.Params{"assignee": name}
 		}
 		eventType = enums.TicketProgressEventAssigned
 	case enums.TicketStatusAccepted:
-		content = "工程师已接单，正在准备处理。"
+		key = "customerProgress.fallback.accepted"
 		eventType = enums.TicketProgressEventAccepted
 	case enums.TicketStatusProcessing, enums.TicketStatusVideoSupport, enums.TicketStatusSupplierSupport, enums.TicketStatusInProgress:
-		content = "工程师正在处理该工单。"
+		key = "customerProgress.fallback.processing"
 		eventType = enums.TicketProgressEventProcessing
 	case enums.TicketStatusResolved, enums.TicketStatusPendingCustomerConfirm, enums.TicketStatusQualityReview:
-		content = "维修结论已提交，等待确认。"
+		key = "customerProgress.fallback.repairSubmitted"
 		eventType = enums.TicketProgressEventRepairCompleted
 	case enums.TicketStatusClosed:
-		content = "工单已关闭。"
+		key = "customerProgress.fallback.closed"
 		eventType = enums.TicketProgressEventClosed
 	case enums.TicketStatusCancelled:
-		content = "工单已取消。"
+		key = "customerProgress.fallback.cancelled"
 		eventType = enums.TicketProgressEventClosed
 	case enums.TicketStatusReopened:
-		content = "工单已重新打开，正在继续处理。"
+		key = "customerProgress.fallback.reopened"
 		eventType = enums.TicketProgressEventReopened
-	default:
-		content = "服务工单已创建。"
 	}
-	return []dto.CustomerPortalTicketProgressDTO{{
-		EventType: string(eventType),
-		Content:   content,
-		CreatedAt: formatCustomerTime(firstNonZeroTime(item.UpdatedAt, item.CreatedAt)),
-	}}
+	return []dto.CustomerPortalTicketProgressDTO{customerPortalSystemProgress(string(eventType), i18nx.NewText(key, params), createdAt)}
+}
+
+func customerPortalSystemProgress(eventType string, text i18nx.Text, createdAt string) dto.CustomerPortalTicketProgressDTO {
+	return dto.CustomerPortalTicketProgressDTO{EventType: eventType, Content: canonicalText(text), ContentText: text, CreatedAt: createdAt}
 }
 
 func buildCustomerPortalTicketProgressDTO(row models.TicketProgress) dto.CustomerPortalTicketProgressDTO {
+	text := customerPortalTicketProgressText(row)
+	content := row.Content
+	if !text.IsZero() {
+		content = canonicalText(text)
+	}
 	return dto.CustomerPortalTicketProgressDTO{
-		ID:        row.ID,
-		EventType: string(row.EventType),
-		Content:   customerPortalTicketProgressContent(row),
-		CreatedAt: formatCustomerTime(row.CreatedAt),
-		Metadata:  customerPortalTicketProgressMetadata(row.MetadataJSON),
+		ID:          row.ID,
+		EventType:   string(row.EventType),
+		Content:     content,
+		ContentText: text,
+		CreatedAt:   formatCustomerTime(row.CreatedAt),
+		Metadata:    customerPortalTicketProgressMetadata(row.MetadataJSON),
 	}
 }
 
@@ -1933,80 +1939,80 @@ func customerPortalTicketProgressMetadata(raw string) map[string]string {
 	return metadata
 }
 
-func customerPortalTicketProgressContent(row models.TicketProgress) string {
+// customerPortalTicketProgressText 返回向客户展示的系统进度文本；返回空文本表示原样展示录入内容。
+func customerPortalTicketProgressText(row models.TicketProgress) i18nx.Text {
 	content := strings.TrimSpace(row.Content)
-	fallback := customerPortalTicketProgressFallbackContent(row.EventType)
-	if content == "" {
+	fallback := customerPortalTicketProgressFallbackText(row.EventType)
+	if content == "" && row.ContentText.IsZero() {
 		return fallback
 	}
-	if strings.HasPrefix(content, "状态流转：") {
-		if statusContent := customerPortalTicketProgressStatusContent(row); statusContent != "" {
-			return statusContent
+	switch {
+	case row.ContentText.Key == "ticketProgress.statusChanged", row.ContentText.Key == "ticketProgress.statusChangedWithRemark",
+		row.ContentText.IsZero() && strings.HasPrefix(content, "状态流转："):
+		if statusText := customerPortalTicketProgressStatusText(row); !statusText.IsZero() {
+			return statusText
 		}
-		if fallback != "" {
-			return fallback
-		}
+		return fallback
+	case row.ContentText.Key == "ticketProgress.created", row.ContentText.IsZero() && strings.EqualFold(content, "Created ticket"):
+		return fallback
 	}
-	if strings.EqualFold(content, "Created ticket") {
-		if fallback != "" {
-			return fallback
-		}
-	}
-	return content
+	return row.ContentText
 }
 
-func customerPortalTicketProgressStatusContent(row models.TicketProgress) string {
+func customerPortalTicketProgressStatusText(row models.TicketProgress) i18nx.Text {
 	var payload struct {
 		ToStatus string `json:"to_status"`
 	}
 	if err := json.Unmarshal([]byte(row.MetadataJSON), &payload); err != nil {
-		return ""
+		return i18nx.Text{}
 	}
+	key := ""
 	switch enums.NormalizeTicketStatus(payload.ToStatus) {
 	case enums.TicketStatusPendingDispatch:
-		return "工单已进入派单流程"
+		key = "customerProgress.status.pendingDispatch"
 	case enums.TicketStatusPendingAssigneeAccept:
-		return "已分配工程师，等待接单"
+		key = "customerProgress.status.pendingAssigneeAccept"
 	case enums.TicketStatusAccepted:
-		return "工程师已接单"
+		key = "customerProgress.status.accepted"
 	case enums.TicketStatusProcessing, enums.TicketStatusVideoSupport, enums.TicketStatusSupplierSupport, enums.TicketStatusInProgress:
-		return "工程师正在处理该工单"
+		key = "customerProgress.status.processing"
 	case enums.TicketStatusResolved, enums.TicketStatusPendingCustomerConfirm, enums.TicketStatusQualityReview:
-		return "维修结论已提交，等待确认"
+		key = "customerProgress.status.repairSubmitted"
 	case enums.TicketStatusClosed:
-		return "工单已关闭"
+		key = "customerProgress.status.closed"
 	case enums.TicketStatusCancelled:
-		return "工单已取消"
+		key = "customerProgress.status.cancelled"
 	case enums.TicketStatusReopened:
-		return "工单已重新打开，正在继续处理"
+		key = "customerProgress.status.reopened"
 	default:
-		return ""
+		return i18nx.Text{}
 	}
+	return i18nx.NewText(key, nil)
 }
 
-func customerPortalTicketProgressFallbackContent(eventType enums.TicketProgressEventType) string {
+func customerPortalTicketProgressFallbackText(eventType enums.TicketProgressEventType) i18nx.Text {
+	key := "customerProgress.event.updated"
 	switch eventType {
 	case enums.TicketProgressEventCreated:
-		return "已创建工单"
+		key = "customerProgress.event.created"
 	case enums.TicketProgressEventAccepted:
-		return "工程师已接单"
+		key = "customerProgress.event.accepted"
 	case enums.TicketProgressEventAssigned:
-		return "已分配处理人员"
+		key = "customerProgress.event.assigned"
 	case enums.TicketProgressEventProcessing:
-		return "工单处理中"
+		key = "customerProgress.event.processing"
 	case enums.TicketProgressEventEscalated:
-		return "已升级协作处理"
+		key = "customerProgress.event.escalated"
 	case enums.TicketProgressEventRepairCompleted:
-		return "已填写维修记录"
+		key = "customerProgress.event.repairCompleted"
 	case enums.TicketProgressEventClosed:
-		return "工单已关闭"
+		key = "customerProgress.event.closed"
 	case enums.TicketProgressEventReopened:
-		return "工单已重新打开"
+		key = "customerProgress.event.reopened"
 	case enums.TicketProgressEventMeetingEnded:
-		return "视频协作已结束"
-	default:
-		return "工单进度已更新"
+		key = "customerProgress.event.meetingEnded"
 	}
+	return i18nx.NewText(key, nil)
 }
 
 func firstNonZeroTime(values ...time.Time) time.Time {

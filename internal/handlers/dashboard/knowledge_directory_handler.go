@@ -9,6 +9,7 @@ import (
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/httpx"
 	"remotehelpdesk/internal/pkg/httpx/params"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -30,7 +31,7 @@ func KnowledgeDirectoryGetList_all(ctx *gin.Context) {
 		return
 	}
 	list := services.KnowledgeDirectoryService.FindAllByKnowledgeBaseID(knowledgeBaseID)
-	httpx.WriteJSON(ctx, buildKnowledgeDirectoryTreeResponses(list))
+	httpx.WriteJSON(ctx, buildKnowledgeDirectoryTreeResponses(list, i18nx.Locale(ctx)))
 }
 
 func KnowledgeDirectoryPostCreate(ctx *gin.Context) {
@@ -49,7 +50,7 @@ func KnowledgeDirectoryPostCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	resp := builders.BuildKnowledgeDirectory(item)
+	resp := builders.BuildKnowledgeDirectory(item, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, &resp)
 }
 
@@ -111,7 +112,7 @@ func KnowledgeDirectoryPostUpdate_sort(ctx *gin.Context) {
 	httpx.WriteJSON(ctx, nil)
 }
 
-func buildKnowledgeDirectoryTreeResponses(list []models.KnowledgeDirectory) []response.KnowledgeDirectoryResponse {
+func buildKnowledgeDirectoryTreeResponses(list []models.KnowledgeDirectory, locale string) []response.KnowledgeDirectoryResponse {
 	childrenByParent := make(map[int64][]models.KnowledgeDirectory, len(list))
 	for _, item := range list {
 		childrenByParent[item.ParentID] = append(childrenByParent[item.ParentID], item)
@@ -121,7 +122,7 @@ func buildKnowledgeDirectoryTreeResponses(list []models.KnowledgeDirectory) []re
 		items := childrenByParent[parentID]
 		ret := make([]response.KnowledgeDirectoryResponse, 0, len(items))
 		for _, item := range items {
-			resp := builders.BuildKnowledgeDirectory(&item)
+			resp := builders.BuildKnowledgeDirectory(&item, locale)
 			resp.Children = build(item.ID)
 			ret = append(ret, resp)
 		}

@@ -15,6 +15,7 @@ import (
 	"github.com/mlogclub/simple/common/strs"
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 var WxWorkLoginService = &wxWorkLoginService{}
@@ -155,10 +156,10 @@ func (s *wxWorkLoginService) createWxWorkUser(ctx *sqls.TxContext, profile *wxwo
 		AuditFields: models.AuditFields{
 			CreatedAt:      now,
 			CreateUserID:   0,
-			CreateUserName: enums.GetThirdProviderLabel(enums.ThirdProviderWxWork),
+			CreateUserName: enums.GetThirdProviderLabel(enums.ThirdProviderWxWork, i18nx.LocaleZhCN),
 			UpdatedAt:      now,
 			UpdateUserID:   0,
-			UpdateUserName: enums.GetThirdProviderLabel(enums.ThirdProviderWxWork),
+			UpdateUserName: enums.GetThirdProviderLabel(enums.ThirdProviderWxWork, i18nx.LocaleZhCN),
 		},
 	}
 	if err := repositories.UserRepository.Create(ctx.Tx, user); err != nil {
@@ -170,7 +171,7 @@ func (s *wxWorkLoginService) createWxWorkUser(ctx *sqls.TxContext, profile *wxwo
 		Provider:       enums.ThirdProviderWxWork,
 		ProviderUserID: strings.TrimSpace(profile.UserID),
 		ProviderCorpID: strings.TrimSpace(profile.CorpID),
-		ProviderName:   enums.GetThirdProviderLabel(enums.ThirdProviderWxWork),
+		ProviderName:   enums.GetThirdProviderLabel(enums.ThirdProviderWxWork, i18nx.LocaleZhCN),
 		RawProfile:     jsons.ToJsonStr(profile),
 		Status:         enums.StatusOk,
 		LastAuthAt:     &now,

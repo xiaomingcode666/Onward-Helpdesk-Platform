@@ -29,11 +29,11 @@ func decodeConfigRequest(ctx *gin.Context, v any) bool {
 	d := json.NewDecoder(http.MaxBytesReader(ctx.Writer, ctx.Request.Body, 300*1024))
 	d.DisallowUnknownFields()
 	if err := d.Decode(v); err != nil {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("配置格式不正确、包含不支持的字段或超过大小限制"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0006"))
 		return false
 	}
 	if err := d.Decode(new(any)); err != io.EOF {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("只能提交一份配置"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0007"))
 		return false
 	}
 	return true
@@ -68,7 +68,7 @@ func ProjectConfigurationGet(ctx *gin.Context) {
 		var err error
 		beforeID, err = strconv.ParseInt(raw, 10, 64)
 		if err != nil || beforeID < 0 {
-			httpx.WriteJSON(ctx, errorsx.InvalidParam("历史版本游标无效"))
+			httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0008"))
 			return
 		}
 	}
@@ -145,7 +145,7 @@ func ProjectConfigurationImpactPreview(ctx *gin.Context) {
 		return
 	}
 	if input.Document.TenantID != id || input.Document.Environment != projectconfig.Environment() || input.Document.Runtime == nil {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("试算配置必须属于当前公司、当前环境且包含运营设置"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0009"))
 		return
 	}
 	report := projectconfig.Validate(input.Document, id, projectconfig.Environment(), projectconfig.RuntimeSecretCheck)
@@ -153,7 +153,7 @@ func ProjectConfigurationImpactPreview(ctx *gin.Context) {
 		if len(report.Issues) > 0 {
 			httpx.WriteJSON(ctx, errorsx.InvalidParam(report.Issues[0].Path+"："+report.Issues[0].Message))
 		} else {
-			httpx.WriteJSON(ctx, errorsx.InvalidParam("配置检查未通过"))
+			httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0010"))
 		}
 		return
 	}
@@ -167,7 +167,7 @@ func ProjectConfigurationApply(ctx *gin.Context) {
 	}
 	versionID, err := strconv.ParseInt(ctx.Param("version"), 10, 64)
 	if err != nil || versionID <= 0 {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("配置版本无效"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0011"))
 		return
 	}
 	version, err := services.ApplyProjectConfiguration(id, versionID, op)
@@ -181,7 +181,7 @@ func ProjectRetentionApprovalsGet(ctx *gin.Context) {
 	}
 	versionID, err := strconv.ParseInt(ctx.Query("version_id"), 10, 64)
 	if err != nil || versionID <= 0 {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("配置版本无效"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0011"))
 		return
 	}
 	result, err := services.ListRetentionApprovals(id, versionID, op)
@@ -195,7 +195,7 @@ func ProjectRetentionApprovalSubmit(ctx *gin.Context) {
 	}
 	versionID, err := strconv.ParseInt(ctx.Param("version"), 10, 64)
 	if err != nil || versionID <= 0 {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("配置版本无效"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0011"))
 		return
 	}
 	result, err := services.SubmitRetentionApproval(id, versionID, op)
@@ -213,7 +213,7 @@ func ProjectRetentionApprovalReview(ctx *gin.Context) {
 	}
 	approvalID, err := strconv.ParseInt(ctx.Param("approval"), 10, 64)
 	if err != nil || approvalID <= 0 {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("审批记录无效"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0012"))
 		return
 	}
 	var body struct {

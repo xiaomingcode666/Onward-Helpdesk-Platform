@@ -54,7 +54,7 @@ func ticketRelationSLASnapshot(t models.Ticket, now time.Time) map[string]any {
 // checked independently of customer identity (one incident can affect many users).
 func SearchTicketDuplicateCandidates(ticketID int64, query string, op *dto.AuthPrincipal) ([]TicketDuplicateCandidate, error) {
 	if op == nil {
-		return nil, errorsx.Forbidden("请登录后操作")
+		return nil, errorsx.ForbiddenI18n("error.z0135")
 	}
 	db := sqls.DB()
 	var current models.Ticket
@@ -62,7 +62,7 @@ func SearchTicketDuplicateCandidates(ticketID int64, query string, op *dto.AuthP
 		return nil, err
 	}
 	if !canManageTicketGovernance(&current, op) {
-		return nil, errorsx.Forbidden("需要工单管理权限")
+		return nil, errorsx.ForbiddenI18n("error.z0136")
 	}
 	result := []TicketDuplicateCandidate{}
 	if current.MergedIntoID > 0 || current.Status == "draft" {

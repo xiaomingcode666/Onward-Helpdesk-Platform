@@ -38,7 +38,7 @@ func buildTicketAssignedNotifyBody(ticket *models.Ticket, assigneeID int64, reas
 	lines := []string{
 		i18nx.Getf(i18nx.DefaultLocale, "notification.ticketAssigned.wxwork.no", strs.DefaultIfBlank(ticket.TicketNo, fmt.Sprintf("#%d", ticket.ID))),
 		i18nx.Getf(i18nx.DefaultLocale, "notification.ticketAssigned.wxwork.title", strs.DefaultIfBlank(ticket.Title, "-")),
-		i18nx.Getf(i18nx.DefaultLocale, "notification.ticketAssigned.wxwork.status", enums.GetTicketStatusLabel(ticket.Status)),
+		i18nx.Getf(i18nx.DefaultLocale, "notification.ticketAssigned.wxwork.status", enums.GetTicketStatusLabel(ticket.Status, i18nx.DefaultLocale)),
 		i18nx.Getf(i18nx.DefaultLocale, "notification.assignee", resolveNotifyUserLabel(assigneeID)),
 	}
 	if strings.TrimSpace(reason) != "" {

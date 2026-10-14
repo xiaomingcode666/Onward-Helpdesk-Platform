@@ -25,11 +25,11 @@ const (
 )
 
 var aiModelTypeLabelMap = map[AIModelType]string{
-	AIModelTypeLLM:       "大语言模型",
-	AIModelTypeEmbedding: "向量模型",
-	AIModelTypeRerank:    "重排序模型",
+	AIModelTypeLLM:       "enum.AIModelTypeLLM",
+	AIModelTypeEmbedding: "enum.AIModelTypeEmbedding",
+	AIModelTypeRerank:    "enum.AIModelTypeRerank",
 }
 
-func GetAIModelTypeLabel(modelType AIModelType) string {
-	return aiModelTypeLabelMap[modelType]
+func GetAIModelTypeLabel(modelType AIModelType, locale string) string {
+	return enumLabel(locale, aiModelTypeLabelMap[modelType])
 }

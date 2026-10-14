@@ -33,6 +33,18 @@ func handleConversationAssignedNotify(ctx context.Context, event events.Conversa
 		buildConversationAssignedNotifyBody(conversation, event.ToUserID, event.Reason, event.AssignType))
 }
 
+// conversationAssignedNotifyTitleText 返回会话分配通知标题的可翻译文本。
+func conversationAssignedNotifyTitleText(assignType string) i18nx.Text {
+	switch strings.TrimSpace(assignType) {
+	case events.ConversationAssignTypeTransfer:
+		return i18nx.NewText("notificationText.conversationTransferred.title", nil)
+	case events.ConversationAssignTypeAutoAssign:
+		return i18nx.NewText("notificationText.conversationAutoAssigned.title", nil)
+	default:
+		return i18nx.NewText("notificationText.conversationAssigned.title", nil)
+	}
+}
+
 func conversationAssignedNotifyTitle(assignType string) string {
 	switch strings.TrimSpace(assignType) {
 	case events.ConversationAssignTypeTransfer:
@@ -56,7 +68,7 @@ func buildConversationAssignedNotifyBody(conversation *models.Conversation, assi
 		i18nx.Getf(i18nx.DefaultLocale, "notification.conversationAssigned.wxwork.id", conversation.ID),
 		i18nx.Getf(i18nx.DefaultLocale, "notification.conversationAssigned.wxwork.summary", strs.DefaultIfBlank(services.ConversationService.BuildConversationSummary(conversation), "-")),
 		i18nx.Getf(i18nx.DefaultLocale, "notification.conversationAssigned.wxwork.channel", resolveConversationChannelLabel(conversation)),
-		i18nx.Getf(i18nx.DefaultLocale, "notification.conversationAssigned.wxwork.status", enums.GetIMConversationStatusLabel(conversation.Status)),
+		i18nx.Getf(i18nx.DefaultLocale, "notification.conversationAssigned.wxwork.status", enums.GetIMConversationStatusLabel(conversation.Status, i18nx.DefaultLocale)),
 		i18nx.Getf(i18nx.DefaultLocale, "notification.assignee", resolveNotifyUserLabel(assigneeID)),
 	}
 	if strings.TrimSpace(reason) != "" {

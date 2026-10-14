@@ -421,7 +421,7 @@ func (s *ticketService) prepareTicketCreate(db *gorm.DB, req request.CreateTicke
 		ticket.PriorityLevel = req.PriorityLevel
 		ticket.PriorityCode = ticketpolicy.LegacyCode(req.PriorityLevel)
 		ticket.PriorityOverridden = true
-		ticket.PriorityExplanation = "人工调整"
+		ticket.PriorityExplanation, ticket.PriorityExplanationText = systemText("ticketPriority.explanation.manual", nil)
 		ticket.GovernanceRevision++
 		if err := refreshGovernanceDeadlineDB(db, ticket); err != nil {
 			return nil, nil, err
@@ -487,15 +487,16 @@ func (s *ticketService) createTicketPreparedTx(ctx *sqls.TxContext, prepared *pr
 	if err := s.createContextSnapshot(ctx.Tx, ticket); err != nil {
 		return err
 	}
-	createdContent := "Created ticket"
+	createdContent := i18nx.NewText("ticketProgress.created", nil)
 	if ticket.Status == enums.TicketStatusDraft && ticket.CustomerRegistrationGrantID > 0 {
-		createdContent = "Draft ticket created; awaiting customer invitation acceptance"
+		createdContent = i18nx.NewText("ticketProgress.draftCreated", nil)
 	}
 	createdProgress := &models.TicketProgress{
 		TenantID:     ticket.TenantID,
 		TicketID:     ticket.ID,
 		EventType:    enums.TicketProgressEventCreated,
-		Content:      createdContent,
+		Content:      canonicalText(createdContent),
+		ContentText:  createdContent,
 		MetadataJSON: "{}",
 		AuthorID:     operator.UserID,
 		CreatedAt:    time.Now(),
@@ -612,10 +613,12 @@ func (s *ticketService) ActivateCustomerInvitationDrafts(
 				return err
 			}
 		}
+		acceptedContent, acceptedText := systemText("ticketProgress.invitationAccepted", nil)
 		progress := &models.TicketProgress{
 			TenantID: ticket.TenantID, TicketID: ticket.ID, EventType: enums.TicketProgressEventProgress,
-			Content: "Customer accepted invitation; draft ticket submitted", MetadataJSON: ticketProgressMetadata(enums.TicketStatusDraft, nextStatus),
-			AuthorID: 0, CreatedAt: now,
+			Content: acceptedContent, ContentText: acceptedText,
+			MetadataJSON: ticketProgressMetadata(enums.TicketStatusDraft, nextStatus),
+			AuthorID:     0, CreatedAt: now,
 		}
 		if err := repositories.TicketProgressRepository.Create(ctx.Tx, progress); err != nil {
 			return err
@@ -697,11 +700,13 @@ func reconcileUnclaimedLinkedConversationTicketTx(
 	})); err != nil {
 		return false, err
 	}
+	restoredContent, restoredText := systemText("ticketProgress.conversationRestoredPending", nil)
 	progress := &models.TicketProgress{
 		TenantID:     ticket.TenantID,
 		TicketID:     ticket.ID,
 		EventType:    enums.TicketProgressEventAssigned,
-		Content:      "关联会话状态已恢复为待接入",
+		Content:      restoredContent,
+		ContentText:  restoredText,
 		MetadataJSON: "{}",
 		AuthorID:     updateUserID,
 		CreatedAt:    now,
@@ -1112,18 +1117,17 @@ func (s *ticketService) SyncConversationDispatchTx(
 		if fromUserID <= 0 {
 			return nil
 		}
-		content := "工单回到产品组待派单"
+		contentKey := "ticketProgress.returnedToPool.product"
 		if TenantCapabilityService.KnowledgeSupport(ticket.TenantID) {
-			content = "工单回到技术支持组待派单"
+			contentKey = "ticketProgress.returnedToPool.support"
 		}
-		if trimmed := strings.TrimSpace(reason); trimmed != "" {
-			content += "，原因：" + trimmed
-		}
+		content := withReasonText(i18nx.NewText(contentKey, nil), reason)
 		progress := &models.TicketProgress{
 			TenantID:     ticket.TenantID,
 			TicketID:     ticket.ID,
 			EventType:    enums.TicketProgressEventAssigned,
-			Content:      content,
+			Content:      canonicalText(content),
+			ContentText:  content,
 			MetadataJSON: "{}",
 			AuthorID:     auditOperatorID(operator),
 			CreatedAt:    now,
@@ -1133,15 +1137,13 @@ func (s *ticketService) SyncConversationDispatchTx(
 	if fromUserID == assigneeID {
 		return nil
 	}
-	content := "工单随会话自动分配"
-	if trimmed := strings.TrimSpace(reason); trimmed != "" {
-		content += "，原因：" + trimmed
-	}
+	content := withReasonText(i18nx.NewText("ticketProgress.autoAssignedWithConversation", nil), reason)
 	progress := &models.TicketProgress{
 		TenantID:     ticket.TenantID,
 		TicketID:     ticket.ID,
 		EventType:    enums.TicketProgressEventAssigned,
-		Content:      content,
+		Content:      canonicalText(content),
+		ContentText:  content,
 		MetadataJSON: "{}",
 		AuthorID:     auditOperatorID(operator),
 		CreatedAt:    now,
@@ -1469,11 +1471,13 @@ func (s *ticketService) ChangeStatus(req request.ChangeTicketStatusRequest, oper
 				return err
 			}
 		}
+		statusContent, statusText := systemText("ticketProgress.statusChanged", i18nx.Params{"status": ticketStatusText(newStatus)})
 		return repositories.TicketProgressRepository.Create(ctx.Tx, &models.TicketProgress{
 			TenantID:     ticket.TenantID,
 			TicketID:     ticket.ID,
 			EventType:    ticketProgressEventForStatus(newStatus),
-			Content:      "状态流转：" + string(newStatus),
+			Content:      statusContent,
+			ContentText:  statusText,
 			MetadataJSON: ticketProgressMetadata(ticket.Status, newStatus),
 			AuthorID:     operator.UserID,
 			CreatedAt:    now,
@@ -1525,9 +1529,9 @@ func (s *ticketService) Transition(req request.TransitionTicketRequest, operator
 		updates["handled_at"] = nil
 	}
 	dispatchOutcome, acceptedAt := applyTicketStatusDispatchSideEffects(updates, ticket, target, now)
-	content := "状态流转：" + string(target)
+	content := i18nx.NewText("ticketProgress.statusChanged", i18nx.Params{"status": ticketStatusText(target)})
 	if remark := strings.TrimSpace(req.Remark); remark != "" {
-		content += "，备注：" + remark
+		content = i18nx.NewText("ticketProgress.statusChangedWithRemark", i18nx.Params{"status": ticketStatusText(target), "remark": remark})
 	}
 	if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 		locked := loadTicketForUpdate(ctx.Tx, ticket.ID)
@@ -1552,7 +1556,8 @@ func (s *ticketService) Transition(req request.TransitionTicketRequest, operator
 			TenantID:     ticket.TenantID,
 			TicketID:     ticket.ID,
 			EventType:    ticketProgressEventForStatus(target),
-			Content:      content,
+			Content:      canonicalText(content),
+			ContentText:  content,
 			MetadataJSON: ticketProgressMetadata(ticket.Status, target),
 			AuthorID:     operator.UserID,
 			CreatedAt:    now,
@@ -1692,7 +1697,8 @@ func (s *ticketService) CreateRepairRecord(req request.CreateTicketRepairRecordR
 			TenantID:          ticket.TenantID,
 			TicketID:          ticket.ID,
 			EventType:         enums.TicketProgressEventRepairCompleted,
-			Content:           "已填写维修记录",
+			Content:           canonicalText(i18nx.NewText("ticketProgress.repairRecorded", nil)),
+			ContentText:       i18nx.NewText("ticketProgress.repairRecorded", nil),
 			MetadataJSON:      "{}",
 			AuthorID:          operator.UserID,
 			VisibleToCustomer: req.VisibleToCustomer,
@@ -1887,7 +1893,8 @@ func (s *ticketService) resolveSupplierCollaborationsForRepairConclusionTx(db *g
 		TenantID:     ticket.TenantID,
 		TicketID:     ticket.ID,
 		EventType:    enums.TicketProgressEventProgress,
-		Content:      "供应商协作已随维修结论关闭",
+		Content:      canonicalText(i18nx.NewText("ticketProgress.supplierClosedWithRepair", nil)),
+		ContentText:  i18nx.NewText("ticketProgress.supplierClosedWithRepair", nil),
 		MetadataJSON: string(metadata),
 		AuthorID:     operator.UserID,
 		CreatedAt:    resolvedAt,

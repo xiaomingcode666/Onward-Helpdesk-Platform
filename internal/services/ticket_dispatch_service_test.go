@@ -16,6 +16,7 @@ import (
 
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 func seedTicketDispatchManager(t *testing.T, db *gorm.DB) {
@@ -1632,7 +1633,7 @@ func TestTicketDispatchSupervisorTakeoverUsesProductRepairTeamWhenCurrentTeamBel
 		t.Fatal(err)
 	}
 
-	escalated, err := TicketDispatchService.EscalateToSupervisor(ticket.ID, 0, "产品维修组兜底", now)
+	escalated, err := TicketDispatchService.EscalateToSupervisor(ticket.ID, 0, i18nx.NewText("ticketProgress.supervisorTakeoverUndispatchable", i18nx.Params{"reason": "产品维修组兜底"}), now)
 	if err != nil || escalated == nil {
 		t.Fatalf("EscalateToSupervisor() = (%+v, %v), want product repair leader takeover", escalated, err)
 	}
@@ -1748,7 +1749,7 @@ func TestTicketDispatchSupervisorTakeoverDoesNotReturnToLatestTimedOutAssignee(t
 		t.Fatal(err)
 	}
 
-	escalated, err := TicketDispatchService.EscalateToSupervisor(ticket.ID, 0, "主管兜底", now)
+	escalated, err := TicketDispatchService.EscalateToSupervisor(ticket.ID, 0, i18nx.NewText("ticketProgress.supervisorTakeoverUndispatchable", i18nx.Params{"reason": "主管兜底"}), now)
 	if err != nil || escalated != nil {
 		t.Fatalf("EscalateToSupervisor() = (%+v, %v), want team queue fallback", escalated, err)
 	}

@@ -40,6 +40,7 @@ import { TicketGovernancePanel } from "./_components/ticket-governance"
 import { TicketCreateModal } from "./_components/ticket-create-modal"
 import { caseTypes, governanceLabel as g } from "@/lib/ticket-governance"
 import { ProjectConfigurationEditor } from "./_components/project-configuration-editor"
+import { readStoredLocale } from "@/i18n/config"
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
     return translateCurrentMessage(`enterpriseExtract.${key}`)
@@ -113,7 +114,7 @@ function formatTicketTime(value?: string) {
   if (!timestamp) {
     return "-"
   }
-  return new Date(timestamp).toLocaleString("zh-CN", {
+  return new Date(timestamp).toLocaleString(readStoredLocale(), {
     month: "short",
     day: "numeric",
     hour: "2-digit",

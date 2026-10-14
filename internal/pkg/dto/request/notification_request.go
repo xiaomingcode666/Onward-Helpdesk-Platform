@@ -1,5 +1,7 @@
 package request
 
+import "remotehelpdesk/internal/pkg/i18nx"
+
 type CreateNotificationRequest struct {
 	TenantID         int64  `json:"tenantId"`
 	RecipientUserID  int64  `json:"recipientUserId"`
@@ -18,6 +20,10 @@ type CreateNotificationRequest struct {
 	TemplateCode string `json:"templateCode"`
 	// TemplateVariables 是模板占位符的取值，例如 {"TicketNo": "TK-1"}。
 	TemplateVariables map[string]string `json:"templateVariables"`
+	// TitleText、ContentText 和 TextVariables 是系统生成的文本，展示时按读者当前语言渲染；随通知队列任务一起序列化。
+	TitleText     i18nx.Text            `json:"titleText,omitempty"`
+	ContentText   i18nx.Text            `json:"contentText,omitempty"`
+	TextVariables map[string]i18nx.Text `json:"textVariables,omitempty"`
 }
 
 type MarkNotificationReadRequest struct {

@@ -539,6 +539,10 @@ func (s *notificationDeliveryService) renderEmailContent(delivery *models.Delive
 	if item.BizID > 0 {
 		data["BizID"] = strconv.FormatInt(item.BizID, 10)
 	}
+	// 新通知保存了模板参数：邮件按收件人语言使用原始标题、内容和变量渲染，而不是站内信渲染结果。
+	for key, value := range renderNotificationParams(item.TemplateParams, tpl.Language) {
+		data[key] = value
+	}
 	renderedTitle := strings.TrimSpace(notificationTemplateVariablePattern.ReplaceAllString(RenderNotificationTemplateText(tpl.TitleTemplate, data), ""))
 	renderedContent := strings.TrimSpace(RenderNotificationTemplateText(tpl.ContentTemplate, data))
 	if renderedTitle != "" {

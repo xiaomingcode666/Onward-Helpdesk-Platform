@@ -6,6 +6,7 @@ import { enumsMessages } from "./enums"
 import { enterpriseMessages } from "./enterprise"
 import { exportsMessages } from "./exports"
 import { iamMessages } from "./iam"
+import { marketingMessages } from "./marketing"
 import { meetingRoomMessages } from "./meeting-room"
 import { miscTailMessages } from "./misc-tail"
 import { opsComponentsMessages } from "./ops-components"
@@ -35,6 +36,7 @@ const extractedMessageGroups = [
   exportsMessages,
   miscTailMessages,
   enumsMessages,
+  marketingMessages,
 ]
 
 export function getExtractedMessage(locale: AppLocale, key: string): unknown {

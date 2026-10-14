@@ -10,6 +10,8 @@ import (
 	"remotehelpdesk/internal/repositories"
 
 	"github.com/mlogclub/simple/sqls"
+	"remotehelpdesk/internal/pkg/dto/request"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 const (
@@ -71,7 +73,13 @@ func (s *notificationTemplateService) ApplyToNotification(item *models.Notificat
 		return errorsx.InvalidParam(notificationTemplateMissingPrefix + "：" + detail + "，已阻断发送")
 	}
 	data := notificationTemplateRenderData(item, language)
+	for key, value := range renderNotificationParams(item.TemplateParams, language) {
+		data[key] = value
+	}
 	for key, value := range variables {
+		if _, isText := item.TemplateParams[strings.TrimSpace(key)].(i18nx.Text); isText {
+			continue
+		}
 		data[strings.TrimSpace(key)] = value
 	}
 	title := strings.TrimSpace(RenderNotificationTemplateText(tpl.TitleTemplate, data))
@@ -208,4 +216,60 @@ func RenderNotificationTemplateText(text string, data map[string]string) string 
 		}
 		return match
 	})
+}
+
+// buildNotificationTemplateParams 保存渲染模板所用的参数：系统文本以 Text 保存，其余值原样保存。
+func buildNotificationTemplateParams(req request.CreateNotificationRequest, title, content string) i18nx.Params {
+	params := i18nx.Params{"Title": title, "Content": content}
+	if !req.TitleText.IsZero() {
+		params["Title"] = req.TitleText
+	}
+	if !req.ContentText.IsZero() {
+		params["Content"] = req.ContentText
+	}
+	for key, value := range req.TemplateVariables {
+		params[strings.TrimSpace(key)] = value
+	}
+	for key, value := range req.TextVariables {
+		if !value.IsZero() {
+			params[strings.TrimSpace(key)] = value
+		}
+	}
+	return params
+}
+
+// renderNotificationParams 按语言把模板参数渲染为字符串。
+func renderNotificationParams(params i18nx.Params, language string) map[string]string {
+	data := make(map[string]string, len(params))
+	for key, value := range params {
+		data[key] = i18nx.RenderValue(value, language)
+	}
+	return data
+}
+
+// LocalizedContent 按读者当前语言重新渲染站内信标题和内容；没有模板参数的历史通知返回存储值。
+func (s *notificationTemplateService) LocalizedContent(item *models.Notification, locale string) (string, string) {
+	if item == nil {
+		return "", ""
+	}
+	if len(item.TemplateParams) == 0 || strings.TrimSpace(item.TemplateCode) == "" {
+		return item.Title, item.Content
+	}
+	tpl := s.ResolveApproved(item.TenantID, item.TemplateCode, NotificationTemplateChannelInApp, locale)
+	if tpl == nil {
+		return item.Title, item.Content
+	}
+	data := notificationTemplateRenderData(item, tpl.Language)
+	for key, value := range renderNotificationParams(item.TemplateParams, tpl.Language) {
+		data[key] = value
+	}
+	title := strings.TrimSpace(RenderNotificationTemplateText(tpl.TitleTemplate, data))
+	content := strings.TrimSpace(RenderNotificationTemplateText(tpl.ContentTemplate, data))
+	if title == "" {
+		title = item.Title
+	}
+	if content == "" {
+		content = item.Content
+	}
+	return title, content
 }

@@ -18,6 +18,8 @@ type TicketBuildContext struct {
 
 type TicketDetailBuildContext struct {
 	Users map[int64]*models.User
+	// Locale 为请求语言，用于渲染系统生成的进度文本。
+	Locale string
 }
 
 func BuildTicket(item *models.Ticket) *response.TicketResponse {
@@ -101,8 +103,8 @@ func BuildTicketListWithContext(list []models.Ticket, ctx *TicketBuildContext) [
 	return results
 }
 
-func BuildTicketProgress(item *models.TicketProgress) *response.TicketProgressResponse {
-	return BuildTicketProgressWithContext(item, nil)
+func BuildTicketProgress(item *models.TicketProgress, locale string) *response.TicketProgressResponse {
+	return BuildTicketProgressWithContext(item, &TicketDetailBuildContext{Locale: locale})
 }
 
 func BuildTicketProgressWithContext(item *models.TicketProgress, ctx *TicketDetailBuildContext) *response.TicketProgressResponse {
@@ -117,6 +119,9 @@ func BuildTicketProgressWithContext(item *models.TicketProgress, ctx *TicketDeta
 		AuthorID:          item.AuthorID,
 		CreatedAt:         utils.FormatTime(item.CreatedAt),
 	}
+	if ctx != nil {
+		ret.Content = item.DisplayContent(ctx.Locale)
+	}
 	if item.AuthorID > 0 {
 		if ctx != nil && ctx.Users != nil {
 			ret.AuthorName = buildTicketUserDisplayName(ctx.Users[item.AuthorID])
@@ -125,8 +130,8 @@ func BuildTicketProgressWithContext(item *models.TicketProgress, ctx *TicketDeta
 	return ret
 }
 
-func BuildTicketProgressList(list []models.TicketProgress) []response.TicketProgressResponse {
-	return BuildTicketProgressListWithContext(list, nil)
+func BuildTicketProgressList(list []models.TicketProgress, locale string) []response.TicketProgressResponse {
+	return BuildTicketProgressListWithContext(list, &TicketDetailBuildContext{Locale: locale})
 }
 
 func BuildTicketProgressListWithContext(list []models.TicketProgress, ctx *TicketDetailBuildContext) []response.TicketProgressResponse {
@@ -142,7 +147,7 @@ func BuildTicketProgressListWithContext(list []models.TicketProgress, ctx *Ticke
 	return results
 }
 
-func BuildTicketDetail(aggregate *services.TicketDetailAggregate) *response.TicketDetailResponse {
+func BuildTicketDetail(aggregate *services.TicketDetailAggregate, locale string) *response.TicketDetailResponse {
 	if aggregate == nil || aggregate.Ticket == nil {
 		return nil
 	}
@@ -157,7 +162,7 @@ func BuildTicketDetail(aggregate *services.TicketDetailAggregate) *response.Tick
 	ret := &response.TicketDetailResponse{
 		Ticket: *BuildTicketWithContext(aggregate.Ticket, ctx),
 	}
-	ret.Progresses = BuildTicketProgressListWithContext(aggregate.Progresses, &TicketDetailBuildContext{Users: aggregate.Users})
+	ret.Progresses = BuildTicketProgressListWithContext(aggregate.Progresses, &TicketDetailBuildContext{Users: aggregate.Users, Locale: locale})
 	return ret
 }
 

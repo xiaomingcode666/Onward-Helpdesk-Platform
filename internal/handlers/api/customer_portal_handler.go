@@ -15,6 +15,7 @@ import (
 	"remotehelpdesk/internal/services"
 
 	"github.com/gin-gonic/gin"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 func CustomerPortalGetMe(ctx *gin.Context) {
@@ -275,6 +276,7 @@ func CustomerPortalGetTicketPage(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	dto.LocalizeCustomerPortalTickets(result, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, httpx.PageData(result, paging))
 }
 
@@ -288,6 +290,7 @@ func CustomerPortalGetTickets(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	dto.LocalizeCustomerPortalTickets(result, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, result)
 }
 
@@ -306,6 +309,7 @@ func CustomerPortalGetTicketDetail(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	result.Localize(i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, result)
 }
 
@@ -380,6 +384,7 @@ func CustomerPortalPostTicketConfirm(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	result.Localize(i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, result)
 }
 
@@ -405,6 +410,7 @@ func CustomerPortalPostTicketReopen(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	result.Localize(i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, result)
 }
 

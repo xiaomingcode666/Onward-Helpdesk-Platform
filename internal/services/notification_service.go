@@ -16,6 +16,7 @@ import (
 	"remotehelpdesk/internal/repositories"
 
 	"github.com/mlogclub/simple/sqls"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 var NotificationService = newNotificationService()
@@ -49,8 +50,15 @@ func (s *notificationService) create(req request.CreateNotificationRequest) (*mo
 		return nil, false, err
 	}
 	title := strings.TrimSpace(req.Title)
+	if title == "" && !req.TitleText.IsZero() {
+		title = canonicalText(req.TitleText)
+	}
 	if title == "" {
 		return nil, false, errorsx.InvalidParam("notification title is required")
+	}
+	content := strings.TrimSpace(req.Content)
+	if content == "" && !req.ContentText.IsZero() {
+		content = canonicalText(req.ContentText)
 	}
 	idempotencyKey := strings.TrimSpace(req.IdempotencyKey)
 	if existing := repositories.NotificationRepository.FindByIdempotencyKey(sqls.DB(), req.TenantID, idempotencyKey); existing != nil {
@@ -76,7 +84,7 @@ func (s *notificationService) create(req request.CreateNotificationRequest) (*mo
 		RecipientUserID:  req.RecipientUserID,
 		RecipientName:    recipientName,
 		Title:            title,
-		Content:          strings.TrimSpace(req.Content),
+		Content:          content,
 		NotificationType: strings.TrimSpace(req.NotificationType),
 		BizType:          strings.TrimSpace(req.BizType),
 		BizID:            req.BizID,
@@ -85,6 +93,7 @@ func (s *notificationService) create(req request.CreateNotificationRequest) (*mo
 		Level:            level,
 		Channels:         normalizeNotificationChannels(req.Channels),
 		TemplateCode:     strings.TrimSpace(req.TemplateCode),
+		TemplateParams:   buildNotificationTemplateParams(req, title, content),
 		DeliveryStatus:   "sent",
 		Status:           int(enums.StatusOk),
 		CreatedAt:        now,
@@ -156,11 +165,21 @@ func (s *notificationService) renderNotificationStatusUpdate(item *models.Notifi
 		"ActionURL":     item.ActionURL,
 		"Language":      tpl.Language,
 	}
+	params := i18nx.Params{"Title": item.Title, "Content": item.Content}
+	if len(item.TemplateParams) > 0 {
+		params["Title"] = item.TemplateParams["Title"]
+		params["Content"] = item.TemplateParams["Content"]
+	}
+	for key, value := range renderNotificationParams(params, tpl.Language) {
+		data[key] = value
+	}
 	for key, value := range variables {
 		data[key] = value
+		params[key] = value
 	}
 	title := strings.TrimSpace(RenderNotificationTemplateText(tpl.TitleTemplate, data))
 	content := strings.TrimSpace(RenderNotificationTemplateText(tpl.ContentTemplate, data))
+	item.TemplateParams = params
 	if title == "" || content == "" {
 		return "", "", false
 	}
@@ -217,6 +236,7 @@ func (s *notificationService) ReconcileTicketCreatedAfterAssignment(ticket *mode
 			updates["template_id"] = items[i].TemplateID
 			updates["template_code"] = items[i].TemplateCode
 			updates["language"] = items[i].Language
+			updates["template_params"] = items[i].TemplateParams
 		}
 		if err := repositories.NotificationRepository.Updates(sqls.DB(), items[i].ID, updates); err != nil {
 			return err
@@ -268,6 +288,7 @@ func (s *notificationService) ReconcileTicketAssignedAfterReassignment(ticket *m
 			updates["template_id"] = items[i].TemplateID
 			updates["template_code"] = items[i].TemplateCode
 			updates["language"] = items[i].Language
+			updates["template_params"] = items[i].TemplateParams
 		}
 		if items[i].ReadAt == nil {
 			updates["read_at"] = now
@@ -321,6 +342,7 @@ func (s *notificationService) ReconcileTicketAssignedAfterAcceptance(ticket *mod
 			updates["template_id"] = items[i].TemplateID
 			updates["template_code"] = items[i].TemplateCode
 			updates["language"] = items[i].Language
+			updates["template_params"] = items[i].TemplateParams
 		}
 		if items[i].ReadAt == nil {
 			updates["read_at"] = now
@@ -374,6 +396,7 @@ func (s *notificationService) ReconcileTicketAssignedAfterCancellation(ticket *m
 			updates["template_id"] = items[i].TemplateID
 			updates["template_code"] = items[i].TemplateCode
 			updates["language"] = items[i].Language
+			updates["template_params"] = items[i].TemplateParams
 		}
 		if items[i].ReadAt == nil {
 			updates["read_at"] = now
@@ -432,6 +455,7 @@ func (s *notificationService) ReconcileTicketAssignedAfterRecovery(ticket *model
 			updates["template_id"] = items[i].TemplateID
 			updates["template_code"] = items[i].TemplateCode
 			updates["language"] = items[i].Language
+			updates["template_params"] = items[i].TemplateParams
 		}
 		if items[i].ReadAt == nil {
 			updates["read_at"] = now

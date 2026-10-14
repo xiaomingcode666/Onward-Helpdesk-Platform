@@ -34,7 +34,7 @@ func (s *aiAgentReleaseService) AlignAgentWorkflowToCurrentStableDB(db *gorm.DB,
 	return db.Transaction(func(tx *gorm.DB) error {
 		agent := repositories.AIAgentRepository.GetForUpdate(tx, agentID)
 		if agent == nil || agent.WorkflowID <= 0 || agent.WorkflowVersionID <= 0 {
-			return errorsx.InvalidParam("客服机器人绑定的工作流无效")
+			return errorsx.InvalidParamI18n("error.z0022")
 		}
 		workflow := repositories.AIWorkflowRepository.Get(tx, agent.WorkflowID)
 		version := repositories.AIWorkflowVersionRepository.Get(tx, agent.WorkflowVersionID)
@@ -72,7 +72,7 @@ func (s *aiAgentReleaseService) AlignAgentWorkflowToCurrentStableDB(db *gorm.DB,
 			targetVersion = repositories.AIWorkflowVersionRepository.Get(tx, targetWorkflow.CurrentStableVersionID)
 		}
 		if targetWorkflow == nil || targetVersion == nil || targetVersion.Status != enums.StatusOk || targetVersion.ReleaseChannel != models.AIWorkflowReleaseChannelStable {
-			return errorsx.InvalidParam("当前平台注册工作流没有可用稳定版本")
+			return errorsx.InvalidParamI18n("error.z0023")
 		}
 		restrictions, err := workflowAgentRestrictionUpdates(agent, targetVersion)
 		if err != nil {
@@ -99,32 +99,32 @@ func (s *aiAgentReleaseService) MaterializeRuntimeAgent(db *gorm.DB, agent model
 	}
 	release := repositories.AIAgentReleaseRepository.Get(db, agent.ActiveReleaseID)
 	if release == nil || release.Status != enums.StatusOk || release.AgentID != agent.ID || release.TenantID != agent.TenantID || release.ProductID != agent.ProductID {
-		return agent, nil, errorsx.Forbidden("当前机器人生产版本与运行范围不匹配")
+		return agent, nil, errorsx.ForbiddenI18n("error.z0024")
 	}
 	if release.ReviewStatus != enums.AIAgentReviewStatusApproved || release.DeploymentStatus != models.AIAgentReleaseDeploymentActive {
-		return agent, nil, errorsx.InvalidParam("当前机器人生产版本尚未审核并部署")
+		return agent, nil, errorsx.InvalidParamI18n("error.z0025")
 	}
 	workflow := repositories.AIWorkflowRepository.Get(db, release.WorkflowID)
 	version := repositories.AIWorkflowVersionRepository.Get(db, release.WorkflowVersionID)
 	if workflow == nil || version == nil || workflow.Status == enums.StatusDeleted || version.Status != enums.StatusOk || version.WorkflowID != workflow.ID {
-		return agent, nil, errorsx.InvalidParam("当前机器人生产版本使用的工作流已经退役")
+		return agent, nil, errorsx.InvalidParamI18n("error.z0026")
 	}
 	if IsPlatformBuiltInWorkflow(workflow) && version.ReleaseChannel != models.AIWorkflowReleaseChannelStable {
-		return agent, nil, errorsx.InvalidParam("当前机器人生产版本使用的平台流程版本已经退役")
+		return agent, nil, errorsx.InvalidParamI18n("error.z0027")
 	}
 	if hashString(release.AgentConfigSnapshot) != release.AgentConfigHash || hashString(release.KnowledgeScopeSnapshot) != release.KnowledgeScopeHash {
-		return agent, nil, errorsx.InvalidParam("当前机器人生产版本快照校验失败")
+		return agent, nil, errorsx.InvalidParamI18n("error.z0028")
 	}
 	snapshot := dto.AIAgentReleaseConfigSnapshot{}
 	if err := json.Unmarshal([]byte(release.AgentConfigSnapshot), &snapshot); err != nil || snapshot.SchemaVersion != 1 {
-		return agent, nil, errorsx.InvalidParam("当前机器人生产版本配置无效")
+		return agent, nil, errorsx.InvalidParamI18n("error.z0029")
 	}
 	knowledgeScope := dto.AIAgentReleaseKnowledgeScopeSnapshot{}
 	if err := json.Unmarshal([]byte(release.KnowledgeScopeSnapshot), &knowledgeScope); err != nil || knowledgeScope.SchemaVersion != 1 {
-		return agent, nil, errorsx.InvalidParam("当前机器人生产版本知识范围无效")
+		return agent, nil, errorsx.InvalidParamI18n("error.z0030")
 	}
 	if knowledgeScope.TenantID != release.TenantID || knowledgeScope.ProductID != release.ProductID {
-		return agent, nil, errorsx.Forbidden("当前机器人生产版本知识范围与发布范围不匹配")
+		return agent, nil, errorsx.ForbiddenI18n("error.z0031")
 	}
 	agent.AIConfigID = snapshot.AIConfigID
 	agent.LLMModelName = snapshot.LLMModelName
@@ -145,12 +145,12 @@ func (s *aiAgentReleaseService) MaterializeRuntimeAgent(db *gorm.DB, agent model
 	if raw, err := json.Marshal(snapshot.AllowedMCPTools); err == nil {
 		agent.AllowedMCPTools = string(raw)
 	} else {
-		return agent, nil, errorsx.InvalidParam("当前机器人生产版本的外部工具快照无效")
+		return agent, nil, errorsx.InvalidParamI18n("error.z0032")
 	}
 	if raw, err := json.Marshal(snapshot.AllowedGraphTools); err == nil {
 		agent.AllowedGraphTools = string(raw)
 	} else {
-		return agent, nil, errorsx.InvalidParam("当前机器人生产版本的流程工具快照无效")
+		return agent, nil, errorsx.InvalidParamI18n("error.z0033")
 	}
 	agent.WorkflowID = release.WorkflowID
 	agent.WorkflowVersionID = release.WorkflowVersionID
@@ -174,7 +174,7 @@ func (s *aiAgentReleaseService) Get(id int64, operator *dto.AuthPrincipal) *mode
 func (s *aiAgentReleaseService) ListByAgent(agentID int64, operator *dto.AuthPrincipal) ([]models.AIAgentRelease, error) {
 	agent := AIAgentService.GetForOperator(agentID, operator)
 	if agent == nil {
-		return nil, errorsx.InvalidParam("客服机器人不存在")
+		return nil, errorsx.InvalidParamI18n("error.z0034")
 	}
 	return repositories.AIAgentReleaseRepository.Find(sqls.DB(), sqls.NewCnd().
 		Eq("tenant_id", agent.TenantID).
@@ -191,7 +191,7 @@ func (s *aiAgentReleaseService) CreateCandidate(agentID int64, operator *dto.Aut
 	err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 		agent := repositories.AIAgentRepository.GetForUpdate(ctx.Tx, agentID)
 		if agent == nil || agent.Status == enums.StatusDeleted || !canManageAIAgent(agent, operator) {
-			return errorsx.InvalidParam("客服机器人不存在")
+			return errorsx.InvalidParamI18n("error.z0034")
 		}
 		if agent.Source == TenantDefaultAIAgentSource {
 			return errorsx.Forbidden("tenant default AI agent releases are managed by the platform")
@@ -222,7 +222,7 @@ func (s *aiAgentReleaseService) CreateCandidate(agentID int64, operator *dto.Aut
 				release = &existing[0]
 				return nil
 			}
-			return errorsx.InvalidParam("当前草稿与已部署的生产版本一致，无需重复生成")
+			return errorsx.InvalidParamI18n("error.z0035")
 		}
 		release = &models.AIAgentRelease{
 			TenantID:               agent.TenantID,
@@ -252,10 +252,10 @@ func (s *aiAgentReleaseService) CreateCandidate(agentID int64, operator *dto.Aut
 func (s *aiAgentReleaseService) SubmitReview(releaseID int64, operator *dto.AuthPrincipal) error {
 	item := s.Get(releaseID, operator)
 	if item == nil {
-		return errorsx.InvalidParam("机器人发布版本不存在")
+		return errorsx.InvalidParamI18n("error.z0036")
 	}
 	if item.ReviewStatus != enums.AIAgentReviewStatusUnreviewed && item.ReviewStatus != enums.AIAgentReviewStatusRejected {
-		return errorsx.InvalidParam("只有未审核或已退回的发布版本可以提交审核")
+		return errorsx.InvalidParamI18n("error.z0037")
 	}
 	updated, err := repositories.AIAgentReleaseRepository.ConditionalUpdates(sqls.DB(), item.ID, string(item.ReviewStatus), map[string]any{
 		"review_status":    enums.AIAgentReviewStatusPending,
@@ -271,7 +271,7 @@ func (s *aiAgentReleaseService) SubmitReview(releaseID int64, operator *dto.Auth
 		return err
 	}
 	if !updated {
-		return errorsx.InvalidParam("发布版本状态已变化，请刷新后重试")
+		return errorsx.InvalidParamI18n("error.z0038")
 	}
 	return nil
 }
@@ -279,14 +279,14 @@ func (s *aiAgentReleaseService) SubmitReview(releaseID int64, operator *dto.Auth
 func (s *aiAgentReleaseService) Review(releaseID int64, approved bool, comment string, operator *dto.AuthPrincipal) error {
 	item := s.Get(releaseID, operator)
 	if item == nil {
-		return errorsx.InvalidParam("机器人发布版本不存在")
+		return errorsx.InvalidParamI18n("error.z0036")
 	}
 	if item.ReviewStatus != enums.AIAgentReviewStatusPending {
-		return errorsx.InvalidParam("只有待审核的发布版本可以审核")
+		return errorsx.InvalidParamI18n("error.z0039")
 	}
 	comment = strings.TrimSpace(comment)
 	if !approved && comment == "" {
-		return errorsx.InvalidParam("退回时必须填写原因")
+		return errorsx.InvalidParamI18n("error.z0040")
 	}
 	status := enums.AIAgentReviewStatusRejected
 	if approved {
@@ -307,7 +307,7 @@ func (s *aiAgentReleaseService) Review(releaseID int64, approved bool, comment s
 		return err
 	}
 	if !updated {
-		return errorsx.InvalidParam("发布版本状态已变化，请刷新后重试")
+		return errorsx.InvalidParamI18n("error.z0038")
 	}
 	return nil
 }
@@ -319,11 +319,11 @@ func (s *aiAgentReleaseService) Deploy(releaseID int64, operator *dto.AuthPrinci
 func (s *aiAgentReleaseService) Rollback(releaseID int64, operator *dto.AuthPrincipal) error {
 	item := s.Get(releaseID, operator)
 	if item == nil {
-		return errorsx.InvalidParam("机器人发布版本不存在")
+		return errorsx.InvalidParamI18n("error.z0036")
 	}
 	agent := AIAgentService.GetForOperator(item.AgentID, operator)
 	if agent == nil || agent.ActiveReleaseID <= 0 || agent.ActiveReleaseID == item.ID {
-		return errorsx.InvalidParam("该版本已在生产运行，或当前没有可回滚的生产版本")
+		return errorsx.InvalidParamI18n("error.z0041")
 	}
 	return s.deploy(releaseID, agent.ActiveReleaseID, operator)
 }
@@ -335,34 +335,34 @@ func (s *aiAgentReleaseService) deploy(releaseID, rollbackFromReleaseID int64, o
 	return sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 		release := repositories.AIAgentReleaseRepository.GetForUpdate(ctx.Tx, releaseID)
 		if release == nil || release.Status != enums.StatusOk || !canManageRelease(release, operator) {
-			return errorsx.InvalidParam("机器人发布版本不存在")
+			return errorsx.InvalidParamI18n("error.z0036")
 		}
 		if release.ReviewStatus != enums.AIAgentReviewStatusApproved {
-			return errorsx.InvalidParam("只有审核通过的发布版本可以部署")
+			return errorsx.InvalidParamI18n("error.z0042")
 		}
 		agent := repositories.AIAgentRepository.GetForUpdate(ctx.Tx, release.AgentID)
 		if agent == nil || agent.TenantID != release.TenantID || agent.ProductID != release.ProductID {
-			return errorsx.Forbidden("发布版本与客服机器人范围不匹配")
+			return errorsx.ForbiddenI18n("error.z0043")
 		}
 		workflow := repositories.AIWorkflowRepository.Get(ctx.Tx, release.WorkflowID)
 		version := repositories.AIWorkflowVersionRepository.Get(ctx.Tx, release.WorkflowVersionID)
 		if workflow == nil || version == nil || workflow.Status == enums.StatusDeleted || version.Status != enums.StatusOk || version.WorkflowID != workflow.ID {
-			return errorsx.InvalidParam("发布版本绑定的工作流版本不存在")
+			return errorsx.InvalidParamI18n("error.z0044")
 		}
 		if workflow.Scope == models.AIWorkflowScopeTenant && workflow.TenantID != agent.TenantID {
-			return errorsx.Forbidden("发布版本绑定的工作流属于其他租户")
+			return errorsx.ForbiddenI18n("error.z0045")
 		}
 		if IsPlatformBuiltInWorkflow(workflow) && (workflow.CurrentStableVersionID != version.ID || version.ReleaseChannel != models.AIWorkflowReleaseChannelStable) {
-			return errorsx.InvalidParam("平台注册流程的历史版本不能再次部署")
+			return errorsx.InvalidParamI18n("error.z0046")
 		}
 		if version.DefinitionHash != release.WorkflowDefinitionHash || hashString(version.Definition) != release.WorkflowDefinitionHash {
-			return errorsx.InvalidParam("发布版本的工作流快照与固定版本不一致")
+			return errorsx.InvalidParamI18n("error.z0047")
 		}
 		if err := validateReleaseCapabilityBoundary(release, version); err != nil {
 			return err
 		}
 		if version.ReleaseChannel == models.AIWorkflowReleaseChannelRevoked {
-			return errorsx.InvalidParam("已撤销的工作流版本不能部署")
+			return errorsx.InvalidParamI18n("error.z0048")
 		}
 		now := time.Now()
 		active := repositories.AIAgentReleaseRepository.Find(ctx.Tx, sqls.NewCnd().
@@ -414,15 +414,15 @@ func validateReleaseCapabilityBoundary(release *models.AIAgentRelease, version *
 	if release == nil || version == nil ||
 		hashString(release.AgentConfigSnapshot) != release.AgentConfigHash ||
 		hashString(release.KnowledgeScopeSnapshot) != release.KnowledgeScopeHash {
-		return errorsx.InvalidParam("发布版本快照校验失败")
+		return errorsx.InvalidParamI18n("error.z0049")
 	}
 	definition := dsl.Definition{}
 	if err := json.Unmarshal([]byte(version.Definition), &definition); err != nil || !AIWorkflowService.ValidateDefinition(definition).Valid {
-		return errorsx.InvalidParam("发布版本的工作流定义无效")
+		return errorsx.InvalidParamI18n("error.z0050")
 	}
 	snapshot := dto.AIAgentReleaseConfigSnapshot{}
 	if err := json.Unmarshal([]byte(release.AgentConfigSnapshot), &snapshot); err != nil || snapshot.SchemaVersion != 1 {
-		return errorsx.InvalidParam("发布版本配置快照无效")
+		return errorsx.InvalidParamI18n("error.z0051")
 	}
 	normalizeAgentReleaseConfigSnapshot(&snapshot, workflowcapability.FromDefinition(definition))
 	normalized, normalizedHash, err := marshalSnapshot(snapshot)
@@ -430,38 +430,38 @@ func validateReleaseCapabilityBoundary(release *models.AIAgentRelease, version *
 		return err
 	}
 	if normalized != release.AgentConfigSnapshot || normalizedHash != release.AgentConfigHash {
-		return errorsx.InvalidParam("发布版本配置超出工作流能力边界，请重新生成候选版本")
+		return errorsx.InvalidParamI18n("error.z0052")
 	}
 	return nil
 }
 
 func (s *aiAgentReleaseService) resolveReleaseWorkflow(db *gorm.DB, agent *models.AIAgent) (*models.AIWorkflow, *models.AIWorkflowVersion, dsl.Definition, error) {
 	if agent.WorkflowID <= 0 || agent.WorkflowVersionID <= 0 {
-		return nil, nil, dsl.Definition{}, errorsx.InvalidParam("生成发布版本前，请先选择并发布工作流版本")
+		return nil, nil, dsl.Definition{}, errorsx.InvalidParamI18n("error.z0053")
 	}
 	workflow := repositories.AIWorkflowRepository.GetForUpdate(db, agent.WorkflowID)
 	version := repositories.AIWorkflowVersionRepository.Get(db, agent.WorkflowVersionID)
 	if workflow == nil || version == nil || workflow.Status == enums.StatusDeleted || version.Status != enums.StatusOk || version.WorkflowID != workflow.ID {
-		return nil, nil, dsl.Definition{}, errorsx.InvalidParam("客服机器人绑定的工作流无效")
+		return nil, nil, dsl.Definition{}, errorsx.InvalidParamI18n("error.z0022")
 	}
 	if workflow.Scope == models.AIWorkflowScopeTenant && workflow.TenantID != agent.TenantID {
-		return nil, nil, dsl.Definition{}, errorsx.Forbidden("工作流属于其他租户")
+		return nil, nil, dsl.Definition{}, errorsx.ForbiddenI18n("error.z0054")
 	}
 	if workflow.Scope != models.AIWorkflowScopePlatform && workflow.Scope != models.AIWorkflowScopeTenant {
-		return nil, nil, dsl.Definition{}, errorsx.InvalidParam("工作流范围无效")
+		return nil, nil, dsl.Definition{}, errorsx.InvalidParamI18n("error.z0055")
 	}
 	if workflow.CurrentStableVersionID != version.ID {
-		return nil, nil, dsl.Definition{}, errorsx.InvalidParam("只能基于工作流当前稳定版生成发布版本")
+		return nil, nil, dsl.Definition{}, errorsx.InvalidParamI18n("error.z0056")
 	}
 	if version.ReleaseChannel == models.AIWorkflowReleaseChannelDeprecated || version.ReleaseChannel == models.AIWorkflowReleaseChannelRevoked {
-		return nil, nil, dsl.Definition{}, errorsx.InvalidParam("当前工作流版本不能用于生成新发布版本")
+		return nil, nil, dsl.Definition{}, errorsx.InvalidParamI18n("error.z0057")
 	}
 	if hashString(version.Definition) != version.DefinitionHash {
-		return nil, nil, dsl.Definition{}, errorsx.InvalidParam("工作流定义指纹校验失败")
+		return nil, nil, dsl.Definition{}, errorsx.InvalidParamI18n("error.z0058")
 	}
 	definition := dsl.Definition{}
 	if err := json.Unmarshal([]byte(version.Definition), &definition); err != nil || !AIWorkflowService.ValidateDefinition(definition).Valid {
-		return nil, nil, dsl.Definition{}, errorsx.InvalidParam("工作流定义无效")
+		return nil, nil, dsl.Definition{}, errorsx.InvalidParamI18n("error.z0059")
 	}
 	return workflow, version, definition, nil
 }
@@ -474,13 +474,13 @@ func buildAgentReleaseConfigSnapshotForDefinition(agent *models.AIAgent, definit
 	var allowedMCPTools any = []any{}
 	if raw := strings.TrimSpace(agent.AllowedMCPTools); raw != "" {
 		if err := json.Unmarshal([]byte(raw), &allowedMCPTools); err != nil {
-			return "", "", errorsx.InvalidParam("客服机器人的外部工具配置无效")
+			return "", "", errorsx.InvalidParamI18n("error.z0060")
 		}
 	}
 	graphTools := make([]string, 0)
 	if raw := strings.TrimSpace(agent.AllowedGraphTools); raw != "" {
 		if err := json.Unmarshal([]byte(raw), &graphTools); err != nil {
-			return "", "", errorsx.InvalidParam("客服机器人的流程工具配置无效")
+			return "", "", errorsx.InvalidParamI18n("error.z0061")
 		}
 	}
 	slices.Sort(graphTools)
@@ -534,7 +534,7 @@ func (s *aiAgentReleaseService) buildKnowledgeScopeSnapshot(db *gorm.DB, agent *
 	if agent.ProductID > 0 {
 		product := repositories.ProductRepository.GetByTenant(db, agent.ProductID, agent.TenantID)
 		if product == nil || product.Status == enums.StatusDeleted {
-			return "", "", errorsx.InvalidParam("发布版本关联的产品不存在")
+			return "", "", errorsx.InvalidParamI18n("error.z0062")
 		}
 		bindings := repositories.ProductKnowledgeBindingRepository.Find(db, sqls.NewCnd().
 			Eq("tenant_id", agent.TenantID).
@@ -542,13 +542,13 @@ func (s *aiAgentReleaseService) buildKnowledgeScopeSnapshot(db *gorm.DB, agent *
 			Eq("status", enums.StatusOk).
 			Asc("sort_no").Asc("id"))
 		if len(bindings) == 0 {
-			return "", "", errorsx.InvalidParam("产品没有生效中的知识库挂载")
+			return "", "", errorsx.InvalidParamI18n("error.z0063")
 		}
 		for i := range bindings {
 			binding := bindings[i]
 			knowledgeBase := repositories.KnowledgeBaseRepository.Get(db, binding.KnowledgeBaseID)
 			if knowledgeBase == nil || knowledgeBase.TenantID != agent.TenantID || knowledgeBase.Status == enums.StatusDeleted {
-				return "", "", errorsx.Forbidden("产品知识库挂载跨越租户范围")
+				return "", "", errorsx.ForbiddenI18n("error.z0064")
 			}
 			knowledgeBaseIDs = appendUniqueReleaseInt64(knowledgeBaseIDs, knowledgeBase.ID)
 			snapshot.Bindings = append(snapshot.Bindings, dto.AIAgentReleaseKnowledgeBindingSnapshot{
@@ -563,7 +563,7 @@ func (s *aiAgentReleaseService) buildKnowledgeScopeSnapshot(db *gorm.DB, agent *
 	}
 	slices.Sort(knowledgeBaseIDs)
 	if len(knowledgeBaseIDs) == 0 {
-		return "", "", errorsx.InvalidParam("客服机器人没有可解析的知识范围")
+		return "", "", errorsx.InvalidParamI18n("error.z0065")
 	}
 	revisions := repositories.KnowledgeRevisionRepository.Find(db, sqls.NewCnd().
 		Eq("tenant_id", agent.TenantID).

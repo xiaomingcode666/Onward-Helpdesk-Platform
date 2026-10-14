@@ -44,6 +44,7 @@ import {
 import { cancelEngineerLeave, createEngineerLeave, fetchEngineerWorkSchedule } from "@/lib/api/engineer-status"
 import { cn } from "@/lib/utils"
 import { agentMemberName as memberName } from "../member-name"
+import { readStoredLocale } from "@/i18n/config"
 
 const orgSchedulesI18nPrefix = "orgExtract.orgSchedules."
 type OrgSchedulesT = ReturnType<typeof useI18n>
@@ -101,7 +102,7 @@ function dateTimeInputValue(date: Date) {
 
 function formatScheduleDateTime(value: string) {
   if (!value) return "-"
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(readStoredLocale(), {
     timeZone: ENGINEER_TIMEZONE,
     month: "2-digit",
     day: "2-digit",

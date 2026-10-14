@@ -11,13 +11,13 @@ const (
 var StatusValues = []Status{StatusOk, StatusDisabled, StatusDeleted}
 
 var statusLabelMap = map[Status]string{
-	StatusOk:       "启用",
-	StatusDisabled: "禁用",
-	StatusDeleted:  "已删除",
+	StatusOk:       "enum.StatusOk",
+	StatusDisabled: "enum.StatusDisabled",
+	StatusDeleted:  "enum.StatusDeleted",
 }
 
-func GetStatusLabel(status Status) string {
-	return statusLabelMap[status]
+func GetStatusLabel(status Status, locale string) string {
+	return enumLabel(locale, statusLabelMap[status])
 }
 
 func IsValidStatus(status int) bool {
@@ -40,13 +40,13 @@ const (
 var GenderValues = []Gender{GenderUnknown, GenderMale, GenderFemale}
 
 var genderLabelMap = map[Gender]string{
-	GenderUnknown: "未知",
-	GenderMale:    "男",
-	GenderFemale:  "女",
+	GenderUnknown: "enum.GenderUnknown",
+	GenderMale:    "enum.GenderMale",
+	GenderFemale:  "enum.GenderFemale",
 }
 
-func GetGenderLabel(gender Gender) string {
-	return genderLabelMap[gender]
+func GetGenderLabel(gender Gender, locale string) string {
+	return enumLabel(locale, genderLabelMap[gender])
 }
 
 func IsValidGender(gender int) bool {
@@ -69,13 +69,13 @@ const (
 var ThirdProviderValues = []ThirdProvider{ThirdProviderWxWork, ThirdProviderDingtalk, ThirdProviderOIDC}
 
 var thirdProviderLabelMap = map[ThirdProvider]string{
-	ThirdProviderWxWork:   "企业微信",
-	ThirdProviderDingtalk: "钉钉",
-	ThirdProviderOIDC:     "OIDC",
+	ThirdProviderWxWork:   "enum.ThirdProviderWxWork",
+	ThirdProviderDingtalk: "enum.ThirdProviderDingtalk",
+	ThirdProviderOIDC:     "enum.ThirdProviderOIDC",
 }
 
-func GetThirdProviderLabel(provider ThirdProvider) string {
-	return thirdProviderLabelMap[provider]
+func GetThirdProviderLabel(provider ThirdProvider, locale string) string {
+	return enumLabel(locale, thirdProviderLabelMap[provider])
 }
 
 func IsValidThirdProvider(provider string) bool {

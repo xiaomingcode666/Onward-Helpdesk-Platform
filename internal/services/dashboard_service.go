@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/dto/response"
 	"remotehelpdesk/internal/pkg/enums"
@@ -419,21 +418,7 @@ func labelOrDefault(value, fallback string) string {
 }
 
 func conversationStatusLabel(status enums.IMConversationStatus, locale string) string {
-	if i18nx.NormalizeLocale(locale) == i18nx.LocaleEnUS {
-		switch status {
-		case enums.IMConversationStatusAIServing:
-			return "AI active"
-		case enums.IMConversationStatusPending:
-			return "Queued"
-		case enums.IMConversationStatusActive:
-			return "In progress"
-		case enums.IMConversationStatusClosed:
-			return "Closed"
-		default:
-			return fmt.Sprintf("Status %d", status)
-		}
-	}
-	return labelOrDefault(enums.GetIMConversationStatusLabel(status), fmt.Sprintf("状态 %d", status))
+	return labelOrDefault(enums.GetIMConversationStatusLabel(status, locale), i18nx.NewText("enum.unknownStatus", i18nx.Params{"status": int(status)}).Render(locale))
 }
 
 func dashboardText(locale string, key string) string {

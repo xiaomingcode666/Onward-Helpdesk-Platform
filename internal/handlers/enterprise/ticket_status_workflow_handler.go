@@ -24,7 +24,7 @@ func TicketStatusWorkflowGet(ctx *gin.Context) {
 	if raw := ctx.Query("before_id"); raw != "" {
 		beforeID, err = strconv.ParseInt(raw, 10, 64)
 		if err != nil || beforeID < 0 {
-			httpx.WriteJSON(ctx, errorsx.InvalidParam("历史版本游标无效"))
+			httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0008"))
 			return
 		}
 	}
@@ -60,7 +60,7 @@ func TicketStatusWorkflowPublish(ctx *gin.Context) {
 		return
 	}
 	if req.VersionID <= 0 {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("请选择待发布的流程版本"))
+		httpx.WriteJSON(ctx, errorsx.InvalidParamI18n("error.z0020"))
 		return
 	}
 	result, err := services.PublishTicketStatusWorkflow(tenantID, req.VersionID, op)

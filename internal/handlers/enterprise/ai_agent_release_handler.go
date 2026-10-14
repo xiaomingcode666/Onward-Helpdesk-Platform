@@ -1,6 +1,7 @@
 package enterprise
 
 import (
+	"remotehelpdesk/internal/pkg/i18nx"
 	"strconv"
 
 	"remotehelpdesk/internal/builders"
@@ -29,7 +30,7 @@ func AIAgentReleaseCreate(ctx *gin.Context) {
 		return
 	}
 	recordAIAgentReleaseAudit(ctx, operator, item, "ai_agent_release.created", models.RiskLevelMedium)
-	httpx.WriteJSON(ctx, builders.BuildAIAgentRelease(item))
+	httpx.WriteJSON(ctx, builders.BuildAIAgentRelease(item, i18nx.Locale(ctx)))
 }
 
 func AIAgentReleaseList(ctx *gin.Context) {
@@ -47,7 +48,7 @@ func AIAgentReleaseList(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAIAgentReleaseList(items))
+	httpx.WriteJSON(ctx, builders.BuildAIAgentReleaseList(items, i18nx.Locale(ctx)))
 }
 
 func AIAgentReleaseGet(ctx *gin.Context) {
@@ -65,7 +66,7 @@ func AIAgentReleaseGet(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0002"))
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAIAgentRelease(item))
+	httpx.WriteJSON(ctx, builders.BuildAIAgentRelease(item, i18nx.Locale(ctx)))
 }
 
 func AIAgentReleaseSubmitReview(ctx *gin.Context) {

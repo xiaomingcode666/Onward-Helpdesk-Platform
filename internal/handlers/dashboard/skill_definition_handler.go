@@ -3,6 +3,7 @@ package dashboard
 import (
 	"context"
 	"remotehelpdesk/internal/pkg/httpx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"strings"
 	"time"
 
@@ -37,7 +38,7 @@ func SkillDefinitionAnyList(ctx *gin.Context) {
 	list, paging := services.SkillDefinitionService.FindPageByCnd(cnd)
 	results := make([]response.SkillDefinitionResponse, 0, len(list))
 	for _, item := range list {
-		results = append(results, builders.BuildSkillDefinitionResponse(&item))
+		results = append(results, builders.BuildSkillDefinitionResponse(&item, i18nx.Locale(ctx)))
 	}
 	httpx.WriteJSON(ctx, &web.PageResult{Results: results, Page: paging})
 }
@@ -59,7 +60,7 @@ func SkillDefinitionGetList_all(ctx *gin.Context) {
 	list := services.SkillDefinitionService.Find(cnd)
 	results := make([]response.SkillDefinitionResponse, 0, len(list))
 	for _, item := range list {
-		results = append(results, builders.BuildSkillDefinitionResponse(&item))
+		results = append(results, builders.BuildSkillDefinitionResponse(&item, i18nx.Locale(ctx)))
 	}
 	httpx.WriteJSON(ctx, results)
 }
@@ -80,7 +81,7 @@ func SkillDefinitionGetBy(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0053"))
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildSkillDefinitionResponse(item))
+	httpx.WriteJSON(ctx, builders.BuildSkillDefinitionResponse(item, i18nx.Locale(ctx)))
 }
 
 func SkillDefinitionPostCreate(ctx *gin.Context) {
@@ -100,7 +101,7 @@ func SkillDefinitionPostCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildSkillDefinitionResponse(item))
+	httpx.WriteJSON(ctx, builders.BuildSkillDefinitionResponse(item, i18nx.Locale(ctx)))
 }
 
 func SkillDefinitionPostUpdate(ctx *gin.Context) {
