@@ -150,6 +150,11 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Check hardcoded Chinese text
+        run: |
+          node --test ../scripts/check-hardcoded-cjk.test.mjs
+          node ../scripts/check-hardcoded-cjk.mjs
+
       - name: Build
         run: pnpm build:sdk && pnpm build
 

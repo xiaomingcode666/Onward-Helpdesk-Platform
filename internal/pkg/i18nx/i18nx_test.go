@@ -48,14 +48,33 @@ func TestResolveLocaleUsesDefaultLocale(t *testing.T) {
 	}
 }
 
-func TestResolveLocaleIgnoresRequestLocaleHeaders(t *testing.T) {
+func TestResolveLocaleUsesExplicitLocaleHeader(t *testing.T) {
 	SetDefaultLocale(LocaleZhCN)
 	req := httptest.NewRequest(http.MethodGet, "/api/dashboard/user/list", nil)
 	req.Header.Set("X-Locale", "en-US")
 	req.Header.Set("Accept-Language", "zh-CN")
 
-	if got := ResolveRequestLocale(req); got != LocaleZhCN {
-		t.Fatalf("ResolveRequestLocale() = %q, want %q", got, LocaleZhCN)
+	if got := ResolveRequestLocale(req); got != LocaleEnUS {
+		t.Fatalf("ResolveRequestLocale() = %q, want %q", got, LocaleEnUS)
+	}
+}
+
+func TestResolveLocaleFallsBackForUnsupportedLocaleHeader(t *testing.T) {
+	SetDefaultLocale(LocaleEnUS)
+	t.Cleanup(func() { SetDefaultLocale(LocaleZhCN) })
+	req := httptest.NewRequest(http.MethodGet, "/api/dashboard/user/list", nil)
+	req.Header.Set("X-Locale", "fr-FR")
+
+	if got := ResolveRequestLocale(req); got != LocaleEnUS {
+		t.Fatalf("ResolveRequestLocale() = %q, want %q", got, LocaleEnUS)
+	}
+}
+
+func TestResolveLocaleHandlesNilRequest(t *testing.T) {
+	SetDefaultLocale(LocaleZhCN)
+
+	if got := ResolveRequestLocale(nil); got != LocaleZhCN {
+		t.Fatalf("ResolveRequestLocale(nil) = %q, want %q", got, LocaleZhCN)
 	}
 }
 
@@ -181,7 +200,7 @@ func TestMiddlewareStoresLocale(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
-	if got := recorder.Body.String(); got != LocaleZhCN {
-		t.Fatalf("middleware locale = %q, want %q", got, LocaleZhCN)
+	if got := recorder.Body.String(); got != LocaleEnUS {
+		t.Fatalf("middleware locale = %q, want %q", got, LocaleEnUS)
 	}
 }

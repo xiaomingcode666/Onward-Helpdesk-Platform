@@ -24,3 +24,9 @@ test("concurrent auth failures redirect once until the next login", () => {
   assert.match(authSource, /clearPortalSession\(portal\)/)
   assert.match(authSource, /window\.location\.replace\(loginPath\)/)
 })
+
+test("both API clients send the current UI locale explicitly", () => {
+  assert.match(source, /import \{ readStoredLocale \} from "@\/i18n\/config"/)
+  assert.match(source, /if \(!authHeaders\.has\("X-Locale"\)\) \{\s+authHeaders\.set\("X-Locale", readStoredLocale\(\)\)/)
+  assert.match(source, /headers\["X-Locale"\] = readStoredLocale\(\)/)
+})

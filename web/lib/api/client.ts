@@ -1,4 +1,5 @@
 import { expireSession, readSession } from "@/lib/auth"
+import { readStoredLocale } from "@/i18n/config"
 import { translateCurrentMessage } from "@/i18n/messages"
 import type { ApiResponse, ListQuery } from "@/lib/api/types"
 
@@ -116,6 +117,11 @@ function buildRequestHeaders(
     authHeaders.set("X-Tenant-Id", String(tid))
   }
 
+  // X-Locale: 后端按当前界面语言渲染系统文本
+  if (!authHeaders.has("X-Locale")) {
+    authHeaders.set("X-Locale", readStoredLocale())
+  }
+
   // Idempotency-Key for POST/PATCH
   if (idempotencyKey) {
     authHeaders.set("Idempotency-Key", idempotencyKey)
@@ -227,6 +233,7 @@ async function scopedApiFetch<T>(
   if (tenantId) {
     headers["X-Tenant-Id"] = String(tenantId)
   }
+  headers["X-Locale"] = readStoredLocale()
   if ((method === "POST" || method === "PATCH") && !body) {
     headers["Idempotency-Key"] = generateIdempotencyKey()
   }

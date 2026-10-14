@@ -93,11 +93,11 @@ const handoffModeLabels: Record<AIAgentHandoffMode, string> = {
 }
 
 function reviewLabel(agent: AIAgent) {
-  if (agent.reviewStatusName) return agent.reviewStatusName
   if (agent.reviewStatus === "pending") return ee("aiServiceCenter.text004")
   if (agent.reviewStatus === "approved") return ee("aiServiceCenter.text005")
   if (agent.reviewStatus === "rejected") return ee("aiServiceCenter.text006")
-  return ee("aiServiceCenter.text007")
+  if (agent.reviewStatus === "unreviewed") return ee("aiServiceCenter.text007")
+  return agent.reviewStatusName || ee("aiServiceCenter.text007")
 }
 
 function reviewTone(agent: AIAgent): StatusTagTone {
