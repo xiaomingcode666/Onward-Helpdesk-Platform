@@ -1497,9 +1497,9 @@ func firstNonBlank(values ...string) string {
 
 // LocalizeEntryList 把条目分类中的系统生成知识库名称换成当前语言的展示名。
 func (s *enterpriseKnowledgeService) LocalizeEntryList(items []dto.EnterpriseKnowledgeEntryListItemDTO, locale string) {
-	cache := map[int64]*models.KnowledgeBase{}
+	display := newKnowledgeBaseDisplay(locale)
 	for i := range items {
-		items[i].Category = s.localizedCategory(items[i].KnowledgeBaseID, items[i].Category, locale, cache)
+		items[i].Category = display.name(items[i].KnowledgeBaseID, items[i].Category)
 	}
 }
 
@@ -1508,20 +1508,5 @@ func (s *enterpriseKnowledgeService) LocalizeEntry(entry *dto.EnterpriseKnowledg
 	if entry == nil {
 		return
 	}
-	entry.Category = s.localizedCategory(entry.KnowledgeBaseID, entry.Category, locale, map[int64]*models.KnowledgeBase{})
-}
-
-func (s *enterpriseKnowledgeService) localizedCategory(knowledgeBaseID int64, category, locale string, cache map[int64]*models.KnowledgeBase) string {
-	if knowledgeBaseID <= 0 {
-		return category
-	}
-	kb, ok := cache[knowledgeBaseID]
-	if !ok {
-		kb = repositories.KnowledgeBaseRepository.Get(sqls.DB(), knowledgeBaseID)
-		cache[knowledgeBaseID] = kb
-	}
-	if kb == nil || kb.Name != category {
-		return category
-	}
-	return kb.DisplayName(locale)
+	entry.Category = newKnowledgeBaseDisplay(locale).name(entry.KnowledgeBaseID, entry.Category)
 }

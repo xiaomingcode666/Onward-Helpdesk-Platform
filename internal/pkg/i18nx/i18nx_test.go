@@ -224,3 +224,12 @@ func TestRequestLocaleOverrideOnlyAcceptsSupportedHeader(t *testing.T) {
 		t.Fatal("nil request produced an override")
 	}
 }
+
+func TestHasKey(t *testing.T) {
+	if !HasKey("error.e0273") {
+		t.Fatal("existing key reported missing")
+	}
+	if HasKey("builtin.role.platform_admin.name") {
+		t.Fatal("missing key reported present")
+	}
+}

@@ -95,3 +95,14 @@ func loadMessages() {
 		messages = loaded
 	})
 }
+
+// HasKey 判断资源键是否存在于任一语言，不记录缺失警告。
+func HasKey(key string) bool {
+	loadMessages()
+	for _, values := range messages {
+		if _, ok := values[key]; ok {
+			return true
+		}
+	}
+	return false
+}

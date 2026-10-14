@@ -131,6 +131,9 @@ func (s *productAIAgentService) ensureProductCustomerAgent(
 		if err := s.ensureProductAgentInitialReleaseDB(existing.ID, operator); err != nil {
 			return nil, false, err
 		}
+		if err := syncProductDerivedDisplayTextDB(sqls.DB(), product); err != nil {
+			return nil, false, err
+		}
 		if refreshed := repositories.AIAgentRepository.Get(sqls.DB(), existing.ID); refreshed != nil {
 			existing = refreshed
 		}
@@ -162,10 +165,7 @@ func (s *productAIAgentService) ensureProductCustomerAgent(
 	if err != nil {
 		return nil, false, err
 	}
-	if err := repositories.AIAgentRepository.Updates(sqls.DB(), agent.ID, map[string]any{
-		"name_text":        agentNameText,
-		"description_text": agentDescriptionText,
-	}); err != nil {
+	if err := syncProductDerivedDisplayTextDB(sqls.DB(), product); err != nil {
 		return nil, false, err
 	}
 	if err := s.ensureProductAgentInitialReleaseDB(agent.ID, operator); err != nil {

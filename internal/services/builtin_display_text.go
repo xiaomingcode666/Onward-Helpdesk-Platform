@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"strings"
 
 	"remotehelpdesk/internal/models"
@@ -46,33 +45,28 @@ func productAgentDescriptionText(productName string) i18nx.Text {
 	return i18nx.NewText(productAgentDescriptionKey, i18nx.Params{"product": strings.TrimSpace(productName)})
 }
 
-// createProductDefaultKnowledgeBase 创建产品默认知识库并写入按语言展示的名称和描述。
+// createProductDefaultKnowledgeBase 创建产品默认知识库，并补齐按语言展示的名称和描述。
+// 补齐步骤可重复执行：创建报错（例如已存在）或上次补齐失败时，下一次调用会继续补齐。
 func createProductDefaultKnowledgeBase(product *models.Product, operator *dto.AuthPrincipal) error {
 	locales := []string{strings.TrimSpace(product.DefaultLocale)}
 	if locales[0] == "" {
 		locales[0] = "en"
 	}
-	nameText := productKnowledgeBaseNameText(product.Name)
-	descriptionText := productKnowledgeBaseDescriptionText(product.Name)
-	if _, err := ProductCenterService.CreateProductKnowledgeBase(product.TenantID, product.ID, dto.EnterpriseProductKnowledgeBaseCreateRequest{
-		Name:           nameText.Render(i18nx.LocaleZhCN),
-		Description:    descriptionText.Render(i18nx.LocaleZhCN),
+	_, createErr := ProductCenterService.CreateProductKnowledgeBase(product.TenantID, product.ID, dto.EnterpriseProductKnowledgeBaseCreateRequest{
+		Name:           productKnowledgeBaseNameText(product.Name).Render(i18nx.LocaleZhCN),
+		Description:    productKnowledgeBaseDescriptionText(product.Name).Render(i18nx.LocaleZhCN),
 		SupportLocales: locales,
-	}, operator); err != nil {
-		return err
+	}, operator)
+	syncErr := syncProductDerivedDisplayTextDB(sqls.DB(), product)
+	if createErr != nil {
+		return createErr
 	}
-	profile := repositories.ProductServiceProfileRepository.GetByProductID(sqls.DB(), product.ID)
-	if profile == nil || profile.TenantID != product.TenantID || profile.DefaultKnowledgeBaseID <= 0 {
-		return fmt.Errorf("product knowledge base was not created")
-	}
-	return repositories.KnowledgeBaseRepository.Updates(sqls.DB(), profile.DefaultKnowledgeBaseID, map[string]any{
-		"name_text":        nameText,
-		"description_text": descriptionText,
-	})
+	return syncErr
 }
 
-// syncProductDerivedDisplayTextDB 在产品改名后刷新派生知识库和机器人展示文本中的产品名。
-// 用户改过名称（展示文本为空或已是其他资源键）的数据保持不变。
+// syncProductDerivedDisplayTextDB 补齐并刷新产品派生知识库和机器人的展示文本：
+// 存储值仍是系统生成值但展示文本为空时补上；展示文本中的产品名与当前产品不一致时更新。
+// 用户改过名称（展示文本为空且存储值不是系统生成值，或已是其他资源键）的数据保持不变。可重复执行。
 func syncProductDerivedDisplayTextDB(db *gorm.DB, product *models.Product) error {
 	if db == nil || product == nil || product.ID <= 0 {
 		return nil
@@ -82,7 +76,12 @@ func syncProductDerivedDisplayTextDB(db *gorm.DB, product *models.Product) error
 		Find(&agents).Error; err != nil {
 		return err
 	}
-	for _, agent := range agents {
+	agentNameTexts := []i18nx.Text{productAgentNameText(product, false), productAgentNameText(product, true)}
+	for i := range agents {
+		agent := &agents[i]
+		if err := backfillAIAgentDisplayText(db, agent, agentNameTexts, productAgentDescriptionText(product.Name)); err != nil {
+			return err
+		}
 		updates := map[string]any{}
 		switch agent.NameText.Key {
 		case productAgentNameKey:
@@ -114,6 +113,9 @@ func syncProductDerivedDisplayTextDB(db *gorm.DB, product *models.Product) error
 	if knowledgeBase == nil || knowledgeBase.TenantID != product.TenantID {
 		return nil
 	}
+	if err := backfillKnowledgeBaseDisplayText(db, knowledgeBase, productKnowledgeBaseNameText(product.Name), productKnowledgeBaseDescriptionText(product.Name)); err != nil {
+		return err
+	}
 	updates := map[string]any{}
 	if knowledgeBase.NameText.Key == productKnowledgeBaseNameKey {
 		if next := productKnowledgeBaseNameText(product.Name); !knowledgeBase.NameText.Equal(next) {
@@ -132,10 +134,16 @@ func syncProductDerivedDisplayTextDB(db *gorm.DB, product *models.Product) error
 }
 
 // resolveKnowledgeBaseStoredName 把界面提交的知识库名称（可能是任一语言的展示名）解析为数据库中存储的名称，
-// 供按名称筛选和查找使用；未匹配到系统生成名称时原样返回。
+// 供按名称筛选和查找使用。租户内已有同名知识库时优先按原名匹配，避免把用户自建知识库误解析为内置知识库。
 func resolveKnowledgeBaseStoredName(db *gorm.DB, tenantID int64, name string) string {
 	name = strings.TrimSpace(name)
 	if db == nil || tenantID <= 0 || name == "" {
+		return name
+	}
+	var exact int64
+	if err := db.Model(&models.KnowledgeBase{}).
+		Where("tenant_id = ? AND status <> ? AND name = ?", tenantID, enums.StatusDeleted, name).
+		Count(&exact).Error; err != nil || exact > 0 {
 		return name
 	}
 	var bases []models.KnowledgeBase
@@ -144,9 +152,6 @@ func resolveKnowledgeBaseStoredName(db *gorm.DB, tenantID int64, name string) st
 		return name
 	}
 	for _, base := range bases {
-		if base.Name == name {
-			return name
-		}
 		for _, locale := range i18nx.SupportedLocales {
 			if base.DisplayName(locale) == name {
 				return base.Name
@@ -156,27 +161,43 @@ func resolveKnowledgeBaseStoredName(db *gorm.DB, tenantID int64, name string) st
 	return name
 }
 
-// knowledgeBaseDisplayName 当 storedName 仍是知识库存储的名称时返回其当前语言展示名，否则原样返回。
-func knowledgeBaseDisplayName(knowledgeBaseID int64, storedName, locale string) string {
-	if knowledgeBaseID <= 0 || storedName == "" {
-		return storedName
-	}
-	kb := repositories.KnowledgeBaseRepository.Get(sqls.DB(), knowledgeBaseID)
-	if kb == nil || strings.TrimSpace(kb.Name) != storedName {
-		return storedName
-	}
-	return kb.DisplayName(locale)
+// knowledgeBaseDisplay 按当前语言解析知识库展示名和描述，单次请求内缓存查询结果。
+// 仅当传入值仍是知识库存储的名称或描述时替换，其他值（如快照、默认分类）原样返回。
+type knowledgeBaseDisplay struct {
+	locale string
+	cache  map[int64]*models.KnowledgeBase
 }
 
-func knowledgeBaseDisplayDescription(knowledgeBaseID int64, storedDescription, locale string) string {
-	if knowledgeBaseID <= 0 || storedDescription == "" {
-		return storedDescription
+func newKnowledgeBaseDisplay(locale string) *knowledgeBaseDisplay {
+	return &knowledgeBaseDisplay{locale: locale, cache: map[int64]*models.KnowledgeBase{}}
+}
+
+func (d *knowledgeBaseDisplay) base(id int64) *models.KnowledgeBase {
+	if id <= 0 {
+		return nil
 	}
-	kb := repositories.KnowledgeBaseRepository.Get(sqls.DB(), knowledgeBaseID)
-	if kb == nil || strings.TrimSpace(kb.Description) != storedDescription {
-		return storedDescription
+	base, ok := d.cache[id]
+	if !ok {
+		base = repositories.KnowledgeBaseRepository.Get(sqls.DB(), id)
+		d.cache[id] = base
 	}
-	return kb.DisplayDescription(locale)
+	return base
+}
+
+func (d *knowledgeBaseDisplay) name(id int64, stored string) string {
+	base := d.base(id)
+	if base == nil || stored == "" || strings.TrimSpace(base.Name) != strings.TrimSpace(stored) {
+		return stored
+	}
+	return base.DisplayName(d.locale)
+}
+
+func (d *knowledgeBaseDisplay) description(id int64, stored string) string {
+	base := d.base(id)
+	if base == nil || stored == "" || strings.TrimSpace(base.Description) != strings.TrimSpace(stored) {
+		return stored
+	}
+	return base.DisplayDescription(d.locale)
 }
 
 // LocalizeProductProfile 把产品档案中的系统生成知识库名称和描述换成当前语言。
@@ -184,9 +205,10 @@ func LocalizeProductProfile(profile *dto.EnterpriseProductProfileDTO, locale str
 	if profile == nil || profile.ServiceProfile.KnowledgeBaseID == nil {
 		return
 	}
+	display := newKnowledgeBaseDisplay(locale)
 	id := *profile.ServiceProfile.KnowledgeBaseID
-	profile.ServiceProfile.KnowledgeBaseName = knowledgeBaseDisplayName(id, profile.ServiceProfile.KnowledgeBaseName, locale)
-	profile.ServiceProfile.KnowledgeBaseDescription = knowledgeBaseDisplayDescription(id, profile.ServiceProfile.KnowledgeBaseDescription, locale)
+	profile.ServiceProfile.KnowledgeBaseName = display.name(id, profile.ServiceProfile.KnowledgeBaseName)
+	profile.ServiceProfile.KnowledgeBaseDescription = display.description(id, profile.ServiceProfile.KnowledgeBaseDescription)
 }
 
 // LocalizeProductManual 把产品手册挂载中的系统生成知识库名称换成当前语言。
@@ -194,12 +216,13 @@ func LocalizeProductManual(manual *dto.EnterpriseProductManualDTO, locale string
 	if manual == nil {
 		return
 	}
-	manual.KnowledgeBaseName = knowledgeBaseDisplayName(manual.KnowledgeBaseID, manual.KnowledgeBaseName, locale)
+	manual.KnowledgeBaseName = newKnowledgeBaseDisplay(locale).name(manual.KnowledgeBaseID, manual.KnowledgeBaseName)
 }
 
 func LocalizeProductManuals(manuals []dto.EnterpriseProductManualDTO, locale string) {
+	display := newKnowledgeBaseDisplay(locale)
 	for i := range manuals {
-		LocalizeProductManual(&manuals[i], locale)
+		manuals[i].KnowledgeBaseName = display.name(manuals[i].KnowledgeBaseID, manuals[i].KnowledgeBaseName)
 	}
 }
 
@@ -208,7 +231,7 @@ func LocalizeProductResources(resources *dto.EnterpriseProductResourcesDTO, loca
 	if resources == nil {
 		return
 	}
-	resources.Knowledge.KnowledgeBaseName = knowledgeBaseDisplayName(resources.Knowledge.KnowledgeBaseID, resources.Knowledge.KnowledgeBaseName, locale)
+	resources.Knowledge.KnowledgeBaseName = newKnowledgeBaseDisplay(locale).name(resources.Knowledge.KnowledgeBaseID, resources.Knowledge.KnowledgeBaseName)
 }
 
 // keepOrReplaceDisplayText 处理编辑表单提交的名称或描述：仍是系统生成内容（任一语言的展示值）时保留存储值和展示文本，
@@ -360,7 +383,25 @@ func operatorLocale(operator *dto.AuthPrincipal) string {
 
 // builtinRoleName 返回内置角色在指定语言下的名称。
 func builtinRoleName(code, locale string) string {
-	return i18nx.TLocale(locale, "builtin.role."+code+".name")
+	return i18nx.TLocale(locale, builtinRoleKey(code, "name"))
+}
+
+func builtinRoleKey(code, field string) string {
+	return "builtin.role." + code + "." + field
+}
+
+// BuiltinRoleText 返回内置角色名称或描述在指定语言下的文本；仅当存储值仍是系统默认值且存在多语言资源时替换，
+// 用户改过的值和没有资源的角色（如平台角色）原样返回。field 为 name 或 description。
+func BuiltinRoleText(code string, isBuiltin bool, field, stored, locale string) string {
+	key := builtinRoleKey(code, field)
+	if !isBuiltin || code == "" || !i18nx.HasKey(key) {
+		return stored
+	}
+	text := i18nx.NewText(key, nil)
+	if !text.MatchesAnyLocale(stored) {
+		return stored
+	}
+	return text.Render(locale)
 }
 
 // backfillSupportOrganizationDisplayTextDB 为技术团队、产品维修组和系统部门补充展示文本。
@@ -429,5 +470,5 @@ func backfillSupportOrganizationDisplayTextDB(db *gorm.DB) error {
 
 // builtinRoleDescription 返回内置角色在指定语言下的描述。
 func builtinRoleDescription(code, locale string) string {
-	return i18nx.TLocale(locale, "builtin.role."+code+".description")
+	return i18nx.TLocale(locale, builtinRoleKey(code, "description"))
 }

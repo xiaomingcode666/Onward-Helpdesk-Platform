@@ -10,9 +10,9 @@ import (
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/dto/response"
 	"remotehelpdesk/internal/pkg/enums"
-	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/repositories"
+	"remotehelpdesk/internal/services"
 )
 
 func BuildPlatformTenant(item *models.Tenant, subscription *models.TenantSubscription, plan *models.TenantPlan, deviceCount, memberCount int64) *response.PlatformTenantResponse {
@@ -278,8 +278,8 @@ func BuildPlatformAuthRole(item *models.AuthRole, permissions []string, locale s
 		TenantID:    item.TenantID,
 		DomainType:  item.DomainType,
 		Code:        item.Code,
-		Name:        builtinRoleText(item, "name", item.Name, locale),
-		Description: builtinRoleText(item, "description", item.Description, locale),
+		Name:        services.BuiltinRoleText(item.Code, item.IsBuiltin, "name", item.Name, locale),
+		Description: services.BuiltinRoleText(item.Code, item.IsBuiltin, "description", item.Description, locale),
 		IsBuiltin:   item.IsBuiltin,
 		Status:      int(item.Status),
 		SortNo:      item.SortNo,
@@ -459,17 +459,4 @@ func stringValue(value *string) string {
 		return ""
 	}
 	return *value
-}
-
-// builtinRoleText 内置角色的名称和描述按语言渲染；仅当存储值仍是系统默认值时替换，
-// 没有多语言资源的角色保持原样。
-func builtinRoleText(item *models.AuthRole, field, stored, locale string) string {
-	if item == nil || !item.IsBuiltin || item.Code == "" {
-		return stored
-	}
-	text := i18nx.NewText("builtin.role."+item.Code+"."+field, nil)
-	if !text.MatchesAnyLocale(stored) {
-		return stored
-	}
-	return text.Render(locale)
 }

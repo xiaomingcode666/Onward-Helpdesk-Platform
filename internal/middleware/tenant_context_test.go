@@ -7,6 +7,7 @@ import (
 
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/dto"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -80,9 +81,9 @@ func TestTenantContextUsesExplicitRequestLocale(t *testing.T) {
 		want   string
 	}{
 		{header: "en-US", stored: "zh-CN", want: "en-US"},
-		{header: "", stored: "zh-CN", want: "zh-CN"},
-		{header: "fr-FR", stored: "zh-CN", want: "zh-CN"},
-		{header: "", stored: "", want: "en-US"},
+		{header: "es", stored: "zh-CN", want: "es-ES"},
+		{header: "", stored: "es-ES", want: i18nx.DefaultLocale},
+		{header: "fr-FR", stored: "es-ES", want: i18nx.DefaultLocale},
 	}
 	for _, tc := range cases {
 		engine := gin.New()
@@ -95,8 +96,13 @@ func TestTenantContextUsesExplicitRequestLocale(t *testing.T) {
 			})
 			ctx.Next()
 		})
+		engine.Use(i18nx.Middleware())
 		engine.Use(TenantContextMiddleware())
 		engine.GET("/locale", func(ctx *gin.Context) {
+			if principalLocale, handlerLocale := services.AuthService.GetAuthPrincipal(ctx).Locale, i18nx.Locale(ctx); principalLocale != handlerLocale {
+				ctx.String(http.StatusConflict, principalLocale+" != "+handlerLocale)
+				return
+			}
 			ctx.String(http.StatusOK, services.AuthService.GetAuthPrincipal(ctx).Locale)
 		})
 

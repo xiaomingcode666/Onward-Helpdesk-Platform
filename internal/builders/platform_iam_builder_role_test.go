@@ -30,3 +30,10 @@ func TestBuildPlatformAuthRoleLocalizesBuiltinRoles(t *testing.T) {
 		t.Fatalf("renamed builtin role = %q", got.Name)
 	}
 }
+
+func TestBuildPlatformAuthRoleSkipsRolesWithoutResources(t *testing.T) {
+	platform := &models.AuthRole{Code: "platform_admin", IsBuiltin: true, Name: "平台管理员", Description: "平台"}
+	if got := BuildPlatformAuthRole(platform, nil, i18nx.LocaleEnUS); got.Name != "平台管理员" || got.Description != "平台" {
+		t.Fatalf("platform role = %q / %q", got.Name, got.Description)
+	}
+}

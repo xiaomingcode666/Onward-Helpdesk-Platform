@@ -572,6 +572,8 @@ tool.graph.prepareTicketDraft.param.impact: "影响范围，例如无法登录�
 tool.graph.prepareTicketDraft.param.expectedOutcome: "用户期望的处理结果或诉求。"
 tool.graph.prepareTicketDraft.param.currentAttempt: "当前已尝试过的处理步骤，可选。"
 error.rateLimit.exceeded: "请求过于频繁，请稍后重试"
+# builtin.* 的中文值同时是数据库中存储的规范值，后端按这些值识别存量数据；修改会导致识别失败，
+# 相关测试（TestBuiltinStoredValuesStayUnchanged 等）会在值变化时失败。
 builtin.knowledgeBase.tenantDefault.name: "企业通用知识库"
 builtin.knowledgeBase.tenantDefault.description: "保存企业级服务说明、FAQ 和安全指引，供知识问答统一检索。"
 builtin.knowledgeBase.product.name: "{product} 知识库"

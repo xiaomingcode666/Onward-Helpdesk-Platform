@@ -343,3 +343,62 @@ func TestTenantDefaultRoleSpecsKeepChineseStoredValues(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveKnowledgeBaseStoredNamePrefersExactUserDefinedName(t *testing.T) {
+	db := setupBuiltinDisplayTextTestDB(t)
+	mustCreateBuiltinRecord(t, db, &models.KnowledgeBase{TenantID: 1, Name: "企业通用知识库", NameText: tenantDefaultKnowledgeBaseNameText, Status: enums.StatusOk})
+	mustCreateBuiltinRecord(t, db, &models.KnowledgeBase{TenantID: 1, Name: "Enterprise General Knowledge Base", Status: enums.StatusOk})
+
+	if got := resolveKnowledgeBaseStoredName(db, 1, "Enterprise General Knowledge Base"); got != "Enterprise General Knowledge Base" {
+		t.Fatalf("resolve = %q, want the user-defined base name", got)
+	}
+}
+
+func TestSyncProductDerivedDisplayTextRepairsMissingText(t *testing.T) {
+	db := setupBuiltinDisplayTextTestDB(t)
+	product := models.Product{TenantID: 1, Name: "Pump", Code: "P-1", Status: enums.StatusOk}
+	mustCreateBuiltinRecord(t, db, &product)
+	kb := models.KnowledgeBase{TenantID: 1, Name: "Pump 知识库", Description: productKnowledgeBaseDescriptionText("Pump").Render(i18nx.LocaleZhCN), Status: enums.StatusOk}
+	mustCreateBuiltinRecord(t, db, &kb)
+	mustCreateBuiltinRecord(t, db, &models.ProductServiceProfile{TenantID: 1, ProductID: product.ID, DefaultKnowledgeBaseID: kb.ID, Status: enums.StatusOk})
+	agent := models.AIAgent{TenantID: 1, ProductID: product.ID, Name: "Pump 客服机器人", Description: productAgentDescriptionText("Pump").Render(i18nx.LocaleZhCN), Status: enums.StatusOk}
+	mustCreateBuiltinRecord(t, db, &agent)
+
+	if err := syncProductDerivedDisplayTextDB(db, &product); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	var gotKB models.KnowledgeBase
+	var gotAgent models.AIAgent
+	if err := db.First(&gotKB, kb.ID).Error; err != nil {
+		t.Fatalf("load knowledge base: %v", err)
+	}
+	if err := db.First(&gotAgent, agent.ID).Error; err != nil {
+		t.Fatalf("load agent: %v", err)
+	}
+	if got := gotKB.DisplayName(i18nx.LocaleEnUS); got != "Pump Knowledge Base" {
+		t.Fatalf("repaired knowledge base name = %q", got)
+	}
+	if got := gotAgent.DisplayName(i18nx.LocaleEnUS); got != "Pump Service Bot" {
+		t.Fatalf("repaired agent name = %q", got)
+	}
+}
+
+func TestKnowledgeBaseDisplayReplacesOnlyStoredValues(t *testing.T) {
+	db := setupBuiltinDisplayTextTestDB(t)
+	kb := models.KnowledgeBase{TenantID: 1, Name: "企业通用知识库", NameText: tenantDefaultKnowledgeBaseNameText, Description: "custom", Status: enums.StatusOk}
+	mustCreateBuiltinRecord(t, db, &kb)
+
+	display := newKnowledgeBaseDisplay(i18nx.LocaleEnUS)
+	if got := display.name(kb.ID, " 企业通用知识库 "); got != "Enterprise General Knowledge Base" {
+		t.Fatalf("name = %q", got)
+	}
+	if got := display.name(kb.ID, "Document"); got != "Document" {
+		t.Fatalf("fallback category replaced: %q", got)
+	}
+	if got := display.description(kb.ID, "custom"); got != "custom" {
+		t.Fatalf("custom description = %q", got)
+	}
+	if got := display.name(0, "Document"); got != "Document" {
+		t.Fatalf("missing id = %q", got)
+	}
+}

@@ -99,11 +99,9 @@ func TenantContextMiddleware() gin.HandlerFunc {
 			oldPrincipal.SubjectID = oldPrincipal.UserID
 		}
 		oldPrincipal.Timezone = deriveTimezone(oldPrincipal.Timezone)
-		// 前端按当前界面语言显式发送 X-Locale；服务层用 operator.Locale 渲染系统文本。
-		if locale, ok := i18nx.RequestLocaleOverride(ctx.Request); ok {
-			oldPrincipal.Locale = locale
-		}
-		oldPrincipal.Locale = deriveLocale(oldPrincipal.Locale)
+		// 服务层用 operator.Locale 渲染系统文本，与 handler 使用的 i18nx.Locale(ctx) 保持一致：
+		// 前端按当前界面语言显式发送 X-Locale，未发送时为服务器默认语言。
+		oldPrincipal.Locale = i18nx.Locale(ctx)
 		ctx.Set(middlewareAuthPrincipalKey, oldPrincipal)
 
 		ctx.Next()
@@ -173,14 +171,6 @@ func deriveSubjectType(userType string) string {
 	default:
 		return "enterprise_member"
 	}
-}
-
-// deriveLocale 派生用户语言偏好。
-func deriveLocale(locale string) string {
-	if locale != "" {
-		return locale
-	}
-	return "en-US"
 }
 
 // deriveTimezone 派生用户时区。

@@ -304,8 +304,10 @@ func (s *productService) UpdateProduct(req request.UpdateProductRequest, operato
 		return syncErr
 	}
 	s.recoverProductRepairTeamIfUnavailable(team, time.Now(), "product_updated")
-	if err := syncProductDerivedDisplayTextDB(sqls.DB(), updated); err != nil {
-		return err
+	if updated.Name != item.Name || updated.Code != item.Code {
+		if err := syncProductDerivedDisplayTextDB(sqls.DB(), updated); err != nil {
+			return err
+		}
 	}
 	ProductCenterService.InvalidateProductCountCache(tenantID)
 	return s.ensureDefaultProductCustomerAgent(updated, operator)
