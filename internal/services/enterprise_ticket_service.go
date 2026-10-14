@@ -459,7 +459,9 @@ func (s *enterpriseTicketService) ListForOperator(tenantID int64, query Enterpri
 	if err != nil || result == nil {
 		return result, err
 	}
+	teamNames := newAgentTeamDisplayNames(tenantID, operator)
 	for index := range result.Items {
+		result.Items[index].TeamName = teamNames.name(result.Items[index].CurrentTeamID, result.Items[index].TeamName)
 		ticket := repositories.TicketRepository.Get(sqls.DB(), result.Items[index].ID)
 		if ticket == nil {
 			continue
@@ -526,6 +528,11 @@ func (s *enterpriseTicketService) GetAggregateForOperator(tenantID, ticketID int
 	result.Actions = s.BuildActionsForOperator(ticket, operator)
 	caseLifecycle := BuildTicketCaseLifecycle(ticket, operator)
 	result.CaseLifecycle = &caseLifecycle
+	teamNames := newAgentTeamDisplayNames(tenantID, operator)
+	result.Assignment.TeamName = teamNames.name(result.Assignment.TeamID, result.Assignment.TeamName)
+	for index := range result.AssignmentHistory {
+		result.AssignmentHistory[index].TeamName = teamNames.name(result.AssignmentHistory[index].TeamID, result.AssignmentHistory[index].TeamName)
+	}
 	return result, nil
 }
 

@@ -66,7 +66,7 @@ func BuildConversationWithLocale(item *models.Conversation, locale string) respo
 	}
 	if item.CurrentTeamID > 0 {
 		if team := services.AgentTeamService.Get(item.CurrentTeamID); team != nil {
-			ret.CurrentTeamName = team.Name
+			ret.CurrentTeamName = team.DisplayName(locale)
 		}
 	}
 	if item.ClosedBy > 0 {

@@ -25,3 +25,15 @@ func (m *AIAgent) DisplayName(locale string) string {
 func (m *AIAgent) DisplayDescription(locale string) string {
 	return displayText(m.DescriptionText, m.Description, locale)
 }
+
+func (m *AgentTeam) DisplayName(locale string) string {
+	return displayText(m.NameText, m.Name, locale)
+}
+
+func (m *AgentTeam) DisplayDescription(locale string) string {
+	return displayText(m.DescriptionText, m.Description, locale)
+}
+
+func (m *Department) DisplayName(locale string) string {
+	return displayText(m.NameText, m.Name, locale)
+}

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"remotehelpdesk/internal/models"
+	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/i18nx"
 
@@ -201,5 +202,116 @@ func mustCreateBuiltinRecord(t *testing.T, db *gorm.DB, value any) {
 	t.Helper()
 	if err := db.Create(value).Error; err != nil {
 		t.Fatalf("create %T: %v", value, err)
+	}
+}
+
+func TestSupportOrganizationStoredValuesStayUnchanged(t *testing.T) {
+	cases := map[string][2]string{
+		"technical after-sales team":        {TechnicalAfterSalesTeamName, "技术售后组"},
+		"technical maintenance team":        {TechnicalMaintenanceTeamName, "技术维护组"},
+		"technical after-sales path":        {TechnicalAfterSalesTeamPath, "/技术售后组"},
+		"technical maintenance path":        {TechnicalMaintenanceTeamPath, "/技术维护组"},
+		"after-sales description":           {technicalAfterSalesTeamDescriptionText.Render(i18nx.LocaleZhCN), "接收产品售后会话、维修工单和工程师排班。"},
+		"maintenance description":           {technicalMaintenanceTeamDescriptionText.Render(i18nx.LocaleZhCN), "接收知识服务会话、人工工单和工程师排班。"},
+		"root department":                   {rootDepartmentNameText.Render(i18nx.LocaleZhCN), "企业组织"},
+		"product repair team description":   {productRepairTeamDescriptionText(" Pump ").Render(i18nx.LocaleZhCN), "Pump 产品维修组"},
+		"tenant owner role":                 {builtinRoleName(EnterpriseRoleOwner, i18nx.LocaleZhCN), "租户所有者"},
+		"service engineer role in english":  {builtinRoleName(EnterpriseRoleEngineer, i18nx.LocaleEnUS), "Service engineer"},
+		"product teams label in english":    {i18nx.NewText("workbench.scope.myProductTeams", i18nx.Params{"count": 2}).Render(i18nx.LocaleEnUS), "My 2 product repair teams"},
+		"product teams label stays chinese": {i18nx.NewText("workbench.scope.myProductTeams", i18nx.Params{"count": 2}).Render(i18nx.LocaleZhCN), "我的 2 个产品维修组"},
+	}
+	for name, values := range cases {
+		if values[0] != values[1] {
+			t.Errorf("%s = %q, want %q", name, values[0], values[1])
+		}
+	}
+}
+
+func TestWorkbenchOverviewCacheKeySeparatesLocales(t *testing.T) {
+	english := workbenchOverviewCacheKey(1, 2, &dto.AuthPrincipal{Locale: i18nx.LocaleEnUS})
+	chinese := workbenchOverviewCacheKey(1, 2, &dto.AuthPrincipal{Locale: i18nx.LocaleZhCN})
+	if english == chinese {
+		t.Fatalf("cache keys for different locales are equal: %q", english)
+	}
+}
+
+func TestBackfillSupportOrganizationDisplayText(t *testing.T) {
+	db := setupBuiltinDisplayTextTestDB(t)
+	if err := db.AutoMigrate(&models.AgentTeam{}, &models.Department{}); err != nil {
+		t.Fatalf("auto migrate: %v", err)
+	}
+	product := models.Product{TenantID: 1, Name: "Pump", Code: "P-1", Status: enums.StatusOk}
+	mustCreateBuiltinRecord(t, db, &product)
+	technical := models.AgentTeam{TenantID: 1, TeamType: AgentTeamTypeTechnicalRepair, SystemManaged: true, Name: "技术维护组", Description: "接收知识服务会话、人工工单和工程师排班。", Status: enums.StatusOk}
+	productTeam := models.AgentTeam{TenantID: 1, ProductID: product.ID, TeamType: AgentTeamTypeProductRepair, SystemManaged: true, Name: "Pump", Description: "Pump 产品维修组", Status: enums.StatusOk}
+	custom := models.AgentTeam{TenantID: 1, TeamType: "custom", Name: "Night shift", Description: "Custom", Status: enums.StatusOk}
+	mustCreateBuiltinRecord(t, db, &technical)
+	mustCreateBuiltinRecord(t, db, &productTeam)
+	mustCreateBuiltinRecord(t, db, &custom)
+	root := models.Department{TenantID: 1, DepartmentCode: "root", Name: "企业组织"}
+	technicalDepartment := models.Department{TenantID: 1, DepartmentCode: technicalRepairDepartmentCode, Name: "技术维护组"}
+	userDepartment := models.Department{TenantID: 1, DepartmentCode: "sales", Name: "销售部"}
+	mustCreateBuiltinRecord(t, db, &root)
+	mustCreateBuiltinRecord(t, db, &technicalDepartment)
+	mustCreateBuiltinRecord(t, db, &userDepartment)
+
+	if err := BackfillBuiltinDisplayTextDB(db); err != nil {
+		t.Fatalf("backfill: %v", err)
+	}
+
+	loadTeam := func(id int64) models.AgentTeam {
+		var team models.AgentTeam
+		if err := db.First(&team, id).Error; err != nil {
+			t.Fatalf("load team %d: %v", id, err)
+		}
+		return team
+	}
+	loadDepartment := func(id int64) *models.Department {
+		var department models.Department
+		if err := db.First(&department, id).Error; err != nil {
+			t.Fatalf("load department %d: %v", id, err)
+		}
+		return &department
+	}
+	if got := loadTeam(technical.ID); got.DisplayName(i18nx.LocaleEnUS) != "Technical Maintenance Team" || got.Name != "技术维护组" {
+		t.Fatalf("technical team = %q (stored %q)", got.DisplayName(i18nx.LocaleEnUS), got.Name)
+	}
+	if got := loadTeam(productTeam.ID); got.DisplayName(i18nx.LocaleEnUS) != "Pump" || got.DisplayDescription(i18nx.LocaleEnUS) != "Pump product repair team" {
+		t.Fatalf("product team = %q / %q", got.DisplayName(i18nx.LocaleEnUS), got.DisplayDescription(i18nx.LocaleEnUS))
+	}
+	if got := loadTeam(custom.ID); got.DisplayName(i18nx.LocaleEnUS) != "Night shift" || got.DisplayDescription(i18nx.LocaleEnUS) != "Custom" {
+		t.Fatalf("custom team changed: %+v", got)
+	}
+	if got := loadDepartment(root.ID).DisplayName(i18nx.LocaleEnUS); got != "Enterprise Organization" {
+		t.Fatalf("root department = %q", got)
+	}
+	if got := loadDepartment(technicalDepartment.ID).DisplayName(i18nx.LocaleEnUS); got != "Technical Maintenance Team" {
+		t.Fatalf("technical department = %q", got)
+	}
+	if got := loadDepartment(userDepartment.ID).DisplayName(i18nx.LocaleEnUS); got != "销售部" {
+		t.Fatalf("user department changed: %q", got)
+	}
+}
+
+func TestAgentTeamDisplayNamesOnlyReplacesStoredTeamName(t *testing.T) {
+	db := setupBuiltinDisplayTextTestDB(t)
+	if err := db.AutoMigrate(&models.AgentTeam{}); err != nil {
+		t.Fatalf("auto migrate: %v", err)
+	}
+	team := models.AgentTeam{TenantID: 1, Name: "技术维护组", NameText: technicalMaintenanceTeamNameText, Status: enums.StatusOk}
+	mustCreateBuiltinRecord(t, db, &team)
+
+	english := newAgentTeamDisplayNames(1, &dto.AuthPrincipal{Locale: i18nx.LocaleEnUS})
+	if got := english.name(team.ID, "技术维护组"); got != "Technical Maintenance Team" {
+		t.Fatalf("english name = %q", got)
+	}
+	if got := english.name(team.ID, "Archived snapshot"); got != "Archived snapshot" {
+		t.Fatalf("snapshot name replaced: %q", got)
+	}
+	if got := newAgentTeamDisplayNames(2, &dto.AuthPrincipal{Locale: i18nx.LocaleEnUS}).name(team.ID, "技术维护组"); got != "技术维护组" {
+		t.Fatalf("cross-tenant name = %q", got)
+	}
+	if got := newAgentTeamDisplayNames(1, nil).name(team.ID, "技术维护组"); got != "技术维护组" {
+		t.Fatalf("missing operator name = %q", got)
 	}
 }

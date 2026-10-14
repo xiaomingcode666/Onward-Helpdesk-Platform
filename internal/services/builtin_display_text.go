@@ -226,7 +226,10 @@ func BackfillBuiltinDisplayTextDB(db *gorm.DB) error {
 	if db == nil {
 		return nil
 	}
-	if err := db.AutoMigrate(&models.KnowledgeBase{}, &models.AIAgent{}); err != nil {
+	if err := db.AutoMigrate(&models.KnowledgeBase{}, &models.AIAgent{}, &models.AgentTeam{}, &models.Department{}); err != nil {
+		return err
+	}
+	if err := backfillSupportOrganizationDisplayTextDB(db); err != nil {
 		return err
 	}
 	var bases []models.KnowledgeBase
@@ -315,4 +318,111 @@ func backfillAIAgentDisplayText(db *gorm.DB, agent *models.AIAgent, nameTexts []
 		return nil
 	}
 	return db.Model(&models.AIAgent{}).Where("id = ?", agent.ID).Updates(updates).Error
+}
+
+// agentTeamDisplayNames 按当前语言解析团队展示名；仅当 storedName 仍是团队存储的名称时替换。
+type agentTeamDisplayNames struct {
+	tenantID int64
+	locale   string
+	cache    map[int64]*models.AgentTeam
+}
+
+func newAgentTeamDisplayNames(tenantID int64, operator *dto.AuthPrincipal) *agentTeamDisplayNames {
+	locale := ""
+	if operator != nil {
+		locale = operator.Locale
+	}
+	return &agentTeamDisplayNames{tenantID: tenantID, locale: locale, cache: map[int64]*models.AgentTeam{}}
+}
+
+func (n *agentTeamDisplayNames) name(teamID int64, storedName string) string {
+	if n == nil || n.locale == "" || teamID <= 0 || storedName == "" {
+		return storedName
+	}
+	team, ok := n.cache[teamID]
+	if !ok {
+		team = AgentTeamService.GetForTenant(teamID, n.tenantID)
+		n.cache[teamID] = team
+	}
+	if team == nil || team.Name != storedName {
+		return storedName
+	}
+	return team.DisplayName(n.locale)
+}
+
+// operatorLocale 返回本次请求的界面语言（中间件已用 X-Locale 覆盖用户偏好），缺省为服务器默认语言。
+func operatorLocale(operator *dto.AuthPrincipal) string {
+	if operator == nil || strings.TrimSpace(operator.Locale) == "" {
+		return i18nx.DefaultLocale
+	}
+	return i18nx.NormalizeLocale(operator.Locale)
+}
+
+// builtinRoleName 返回内置角色在指定语言下的名称。
+func builtinRoleName(code, locale string) string {
+	return i18nx.TLocale(locale, "builtin.role."+code+".name")
+}
+
+// backfillSupportOrganizationDisplayTextDB 为技术团队、产品维修组和系统部门补充展示文本。
+func backfillSupportOrganizationDisplayTextDB(db *gorm.DB) error {
+	technicalTexts := map[string][2]i18nx.Text{
+		TechnicalAfterSalesTeamName:  {technicalAfterSalesTeamNameText, technicalAfterSalesTeamDescriptionText},
+		TechnicalMaintenanceTeamName: {technicalMaintenanceTeamNameText, technicalMaintenanceTeamDescriptionText},
+	}
+	var teams []models.AgentTeam
+	if err := db.Where("system_managed = ? AND status <> ?", true, enums.StatusDeleted).Find(&teams).Error; err != nil {
+		return err
+	}
+	for _, team := range teams {
+		updates := map[string]any{}
+		switch team.TeamType {
+		case AgentTeamTypeTechnicalRepair:
+			texts, ok := technicalTexts[strings.TrimSpace(team.Name)]
+			if !ok {
+				continue
+			}
+			if team.NameText.IsZero() {
+				updates["name_text"] = texts[0]
+			}
+			if team.DescriptionText.IsZero() && strings.TrimSpace(team.Description) == texts[1].Render(i18nx.LocaleZhCN) {
+				updates["description_text"] = texts[1]
+			}
+		case AgentTeamTypeProductRepair:
+			product := repositories.ProductRepository.GetByTenant(db, team.ProductID, team.TenantID)
+			if product == nil || !team.DescriptionText.IsZero() {
+				continue
+			}
+			if text := productRepairTeamDescriptionText(product.Name); strings.TrimSpace(team.Description) == text.Render(i18nx.LocaleZhCN) {
+				updates["description_text"] = text
+			}
+		}
+		if len(updates) > 0 {
+			if err := db.Model(&models.AgentTeam{}).Where("id = ?", team.ID).Updates(updates).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	var departments []models.Department
+	if err := db.Where("department_code IN ? AND name_text = ''", []string{"root", technicalRepairDepartmentCode}).Find(&departments).Error; err != nil {
+		return err
+	}
+	for _, department := range departments {
+		var text i18nx.Text
+		switch {
+		case department.DepartmentCode == "root" && strings.TrimSpace(department.Name) == rootDepartmentNameText.Render(i18nx.LocaleZhCN):
+			text = rootDepartmentNameText
+		case department.DepartmentCode == technicalRepairDepartmentCode:
+			if texts, ok := technicalTexts[strings.TrimSpace(department.Name)]; ok {
+				text = texts[0]
+			}
+		}
+		if text.IsZero() {
+			continue
+		}
+		if err := db.Model(&models.Department{}).Where("id = ?", department.ID).Update("name_text", text).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }

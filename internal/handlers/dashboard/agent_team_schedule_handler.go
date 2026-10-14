@@ -9,6 +9,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto/response"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/httpx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 	"time"
 
@@ -110,7 +111,7 @@ func AgentTeamScheduleAnyList(ctx *gin.Context) {
 	list, paging := services.AgentTeamScheduleService.FindPageByCnd(cnd)
 	results := make([]response.AgentTeamScheduleResponse, 0, len(list))
 	for _, item := range list {
-		results = append(results, buildAgentTeamScheduleResponse(&item))
+		results = append(results, buildAgentTeamScheduleResponse(&item, i18nx.Locale(ctx)))
 	}
 	httpx.WriteJSON(ctx, &web.PageResult{Results: results, Page: paging})
 }
@@ -136,7 +137,7 @@ func AgentTeamScheduleAnyCalendar(ctx *gin.Context) {
 	}
 	results := make([]response.AgentTeamScheduleResponse, 0, len(list))
 	for _, item := range list {
-		results = append(results, buildAgentTeamScheduleResponse(&item))
+		results = append(results, buildAgentTeamScheduleResponse(&item, i18nx.Locale(ctx)))
 	}
 	httpx.WriteJSON(ctx, results)
 }
@@ -198,7 +199,7 @@ func AgentTeamScheduleGetBy(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0172"))
 		return
 	}
-	httpx.WriteJSON(ctx, buildAgentTeamScheduleResponse(item))
+	httpx.WriteJSON(ctx, buildAgentTeamScheduleResponse(item, i18nx.Locale(ctx)))
 }
 
 func AgentTeamSchedulePostCreate(ctx *gin.Context) {
@@ -292,7 +293,7 @@ func buildAgentTeamMemberAvailabilityResponse(item services.AgentTeamMemberAvail
 	return ret
 }
 
-func buildAgentTeamScheduleResponse(item *models.AgentTeamSchedule) response.AgentTeamScheduleResponse {
+func buildAgentTeamScheduleResponse(item *models.AgentTeamSchedule, locale string) response.AgentTeamScheduleResponse {
 	repeatType := services.NormalizeAgentTeamScheduleRepeatType(item.RepeatType)
 	ret := response.AgentTeamScheduleResponse{
 		ID:            item.ID,
@@ -322,7 +323,7 @@ func buildAgentTeamScheduleResponse(item *models.AgentTeamSchedule) response.Age
 		ret.EndTime = formatScheduleMinute(item.EndMinute)
 	}
 	if team := services.AgentTeamService.Get(item.TeamID); team != nil {
-		ret.TeamName = team.Name
+		ret.TeamName = team.DisplayName(locale)
 	}
 	if item.UserID > 0 {
 		ret.UserName, ret.UserAvatar = services.AgentProfileService.CurrentDisplayIdentity(item.TenantID, item.UserID)

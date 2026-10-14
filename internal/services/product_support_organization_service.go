@@ -9,6 +9,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/repositories"
 
@@ -20,14 +21,27 @@ const (
 	AgentTeamTypeTechnicalRepair = "technical_repair"
 	AgentTeamTypeProductRepair   = "product_repair"
 
-	TechnicalAfterSalesTeamName  = "技术售后组"
-	TechnicalMaintenanceTeamName = "技术维护组"
-	TechnicalAfterSalesTeamPath  = "/" + TechnicalAfterSalesTeamName
-	TechnicalMaintenanceTeamPath = "/" + TechnicalMaintenanceTeamName
-
 	technicalRepairDepartmentCode = "technical-repair"
 	technicalRepairTeamSystemKey  = "technical-repair"
 )
+
+var (
+	technicalAfterSalesTeamNameText         = i18nx.NewText("builtin.agentTeam.technicalAfterSales.name", nil)
+	technicalAfterSalesTeamDescriptionText  = i18nx.NewText("builtin.agentTeam.technicalAfterSales.description", nil)
+	technicalMaintenanceTeamNameText        = i18nx.NewText("builtin.agentTeam.technicalMaintenance.name", nil)
+	technicalMaintenanceTeamDescriptionText = i18nx.NewText("builtin.agentTeam.technicalMaintenance.description", nil)
+	rootDepartmentNameText                  = i18nx.NewText("builtin.department.root.name", nil)
+
+	// 存储列和组织路径保留中文规范值；组织保护规则和历史迁移依赖这些值，展示时按语言渲染。
+	TechnicalAfterSalesTeamName  = technicalAfterSalesTeamNameText.Render(i18nx.LocaleZhCN)
+	TechnicalMaintenanceTeamName = technicalMaintenanceTeamNameText.Render(i18nx.LocaleZhCN)
+	TechnicalAfterSalesTeamPath  = "/" + TechnicalAfterSalesTeamName
+	TechnicalMaintenanceTeamPath = "/" + TechnicalMaintenanceTeamName
+)
+
+func productRepairTeamDescriptionText(productName string) i18nx.Text {
+	return i18nx.NewText("builtin.agentTeam.product.description", i18nx.Params{"product": strings.TrimSpace(productName)})
+}
 
 var ProductSupportOrganizationService = &productSupportOrganizationService{}
 
@@ -46,10 +60,11 @@ func (s *productSupportOrganizationService) EnsureTenantTechnicalRepairTeamDB(
 	}
 	technicalTeamName := tenantTechnicalRepairTeamNameDB(db, tenantID)
 	technicalTeamPath := "/" + supportPathSegment(technicalTeamName)
-	technicalTeamDescription := "接收产品售后会话、维修工单和工程师排班。"
+	technicalTeamNameText, technicalTeamDescriptionText := technicalAfterSalesTeamNameText, technicalAfterSalesTeamDescriptionText
 	if technicalTeamName == TechnicalMaintenanceTeamName {
-		technicalTeamDescription = "接收知识服务会话、人工工单和工程师排班。"
+		technicalTeamNameText, technicalTeamDescriptionText = technicalMaintenanceTeamNameText, technicalMaintenanceTeamDescriptionText
 	}
+	technicalTeamDescription := technicalTeamDescriptionText.Render(i18nx.LocaleZhCN)
 	rootDepartment, err := s.ensureRootDepartmentDB(db, tenantID, operator)
 	if err != nil {
 		return nil, err
@@ -59,6 +74,7 @@ func (s *productSupportOrganizationService) EnsureTenantTechnicalRepairTeamDB(
 		ParentID:       rootDepartment.ID,
 		DepartmentCode: technicalRepairDepartmentCode,
 		Name:           technicalTeamName,
+		NameText:       technicalTeamNameText,
 		Path:           technicalTeamPath,
 		Depth:          1,
 		Status:         enums.StatusOk,
@@ -80,16 +96,18 @@ func (s *productSupportOrganizationService) EnsureTenantTechnicalRepairTeamDB(
 	}
 	if team == nil {
 		team = &models.AgentTeam{
-			TenantID:       tenantID,
-			DepartmentID:   technicalDepartment.ID,
-			TeamType:       AgentTeamTypeTechnicalRepair,
-			SystemKey:      &key,
-			SystemManaged:  true,
-			Name:           technicalTeamName,
-			AssignmentMode: AgentTeamAssignmentModeBalanced,
-			Status:         enums.StatusOk,
-			Description:    technicalTeamDescription,
-			AuditFields:    utils.BuildAuditFields(operator),
+			TenantID:        tenantID,
+			DepartmentID:    technicalDepartment.ID,
+			TeamType:        AgentTeamTypeTechnicalRepair,
+			SystemKey:       &key,
+			SystemManaged:   true,
+			Name:            technicalTeamName,
+			NameText:        technicalTeamNameText,
+			AssignmentMode:  AgentTeamAssignmentModeBalanced,
+			Status:          enums.StatusOk,
+			Description:     technicalTeamDescription,
+			DescriptionText: technicalTeamDescriptionText,
+			AuditFields:     utils.BuildAuditFields(operator),
 		}
 		if err := repositories.AgentTeamRepository.Create(db, team); err != nil {
 			return nil, err
@@ -105,9 +123,11 @@ func (s *productSupportOrganizationService) EnsureTenantTechnicalRepairTeamDB(
 		"system_key":       key,
 		"system_managed":   true,
 		"name":             technicalTeamName,
+		"name_text":        technicalTeamNameText,
 		"assignment_mode":  AgentTeamAssignmentModeBalanced,
 		"status":           enums.StatusOk,
 		"description":      technicalTeamDescription,
+		"description_text": technicalTeamDescriptionText,
 		"update_user_id":   auditOperatorID(operator),
 		"update_user_name": auditOperatorName(operator),
 		"updated_at":       time.Now(),
@@ -153,19 +173,20 @@ func (s *productSupportOrganizationService) EnsureProductRepairTeamDB(
 		Eq("system_key", key))
 	if team == nil {
 		team = &models.AgentTeam{
-			TenantID:       product.TenantID,
-			ParentID:       rootTeam.ID,
-			ProductID:      product.ID,
-			DepartmentID:   productDepartment.ID,
-			TeamType:       AgentTeamTypeProductRepair,
-			SystemKey:      &key,
-			SystemManaged:  true,
-			Name:           strings.TrimSpace(product.Name),
-			LeaderUserID:   leaderUserID,
-			AssignmentMode: AgentTeamAssignmentModeBalanced,
-			Status:         product.Status,
-			Description:    fmt.Sprintf("%s 产品维修组", strings.TrimSpace(product.Name)),
-			AuditFields:    utils.BuildAuditFields(operator),
+			TenantID:        product.TenantID,
+			ParentID:        rootTeam.ID,
+			ProductID:       product.ID,
+			DepartmentID:    productDepartment.ID,
+			TeamType:        AgentTeamTypeProductRepair,
+			SystemKey:       &key,
+			SystemManaged:   true,
+			Name:            strings.TrimSpace(product.Name),
+			LeaderUserID:    leaderUserID,
+			AssignmentMode:  AgentTeamAssignmentModeBalanced,
+			Status:          product.Status,
+			Description:     productRepairTeamDescriptionText(product.Name).Render(i18nx.LocaleZhCN),
+			DescriptionText: productRepairTeamDescriptionText(product.Name),
+			AuditFields:     utils.BuildAuditFields(operator),
 		}
 		if err := repositories.AgentTeamRepository.Create(db, team); err != nil {
 			return nil, err
@@ -185,7 +206,8 @@ func (s *productSupportOrganizationService) EnsureProductRepairTeamDB(
 		"name":             strings.TrimSpace(product.Name),
 		"assignment_mode":  NormalizeAgentTeamAssignmentMode(team.AssignmentMode),
 		"status":           product.Status,
-		"description":      fmt.Sprintf("%s 产品维修组", strings.TrimSpace(product.Name)),
+		"description":      productRepairTeamDescriptionText(product.Name).Render(i18nx.LocaleZhCN),
+		"description_text": productRepairTeamDescriptionText(product.Name),
 		"update_user_id":   auditOperatorID(operator),
 		"update_user_name": auditOperatorName(operator),
 		"updated_at":       time.Now(),
@@ -496,7 +518,8 @@ func (s *productSupportOrganizationService) ensureRootDepartmentDB(db *gorm.DB, 
 	return s.ensureDepartmentDB(db, models.Department{
 		TenantID:       tenantID,
 		DepartmentCode: "root",
-		Name:           "企业组织",
+		Name:           rootDepartmentNameText.Render(i18nx.LocaleZhCN),
+		NameText:       rootDepartmentNameText,
 		Path:           "/",
 		Depth:          0,
 		Status:         enums.StatusOk,
@@ -517,6 +540,7 @@ func (s *productSupportOrganizationService) ensureDepartmentDB(db *gorm.DB, desi
 		Updates(map[string]any{
 			"parent_id":        desired.ParentID,
 			"name":             desired.Name,
+			"name_text":        desired.NameText,
 			"path":             desired.Path,
 			"depth":            desired.Depth,
 			"status":           desired.Status,

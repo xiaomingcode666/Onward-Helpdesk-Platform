@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 const (
@@ -339,6 +340,7 @@ type Department struct {
 	ParentID        int64        `gorm:"type:bigint;not null;default:0;index"`
 	DepartmentCode  string       `gorm:"type:varchar(64);not null;default:'';uniqueIndex:uk_department_tenant_code"`
 	Name            string       `gorm:"type:varchar(128);not null;default:'';index"`
+	NameText        i18nx.Text   `gorm:"type:text;not null;default:''"` // NameText 为系统生成名称的资源键和参数；为空表示名称由用户定义。
 	Path            string       `gorm:"type:varchar(512);not null;default:'';index"`
 	Depth           int          `gorm:"type:int;not null;default:0;index"`
 	ManagerMemberID int64        `gorm:"type:bigint;not null;default:0;index"`

@@ -60,3 +60,20 @@ func TestAIAgentDisplayFallsBackToStoredValues(t *testing.T) {
 		t.Fatalf("DisplayDescription = %q", got)
 	}
 }
+
+func TestAgentTeamAndDepartmentDisplay(t *testing.T) {
+	team := &AgentTeam{Name: "技术维护组", NameText: i18nx.NewText("builtin.agentTeam.technicalMaintenance.name", nil), Description: "custom"}
+	if got := team.DisplayName(i18nx.LocaleEnUS); got != "Technical Maintenance Team" {
+		t.Fatalf("team DisplayName = %q", got)
+	}
+	if got := team.DisplayDescription(i18nx.LocaleEnUS); got != "custom" {
+		t.Fatalf("team DisplayDescription = %q", got)
+	}
+	department := &Department{Name: "企业组织", NameText: i18nx.NewText("builtin.department.root.name", nil)}
+	if got := department.DisplayName(i18nx.LocaleEnUS); got != "Enterprise Organization" {
+		t.Fatalf("department DisplayName = %q", got)
+	}
+	if got := (&Department{Name: "Sales"}).DisplayName(i18nx.LocaleZhCN); got != "Sales" {
+		t.Fatalf("custom department DisplayName = %q", got)
+	}
+}

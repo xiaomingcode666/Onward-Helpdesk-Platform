@@ -12,6 +12,7 @@ import (
 	"remotehelpdesk/internal/pkg/constants"
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -81,7 +82,7 @@ func TestAgentTeamScheduleResponseUsesCurrentEngineerName(t *testing.T) {
 		StartAt:       now,
 		EndAt:         now.Add(9 * time.Hour),
 		Status:        enums.StatusOk,
-	})
+	}, i18nx.LocaleZhCN)
 
 	if ret.UserName != "IAM 当前工程师" {
 		t.Fatalf("schedule user name = %q, want current IAM name", ret.UserName)

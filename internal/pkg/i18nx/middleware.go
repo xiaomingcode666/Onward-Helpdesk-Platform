@@ -65,3 +65,13 @@ func Middleware() gin.HandlerFunc {
 		ctx.Next()
 	}
 }
+
+// RequestLocaleOverride 返回请求显式指定的受支持语言；未指定或不受支持时返回 false，
+// 调用方应继续使用用户或租户的语言偏好。
+func RequestLocaleOverride(req *http.Request) (string, bool) {
+	if req == nil {
+		return "", false
+	}
+	locale, ok := supportedLocales[strings.ToLower(strings.TrimSpace(req.Header.Get(LocaleHeader)))]
+	return locale, ok
+}

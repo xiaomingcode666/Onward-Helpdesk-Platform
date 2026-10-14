@@ -6,6 +6,7 @@ import (
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/errorsx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -98,6 +99,10 @@ func TenantContextMiddleware() gin.HandlerFunc {
 			oldPrincipal.SubjectID = oldPrincipal.UserID
 		}
 		oldPrincipal.Timezone = deriveTimezone(oldPrincipal.Timezone)
+		// 前端按当前界面语言显式发送 X-Locale；服务层用 operator.Locale 渲染系统文本。
+		if locale, ok := i18nx.RequestLocaleOverride(ctx.Request); ok {
+			oldPrincipal.Locale = locale
+		}
 		oldPrincipal.Locale = deriveLocale(oldPrincipal.Locale)
 		ctx.Set(middlewareAuthPrincipalKey, oldPrincipal)
 

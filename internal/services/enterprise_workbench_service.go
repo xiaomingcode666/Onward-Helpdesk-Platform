@@ -14,6 +14,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/repositories"
 
 	"github.com/mlogclub/simple/sqls"
@@ -26,7 +27,7 @@ type workbenchOverviewCacheEntry struct {
 	data *dto.EnterpriseWorkbenchOverviewDTO
 }
 
-var workbenchOverviewCache sync.Map // key: "tenantID:userID"
+var workbenchOverviewCache sync.Map // key: "tenantID:userID:locale"
 
 const workbenchOverviewCacheTTL = 5 * time.Second
 
@@ -158,7 +159,7 @@ func workbenchPaginationFromPaging(paging *sqls.Paging, page, pageSize, fallback
 func (s *enterpriseWorkbenchService) Overview(ctx context.Context, tenantID, userID int64, operator *dto.AuthPrincipal) (*dto.EnterpriseWorkbenchOverviewDTO, error) {
 	// 短缓存:工作台高频轮询/刷新时跳过重复的 30+ 条 SQL 计算
 	if tenantID > 0 {
-		cacheKey := fmt.Sprintf("%d:%d", tenantID, userID)
+		cacheKey := workbenchOverviewCacheKey(tenantID, userID, operator)
 		if entry, ok := workbenchOverviewCache.Load(cacheKey); ok {
 			if cached := entry.(*workbenchOverviewCacheEntry); time.Since(cached.at) < workbenchOverviewCacheTTL {
 				return cached.data, nil
@@ -252,7 +253,7 @@ func (s *enterpriseWorkbenchService) Overview(ctx context.Context, tenantID, use
 	ret.Activity = s.activity(s.visibleTicketList(tenantID, operator, false, nil, 5), ret.Notifications)
 
 	if tenantID > 0 {
-		workbenchOverviewCache.Store(fmt.Sprintf("%d:%d", tenantID, userID), &workbenchOverviewCacheEntry{at: time.Now(), data: ret})
+		workbenchOverviewCache.Store(workbenchOverviewCacheKey(tenantID, userID, operator), &workbenchOverviewCacheEntry{at: time.Now(), data: ret})
 	}
 	return ret, nil
 }
@@ -336,10 +337,11 @@ func (s *enterpriseWorkbenchService) Resources(tenantID, userID int64, operator 
 }
 
 func (s *enterpriseWorkbenchService) scope(tenantID, userID int64, operator *dto.AuthPrincipal) dto.EnterpriseWorkbenchScopeDTO {
+	locale := operatorLocale(operator)
 	scope := dto.EnterpriseWorkbenchScopeDTO{
 		Mode:      "tenant",
-		Label:     "租户队列",
-		RoleLabel: "企业管理员",
+		Label:     i18nx.TLocale(locale, "workbench.scope.tenantQueue"),
+		RoleLabel: builtinRoleName(EnterpriseRoleAdmin, locale),
 		UserID:    userID,
 	}
 	restricted, viewerUserID, viewerTeamIDs := enterpriseTicketViewerScope(tenantID, operator)
@@ -347,13 +349,13 @@ func (s *enterpriseWorkbenchService) scope(tenantID, userID int64, operator *dto
 		if operator != nil {
 			switch {
 			case operator.HasRole(EnterpriseRoleOwner):
-				scope.RoleLabel = "租户所有者"
+				scope.RoleLabel = builtinRoleName(EnterpriseRoleOwner, locale)
 			case operator.HasRole(EnterpriseRoleServiceManager):
-				scope.RoleLabel = "服务负责人"
+				scope.RoleLabel = builtinRoleName(EnterpriseRoleServiceManager, locale)
 			case operator.HasRole(EnterpriseRoleAdmin):
-				scope.RoleLabel = "企业管理员"
+				scope.RoleLabel = builtinRoleName(EnterpriseRoleAdmin, locale)
 			case operator.IsPlatform():
-				scope.RoleLabel = "平台支持"
+				scope.RoleLabel = i18nx.TLocale(locale, "workbench.role.platformSupport")
 			}
 		}
 		return scope
@@ -361,9 +363,9 @@ func (s *enterpriseWorkbenchService) scope(tenantID, userID int64, operator *dto
 
 	scope.Restricted = true
 	scope.Mode = "product_team"
-	scope.RoleLabel = "服务工程师"
+	scope.RoleLabel = builtinRoleName(EnterpriseRoleEngineer, locale)
 	scope.UserID = viewerUserID
-	scope.Label = "我的产品维修组"
+	scope.Label = i18nx.TLocale(locale, "workbench.scope.myProductTeam")
 	scope.TeamIDs = uniqueServiceInt64s(viewerTeamIDs)
 	if len(scope.TeamIDs) > 0 {
 		teams := AgentTeamService.FindByIds(scope.TeamIDs)
@@ -387,7 +389,7 @@ func (s *enterpriseWorkbenchService) scope(tenantID, userID int64, operator *dto
 		scope.ProductIDs = uniqueServiceInt64s(productIDs)
 		if len(activeTeams) == 1 {
 			scope.TeamID = activeTeams[0].ID
-			scope.TeamName = activeTeams[0].Name
+			scope.TeamName = activeTeams[0].DisplayName(locale)
 			scope.ProductID = activeTeams[0].ProductID
 			scope.Label = scope.TeamName
 		} else if len(activeTeams) > 1 {
@@ -395,7 +397,7 @@ func (s *enterpriseWorkbenchService) scope(tenantID, userID int64, operator *dto
 			scope.TeamName = ""
 			scope.ProductID = 0
 			scope.ProductName = ""
-			scope.Label = fmt.Sprintf("我的 %d 个产品维修组", len(activeTeams))
+			scope.Label = i18nx.NewText("workbench.scope.myProductTeams", i18nx.Params{"count": len(activeTeams)}).Render(locale)
 		}
 	}
 	if scope.ProductID > 0 {
@@ -404,7 +406,7 @@ func (s *enterpriseWorkbenchService) scope(tenantID, userID int64, operator *dto
 		}
 	}
 	if len(scope.TeamIDs) == 0 && scope.TeamName == "" && scope.ProductName == "" {
-		scope.Label = "我的工单"
+		scope.Label = i18nx.TLocale(locale, "workbench.scope.myTickets")
 	}
 	return scope
 }
@@ -1364,4 +1366,8 @@ func ticketTone(status enums.TicketStatus) string {
 	default:
 		return "blue"
 	}
+}
+
+func workbenchOverviewCacheKey(tenantID, userID int64, operator *dto.AuthPrincipal) string {
+	return fmt.Sprintf("%d:%d:%s", tenantID, userID, operatorLocale(operator))
 }

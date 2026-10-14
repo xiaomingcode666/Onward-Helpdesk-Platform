@@ -5,15 +5,15 @@ import (
 	"remotehelpdesk/internal/pkg/dto"
 )
 
-func BuildEnterpriseIAMMemberList(items []models.TenantMember, users map[int64]*models.User, departments map[int64]*models.Department, engineers map[int64]*models.EngineerProfile, productGroups map[int64][]dto.EnterpriseIAMProductGroupDTO, rolesBySubject map[int64][]string) []*dto.EnterpriseIAMMemberDTO {
+func BuildEnterpriseIAMMemberList(items []models.TenantMember, users map[int64]*models.User, departments map[int64]*models.Department, engineers map[int64]*models.EngineerProfile, productGroups map[int64][]dto.EnterpriseIAMProductGroupDTO, rolesBySubject map[int64][]string, locale string) []*dto.EnterpriseIAMMemberDTO {
 	ret := make([]*dto.EnterpriseIAMMemberDTO, 0, len(items))
 	for i := range items {
-		ret = append(ret, BuildEnterpriseIAMMember(&items[i], users[items[i].UserID], departments[items[i].DepartmentID], engineers[items[i].ID], productGroups[items[i].ID], rolesBySubject[items[i].ID]))
+		ret = append(ret, BuildEnterpriseIAMMember(&items[i], users[items[i].UserID], departments[items[i].DepartmentID], engineers[items[i].ID], productGroups[items[i].ID], rolesBySubject[items[i].ID], locale))
 	}
 	return ret
 }
 
-func BuildEnterpriseIAMMember(item *models.TenantMember, user *models.User, department *models.Department, engineer *models.EngineerProfile, productGroups []dto.EnterpriseIAMProductGroupDTO, roles []string) *dto.EnterpriseIAMMemberDTO {
+func BuildEnterpriseIAMMember(item *models.TenantMember, user *models.User, department *models.Department, engineer *models.EngineerProfile, productGroups []dto.EnterpriseIAMProductGroupDTO, roles []string, locale string) *dto.EnterpriseIAMMemberDTO {
 	if item == nil {
 		return nil
 	}
@@ -46,7 +46,7 @@ func BuildEnterpriseIAMMember(item *models.TenantMember, user *models.User, depa
 		}
 	}
 	if department != nil {
-		ret.DepartmentName = department.Name
+		ret.DepartmentName = department.DisplayName(locale)
 	}
 	if engineer != nil {
 		ret.SkillTagsJSON = engineer.SkillTagsJSON
@@ -126,15 +126,15 @@ func BuildEnterpriseIAMPartner(item *models.PartnerCompany, accountCount, contra
 	}
 }
 
-func BuildEnterpriseIAMDepartmentList(items []models.Department, managers map[int64]*models.TenantMember, memberCounts map[int64]int64) []*dto.EnterpriseIAMDepartmentDTO {
+func BuildEnterpriseIAMDepartmentList(items []models.Department, managers map[int64]*models.TenantMember, memberCounts map[int64]int64, locale string) []*dto.EnterpriseIAMDepartmentDTO {
 	ret := make([]*dto.EnterpriseIAMDepartmentDTO, 0, len(items))
 	for i := range items {
-		ret = append(ret, BuildEnterpriseIAMDepartment(&items[i], managers[items[i].ManagerMemberID], memberCounts[items[i].ID]))
+		ret = append(ret, BuildEnterpriseIAMDepartment(&items[i], managers[items[i].ManagerMemberID], memberCounts[items[i].ID], locale))
 	}
 	return ret
 }
 
-func BuildEnterpriseIAMDepartment(item *models.Department, manager *models.TenantMember, memberCount int64) *dto.EnterpriseIAMDepartmentDTO {
+func BuildEnterpriseIAMDepartment(item *models.Department, manager *models.TenantMember, memberCount int64, locale string) *dto.EnterpriseIAMDepartmentDTO {
 	if item == nil {
 		return nil
 	}
@@ -143,7 +143,7 @@ func BuildEnterpriseIAMDepartment(item *models.Department, manager *models.Tenan
 		TenantID:        item.TenantID,
 		ParentID:        item.ParentID,
 		DepartmentCode:  item.DepartmentCode,
-		Name:            item.Name,
+		Name:            item.DisplayName(locale),
 		Path:            item.Path,
 		Depth:           item.Depth,
 		ManagerMemberID: item.ManagerMemberID,

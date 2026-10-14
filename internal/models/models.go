@@ -1371,6 +1371,8 @@ type AgentTeam struct {
 	ScheduleEnforced bool         `gorm:"not null;default:false;index"`                                                 // ScheduleEnforced 为历史排班兼容字段；派单以成员个人可接单规则为准。
 	ScheduleVersion  int          `gorm:"type:int;not null;default:0"`                                                  // ScheduleVersion 为历史排班版本字段，仅供只读展示兼容。
 	Status           enums.Status `gorm:"type:int;not null;default:0;index"`                                            // Status 表示客服组状态
+	NameText         i18nx.Text   `gorm:"type:text;not null;default:''"`                                                // NameText 为系统生成名称的资源键和参数；为空表示名称由用户定义。
+	DescriptionText  i18nx.Text   `gorm:"type:text;not null;default:''"`                                                // DescriptionText 为系统生成描述的资源键和参数；为空表示描述由用户定义。
 	Description      string       `gorm:"type:varchar(255);not null;default:''"`                                        // Description 为客服组简介，用于说明职责边界。
 	Remark           string       `gorm:"type:text"`                                                                    // Remark 记录客服组内部备注。
 	AuditFields

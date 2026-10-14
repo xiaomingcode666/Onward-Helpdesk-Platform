@@ -7,6 +7,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto/response"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/httpx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 
 	"remotehelpdesk/internal/pkg/httpx/params"
@@ -36,7 +37,7 @@ func AgentTeamAnyList(ctx *gin.Context) {
 	list := services.AgentTeamService.Find(cnd)
 	results := make([]response.AgentTeamResponse, 0, len(list))
 	for _, item := range list {
-		results = append(results, buildAgentTeamResponse(&item))
+		results = append(results, buildAgentTeamResponse(&item, i18nx.Locale(ctx)))
 	}
 	httpx.WriteJSON(ctx, results)
 }
@@ -55,7 +56,7 @@ func AgentTeamGetList_all(ctx *gin.Context) {
 	list := services.AgentTeamService.Find(cnd)
 	results := make([]response.AgentTeamResponse, 0, len(list))
 	for _, item := range list {
-		results = append(results, buildAgentTeamResponse(&item))
+		results = append(results, buildAgentTeamResponse(&item, i18nx.Locale(ctx)))
 	}
 	httpx.WriteJSON(ctx, results)
 }
@@ -75,7 +76,7 @@ func AgentTeamGetBy(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0169"))
 		return
 	}
-	httpx.WriteJSON(ctx, buildAgentTeamResponse(item))
+	httpx.WriteJSON(ctx, buildAgentTeamResponse(item, i18nx.Locale(ctx)))
 }
 
 func AgentTeamPostCreate(ctx *gin.Context) {
@@ -94,7 +95,7 @@ func AgentTeamPostCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, buildAgentTeamResponse(item))
+	httpx.WriteJSON(ctx, buildAgentTeamResponse(item, i18nx.Locale(ctx)))
 }
 
 func AgentTeamPostUpdate(ctx *gin.Context) {
@@ -193,7 +194,7 @@ func buildAgentTeamMemberResponse(item *models.AgentTeamMember) response.AgentTe
 	}
 }
 
-func buildAgentTeamResponse(item *models.AgentTeam) response.AgentTeamResponse {
+func buildAgentTeamResponse(item *models.AgentTeam, locale string) response.AgentTeamResponse {
 	ret := response.AgentTeamResponse{
 		ID:               item.ID,
 		TenantID:         item.TenantID,
@@ -202,13 +203,13 @@ func buildAgentTeamResponse(item *models.AgentTeam) response.AgentTeamResponse {
 		DepartmentID:     item.DepartmentID,
 		TeamType:         item.TeamType,
 		SystemManaged:    item.SystemManaged,
-		Name:             item.Name,
+		Name:             item.DisplayName(locale),
 		LeaderUserID:     item.LeaderUserID,
 		AssignmentMode:   services.NormalizeAgentTeamAssignmentMode(item.AssignmentMode),
 		ScheduleEnforced: item.ScheduleEnforced,
 		ScheduleVersion:  item.ScheduleVersion,
 		Status:           item.Status,
-		Description:      item.Description,
+		Description:      item.DisplayDescription(locale),
 		Remark:           item.Remark,
 	}
 	if product := services.ProductService.Get(item.ProductID); product != nil && (item.TenantID <= 0 || product.TenantID == item.TenantID) {

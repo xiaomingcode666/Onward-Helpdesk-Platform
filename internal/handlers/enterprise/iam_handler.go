@@ -15,6 +15,7 @@ import (
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/httpx"
 	"remotehelpdesk/internal/pkg/httpx/params"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -41,7 +42,7 @@ func IAMMemberInvite(ctx *gin.Context) {
 		return
 	}
 	httpx.WriteJSON(ctx, &dto.EnterpriseIAMMemberInviteDTO{
-		Member:          builders.BuildEnterpriseIAMMember(result.Member, result.User, result.Department, result.Engineer, nil, result.Roles),
+		Member:          builders.BuildEnterpriseIAMMember(result.Member, result.User, result.Department, result.Engineer, nil, result.Roles, i18nx.Locale(ctx)),
 		InitialPassword: result.InitialPassword,
 	})
 }
@@ -185,7 +186,7 @@ func IAMMemberUpdate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildEnterpriseIAMMember(result.Member, result.User, result.Department, result.Engineer, nil, result.Roles))
+	httpx.WriteJSON(ctx, builders.BuildEnterpriseIAMMember(result.Member, result.User, result.Department, result.Engineer, nil, result.Roles, i18nx.Locale(ctx)))
 }
 
 func IAMMemberStatus(ctx *gin.Context) {
@@ -213,7 +214,7 @@ func IAMMemberStatus(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildEnterpriseIAMMember(result.Member, result.User, result.Department, result.Engineer, nil, result.Roles))
+	httpx.WriteJSON(ctx, builders.BuildEnterpriseIAMMember(result.Member, result.User, result.Department, result.Engineer, nil, result.Roles, i18nx.Locale(ctx)))
 }
 
 func IAMPartnerAdminInvite(ctx *gin.Context) {
@@ -371,7 +372,7 @@ func IAMMemberList(ctx *gin.Context) {
 		return
 	}
 	httpx.WriteJSON(ctx, httpx.PageData(
-		builders.BuildEnterpriseIAMMemberList(aggregate.Items, aggregate.Users, aggregate.Departments, aggregate.EngineerProfiles, aggregate.ProductGroups, aggregate.RolesBySubject),
+		builders.BuildEnterpriseIAMMemberList(aggregate.Items, aggregate.Users, aggregate.Departments, aggregate.EngineerProfiles, aggregate.ProductGroups, aggregate.RolesBySubject, i18nx.Locale(ctx)),
 		aggregate.Paging,
 	))
 }
@@ -431,7 +432,7 @@ func IAMDepartmentList(ctx *gin.Context) {
 		return
 	}
 	httpx.WriteJSON(ctx, httpx.PageData(
-		builders.BuildEnterpriseIAMDepartmentList(aggregate.Items, aggregate.Managers, aggregate.MemberCounts),
+		builders.BuildEnterpriseIAMDepartmentList(aggregate.Items, aggregate.Managers, aggregate.MemberCounts, i18nx.Locale(ctx)),
 		aggregate.Paging,
 	))
 }
@@ -456,7 +457,7 @@ func IAMDepartmentCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildEnterpriseIAMDepartment(item, nil, 0))
+	httpx.WriteJSON(ctx, builders.BuildEnterpriseIAMDepartment(item, nil, 0, i18nx.Locale(ctx)))
 }
 
 func IAMRoleList(ctx *gin.Context) {

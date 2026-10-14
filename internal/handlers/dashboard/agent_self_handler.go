@@ -9,6 +9,7 @@ import (
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/httpx"
 	"remotehelpdesk/internal/pkg/httpx/params"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -49,13 +50,13 @@ func AgentSelfGetWorkSchedule(ctx *gin.Context) {
 		Exceptions:     make([]response.AgentScheduleExceptionResponse, 0, len(result.Exceptions)),
 	}
 	for _, item := range result.Teams {
-		ret.Teams = append(ret.Teams, buildAgentTeamResponse(&item))
+		ret.Teams = append(ret.Teams, buildAgentTeamResponse(&item, i18nx.Locale(ctx)))
 	}
 	for _, item := range result.Schedules {
-		ret.Schedules = append(ret.Schedules, buildAgentTeamScheduleResponse(&item))
+		ret.Schedules = append(ret.Schedules, buildAgentTeamScheduleResponse(&item, i18nx.Locale(ctx)))
 	}
 	for _, item := range result.DraftSchedules {
-		ret.DraftSchedules = append(ret.DraftSchedules, buildAgentTeamScheduleResponse(&item))
+		ret.DraftSchedules = append(ret.DraftSchedules, buildAgentTeamScheduleResponse(&item, i18nx.Locale(ctx)))
 	}
 	for _, item := range result.Exceptions {
 		ret.Exceptions = append(ret.Exceptions, buildAgentScheduleExceptionResponse(&item))

@@ -204,3 +204,23 @@ func TestMiddlewareStoresLocale(t *testing.T) {
 		t.Fatalf("middleware locale = %q, want %q", got, LocaleEnUS)
 	}
 }
+
+func TestRequestLocaleOverrideOnlyAcceptsSupportedHeader(t *testing.T) {
+	for header, want := range map[string]string{"en-US": LocaleEnUS, "es": LocaleEsES, "zh_CN": LocaleZhCN} {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Header.Set(LocaleHeader, header)
+		if got, ok := RequestLocaleOverride(req); !ok || got != want {
+			t.Fatalf("RequestLocaleOverride(%q) = %q, %v; want %q", header, got, ok, want)
+		}
+	}
+	for _, header := range []string{"", "fr-FR"} {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Header.Set(LocaleHeader, header)
+		if got, ok := RequestLocaleOverride(req); ok {
+			t.Fatalf("RequestLocaleOverride(%q) = %q, want no override", header, got)
+		}
+	}
+	if _, ok := RequestLocaleOverride(nil); ok {
+		t.Fatal("nil request produced an override")
+	}
+}

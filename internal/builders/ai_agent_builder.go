@@ -83,7 +83,7 @@ func BuildAIAgentWithLocale(item *models.AIAgent, locale string) response.AIAgen
 		if team := services.AgentTeamService.Get(id); team != nil {
 			ret.Teams = append(ret.Teams, response.AIAgentTeamResponse{
 				ID:   team.ID,
-				Name: team.Name,
+				Name: team.DisplayName(locale),
 			})
 		}
 	}
