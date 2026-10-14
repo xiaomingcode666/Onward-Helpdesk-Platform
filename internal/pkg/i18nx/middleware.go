@@ -30,6 +30,9 @@ var supportedLocales = map[string]string{
 
 var DefaultLocale = LocaleZhCN
 
+// SupportedLocales 列出系统提供资源的全部语言。
+var SupportedLocales = []string{LocaleZhCN, LocaleEnUS, LocaleEsES}
+
 func SetDefaultLocale(locale string) {
 	DefaultLocale = NormalizeLocale(locale)
 }

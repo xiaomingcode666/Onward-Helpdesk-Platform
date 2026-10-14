@@ -511,15 +511,7 @@ func (s *productResourceService) ensureProductKnowledgeDataset(ctx context.Conte
 	tenantID := product.TenantID
 	profile := repositories.ProductServiceProfileRepository.GetByProductID(sqls.DB(), product.ID)
 	if profile == nil || profile.Status == enums.StatusDeleted || profile.DefaultKnowledgeBaseID <= 0 {
-		locales := []string{strings.TrimSpace(product.DefaultLocale)}
-		if locales[0] == "" {
-			locales[0] = "en"
-		}
-		if _, err := ProductCenterService.CreateProductKnowledgeBase(tenantID, product.ID, dto.EnterpriseProductKnowledgeBaseCreateRequest{
-			Name:           product.Name + " 知识库",
-			Description:    fmt.Sprintf("保存 %s 的手册、FAQ、维修案例和诊断知识，服务团队和产品机器人都从这里查。", product.Name),
-			SupportLocales: locales,
-		}, operator); err != nil && !strings.Contains(err.Error(), "already exists") {
+		if err := createProductDefaultKnowledgeBase(product, operator); err != nil && !strings.Contains(err.Error(), "already exists") {
 			return nil, err
 		}
 		profile = repositories.ProductServiceProfileRepository.GetByProductID(sqls.DB(), product.ID)

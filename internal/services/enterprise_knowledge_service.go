@@ -45,6 +45,7 @@ func (s *enterpriseKnowledgeService) ListEntries(tenantID int64, query Enterpris
 	if tenantID <= 0 {
 		return nil, errorsx.InvalidParam("tenant is required")
 	}
+	query.Category = resolveKnowledgeBaseStoredName(sqls.DB(), tenantID, query.Category)
 	query.Page, query.PageSize = normalizeEnterprisePage(query.Page, query.PageSize)
 	items, total, err := s.pagedEntryListItems(tenantID, query)
 	if err != nil {
@@ -1087,7 +1088,7 @@ func containsInt64(values []int64, target int64) bool {
 }
 
 func (s *enterpriseKnowledgeService) ensureKnowledgeBase(tenantID int64, category string, entryType string, operator *dto.AuthPrincipal) (*models.KnowledgeBase, error) {
-	name := firstNonBlank(category, "General Knowledge")
+	name := firstNonBlank(resolveKnowledgeBaseStoredName(sqls.DB(), tenantID, category), "General Knowledge")
 	knowledgeType := string(enums.KnowledgeBaseTypeDocument)
 	if entryType == "faq" {
 		knowledgeType = string(enums.KnowledgeBaseTypeFAQ)
@@ -1492,4 +1493,35 @@ func firstNonBlank(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// LocalizeEntryList 把条目分类中的系统生成知识库名称换成当前语言的展示名。
+func (s *enterpriseKnowledgeService) LocalizeEntryList(items []dto.EnterpriseKnowledgeEntryListItemDTO, locale string) {
+	cache := map[int64]*models.KnowledgeBase{}
+	for i := range items {
+		items[i].Category = s.localizedCategory(items[i].KnowledgeBaseID, items[i].Category, locale, cache)
+	}
+}
+
+// LocalizeEntry 把单个条目分类中的系统生成知识库名称换成当前语言的展示名。
+func (s *enterpriseKnowledgeService) LocalizeEntry(entry *dto.EnterpriseKnowledgeEntryDTO, locale string) {
+	if entry == nil {
+		return
+	}
+	entry.Category = s.localizedCategory(entry.KnowledgeBaseID, entry.Category, locale, map[int64]*models.KnowledgeBase{})
+}
+
+func (s *enterpriseKnowledgeService) localizedCategory(knowledgeBaseID int64, category, locale string, cache map[int64]*models.KnowledgeBase) string {
+	if knowledgeBaseID <= 0 {
+		return category
+	}
+	kb, ok := cache[knowledgeBaseID]
+	if !ok {
+		kb = repositories.KnowledgeBaseRepository.Get(sqls.DB(), knowledgeBaseID)
+		cache[knowledgeBaseID] = kb
+	}
+	if kb == nil || kb.Name != category {
+		return category
+	}
+	return kb.DisplayName(locale)
 }

@@ -7,11 +7,11 @@ import (
 	"remotehelpdesk/internal/pkg/enums"
 )
 
-func BuildKnowledgeBase(item *models.KnowledgeBase) response.KnowledgeBaseResponse {
+func BuildKnowledgeBase(item *models.KnowledgeBase, locale string) response.KnowledgeBaseResponse {
 	return response.KnowledgeBaseResponse{
 		ID:                    item.ID,
-		Name:                  item.Name,
-		Description:           item.Description,
+		Name:                  item.DisplayName(locale),
+		Description:           item.DisplayDescription(locale),
 		KnowledgeType:         item.KnowledgeType,
 		KnowledgeTypeName:     enums.GetKnowledgeBaseTypeLabel(enums.KnowledgeBaseType(item.KnowledgeType)),
 		AccessScope:           item.AccessScope,

@@ -21,10 +21,10 @@ func BuildProductKnowledgeBindingList(list []models.ProductKnowledgeBinding) []r
 	return ret
 }
 
-func BuildResolvedKnowledgeBaseList(list []models.KnowledgeBase) []response.ResolvedKnowledgeBaseResponse {
+func BuildResolvedKnowledgeBaseList(list []models.KnowledgeBase, locale string) []response.ResolvedKnowledgeBaseResponse {
 	ret := make([]response.ResolvedKnowledgeBaseResponse, 0, len(list))
 	for _, item := range list {
-		ret = append(ret, response.ResolvedKnowledgeBaseResponse{ID: item.ID, Name: item.Name, KnowledgeType: item.KnowledgeType})
+		ret = append(ret, response.ResolvedKnowledgeBaseResponse{ID: item.ID, Name: item.DisplayName(locale), KnowledgeType: item.KnowledgeType})
 	}
 	return ret
 }

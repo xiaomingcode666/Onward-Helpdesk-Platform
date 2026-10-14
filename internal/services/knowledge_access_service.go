@@ -67,7 +67,7 @@ func defaultTicketKnowledgeBaseDB(db *gorm.DB, tenantID int64) *models.Knowledge
 	}
 	return repositories.KnowledgeBaseRepository.FindOne(db, sqls.NewCnd().
 		Eq("tenant_id", tenantID).
-		Eq("name", "企业通用知识库").
+		Eq("name", tenantDefaultKnowledgeBaseName()).
 		Eq("status", enums.StatusOk).
 		Asc("id"))
 }

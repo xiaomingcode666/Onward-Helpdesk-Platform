@@ -7,6 +7,7 @@ import (
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/httpx"
 	"remotehelpdesk/internal/pkg/httpx/params"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -138,5 +139,5 @@ func ProductKnowledgeBindingPostResolve(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildResolvedKnowledgeBaseList(list))
+	httpx.WriteJSON(ctx, builders.BuildResolvedKnowledgeBaseList(list, i18nx.Locale(ctx)))
 }

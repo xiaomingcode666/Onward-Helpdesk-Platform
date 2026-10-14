@@ -12,6 +12,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto/request"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/httpx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -208,6 +209,7 @@ func ProductProfile(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	services.LocalizeProductProfile(result, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, result)
 }
 
@@ -223,6 +225,7 @@ func ProductResources(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	services.LocalizeProductResources(result, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, result)
 }
 
@@ -238,6 +241,7 @@ func ProductResourcesRetry(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	services.LocalizeProductResources(result, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, result)
 }
 
@@ -262,6 +266,7 @@ func ProductAIQuotaUpdate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	services.LocalizeProductResources(result, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, result)
 }
 
@@ -277,6 +282,7 @@ func ProductAIQuotaReset(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	services.LocalizeProductResources(result, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, result)
 }
 
@@ -304,7 +310,7 @@ func ProductKnowledgeBaseCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-
+	services.LocalizeProductProfile(result, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, result)
 }
 
@@ -789,6 +795,7 @@ func ProductManuals(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	services.LocalizeProductManuals(items, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, items)
 }
 
@@ -820,7 +827,9 @@ func ProductManualLinkCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, services.ProductCenterService.BuildManualDTO(tenantIDInt, link))
+	manual := services.ProductCenterService.BuildManualDTO(tenantIDInt, link)
+	services.LocalizeProductManual(&manual, i18nx.Locale(ctx))
+	httpx.WriteJSON(ctx, manual)
 }
 
 // ProductManualUpdate 更新手册链接（PATCH 语义）
@@ -839,7 +848,7 @@ func ProductManualUpdate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, manualDTOOrEmpty(tenantIDInt, linkID))
+	httpx.WriteJSON(ctx, manualDTOOrEmpty(tenantIDInt, linkID, i18nx.Locale(ctx)))
 }
 
 // ProductManualDelete 解除手册关联
@@ -867,7 +876,7 @@ func ProductManualPublish(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, manualDTOOrEmpty(tenantIDInt, linkID))
+	httpx.WriteJSON(ctx, manualDTOOrEmpty(tenantIDInt, linkID, i18nx.Locale(ctx)))
 }
 
 // ProductManualDeprecate 下架手册
@@ -881,7 +890,7 @@ func ProductManualDeprecate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, manualDTOOrEmpty(tenantIDInt, linkID))
+	httpx.WriteJSON(ctx, manualDTOOrEmpty(tenantIDInt, linkID, i18nx.Locale(ctx)))
 }
 
 // ProductManualReindex 重索引手册
@@ -896,7 +905,7 @@ func ProductManualReindex(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	result := manualDTOOrEmpty(tenantIDInt, linkID)
+	result := manualDTOOrEmpty(tenantIDInt, linkID, i18nx.Locale(ctx))
 	if task != nil {
 		result.IndexStatus = "pending"
 	}
@@ -915,6 +924,7 @@ func ProductKnowledgeLinks(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	services.LocalizeProductManuals(items, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, items)
 }
 
@@ -946,7 +956,9 @@ func ProductKnowledgeLinkCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, services.ProductCenterService.BuildManualDTO(tenantIDInt, link))
+	manual := services.ProductCenterService.BuildManualDTO(tenantIDInt, link)
+	services.LocalizeProductManual(&manual, i18nx.Locale(ctx))
+	httpx.WriteJSON(ctx, manual)
 }
 
 // ProductKnowledgeLinkDelete 删除知识链接
@@ -1346,12 +1358,14 @@ func findModuleByID(items []dto.EnterpriseProductModuleDTO, id int64) dto.Enterp
 	return dto.EnterpriseProductModuleDTO{ID: id}
 }
 
-func manualDTOOrEmpty(tenantID, linkID int64) dto.EnterpriseProductManualDTO {
+func manualDTOOrEmpty(tenantID, linkID int64, locale string) dto.EnterpriseProductManualDTO {
 	link := services.ProductKnowledgeLinkService.Get(linkID)
 	if link == nil {
 		return dto.EnterpriseProductManualDTO{ID: linkID}
 	}
-	return services.ProductCenterService.BuildManualDTO(tenantID, link)
+	manual := services.ProductCenterService.BuildManualDTO(tenantID, link)
+	services.LocalizeProductManual(&manual, locale)
+	return manual
 }
 
 func chooseOptionalString(value *string, fallback string) string {

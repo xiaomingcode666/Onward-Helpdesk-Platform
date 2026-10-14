@@ -7,6 +7,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/httpx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -212,6 +213,7 @@ func KnowledgeEntryList(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	services.EnterpriseKnowledgeService.LocalizeEntryList(result.Items, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, result)
 }
 
@@ -238,6 +240,7 @@ func KnowledgeEntryGet(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	services.EnterpriseKnowledgeService.LocalizeEntry(result, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, result)
 }
 
@@ -256,6 +259,7 @@ func KnowledgeEntryCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	services.EnterpriseKnowledgeService.LocalizeEntry(result, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, result)
 }
 
@@ -274,6 +278,7 @@ func KnowledgeEntryUpdate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	services.EnterpriseKnowledgeService.LocalizeEntry(result, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, result)
 }
 
@@ -338,6 +343,7 @@ func knowledgeEntryStatusAction(ctx *gin.Context, nextStatus string) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
+	services.EnterpriseKnowledgeService.LocalizeEntry(result, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, result)
 }
 

@@ -120,9 +120,13 @@ func (s *knowledgeBaseService) UpdateKnowledgeBase(req request.UpdateKnowledgeBa
 	if strings.TrimSpace(req.AccessScope) == "" {
 		item.AccessScope = normalizeKnowledgeBaseAccessScope(current.AccessScope)
 	}
+	name, nameText := keepOrReplaceDisplayText(current.NameText, current.Name, item.Name)
+	description, descriptionText := keepOrReplaceDisplayText(current.DescriptionText, current.Description, item.Description)
 	return repositories.KnowledgeBaseRepository.Updates(sqls.DB(), req.ID, map[string]any{
-		"name":                    item.Name,
-		"description":             item.Description,
+		"name":                    name,
+		"name_text":               nameText,
+		"description":             description,
+		"description_text":        descriptionText,
 		"knowledge_type":          item.KnowledgeType,
 		"access_scope":            item.AccessScope,
 		"ragflow_dataset_id":      item.RagflowDatasetID,

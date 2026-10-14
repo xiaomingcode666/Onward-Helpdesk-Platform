@@ -22,10 +22,28 @@ import (
 )
 
 const (
-	TenantDefaultAIAgentSource            = "tenant_default"
-	tenantDefaultKnowledgeBaseRemark      = "builtin-tenant-default-service"
-	tenantDefaultKnowledgeBaseDescription = "保存企业级服务说明、FAQ 和安全指引，供知识问答统一检索。"
+	TenantDefaultAIAgentSource       = "tenant_default"
+	tenantDefaultKnowledgeBaseRemark = "builtin-tenant-default-service"
 )
+
+// 内置数据按资源键展示；存储列保留中文规范值，兼容按名称识别的存量数据和运行时引用。
+var (
+	tenantDefaultKnowledgeBaseNameText        = i18nx.NewText("builtin.knowledgeBase.tenantDefault.name", nil)
+	tenantDefaultKnowledgeBaseDescriptionText = i18nx.NewText("builtin.knowledgeBase.tenantDefault.description", nil)
+	tenantDefaultAgentNameText                = i18nx.NewText("builtin.aiAgent.tenantDefault.name", nil)
+)
+
+func tenantDefaultKnowledgeBaseName() string {
+	return tenantDefaultKnowledgeBaseNameText.Render(i18nx.LocaleZhCN)
+}
+
+func tenantDefaultKnowledgeBaseDescription() string {
+	return tenantDefaultKnowledgeBaseDescriptionText.Render(i18nx.LocaleZhCN)
+}
+
+func tenantDefaultAgentName() string {
+	return tenantDefaultAgentNameText.Render(i18nx.LocaleZhCN)
+}
 
 var TenantDefaultAIAgentService = &tenantDefaultAIAgentService{}
 
@@ -120,11 +138,17 @@ func (s *tenantDefaultAIAgentService) ensureKnowledgeBase(db *gorm.DB, tenant *m
 		Asc("id"))
 	if item != nil {
 		updates := make(map[string]any)
-		if item.Name != "企业通用知识库" {
-			updates["name"] = "企业通用知识库"
+		if item.Name != tenantDefaultKnowledgeBaseName() {
+			updates["name"] = tenantDefaultKnowledgeBaseName()
 		}
-		if item.Description != tenantDefaultKnowledgeBaseDescription {
-			updates["description"] = tenantDefaultKnowledgeBaseDescription
+		if item.Description != tenantDefaultKnowledgeBaseDescription() {
+			updates["description"] = tenantDefaultKnowledgeBaseDescription()
+		}
+		if !item.NameText.Equal(tenantDefaultKnowledgeBaseNameText) {
+			updates["name_text"] = tenantDefaultKnowledgeBaseNameText
+		}
+		if !item.DescriptionText.Equal(tenantDefaultKnowledgeBaseDescriptionText) {
+			updates["description_text"] = tenantDefaultKnowledgeBaseDescriptionText
 		}
 		if item.AccessScope != string(enums.KnowledgeBaseAccessScopeTenant) {
 			updates["access_scope"] = string(enums.KnowledgeBaseAccessScopeTenant)
@@ -145,13 +169,15 @@ func (s *tenantDefaultAIAgentService) ensureKnowledgeBase(db *gorm.DB, tenant *m
 	}
 	item = repositories.KnowledgeBaseRepository.FindOne(db, sqls.NewCnd().
 		Eq("tenant_id", tenant.ID).
-		Eq("name", "企业通用知识库").
+		Eq("name", tenantDefaultKnowledgeBaseName()).
 		Eq("access_scope", string(enums.KnowledgeBaseAccessScopeTenant)).
 		NotEq("status", enums.StatusDeleted).
 		Asc("id"))
 	if item != nil {
 		if err := repositories.KnowledgeBaseRepository.Updates(db, item.ID, map[string]any{
 			"remark":           tenantDefaultKnowledgeBaseRemark,
+			"name_text":        tenantDefaultKnowledgeBaseNameText,
+			"description_text": tenantDefaultKnowledgeBaseDescriptionText,
 			"status":           enums.StatusOk,
 			"update_user_id":   auditUserID(operator),
 			"update_user_name": auditUserName(operator),
@@ -163,8 +189,10 @@ func (s *tenantDefaultAIAgentService) ensureKnowledgeBase(db *gorm.DB, tenant *m
 	}
 	item = &models.KnowledgeBase{
 		TenantID:              tenant.ID,
-		Name:                  "企业通用知识库",
-		Description:           tenantDefaultKnowledgeBaseDescription,
+		Name:                  tenantDefaultKnowledgeBaseName(),
+		Description:           tenantDefaultKnowledgeBaseDescription(),
+		NameText:              tenantDefaultKnowledgeBaseNameText,
+		DescriptionText:       tenantDefaultKnowledgeBaseDescriptionText,
 		KnowledgeType:         string(enums.KnowledgeBaseTypeDocument),
 		AccessScope:           string(enums.KnowledgeBaseAccessScopeTenant),
 		Status:                enums.StatusOk,
@@ -194,6 +222,7 @@ func (s *tenantDefaultAIAgentService) ensureAgent(
 	operator *dto.AuthPrincipal,
 ) (*models.AIAgent, error) {
 	description := tenantDefaultAgentDescription(tenant)
+	descriptionText := tenantDefaultAgentDescriptionText(tenant)
 	welcomeMessage := tenantDefaultAgentWelcomeMessage(tenant)
 	serviceMode := tenantDefaultAgentServiceMode(tenant)
 	teamIDs, handoffMode, err := tenantDefaultAgentDispatchSettingsDB(db, tenant, operator)
@@ -208,8 +237,10 @@ func (s *tenantDefaultAIAgentService) ensureAgent(
 			TenantID:            tenant.ID,
 			ProductID:           0,
 			Source:              TenantDefaultAIAgentSource,
-			Name:                "企业默认服务机器人",
+			Name:                tenantDefaultAgentName(),
 			Description:         description,
+			NameText:            tenantDefaultAgentNameText,
+			DescriptionText:     descriptionText,
 			Status:              enums.StatusOk,
 			ServiceMode:         serviceMode,
 			SystemPrompt:        defaultTenantAgentSystemPrompt(tenant),
@@ -234,6 +265,17 @@ func (s *tenantDefaultAIAgentService) ensureAgent(
 		}
 		return agent, nil
 	}
+	// 展示文本不属于草稿配置，单独校正，避免为每个租户生成待审核的候选版本。
+	if !agent.NameText.Equal(tenantDefaultAgentNameText) || !agent.DescriptionText.Equal(descriptionText) {
+		if err := repositories.AIAgentRepository.Updates(db, agent.ID, map[string]any{
+			"name_text":        tenantDefaultAgentNameText,
+			"description_text": descriptionText,
+		}); err != nil {
+			return nil, err
+		}
+		agent.NameText = tenantDefaultAgentNameText
+		agent.DescriptionText = descriptionText
+	}
 
 	knowledgeIDs := utils.SplitInt64s(agent.KnowledgeIDs)
 	if !tenantDefaultContainsInt64(knowledgeIDs, knowledgeBase.ID) {
@@ -247,8 +289,8 @@ func (s *tenantDefaultAIAgentService) ensureAgent(
 	if agent.WorkflowVersionID != version.ID {
 		updates["workflow_version_id"] = version.ID
 	}
-	if agent.Name != "企业默认服务机器人" {
-		updates["name"] = "企业默认服务机器人"
+	if agent.Name != tenantDefaultAgentName() {
+		updates["name"] = tenantDefaultAgentName()
 	}
 	if agent.Description != description {
 		updates["description"] = description
@@ -575,11 +617,15 @@ func tenantDefaultAgentServiceMode(tenant *models.Tenant) enums.IMConversationSe
 	return enums.IMConversationServiceModeAIOnly
 }
 
-func tenantDefaultAgentDescription(tenant *models.Tenant) string {
+func tenantDefaultAgentDescriptionText(tenant *models.Tenant) i18nx.Text {
 	if tenant != nil && tenant.IsKnowledgeSupportScene() {
-		return "基于企业通用知识库提供智能咨询，并支持转接工程师。"
+		return i18nx.NewText("builtin.aiAgent.tenantDefault.description.knowledgeSupport", nil)
 	}
-	return "未选择设备时提供通用咨询和企业知识问答；识别设备后由对应产品机器人接管。"
+	return i18nx.NewText("builtin.aiAgent.tenantDefault.description.generalService", nil)
+}
+
+func tenantDefaultAgentDescription(tenant *models.Tenant) string {
+	return tenantDefaultAgentDescriptionText(tenant).Render(i18nx.LocaleZhCN)
 }
 
 func tenantDefaultAgentWelcomeMessage(tenant *models.Tenant) string {

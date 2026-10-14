@@ -134,3 +134,40 @@ func TestTextRenderUsesLocaleResources(t *testing.T) {
 		t.Fatalf("Render(zh-CN) = %q", got)
 	}
 }
+
+func TestTextEqualComparesKeyAndParams(t *testing.T) {
+	base := NewText("builtin.aiAgent.product.name", Params{"product": "Pump"})
+
+	if !base.Equal(NewText("builtin.aiAgent.product.name", Params{"product": "Pump"})) {
+		t.Fatal("identical texts are not equal")
+	}
+	if base.Equal(NewText("builtin.aiAgent.product.name", Params{"product": "Fan"})) {
+		t.Fatal("texts with different params are equal")
+	}
+	if base.Equal(NewText("builtin.knowledgeBase.product.name", Params{"product": "Pump"})) {
+		t.Fatal("texts with different keys are equal")
+	}
+	if !(Text{}).Equal(NewText("", nil)) {
+		t.Fatal("zero texts are not equal")
+	}
+	if !NewText("k", nil).Equal(NewText("k", Params{})) {
+		t.Fatal("nil and empty params are not equal")
+	}
+}
+
+func TestTextMatchesAnyLocale(t *testing.T) {
+	text := NewText("error.e0273", nil)
+
+	if !text.MatchesAnyLocale("Directory not found.") {
+		t.Fatal("english rendering did not match")
+	}
+	if !text.MatchesAnyLocale(" 目录不存在 ") {
+		t.Fatal("chinese rendering with spaces did not match")
+	}
+	if text.MatchesAnyLocale("Something else") {
+		t.Fatal("unrelated value matched")
+	}
+	if (Text{}).MatchesAnyLocale("") {
+		t.Fatal("zero text matched")
+	}
+}

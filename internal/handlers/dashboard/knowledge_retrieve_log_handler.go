@@ -5,6 +5,7 @@ import (
 	"remotehelpdesk/internal/pkg/constants"
 	"remotehelpdesk/internal/pkg/dto/response"
 	"remotehelpdesk/internal/pkg/httpx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 
 	"remotehelpdesk/internal/pkg/httpx/params"
@@ -53,7 +54,7 @@ func KnowledgeRetrieveLogAnyList(ctx *gin.Context) {
 	for _, item := range list {
 		resp := builders.BuildKnowledgeRetrieveLog(&item)
 		if knowledgeBase := services.KnowledgeBaseService.Get(item.KnowledgeBaseID); knowledgeBase != nil {
-			resp.KnowledgeBaseName = knowledgeBase.Name
+			resp.KnowledgeBaseName = knowledgeBase.DisplayName(i18nx.Locale(ctx))
 		}
 		results = append(results, resp)
 	}
@@ -79,7 +80,7 @@ func KnowledgeRetrieveLogGetBy(ctx *gin.Context) {
 
 	logResp := builders.BuildKnowledgeRetrieveLog(logItem)
 	if knowledgeBase := services.KnowledgeBaseService.Get(logItem.KnowledgeBaseID); knowledgeBase != nil {
-		logResp.KnowledgeBaseName = knowledgeBase.Name
+		logResp.KnowledgeBaseName = knowledgeBase.DisplayName(i18nx.Locale(ctx))
 	}
 
 	hits := services.KnowledgeRetrieveLogService.FindHitsByRetrieveLogID(id)

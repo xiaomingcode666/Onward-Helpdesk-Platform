@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/i18nx"
 
 	"gorm.io/gorm"
 )
@@ -923,6 +924,8 @@ type AIAgent struct {
 	Source              string                          `gorm:"type:varchar(32);not null;default:'manual';index"`
 	Name                string                          `gorm:"type:varchar(100);not null;default:'';index"` // Name 为 AI Agent 名称。
 	Description         string                          `gorm:"type:varchar(255);not null;default:''"`       // Description 为 AI Agent 描述。
+	NameText            i18nx.Text                      `gorm:"type:text;not null;default:''"`               // NameText 为系统生成名称的资源键和参数；为空表示名称由用户定义。
+	DescriptionText     i18nx.Text                      `gorm:"type:text;not null;default:''"`               // DescriptionText 为系统生成描述的资源键和参数；为空表示描述由用户定义。
 	Status              enums.Status                    `gorm:"type:int;not null;index"`                     // Status 为 AI Agent
 	AIConfigID          int64                           `gorm:"type:bigint;not null;default:0;index"`        // AIConfigID 为关联的 AI 配置ID。
 	LLMModelName        string                          `gorm:"type:varchar(100);not null;default:''"`       // LLMModelName 为统一 AI 能力路由下该 Agent 选择的模型；空值跟随平台默认模型。
@@ -1505,6 +1508,8 @@ type KnowledgeBase struct {
 	TenantID              int64        `gorm:"type:bigint;not null;default:0;index"`               // TenantID 为租户 ID。
 	Name                  string       `gorm:"type:varchar(100);not null;default:'';index"`        // Name 为知识库名称。
 	Description           string       `gorm:"type:text"`                                          // Description 为知识库描述。
+	NameText              i18nx.Text   `gorm:"type:text;not null;default:''"`                      // NameText 为系统生成名称的资源键和参数；为空表示名称由用户定义。
+	DescriptionText       i18nx.Text   `gorm:"type:text;not null;default:''"`                      // DescriptionText 为系统生成描述的资源键和参数；为空表示描述由用户定义。
 	KnowledgeType         string       `gorm:"type:varchar(20);not null;default:'document';index"` // KnowledgeType 为知识库类型：document/faq。
 	AccessScope           string       `gorm:"type:varchar(20);not null;default:'tenant';index"`   // AccessScope 为访问范围：tenant/product。
 	RagflowDatasetID      string       `gorm:"column:ragflow_dataset_id;type:varchar(128);not null;default:'';index"`

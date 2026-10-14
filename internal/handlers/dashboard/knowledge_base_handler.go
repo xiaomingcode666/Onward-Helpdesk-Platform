@@ -11,6 +11,7 @@ import (
 	"remotehelpdesk/internal/services"
 
 	"remotehelpdesk/internal/pkg/httpx/params"
+	"remotehelpdesk/internal/pkg/i18nx"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mlogclub/simple/sqls"
@@ -34,7 +35,7 @@ func KnowledgeBaseAnyList(ctx *gin.Context) {
 	for _, item := range list {
 		docCount := repositories.KnowledgeDocumentRepository.CountByKnowledgeBaseID(sqls.DB(), item.ID)
 		faqCount := repositories.KnowledgeFAQRepository.CountByKnowledgeBaseID(sqls.DB(), item.ID)
-		resp := builders.BuildKnowledgeBase(&item)
+		resp := builders.BuildKnowledgeBase(&item, i18nx.Locale(ctx))
 		resp.DocumentCount = docCount
 		resp.FAQCount = faqCount
 		results = append(results, resp)
@@ -54,7 +55,7 @@ func KnowledgeBaseAnyList_all(ctx *gin.Context) {
 	).Eq("tenant_id", operator.EffectiveTenantID()).Asc("sort_no").Desc("id"))
 	results := make([]response.KnowledgeBaseResponse, 0, len(list))
 	for _, item := range list {
-		resp := builders.BuildKnowledgeBase(&item)
+		resp := builders.BuildKnowledgeBase(&item, i18nx.Locale(ctx))
 		results = append(results, resp)
 	}
 	httpx.WriteJSON(ctx, results)
@@ -76,7 +77,7 @@ func KnowledgeBaseGetBy(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0283"))
 		return
 	}
-	resp := builders.BuildKnowledgeBase(item)
+	resp := builders.BuildKnowledgeBase(item, i18nx.Locale(ctx))
 	resp.DocumentCount = repositories.KnowledgeDocumentRepository.CountByKnowledgeBaseID(sqls.DB(), item.ID)
 	resp.FAQCount = repositories.KnowledgeFAQRepository.CountByKnowledgeBaseID(sqls.DB(), item.ID)
 	httpx.WriteJSON(ctx, resp)
@@ -99,7 +100,7 @@ func KnowledgeBasePostCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildKnowledgeBase(item))
+	httpx.WriteJSON(ctx, builders.BuildKnowledgeBase(item, i18nx.Locale(ctx)))
 }
 
 func KnowledgeBasePostUpdate(ctx *gin.Context) {

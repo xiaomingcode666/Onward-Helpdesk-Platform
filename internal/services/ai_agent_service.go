@@ -212,9 +212,13 @@ func (s *aIAgentService) UpdateAIAgent(req request.UpdateAIAgentRequest, operato
 		}
 		applyWorkflowAgentRestrictions(item, workflowRestrictions)
 	}
+	name, nameText := keepOrReplaceDisplayText(current.NameText, current.Name, item.Name)
+	description, descriptionText := keepOrReplaceDisplayText(current.DescriptionText, current.Description, item.Description)
 	updates := map[string]any{
-		"name":                  item.Name,
-		"description":           item.Description,
+		"name":                  name,
+		"name_text":             nameText,
+		"description":           description,
+		"description_text":      descriptionText,
 		"ai_config_id":          item.AIConfigID,
 		"llm_model_name":        item.LLMModelName,
 		"service_mode":          item.ServiceMode,

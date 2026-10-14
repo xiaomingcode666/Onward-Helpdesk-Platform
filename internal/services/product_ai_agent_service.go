@@ -12,6 +12,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto/request"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/repositories"
 
@@ -101,16 +102,7 @@ func (s *productAIAgentService) ensureProductCustomerAgent(
 
 	profile := repositories.ProductServiceProfileRepository.GetByProductID(sqls.DB(), productID)
 	if profile == nil || profile.Status == enums.StatusDeleted || profile.DefaultKnowledgeBaseID <= 0 {
-		locales := []string{strings.TrimSpace(product.DefaultLocale)}
-		if locales[0] == "" {
-			locales[0] = "en"
-		}
-		_, err := ProductCenterService.CreateProductKnowledgeBase(tenantID, productID, dto.EnterpriseProductKnowledgeBaseCreateRequest{
-			Name:           product.Name + " 知识库",
-			Description:    fmt.Sprintf("保存 %s 的手册、FAQ、维修案例和诊断知识，服务团队和产品机器人都从这里查。", product.Name),
-			SupportLocales: locales,
-		}, operator)
-		if err != nil {
+		if err := createProductDefaultKnowledgeBase(product, operator); err != nil {
 			return nil, false, err
 		}
 		profile = repositories.ProductServiceProfileRepository.GetByProductID(sqls.DB(), productID)
@@ -145,14 +137,17 @@ func (s *productAIAgentService) ensureProductCustomerAgent(
 		return existing, false, nil
 	}
 
-	agentName := fmt.Sprintf("%s 客服机器人", product.Name)
+	agentNameText := productAgentNameText(product, false)
+	agentName := agentNameText.Render(i18nx.LocaleZhCN)
 	if duplicate := repositories.AIAgentRepository.Take(sqls.DB(),
 		"tenant_id = ? AND name = ? AND status <> ?", tenantID, agentName, enums.StatusDeleted); duplicate != nil {
-		agentName = fmt.Sprintf("%s 客服机器人 (%s)", product.Name, product.Code)
+		agentNameText = productAgentNameText(product, true)
+		agentName = agentNameText.Render(i18nx.LocaleZhCN)
 	}
+	agentDescriptionText := productAgentDescriptionText(product.Name)
 	agent, err := AIAgentService.CreateProductAIAgent(tenantID, productID, request.CreateAIAgentRequest{
 		Name:                agentName,
-		Description:         fmt.Sprintf("%s 的售后客服机器人，创建后自动部署；后续配置变更需提交审核。", product.Name),
+		Description:         agentDescriptionText.Render(i18nx.LocaleZhCN),
 		ServiceMode:         enums.IMConversationServiceModeAIFirst,
 		SystemPrompt:        defaultProductAgentSystemPrompt(product),
 		WelcomeMessage:      defaultProductAgentWelcomeMessage(product),
@@ -165,6 +160,12 @@ func (s *productAIAgentService) ensureProductCustomerAgent(
 		SkillIDs:            s.defaultProductAgentSkillIDs(sqls.DB()),
 	}, operator)
 	if err != nil {
+		return nil, false, err
+	}
+	if err := repositories.AIAgentRepository.Updates(sqls.DB(), agent.ID, map[string]any{
+		"name_text":        agentNameText,
+		"description_text": agentDescriptionText,
+	}); err != nil {
 		return nil, false, err
 	}
 	if err := s.ensureProductAgentInitialReleaseDB(agent.ID, operator); err != nil {

@@ -161,3 +161,31 @@ func (t *Text) Scan(src any) error {
 	}
 	return json.Unmarshal(data, t)
 }
+
+// Equal 判断两个文本的资源键和参数是否相同。
+func (t Text) Equal(other Text) bool {
+	if t.Key != other.Key {
+		return false
+	}
+	if len(t.Params) == 0 && len(other.Params) == 0 {
+		return true
+	}
+	left, leftErr := json.Marshal(t.Params)
+	right, rightErr := json.Marshal(other.Params)
+	return leftErr == nil && rightErr == nil && string(left) == string(right)
+}
+
+// MatchesAnyLocale 判断 value 是否等于该文本在任一受支持语言下的渲染结果，
+// 用于识别用户提交的表单是否仍保留系统生成的名称。
+func (t Text) MatchesAnyLocale(value string) bool {
+	if t.IsZero() {
+		return false
+	}
+	value = strings.TrimSpace(value)
+	for _, locale := range SupportedLocales {
+		if t.Render(locale) == value {
+			return true
+		}
+	}
+	return false
+}

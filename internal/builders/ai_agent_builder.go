@@ -24,8 +24,8 @@ func BuildAIAgentWithLocale(item *models.AIAgent, locale string) response.AIAgen
 		TenantID:            item.TenantID,
 		ProductID:           item.ProductID,
 		Source:              item.Source,
-		Name:                item.Name,
-		Description:         item.Description,
+		Name:                item.DisplayName(locale),
+		Description:         item.DisplayDescription(locale),
 		Status:              item.Status,
 		StatusName:          enums.GetStatusLabel(item.Status),
 		AIConfigID:          item.AIConfigID,
@@ -89,7 +89,7 @@ func BuildAIAgentWithLocale(item *models.AIAgent, locale string) response.AIAgen
 	}
 	for _, id := range ret.KnowledgeIDs {
 		if knowledgeBase := services.KnowledgeBaseService.Get(id); knowledgeBase != nil {
-			ret.KnowledgeBaseNames = append(ret.KnowledgeBaseNames, knowledgeBase.Name)
+			ret.KnowledgeBaseNames = append(ret.KnowledgeBaseNames, knowledgeBase.DisplayName(locale))
 		}
 	}
 	for _, id := range ret.SkillIDs {
