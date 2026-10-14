@@ -426,3 +426,8 @@ func backfillSupportOrganizationDisplayTextDB(db *gorm.DB) error {
 	}
 	return nil
 }
+
+// builtinRoleDescription 返回内置角色在指定语言下的描述。
+func builtinRoleDescription(code, locale string) string {
+	return i18nx.TLocale(locale, "builtin.role."+code+".description")
+}

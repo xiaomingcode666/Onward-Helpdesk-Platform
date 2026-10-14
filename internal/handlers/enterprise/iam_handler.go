@@ -478,7 +478,7 @@ func IAMRoleList(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildPlatformAuthRoleList(items, permissions))
+	httpx.WriteJSON(ctx, builders.BuildPlatformAuthRoleList(items, permissions, i18nx.Locale(ctx)))
 }
 
 func IAMRoleSave(ctx *gin.Context) {
@@ -508,7 +508,7 @@ func IAMRoleSave(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildPlatformAuthRole(item, nil))
+	httpx.WriteJSON(ctx, builders.BuildPlatformAuthRole(item, nil, i18nx.Locale(ctx)))
 }
 
 func IAMPolicySave(ctx *gin.Context) {
@@ -532,7 +532,7 @@ func IAMPolicySave(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildPlatformAuthRole(role, permissions))
+	httpx.WriteJSON(ctx, builders.BuildPlatformAuthRole(role, permissions, i18nx.Locale(ctx)))
 }
 
 func IAMAuditList(ctx *gin.Context) {

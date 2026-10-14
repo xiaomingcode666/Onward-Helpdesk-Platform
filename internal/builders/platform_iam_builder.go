@@ -10,6 +10,7 @@ import (
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/dto/response"
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/repositories"
 )
@@ -268,7 +269,7 @@ func BuildPlatformTenantGrant(item *models.PlatformTenantGrant) *response.Platfo
 	}
 }
 
-func BuildPlatformAuthRole(item *models.AuthRole, permissions []string) *response.PlatformAuthRoleResponse {
+func BuildPlatformAuthRole(item *models.AuthRole, permissions []string, locale string) *response.PlatformAuthRoleResponse {
 	if item == nil {
 		return nil
 	}
@@ -277,8 +278,8 @@ func BuildPlatformAuthRole(item *models.AuthRole, permissions []string) *respons
 		TenantID:    item.TenantID,
 		DomainType:  item.DomainType,
 		Code:        item.Code,
-		Name:        item.Name,
-		Description: item.Description,
+		Name:        builtinRoleText(item, "name", item.Name, locale),
+		Description: builtinRoleText(item, "description", item.Description, locale),
 		IsBuiltin:   item.IsBuiltin,
 		Status:      int(item.Status),
 		SortNo:      item.SortNo,
@@ -288,10 +289,10 @@ func BuildPlatformAuthRole(item *models.AuthRole, permissions []string) *respons
 	}
 }
 
-func BuildPlatformAuthRoleList(items []models.AuthRole, permissions map[int64][]string) []*response.PlatformAuthRoleResponse {
+func BuildPlatformAuthRoleList(items []models.AuthRole, permissions map[int64][]string, locale string) []*response.PlatformAuthRoleResponse {
 	ret := make([]*response.PlatformAuthRoleResponse, 0, len(items))
 	for i := range items {
-		ret = append(ret, BuildPlatformAuthRole(&items[i], permissions[items[i].ID]))
+		ret = append(ret, BuildPlatformAuthRole(&items[i], permissions[items[i].ID], locale))
 	}
 	return ret
 }
@@ -458,4 +459,17 @@ func stringValue(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+// builtinRoleText 内置角色的名称和描述按语言渲染；仅当存储值仍是系统默认值时替换，
+// 没有多语言资源的角色保持原样。
+func builtinRoleText(item *models.AuthRole, field, stored, locale string) string {
+	if item == nil || !item.IsBuiltin || item.Code == "" {
+		return stored
+	}
+	text := i18nx.NewText("builtin.role."+item.Code+"."+field, nil)
+	if !text.MatchesAnyLocale(stored) {
+		return stored
+	}
+	return text.Render(locale)
 }

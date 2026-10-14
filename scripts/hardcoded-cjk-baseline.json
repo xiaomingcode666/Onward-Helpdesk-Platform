@@ -106,7 +106,7 @@
   "internal/services/event_handlers/operational_notification_event_handler.go": 20,
   "internal/services/event_handlers/ticket_closed_event_handler.go": 1,
   "internal/services/event_handlers/ticket_create_event_handler.go": 17,
-  "internal/services/iam_defaults.go": 15,
+  "internal/services/iam_defaults.go": 5,
   "internal/services/inbound_email_poller.go": 20,
   "internal/services/inbound_email_service.go": 2,
   "internal/services/industry_solution_starter_manifest.go": 1,

@@ -315,3 +315,31 @@ func TestAgentTeamDisplayNamesOnlyReplacesStoredTeamName(t *testing.T) {
 		t.Fatalf("missing operator name = %q", got)
 	}
 }
+
+func TestTenantDefaultRoleSpecsKeepChineseStoredValues(t *testing.T) {
+	want := map[string][2]string{
+		EnterpriseRoleOwner:          {"租户所有者", "租户最高权限，负责组织、人员、供应商与安全设置"},
+		EnterpriseRoleAdmin:          {"企业管理员", "管理企业人员、客户、供应商和业务配置"},
+		EnterpriseRoleServiceManager: {"服务负责人", "管理客户服务、会话、工单、派工和维修协作"},
+		EnterpriseRoleEngineer:       {"服务工程师", "处理分配给自己的会话、工单、诊断和视频协作"},
+		EnterpriseRoleKnowledge:      {"知识管理员", "维护产品知识、手册和 AI 诊断内容"},
+		EnterpriseRoleViewer:         {"企业只读成员", "只读查看企业获授权的业务数据"},
+		PartnerRoleAdmin:             {"供应商管理员", "管理供应商员工并分配协作工单"},
+		PartnerRoleEngineer:          {"供应商工程师", "处理协作工单并可邀请本供应商的工程师同事"},
+		CustomerRoleAdmin:            {"客户管理员", "管理本公司用户、设备归属和售后协作"},
+		CustomerRoleUser:             {"客户用户", "添加和查看自己的设备并发起售后服务"},
+	}
+	specs := tenantDefaultRoleSpecs()
+	if len(specs) != len(want) {
+		t.Fatalf("role spec count = %d, want %d", len(specs), len(want))
+	}
+	for _, spec := range specs {
+		expected, ok := want[spec.Code]
+		if !ok {
+			t.Fatalf("unexpected role spec %q", spec.Code)
+		}
+		if spec.Name != expected[0] || spec.Description != expected[1] {
+			t.Fatalf("role %s = (%q, %q), want (%q, %q)", spec.Code, spec.Name, spec.Description, expected[0], expected[1])
+		}
+	}
+}

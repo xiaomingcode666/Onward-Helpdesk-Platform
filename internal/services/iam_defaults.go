@@ -10,6 +10,7 @@ import (
 	"remotehelpdesk/internal/pkg/constants"
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/repositories"
 
@@ -275,16 +276,16 @@ func tenantDefaultRoleSpecs() []iamDefaultRoleSpec {
 	))
 	customerPermissions := permissionCodesByExactOrPrefix([]string{"device.view", "device.create", "device.update", "ticket.view", "ticket.create", "ticket.progress", "conversation.view", "conversation.send", "meeting.view", "notification.view"})
 	return []iamDefaultRoleSpec{
-		{models.DomainTypeEnterprise, EnterpriseRoleOwner, "租户所有者", "租户最高权限，负责组织、人员、供应商与安全设置", 10, enterpriseAllIAMPermissionCodes()},
-		{models.DomainTypeEnterprise, EnterpriseRoleAdmin, "企业管理员", "管理企业人员、客户、供应商和业务配置", 20, tenantAdminPermissions},
-		{models.DomainTypeEnterprise, EnterpriseRoleServiceManager, "服务负责人", "管理客户服务、会话、工单、派工和维修协作", 30, serviceManagerPermissions},
-		{models.DomainTypeEnterprise, EnterpriseRoleEngineer, "服务工程师", "处理分配给自己的会话、工单、诊断和视频协作", 40, engineerPermissions},
-		{models.DomainTypeEnterprise, EnterpriseRoleKnowledge, "知识管理员", "维护产品知识、手册和 AI 诊断内容", 50, knowledgeManagerPermissions},
-		{models.DomainTypeEnterprise, EnterpriseRoleViewer, "企业只读成员", "只读查看企业获授权的业务数据", 60, viewIAMPermissionCodes()},
-		{models.DomainTypePartner, PartnerRoleAdmin, "供应商管理员", "管理供应商员工并分配协作工单", 10, permissionCodesByExactOrPrefix([]string{"partnerMember.view", "partnerMember.invite", "partnerMember.update", "ticket.view", "ticket.update", "ticket.assign", "ticket.changeStatus", "ticket.progress", "meeting.view", "meeting.create", "meeting.update", "notification.view"})},
-		{models.DomainTypePartner, PartnerRoleEngineer, "供应商工程师", "处理协作工单并可邀请本供应商的工程师同事", 20, permissionCodesByExactOrPrefix([]string{"partnerMember.view", "partnerMember.invite", "ticket.view", "ticket.progress", "ticket.changeStatus", "meeting.view", "notification.view"})},
-		{models.DomainTypeCustomer, CustomerRoleAdmin, "客户管理员", "管理本公司用户、设备归属和售后协作", 10, uniqueSortedPermissionCodes(append(customerPermissions, "customerMember.view", "customerMember.invite", "customerMember.update"))},
-		{models.DomainTypeCustomer, CustomerRoleUser, "客户用户", "添加和查看自己的设备并发起售后服务", 20, customerPermissions},
+		{models.DomainTypeEnterprise, EnterpriseRoleOwner, builtinRoleName(EnterpriseRoleOwner, i18nx.LocaleZhCN), builtinRoleDescription(EnterpriseRoleOwner, i18nx.LocaleZhCN), 10, enterpriseAllIAMPermissionCodes()},
+		{models.DomainTypeEnterprise, EnterpriseRoleAdmin, builtinRoleName(EnterpriseRoleAdmin, i18nx.LocaleZhCN), builtinRoleDescription(EnterpriseRoleAdmin, i18nx.LocaleZhCN), 20, tenantAdminPermissions},
+		{models.DomainTypeEnterprise, EnterpriseRoleServiceManager, builtinRoleName(EnterpriseRoleServiceManager, i18nx.LocaleZhCN), builtinRoleDescription(EnterpriseRoleServiceManager, i18nx.LocaleZhCN), 30, serviceManagerPermissions},
+		{models.DomainTypeEnterprise, EnterpriseRoleEngineer, builtinRoleName(EnterpriseRoleEngineer, i18nx.LocaleZhCN), builtinRoleDescription(EnterpriseRoleEngineer, i18nx.LocaleZhCN), 40, engineerPermissions},
+		{models.DomainTypeEnterprise, EnterpriseRoleKnowledge, builtinRoleName(EnterpriseRoleKnowledge, i18nx.LocaleZhCN), builtinRoleDescription(EnterpriseRoleKnowledge, i18nx.LocaleZhCN), 50, knowledgeManagerPermissions},
+		{models.DomainTypeEnterprise, EnterpriseRoleViewer, builtinRoleName(EnterpriseRoleViewer, i18nx.LocaleZhCN), builtinRoleDescription(EnterpriseRoleViewer, i18nx.LocaleZhCN), 60, viewIAMPermissionCodes()},
+		{models.DomainTypePartner, PartnerRoleAdmin, builtinRoleName(PartnerRoleAdmin, i18nx.LocaleZhCN), builtinRoleDescription(PartnerRoleAdmin, i18nx.LocaleZhCN), 10, permissionCodesByExactOrPrefix([]string{"partnerMember.view", "partnerMember.invite", "partnerMember.update", "ticket.view", "ticket.update", "ticket.assign", "ticket.changeStatus", "ticket.progress", "meeting.view", "meeting.create", "meeting.update", "notification.view"})},
+		{models.DomainTypePartner, PartnerRoleEngineer, builtinRoleName(PartnerRoleEngineer, i18nx.LocaleZhCN), builtinRoleDescription(PartnerRoleEngineer, i18nx.LocaleZhCN), 20, permissionCodesByExactOrPrefix([]string{"partnerMember.view", "partnerMember.invite", "ticket.view", "ticket.progress", "ticket.changeStatus", "meeting.view", "notification.view"})},
+		{models.DomainTypeCustomer, CustomerRoleAdmin, builtinRoleName(CustomerRoleAdmin, i18nx.LocaleZhCN), builtinRoleDescription(CustomerRoleAdmin, i18nx.LocaleZhCN), 10, uniqueSortedPermissionCodes(append(customerPermissions, "customerMember.view", "customerMember.invite", "customerMember.update"))},
+		{models.DomainTypeCustomer, CustomerRoleUser, builtinRoleName(CustomerRoleUser, i18nx.LocaleZhCN), builtinRoleDescription(CustomerRoleUser, i18nx.LocaleZhCN), 20, customerPermissions},
 	}
 }
 

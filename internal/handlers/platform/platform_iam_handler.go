@@ -15,6 +15,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto/response"
 	"remotehelpdesk/internal/pkg/httpx"
 	"remotehelpdesk/internal/pkg/httpx/params"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/repositories"
 	"remotehelpdesk/internal/services"
 
@@ -370,7 +371,7 @@ func GetPlatformPermissionRoleList(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildPlatformAuthRoleList(items, permissions))
+	httpx.WriteJSON(ctx, builders.BuildPlatformAuthRoleList(items, permissions, i18nx.Locale(ctx)))
 }
 
 func PostPlatformPermissionRoleSave(ctx *gin.Context) {
@@ -393,7 +394,7 @@ func PostPlatformPermissionRoleSave(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildPlatformAuthRole(item, nil))
+	httpx.WriteJSON(ctx, builders.BuildPlatformAuthRole(item, nil, i18nx.Locale(ctx)))
 }
 
 func PostPlatformPermissionRoleDelete(ctx *gin.Context) {
@@ -430,7 +431,7 @@ func PostPlatformPermissionPolicySave(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildPlatformAuthRole(role, permissions))
+	httpx.WriteJSON(ctx, builders.BuildPlatformAuthRole(role, permissions, i18nx.Locale(ctx)))
 }
 
 func PostPlatformPermissionCheck(ctx *gin.Context) {
