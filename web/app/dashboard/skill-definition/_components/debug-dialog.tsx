@@ -377,7 +377,7 @@ function DebugDialogBody({
                 <div className="mt-1 font-medium">{result?.skillName || skillName}</div>
               </div>
               <div className="rounded-lg bg-muted/50 p-3">
-                <div className="text-xs text-muted-foreground">Plan Reason</div>
+                <div className="text-xs text-muted-foreground">{t("skillDefinition.planReason")}</div>
                 <div className="mt-1 whitespace-pre-wrap break-words">
                   {result?.planReason || t("skillDefinition.none")}
                 </div>
@@ -548,7 +548,7 @@ function DebugDialogBody({
                   </div>
                 </div>
                 <div className="rounded-lg bg-muted/50 p-3">
-                  <div className="text-xs text-muted-foreground">Resume Plan Reason</div>
+                  <div className="text-xs text-muted-foreground">{t("skillDefinition.resumePlanReason")}</div>
                   <div className="mt-1 whitespace-pre-wrap break-words">
                     {resumeResult.planReason || t("skillDefinition.none")}
                   </div>

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -119,6 +120,25 @@ func TestTicketCaseLifecycleTenStatesAndEngineerHandling(t *testing.T) {
 		if strings.Contains(p.Content+p.MetadataJSON, "内部排查线索") {
 			t.Fatal("internal reason leaked to customer")
 		}
+	}
+}
+
+func TestTicketCaseAssignedAfterAcceptanceOffersTriage(t *testing.T) {
+	db, op, ticket := setupCaseLifecycle(t)
+	now := time.Now()
+	if err := db.Model(&models.Ticket{}).Where("id = ?", ticket.ID).Updates(map[string]any{
+		"case_status":         "assigned",
+		"status":              enums.TicketStatusProcessing,
+		"accepted_at":         now,
+		"case_owner_id":       op.UserID,
+		"current_assignee_id": op.UserID,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	current := repositories.TicketRepository.Get(db, ticket.ID)
+	actions := BuildTicketCaseLifecycle(current, op).AllowedActions
+	if !slices.Contains(actions, "triage") {
+		t.Fatalf("accepted assigned case actions = %v, want triage", actions)
 	}
 }
 

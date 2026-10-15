@@ -12,6 +12,7 @@ import {
   CircleDotIcon,
   CircleXIcon,
   FileTextIcon,
+  FileAudioIcon,
   HandshakeIcon,
   ImageIcon,
   LanguagesIcon,
@@ -123,6 +124,7 @@ import { displayTicketStatus, isCaseStatus, isProcessingTicketStatus, isTerminal
 import { caseLabel, caseStatusLabel, localizeCaseTimelineContent } from "@/lib/ticket-case-labels"
 import { TicketCaseLifecycle } from "@/app/enterprise/tickets/_components/ticket-case-lifecycle"
 import { TicketCreateModal } from "@/app/enterprise/tickets/_components/ticket-create-modal"
+import { VoiceTicketDialog } from "@/app/enterprise/ticket-workbench/_components/voice-ticket-dialog"
 import { TicketClassificationFields, TicketGovernancePanel } from "@/app/enterprise/tickets/_components/ticket-governance"
 import { governanceLabel, type CaseType } from "@/lib/ticket-governance"
 import { sortWorkbenchQueueItems } from "@/lib/ticket-workbench-queue"
@@ -132,6 +134,7 @@ import {
   normalizeWorkbenchId,
 } from "@/lib/ticket-workbench-route"
 import { cn, formatDateTime } from "@/lib/utils"
+import { useAppLocale } from "@/i18n/provider"
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
     return translateCurrentMessage(`enterpriseExtract.${key}`)
@@ -239,19 +242,18 @@ type CustomerCardProfile = {
   lastActiveAt?: string
 }
 
-const translationLanguageLabels: Record<string, string> = {
-  "zh-CN": ee("ticketWorkbench.text008"),
-  en: "English",
-  de: "Deutsch",
-  es: "Espanol",
-  fr: "Francais",
-  pt: "Portugues",
-  ja: "Japanese",
-  ko: "Korean",
-}
-
 function translationLanguageLabel(language: string) {
-  return translationLanguageLabels[language] || language
+  if (language === "zh-CN") return ee("ticketWorkbench.text008")
+  const labels: Record<string, string> = {
+    en: "English",
+    de: "Deutsch",
+    es: "Español",
+    fr: "Français",
+    pt: "Português",
+    ja: "Japanese",
+    ko: "Korean",
+  }
+  return labels[language] || language
 }
 
 function detectMessageTranslationLanguage(content: string) {
@@ -729,7 +731,10 @@ function ticketDispatchAgingLabel(
   return ""
 }
 
-function dispatchEvidenceParts(ticket?: TicketListItem | null, hasDeviceConcept = true) {
+function dispatchEvidenceParts(
+  ticket?: TicketListItem | null,
+  hasDeviceConcept = true,
+) {
   if (!ticket) return []
   const parts = [
     ticket.team_name ? ee(hasDeviceConcept ? "ticketWorkbench.text072" : "ticketWorkbench.text325", { value0: ticket.team_name }) : "",
@@ -972,6 +977,7 @@ export default function EnterpriseTicketWorkbenchPage() {
 }
 
 function EnterpriseTicketWorkbench() {
+  const { locale } = useAppLocale()
   const searchParams = useSearchParams()
   const routeSearch = searchParams.toString()
   const conversation = useAgentConversationsStore(
@@ -1159,6 +1165,8 @@ function EnterpriseTicketWorkbench() {
   }, [loadWorkbenchQueue, pinnedTicket?.id, refreshTicketSnapshot])
 
   const queueItems = useMemo(() => {
+    // Queue item builders include localized fallback labels. Rebuild them when the app locale changes.
+    void locale
     const effectiveConversationQueue = pinnedConversation && !conversationQueue.some((item) => item.id === pinnedConversation.id)
       ? [...conversationQueue, pinnedConversation]
       : conversationQueue
@@ -1177,7 +1185,7 @@ function EnterpriseTicketWorkbench() {
       .filter((ticket) => !ticket.conversation_id || !conversationIds.has(ticket.conversation_id))
       .map(buildTicketQueueItem)
     return sortWorkbenchQueueItems([...conversationItems, ...ticketItems])
-  }, [conversationQueue, pinnedConversation, pinnedTicket, routeTicketId, ticketQueue])
+  }, [conversationQueue, locale, pinnedConversation, pinnedTicket, routeTicketId, ticketQueue])
 
   const displayQueueItems = queueItems
   const filteredQueueItems = displayQueueItems.filter((item) =>
@@ -2865,6 +2873,7 @@ function WorkbenchContextPane({
   const [loadingTickets, setLoadingTickets] = useState(false)
   const [loadingAggregate, setLoadingAggregate] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [voiceTicketOpen, setVoiceTicketOpen] = useState(false)
   const [childCreateParentTicketId, setChildCreateParentTicketId] = useState(0)
   const [recordOpen, setRecordOpen] = useState(false)
   const [recordText, setRecordText] = useState("")
@@ -3644,7 +3653,7 @@ function WorkbenchContextPane({
             <div className="space-y-2">
               <ContextRow
                 label={ee(hasDeviceConcept ? "ticketWorkbench.text214" : "ticketWorkbench.text323")}
-                value={aggregate?.assignment.team_name || ("team_name" in contextTicket ? contextTicket.team_name : "") || ee("ticketWorkbench.text215")}
+                value={(aggregate?.assignment.team_name || ("team_name" in contextTicket ? contextTicket.team_name : "")) || ee("ticketWorkbench.text215")}
               />
               <ContextRow
                 label={ee("ticketWorkbench.text216")}
@@ -3746,6 +3755,9 @@ function WorkbenchContextPane({
                 disabled={creating}
               >
                 {creating ? <Loader2Icon className="size-4 animate-spin" /> : <TicketIcon className="size-4" />}{ee("ticketWorkbench.text257")}</RailopsButton>
+              <RailopsButton size="small" className="w-full gap-2" onClick={() => setVoiceTicketOpen(true)} disabled={creating}>
+                <FileAudioIcon className="size-4" /> Create from voice
+              </RailopsButton>
             </div>
           </ContextSection>
         ) : null}
@@ -4122,7 +4134,7 @@ function WorkbenchContextPane({
 	              ) : null}
               {hasFinishedCurrentMeeting ? (
                 <div className="col-span-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                  {ticketMeetingStatusText(currentMeeting?.status)}，请重新发起视频协作。
+                  {ee("ticketWorkbench.meetingRestartHint", { status: ticketMeetingStatusText(currentMeeting?.status) })}
                 </div>
               ) : null}
               <RailopsButton
@@ -4346,6 +4358,17 @@ function WorkbenchContextPane({
               const result = await fetchTicketAggregate(contextTicketId)
               if (result.success && result.data) setAggregate(result.data)
             }
+            await onTicketUpdated()
+          }}
+        />
+        <VoiceTicketDialog
+          open={voiceTicketOpen}
+          conversation={conversation}
+          currentAssigneeId={canAssignTicket ? conversation?.currentAssigneeId : undefined}
+          onOpenChange={setVoiceTicketOpen}
+          onCreated={async (createdTicket) => {
+            setLinkedTickets((current) => [createdTicket, ...current.filter((ticket) => ticket.id !== createdTicket.id)])
+            setContextTicketId(createdTicket.id)
             await onTicketUpdated()
           }}
         />
@@ -4629,7 +4652,7 @@ function buildChatMessages(
         side: isCustomer || isPartner ? "left" : "right",
         senderType,
         senderId: message.senderId,
-        senderName: message.senderName,
+        senderName: isAi ? message.senderName : message.senderName,
         senderAvatar: message.senderAvatar,
         tone: isCustomer ? "customer" : isAi ? "ai" : isSystem ? "system" : isPartner ? "partner" : "engineer",
         serviceEvent: parseConversationServiceEvent({

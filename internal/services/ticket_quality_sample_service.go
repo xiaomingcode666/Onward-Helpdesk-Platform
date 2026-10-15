@@ -213,7 +213,7 @@ func (s *ticketQualitySampleService) List(tenantID int64, q ticketQualitySampleQ
 	for _, item := range items {
 		row := s.buildDTO(item)
 		if review, ok := latestReviews[item.TicketID]; ok {
-			row.LatestReview = &dto.TicketQualityReviewSummaryDTO{TotalScore: review.TotalScore, MaxScore: review.MaxScore, Result: review.Result, Outcome: review.Outcome, ReviewedAt: review.ReviewedAt.Format(time.RFC3339)}
+			row.LatestReview = &dto.TicketQualityReviewSummaryDTO{TotalScore: review.TotalScore, MaxScore: review.MaxScore, Result: review.Result, Outcome: review.Outcome, FinalOutcome: effectiveTicketQualityOutcome(review), DisputeStatus: review.DisputeStatus, ReviewedAt: review.ReviewedAt.Format(time.RFC3339)}
 		}
 		result.Items = append(result.Items, row)
 	}

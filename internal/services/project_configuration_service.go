@@ -14,9 +14,12 @@ import (
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/constants"
 	"remotehelpdesk/internal/pkg/dto"
+	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/eventbus"
 	"remotehelpdesk/internal/pkg/projectconfig"
+	"remotehelpdesk/internal/pkg/secretstore"
+	"remotehelpdesk/internal/repositories"
 )
 
 var ErrProjectConfigConflict = errors.New("配置已被其他操作修改，请重新加载；相同提交编号不能用于不同内容")
@@ -51,6 +54,8 @@ type ProjectConfigDraft struct {
 	RequestKey    string                 `json:"request_key"`
 	Note          string                 `json:"note"`
 	Document      projectconfig.Document `json:"document"`
+	SMTPPassword  string                 `json:"smtp_password,omitempty"`
+	IMAPPassword  string                 `json:"imap_password,omitempty"`
 }
 type ProjectConfigValidationError struct{ Report projectconfig.Report }
 
@@ -177,6 +182,21 @@ func saveProjectConfigurationDraftDB(sourceDB *gorm.DB, tenantID int64, input Pr
 	if input.Document.TenantID != tenantID || input.Document.Environment != projectconfig.Environment() {
 		return nil, errorsx.InvalidParam("配置必须属于当前公司和运行环境")
 	}
+	// Passwords are write-only request fields. Store only a non-sensitive
+	// database handle in the versioned document; the encrypted values are kept
+	// in the existing tenant mail credential record.
+	if input.Document.Runtime != nil {
+		if strings.TrimSpace(input.SMTPPassword) != "" {
+			input.Document.SecretRefs = removeLegacyMailSecretRefs(input.Document.SecretRefs)
+			input.Document.Runtime.Mail.PasswordRef = "secret://managed-smtp"
+			input.Document.SecretRefs = appendUniqueString(input.Document.SecretRefs, "secret://managed-smtp")
+		}
+		if input.Document.Runtime.Mail.IMAP != nil && strings.TrimSpace(input.IMAPPassword) != "" {
+			input.Document.SecretRefs = removeLegacyMailSecretRefs(input.Document.SecretRefs)
+			input.Document.Runtime.Mail.IMAP.PasswordRef = "secret://managed-imap"
+			input.Document.SecretRefs = appendUniqueString(input.Document.SecretRefs, "secret://managed-imap")
+		}
+	}
 	if err := projectconfig.ValidateDraftShape(input.Document); err != nil {
 		return nil, errorsx.InvalidParam(err.Error())
 	}
@@ -211,7 +231,7 @@ func saveProjectConfigurationDraftDB(sourceDB *gorm.DB, tenantID int64, input Pr
 		var existing models.ProjectConfigurationVersion
 		err = db.Where("tenant_id = ? AND environment = ? AND request_key = ?", tenantID, s.Environment, input.RequestKey).Limit(1).Find(&existing).Error
 		if err == nil && existing.ID > 0 {
-			if existing.BaseVersionID != input.BaseVersionID || existing.Digest != projectconfig.Digest(input.Document) || existing.Note != input.Note {
+			if existing.BaseVersionID != input.BaseVersionID || existing.Digest != projectconfig.Digest(input.Document) || existing.Note != input.Note || !managedMailSecretsMatch(db, tenantID, input.SMTPPassword, input.IMAPPassword) {
 				return ErrProjectConfigConflict
 			}
 			result, err = decodeProjectVersion(existing)
@@ -222,6 +242,11 @@ func saveProjectConfigurationDraftDB(sourceDB *gorm.DB, tenantID int64, input Pr
 		}
 		if s.ActiveVersionID != input.BaseVersionID {
 			return ErrProjectConfigConflict
+		}
+		if strings.TrimSpace(input.SMTPPassword) != "" || strings.TrimSpace(input.IMAPPassword) != "" {
+			if err := saveManagedMailSecrets(db, tenantID, input.SMTPPassword, input.IMAPPassword); err != nil {
+				return err
+			}
 		}
 		// Preserve the real current legacy settings before the first managed write.
 		var count int64
@@ -249,6 +274,84 @@ func saveProjectConfigurationDraftDB(sourceDB *gorm.DB, tenantID int64, input Pr
 		return err
 	})
 	return &result, err
+}
+
+func appendUniqueString(values []string, value string) []string {
+	for _, existing := range values {
+		if existing == value {
+			return values
+		}
+	}
+	return append(values, value)
+}
+
+func removeLegacyMailSecretRefs(values []string) []string {
+	filtered := values[:0]
+	for _, value := range values {
+		if value == "secret://smtp-password" || value == "secret://imap-password" {
+			continue
+		}
+		filtered = append(filtered, value)
+	}
+	return filtered
+}
+
+// saveManagedMailSecrets keeps credentials out of immutable configuration
+// documents and API responses while retaining the existing encrypted storage.
+func saveManagedMailSecrets(db *gorm.DB, tenantID int64, smtpPassword, imapPassword string) error {
+	if tenantID <= 0 {
+		return errorsx.InvalidParam("tenant is required")
+	}
+	existing := repositories.TenantMailSettingRepository.GetByTenantID(db, tenantID)
+	updates := map[string]any{"updated_at": time.Now().UTC()}
+	if strings.TrimSpace(smtpPassword) != "" {
+		value, err := secretstore.Encrypt(strings.TrimSpace(smtpPassword))
+		if err != nil {
+			return err
+		}
+		updates["password"] = value
+	}
+	if strings.TrimSpace(imapPassword) != "" {
+		value, err := secretstore.Encrypt(strings.TrimSpace(imapPassword))
+		if err != nil {
+			return err
+		}
+		updates["imap_password"] = value
+	}
+	if existing == nil {
+		item := &models.TenantMailSetting{TenantID: tenantID, SMTPPort: 465, IMAPPort: 993, UseTLS: true, IMAPUseTLS: true, Status: int(enums.StatusOk), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+		if value, ok := updates["password"].(string); ok {
+			item.Password = value
+		}
+		if value, ok := updates["imap_password"].(string); ok {
+			item.IMAPPassword = value
+		}
+		return db.Create(item).Error
+	}
+	return db.Model(&models.TenantMailSetting{}).Where("id = ?", existing.ID).Updates(updates).Error
+}
+
+func managedMailSecretsMatch(db *gorm.DB, tenantID int64, smtpPassword, imapPassword string) bool {
+	if strings.TrimSpace(smtpPassword) == "" && strings.TrimSpace(imapPassword) == "" {
+		return true
+	}
+	setting := repositories.TenantMailSettingRepository.GetByTenantID(db, tenantID)
+	if setting == nil {
+		return false
+	}
+	if strings.TrimSpace(smtpPassword) != "" {
+		plain, err := secretstore.Decrypt(setting.Password)
+		if err != nil || plain != strings.TrimSpace(smtpPassword) {
+			return false
+		}
+	}
+	if strings.TrimSpace(imapPassword) != "" {
+		plain, err := secretstore.Decrypt(setting.IMAPPassword)
+		if err != nil || plain != strings.TrimSpace(imapPassword) {
+			return false
+		}
+	}
+	return true
 }
 
 func ApplyProjectConfiguration(tenantID, versionID int64, op *dto.AuthPrincipal) (*ProjectConfigVersion, error) {

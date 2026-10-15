@@ -1252,7 +1252,7 @@ export default function PlatformModelsPage() {
                       <DataTable<UsageRowView>
                         className="rhd-railops-platform-models-usage-rows-table"
                         size="small"
-                        rowKey={(row, index) => `${row.requestId}-${index}`}
+                        rowKey={(row) => row.requestId || `${row.requestTime}-${row.model}-${row.endpoint}-${row.requestType}`}
                         dataSource={usageRows}
                         emptyDescription={t("platformExtract.models.empty.noRecords")}
                         scroll={{ x: 1240 }}

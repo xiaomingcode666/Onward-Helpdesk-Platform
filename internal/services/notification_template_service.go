@@ -82,6 +82,15 @@ func (s *notificationTemplateService) ApplyToNotification(item *models.Notificat
 		}
 		data[strings.TrimSpace(key)] = value
 	}
+	// Producers may provide locale-qualified values when the same notification
+	// is delivered to recipients with different language preferences. Resolve
+	// those values at render time so persisted notifications never leak the
+	// producer's default-language text into another locale.
+	for _, key := range []string{"Title", "Content"} {
+		if value := strings.TrimSpace(data[key+"."+language]); value != "" {
+			data[key] = value
+		}
+	}
 	title := strings.TrimSpace(RenderNotificationTemplateText(tpl.TitleTemplate, data))
 	content := strings.TrimSpace(RenderNotificationTemplateText(tpl.ContentTemplate, data))
 	if title == "" {

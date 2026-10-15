@@ -74,6 +74,9 @@ var (
 	PermissionTicketChangeStatus      = Permission{Name: "变更工单状态", Code: "ticket.changeStatus", Type: "api", GroupName: "ticket", Method: "POST", APIPath: "/api/dashboard/ticket/change_status", SortNo: 540}
 	PermissionTicketProgress          = Permission{Name: "更新工单进展", Code: "ticket.progress", Type: "api", GroupName: "ticket", Method: "POST", APIPath: "/api/dashboard/ticket/progress/create", SortNo: 550}
 	PermissionTicketRepairHistoryView = Permission{Name: "查看维修历史", Code: "ticket.repairHistory.view", Type: "api", GroupName: "ticket", Method: "ANY", APIPath: "/api/dashboard/ticket/repair-history/list", SortNo: 555}
+	// Personal quality results (scores, defects, evidence and coaching) are restricted to the reviewed agent, the reviewer and these holders.
+	PermissionTicketQualityViewAgent     = Permission{Name: "查看客服个人质检", Code: "ticketQuality.viewAgent", Type: "api", GroupName: "ticketQuality", Method: "GET", APIPath: "/api/enterprise/v1/ticket-quality/analysis", SortNo: 556}
+	PermissionTicketQualityDisputeReview = Permission{Name: "复核质检异议", Code: "ticketQuality.disputeReview", Type: "api", GroupName: "ticketQuality", Method: "POST", APIPath: "/api/enterprise/v1/ticket-quality/disputes/:id/_decide", SortNo: 557}
 
 	// 通知相关权限
 	PermissionNotificationView          = Permission{Name: "查看通知", Code: "notification.view", Type: "api", GroupName: "notification", Method: "ANY", APIPath: "/api/dashboard/notification/list", SortNo: 680}
@@ -287,6 +290,8 @@ var Permissions = []Permission{
 	PermissionTicketChangeStatus,
 	PermissionTicketProgress,
 	PermissionTicketRepairHistoryView,
+	PermissionTicketQualityViewAgent,
+	PermissionTicketQualityDisputeReview,
 	PermissionNotificationView,
 	PermissionNotificationUpdate,
 	PermissionNotificationChannelManage,
@@ -575,7 +580,7 @@ var RolePermissions = map[string][]Permission{
 		PermissionPermissionView, PermissionPermissionSync,
 		PermissionSessionView, PermissionSessionRevoke,
 		PermissionConversationView, PermissionConversationAssign, PermissionConversationTransfer, PermissionConversationClose, PermissionConversationSend, PermissionConversationTag, PermissionConversationHandover, PermissionConversationRecycle, PermissionConversationLinkCustomer,
-		PermissionTicketView, PermissionTicketCreate, PermissionTicketUpdate, PermissionTicketAssign, PermissionTicketChangeStatus, PermissionTicketProgress, PermissionTicketRepairHistoryView,
+		PermissionTicketView, PermissionTicketCreate, PermissionTicketUpdate, PermissionTicketAssign, PermissionTicketChangeStatus, PermissionTicketProgress, PermissionTicketRepairHistoryView, PermissionTicketQualityViewAgent, PermissionTicketQualityDisputeReview,
 		PermissionMeetingPreview,
 		PermissionMeetingCreate,
 		PermissionMeetingView,
@@ -621,7 +626,7 @@ var RolePermissions = map[string][]Permission{
 		PermissionPermissionView,
 		PermissionSessionView,
 		PermissionConversationView, PermissionConversationClose, PermissionConversationSend, PermissionConversationTag, PermissionConversationHandover, PermissionConversationRecycle, PermissionConversationLinkCustomer,
-		PermissionTicketView, PermissionTicketCreate, PermissionTicketUpdate, PermissionTicketAssign, PermissionTicketChangeStatus, PermissionTicketProgress, PermissionTicketRepairHistoryView,
+		PermissionTicketView, PermissionTicketCreate, PermissionTicketUpdate, PermissionTicketAssign, PermissionTicketChangeStatus, PermissionTicketProgress, PermissionTicketRepairHistoryView, PermissionTicketQualityViewAgent, PermissionTicketQualityDisputeReview,
 		PermissionMeetingPreview,
 		PermissionMeetingCreate,
 		PermissionMeetingView,

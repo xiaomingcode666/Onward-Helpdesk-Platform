@@ -314,7 +314,7 @@ export default function MCPDashboardPage() {
 
                 <div className="space-y-4 rounded-lg border p-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="tool-arguments">Arguments JSON</Label>
+                    <Label htmlFor="tool-arguments">{t("mcp.argumentsJson")}</Label>
                     <JsonCodeEditor
                       value={argumentsText}
                       onChange={setArgumentsText}

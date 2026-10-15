@@ -9,7 +9,7 @@ import type { TicketAggregateDTO, ProductListItem } from "@/lib/api/types"
 import { caseStatusLabel } from "@/lib/ticket-case-labels"
 import { formatDateTime } from "@/lib/utils"
 import { listProducts, getProductModules, type ProductModule } from "@/lib/api/enterprise-products"
-import { caseTypes, emptyPriorityFacts, searchDuplicateTickets, type DuplicateCandidate, governanceLabel as g, fetchGovernance, saveGovernance, type CaseType, type PriorityFacts, type GovernanceView, type GovernanceCommand, type PriorityPolicy, fetchClassificationPolicy, previewPriorityChange, type PriorityPreview } from "@/lib/ticket-governance"
+import { caseTypes, emptyPriorityFacts, searchDuplicateTickets, type DuplicateCandidate, governanceExplanationLabel, governanceLabel as g, fetchGovernance, saveGovernance, type CaseType, type PriorityFacts, type GovernanceView, type GovernanceCommand, type PriorityPolicy, fetchClassificationPolicy, previewPriorityChange, type PriorityPreview } from "@/lib/ticket-governance"
 
 export function TicketClassificationFields({ value, onChange, disabled = false, policy, keepPriority, priorityOverride = "", priorityReason = "", onPriorityChange, onPriorityReasonChange }: { value: string; onChange: (value: CaseType) => void; disabled?: boolean; policy?: PriorityPolicy; keepPriority?: string; priorityOverride?: string; priorityReason?: string; onPriorityChange?: (value: string) => void; onPriorityReasonChange?: (value: string) => void }) {
   const { session } = useAuth()
@@ -356,7 +356,7 @@ function DecisionDetails({ details }: { details: Record<string, unknown> }) {
   return <dl className="mt-2 space-y-1 text-xs">
     <div><dt>{g("classification")}</dt><dd>{before.CaseType ? g(`type.${before.CaseType}`) : "—"} → {after.CaseType ? g(`type.${after.CaseType}`) : "—"}</dd></div>
     <div><dt>{g("newPriority")}</dt><dd>{String(before.PriorityLevel || "—").toUpperCase()} → {String(after.PriorityLevel || "—").toUpperCase()}</dd></div>
-    <div><dt>{g("suggested")}</dt><dd>{String(after.PrioritySuggested || "—").toUpperCase()} · {String(after.PriorityExplanation || "")}</dd></div>
+    <div><dt>{g("suggested")}</dt><dd>{String(after.PrioritySuggested || "—").toUpperCase()} · {governanceExplanationLabel(after.PriorityExplanation)}</dd></div>
     <div><dt>{g("evidence")}</dt><dd>{facts.evidence || "—"}</dd></div>
     {facts.root_cause ? <div><dt>{g("rootCause")}</dt><dd>{facts.root_cause}</dd></div> : null}
     <div><dt>{g("slaDeadline")}</dt><dd>{details.previous_sla_deadline ? formatDateTime(String(details.previous_sla_deadline)) : "—"} → {details.sla_deadline ? formatDateTime(String(details.sla_deadline)) : "—"}</dd></div>

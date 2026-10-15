@@ -1,6 +1,7 @@
 "use client"
 
 import { translateCurrentMessage } from "@/i18n/messages"
+import { aiAgentOptionLabel } from "@/lib/ai-agent-label"
 import {
   ArrowLeftIcon,
   CheckIcon,
@@ -76,6 +77,7 @@ import {
 } from "@/lib/enterprise-detail-route"
 import { Status } from "@/lib/generated/enums"
 import { formatDateTime } from "@/lib/utils"
+import { useI18n } from "@/i18n/provider"
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
     return translateCurrentMessage(`enterpriseExtract.${key}`)
@@ -144,6 +146,14 @@ function releaseReviewTone(status: string): StatusTagTone {
   if (status === "approved") return "blue"
   if (status === "rejected") return "error"
   return "neutral"
+}
+
+function releaseReviewLabel(status: string, fallback?: string) {
+  if (status === "pending") return ee("aiServiceCenter.text004")
+  if (status === "approved") return ee("aiServiceCenter.text005")
+  if (status === "rejected") return ee("aiServiceCenter.text006")
+  if (status === "unreviewed") return ee("aiServiceCenter.text007")
+  return fallback || status
 }
 
 function deploymentLabel(status: string) {
@@ -226,6 +236,7 @@ export function AgentWorkbenchPage({ agentId: requestedAgentId }: { agentId?: nu
   const searchParams = useSearchParams()
   const router = useRouter()
   const confirm = useConfirm()
+  const t = useI18n()
   const agentId = requestedAgentId ?? Number(params.agentId)
   const activeView = normalizeView(searchParams.get("view"))
 
@@ -524,18 +535,18 @@ export function AgentWorkbenchPage({ agentId: requestedAgentId }: { agentId?: nu
     return [
       ...(currentRouteValue ? [{
         value: currentRouteValue,
-        label: ee("aiWorkbench.text033", { value0: agent?.aiConfigName || ee("aiWorkbench.text080", { value0: agent?.aiConfigId }) }),
+        label: t("enterpriseExtract.aiWorkbench.text033", { value0: agent?.aiConfigName || t("enterpriseExtract.aiWorkbench.text080", { value0: agent?.aiConfigId ?? "" }) }),
       }] : []),
       {
         value: "",
-        label: defaultModelName ? ee("aiWorkbench.text034", { value0: defaultModelName }) : ee("aiWorkbench.text035"),
+        label: defaultModelName ? t("enterpriseExtract.aiWorkbench.text034", { value0: defaultModelName }) : t("enterpriseExtract.aiWorkbench.text035"),
       },
       ...availableModels.map((name) => ({
         value: name,
-        label: name === defaultModelName ? ee("aiWorkbench.text036", { value0: name }) : name,
+        label: name === defaultModelName ? t("enterpriseExtract.aiWorkbench.text036", { value0: name }) : name,
       })),
     ]
-  }, [agent?.aiConfigId, agent?.aiConfigName, llmCapability?.modelName, llmCapability?.models, tenantDefaultModelName])
+  }, [agent?.aiConfigId, agent?.aiConfigName, llmCapability?.modelName, llmCapability?.models, t, tenantDefaultModelName])
 
   async function updateAgentModelDraft(nextValue: string) {
     if (!agent || savingTenantDefaultModel || nextValue.startsWith("__route__:")) return
@@ -691,8 +702,8 @@ export function AgentWorkbenchPage({ agentId: requestedAgentId }: { agentId?: nu
                 options={agents.map((item) => ({
                   value: String(item.id),
                   label: item.source === "tenant_default" && item.productId === 0
-                    ? ee("aiWorkbench.text054", { value0: item.name })
-                    : `${item.productName || ee("aiWorkbench.text055")} · ${item.name}`,
+                    ? item.name
+                    : aiAgentOptionLabel(item.productName, item.name) || ee("aiWorkbench.text055"),
                   icon: <ShieldCheckIcon className="size-4" />,
                 }))}
                 placeholder={ee("aiWorkbench.text056")}
@@ -907,7 +918,7 @@ export function AgentWorkbenchPage({ agentId: requestedAgentId }: { agentId?: nu
                   width: 150,
                   render: (_value, release) => (
                     <div>
-                      <StatusTag tone={releaseReviewTone(release.reviewStatus)}>{release.reviewStatusName || release.reviewStatus}</StatusTag>
+                      <StatusTag tone={releaseReviewTone(release.reviewStatus)}>{releaseReviewLabel(release.reviewStatus, release.reviewStatusName)}</StatusTag>
                       {release.reviewComment ? <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{release.reviewComment}</div> : null}
                     </div>
                   ),

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	workflowbuiltin "remotehelpdesk/internal/ai/workflow/builtin"
 	"remotehelpdesk/internal/ai/workflow/dsl"
 	workflowregistry "remotehelpdesk/internal/ai/workflow/registry"
 	"remotehelpdesk/internal/models"
@@ -25,7 +26,7 @@ func BuildAIWorkflow(item *models.AIWorkflow, locale string) response.AIWorkflow
 		Description:            item.DisplayDescription(locale),
 		AgentID:                item.AgentID,
 		Status:                 item.Status,
-		DraftDefinition:        definition,
+		DraftDefinition:        workflowbuiltin.LocalizeDefinition(definition, locale),
 		PublishedVersionID:     item.PublishedVersionID,
 		CurrentStableVersionID: item.CurrentStableVersionID,
 		SourceWorkflowID:       item.SourceWorkflowID,
@@ -48,7 +49,7 @@ func BuildAIWorkflowList(list []models.AIWorkflow, locale string) []response.AIW
 	return ret
 }
 
-func BuildAIWorkflowVersion(item *models.AIWorkflowVersion) response.AIWorkflowVersionResponse {
+func BuildAIWorkflowVersion(item *models.AIWorkflowVersion, locale string) response.AIWorkflowVersionResponse {
 	if item == nil {
 		return response.AIWorkflowVersionResponse{}
 	}
@@ -61,7 +62,7 @@ func BuildAIWorkflowVersion(item *models.AIWorkflowVersion) response.AIWorkflowV
 		WorkflowID:      item.WorkflowID,
 		Version:         item.Version,
 		Status:          item.Status,
-		Definition:      parseWorkflowDefinition(item.Definition),
+		Definition:      workflowbuiltin.LocalizeDefinition(parseWorkflowDefinition(item.Definition), locale),
 		DefinitionHash:  item.DefinitionHash,
 		ReleaseChannel:  item.ReleaseChannel,
 		SchemaVersion:   item.SchemaVersion,
@@ -75,10 +76,10 @@ func BuildAIWorkflowVersion(item *models.AIWorkflowVersion) response.AIWorkflowV
 	}
 }
 
-func BuildAIWorkflowVersionList(list []models.AIWorkflowVersion) []response.AIWorkflowVersionResponse {
+func BuildAIWorkflowVersionList(list []models.AIWorkflowVersion, locale string) []response.AIWorkflowVersionResponse {
 	ret := make([]response.AIWorkflowVersionResponse, 0, len(list))
 	for i := range list {
-		ret = append(ret, BuildAIWorkflowVersion(&list[i]))
+		ret = append(ret, BuildAIWorkflowVersion(&list[i], locale))
 	}
 	return ret
 }
@@ -103,10 +104,10 @@ func BuildAIWorkflowNodeSpecs(list []workflowregistry.NodeSpec) []response.AIWor
 }
 
 func BuildAIWorkflowRun(item *models.AIWorkflowRun) response.AIWorkflowRunResponse {
-	return BuildAIWorkflowRunWithContext(item, nil, nil, nil, nil)
+	return BuildAIWorkflowRunWithContext(item, nil, nil, nil, nil, "")
 }
 
-func BuildAIWorkflowRunWithContext(item *models.AIWorkflowRun, workflow *models.AIWorkflow, version *models.AIWorkflowVersion, agent *models.AIAgent, skillAudit *dto.AIWorkflowSkillAudit) response.AIWorkflowRunResponse {
+func BuildAIWorkflowRunWithContext(item *models.AIWorkflowRun, workflow *models.AIWorkflow, version *models.AIWorkflowVersion, agent *models.AIAgent, skillAudit *dto.AIWorkflowSkillAudit, locale string) response.AIWorkflowRunResponse {
 	if item == nil {
 		return response.AIWorkflowRunResponse{}
 	}
@@ -136,13 +137,13 @@ func BuildAIWorkflowRunWithContext(item *models.AIWorkflowRun, workflow *models.
 		UpdatedAt:         formatWorkflowTime(item.UpdatedAt),
 	}
 	if workflow != nil {
-		ret.WorkflowName = workflow.Name
+		ret.WorkflowName = workflow.DisplayName(locale)
 	}
 	if version != nil {
 		ret.WorkflowVersion = version.Version
 	}
 	if agent != nil {
-		ret.AIAgentName = agent.Name
+		ret.AIAgentName = agent.DisplayName(locale)
 	}
 	ret.SkillAudit = BuildAIWorkflowSkillAudit(skillAudit)
 	return ret
@@ -154,10 +155,10 @@ func BuildAIWorkflowRunDetail(item *models.AIWorkflowRun, nodes []models.AIWorkf
 	return ret
 }
 
-func BuildAIWorkflowRunDetailWithContext(item *models.AIWorkflowRun, nodes []models.AIWorkflowNodeRun, workflow *models.AIWorkflow, version *models.AIWorkflowVersion, agent *models.AIAgent, skillAudit *dto.AIWorkflowSkillAudit) response.AIWorkflowRunResponse {
-	ret := BuildAIWorkflowRunWithContext(item, workflow, version, agent, skillAudit)
+func BuildAIWorkflowRunDetailWithContext(item *models.AIWorkflowRun, nodes []models.AIWorkflowNodeRun, workflow *models.AIWorkflow, version *models.AIWorkflowVersion, agent *models.AIAgent, skillAudit *dto.AIWorkflowSkillAudit, locale string) response.AIWorkflowRunResponse {
+	ret := BuildAIWorkflowRunWithContext(item, workflow, version, agent, skillAudit, locale)
 	if version != nil {
-		ret.Definition = parseWorkflowDefinition(version.Definition)
+		ret.Definition = workflowbuiltin.LocalizeDefinition(parseWorkflowDefinition(version.Definition), locale)
 	}
 	ret.Nodes = BuildAIWorkflowNodeRunList(nodes)
 	return ret

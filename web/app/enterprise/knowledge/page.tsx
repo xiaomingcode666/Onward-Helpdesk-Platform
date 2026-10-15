@@ -496,9 +496,8 @@ function buildTenantKnowledgeState(
 ): TenantKnowledgeState {
   const sharedKnowledgeBases = knowledgeBases.filter((knowledgeBase) => knowledgeBase.accessScope === "tenant")
   const systemDefault = sharedKnowledgeBases.find((knowledgeBase) => knowledgeBase.remark === tenantDefaultKnowledgeBaseRemark) ?? null
-  const exactMatch = sharedKnowledgeBases.find((knowledgeBase) => knowledgeBase.name.trim() === "企业通用知识库") ?? null
   return {
-    knowledgeBase: systemDefault ?? exactMatch ?? sharedKnowledgeBases[0] ?? null,
+    knowledgeBase: systemDefault ?? sharedKnowledgeBases[0] ?? null,
     productCount,
   }
 }
@@ -1194,7 +1193,7 @@ function KnowledgePreviewDialog({
             <div className="grid gap-3 rounded-md border bg-muted/20 p-4">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <HistoryIcon className="size-4 text-primary" />
-                <span>版本与运营信息</span>
+                <span>{t("enterpriseKnowledge.preview.operations.title")}</span>
               </div>
               {operationsLoading ? (
                 <div className="grid gap-2 sm:grid-cols-3">
@@ -1203,27 +1202,27 @@ function KnowledgePreviewDialog({
               ) : (
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="rounded-md border bg-background px-3 py-2">
-                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><HistoryIcon className="size-3.5" />当前版本</span>
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><HistoryIcon className="size-3.5" />{t("enterpriseKnowledge.preview.operations.currentVersion")}</span>
                     <strong className="mt-1 block text-sm">{entryVersions[0] ? `v${entryVersions[0].version}` : "-"}</strong>
                   </div>
                   <div className="rounded-md border bg-background px-3 py-2">
-                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDaysIcon className="size-3.5" />版本时间</span>
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDaysIcon className="size-3.5" />{t("enterpriseKnowledge.preview.operations.versionTime")}</span>
                     <strong className="mt-1 block text-sm">{entryVersions[0]?.updated_at || entryDetail.published_at || entryDetail.created_at || "-"}</strong>
                   </div>
                   <div className="rounded-md border bg-background px-3 py-2">
-                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><TicketIcon className="size-3.5" />使用效果</span>
-                    <strong className="mt-1 block text-sm">{entryQuality ? `${entryQuality.positive_feedback} / ${entryQuality.total_views}` : "暂无数据"}</strong>
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><TicketIcon className="size-3.5" />{t("enterpriseKnowledge.preview.operations.effectiveness")}</span>
+                    <strong className="mt-1 block text-sm">{entryQuality ? `${entryQuality.positive_feedback} / ${entryQuality.total_views}` : t("enterpriseKnowledge.preview.operations.noData")}</strong>
                   </div>
                 </div>
               )}
               <div className="grid gap-2 border-t pt-3 text-sm sm:grid-cols-2">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">版本历史</span>
-                  <span className="font-medium">{entryVersions.length ? `${entryVersions.length} 个版本` : "暂无版本记录"}</span>
+                  <span className="text-muted-foreground">{t("enterpriseKnowledge.preview.operations.history")}</span>
+                  <span className="font-medium">{entryVersions.length ? t("enterpriseKnowledge.preview.operations.versionCount", { count: entryVersions.length }) : t("enterpriseKnowledge.preview.operations.noVersions")}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">关联工单</span>
-                  <span className="font-medium">工单使用明细待接入</span>
+                  <span className="text-muted-foreground">{t("enterpriseKnowledge.preview.operations.relatedTickets")}</span>
+                  <span className="font-medium">{t("enterpriseKnowledge.preview.operations.relatedTicketsPending")}</span>
                 </div>
               </div>
             </div>

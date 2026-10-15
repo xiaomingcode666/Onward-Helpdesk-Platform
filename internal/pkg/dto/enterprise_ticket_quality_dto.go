@@ -25,7 +25,10 @@ type TicketQualityReviewSummaryDTO struct {
 	MaxScore   int    `json:"max_score"`
 	Result     string `json:"result"`
 	Outcome    string `json:"outcome"`
-	ReviewedAt string `json:"reviewed_at"`
+	// FinalOutcome reflects an overturned dispute; Outcome stays the original verdict.
+	FinalOutcome  string `json:"final_outcome"`
+	DisputeStatus string `json:"dispute_status"`
+	ReviewedAt    string `json:"reviewed_at"`
 }
 
 type TicketQualitySampleSummaryDTO struct {

@@ -118,6 +118,23 @@ func TestNotificationTemplateServiceRendersRecipientLanguage(t *testing.T) {
 	}
 }
 
+func TestNotificationTemplateServiceSelectsLocaleQualifiedContent(t *testing.T) {
+	db := setupNotificationTemplateTestDB(t)
+	seedNotificationTemplateUser(t, db, 1, 603, "en-US")
+
+	item := newNotificationTemplateCase("sla_warning", "中文标题", "中文正文", 603)
+	if err := services.NotificationTemplateService.ApplyToNotification(item, 603, map[string]string{
+		"TicketNo":      "TK-8",
+		"Content.zh-CN": "中文正文",
+		"Content.en-US": "First response target: 30 minutes; approximately 5 minutes remain.",
+	}); err != nil {
+		t.Fatalf("apply localized content: %v", err)
+	}
+	if item.Language != "en-US" || !strings.Contains(item.Content, "First response target") || strings.Contains(item.Content, "中文正文") {
+		t.Fatalf("expected recipient-language content, got %q (%s)", item.Content, item.Language)
+	}
+}
+
 func TestNotificationTemplateServiceFallsBackToBuiltInGenericTemplate(t *testing.T) {
 	db := setupNotificationTemplateTestDB(t)
 	seedNotificationTemplateUser(t, db, 1, 801, "zh-CN")

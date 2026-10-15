@@ -136,6 +136,10 @@ type SLAWarningEvent struct {
 	Severity      string // warning / breach / critical
 	TargetMinutes int
 	ActualMinutes int
+	// RemainingMinutes is the estimated effective SLA time left. Older
+	// persisted events may omit it; consumers should derive it from the
+	// target and actual values when it is zero.
+	RemainingMinutes int
 }
 
 // SecurityAlertEvent 安全告警事件

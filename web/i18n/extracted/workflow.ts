@@ -3,6 +3,30 @@ import type { ExtractedMessages } from "./types"
 export const workflowMessages = {
   "zh-CN": {
     "workflowExtract": {
+      "validation": {
+        "nodeIdRequired": "节点 ID 不能为空",
+        "duplicateNodeId": "节点 ID 重复：{id}",
+        "errorTargetMissing": "{node} 的异常兜底目标节点不存在。",
+        "startNodeCount": "流程必须且只能包含一个开始节点。",
+        "endNodeRequired": "流程至少需要一个结束节点。",
+        "edgeIdRequired": "连线 ID 不能为空",
+        "duplicateEdgeId": "连线 ID 重复：{id}",
+        "edgeSourceMissing": "连线的起始节点不存在：{source}",
+        "edgeTargetMissing": "连线的目标节点不存在：{target}",
+        "errorTargetNeedsEdge": "{node} 需要一条连到异常兜底目标的连线。",
+        "requiredInputMissing": "{node} 缺少必填输入“{input}”，请选择上游输出变量。",
+        "conditionBranchRequired": "{node} 至少需要一个分支。",
+        "unnamedBranch": "未命名分支",
+        "branchIdRequired": "{node} 有分支缺少 ID。",
+        "duplicateBranchId": "{node} 的分支 ID“{branchId}”重复。",
+        "branchTargetRequired": "{node} 的分支“{branch}”缺少目标节点。",
+        "branchTargetMissing": "{node} 的分支“{branch}”的目标节点不存在。",
+        "branchNeedsEdge": "{node} 的分支“{branch}”需要一条连到目标节点的连线。",
+        "defaultBranchNoCondition": "{node} 的默认分支不能设置条件。",
+        "branchVariableRequired": "{node} 的分支“{branch}”缺少条件变量。",
+        "branchOperatorRequired": "{node} 的分支“{branch}”缺少条件运算符。",
+        "defaultBranchCount": "{node} 必须且只能有一个默认分支。"
+      },
       "enterpriseWorkflowList": {
         "kind": {
           "platform": {
@@ -839,6 +863,30 @@ export const workflowMessages = {
   },
   "en-US": {
     "workflowExtract": {
+      "validation": {
+        "nodeIdRequired": "Node ID is required",
+        "duplicateNodeId": "Duplicate node ID: {id}",
+        "errorTargetMissing": "{node} has an error fallback target that does not exist.",
+        "startNodeCount": "The flow must contain exactly one start node.",
+        "endNodeRequired": "The flow needs at least one end node.",
+        "edgeIdRequired": "Edge ID is required",
+        "duplicateEdgeId": "Duplicate edge ID: {id}",
+        "edgeSourceMissing": "Edge source node does not exist: {source}",
+        "edgeTargetMissing": "Edge target node does not exist: {target}",
+        "errorTargetNeedsEdge": "{node} needs an edge to the error fallback target.",
+        "requiredInputMissing": "{node} is missing required input \"{input}\". Select an upstream output variable.",
+        "conditionBranchRequired": "{node} needs at least one branch.",
+        "unnamedBranch": "Unnamed branch",
+        "branchIdRequired": "{node} has a branch without an ID.",
+        "duplicateBranchId": "{node} has duplicate branch ID \"{branchId}\".",
+        "branchTargetRequired": "{node} branch \"{branch}\" is missing a target node.",
+        "branchTargetMissing": "{node} branch \"{branch}\" target node does not exist.",
+        "branchNeedsEdge": "{node} branch \"{branch}\" needs an edge to the target node.",
+        "defaultBranchNoCondition": "{node} default branch cannot have conditions.",
+        "branchVariableRequired": "{node} branch \"{branch}\" is missing a condition variable.",
+        "branchOperatorRequired": "{node} branch \"{branch}\" is missing a condition operator.",
+        "defaultBranchCount": "{node} must have exactly one default branch."
+      },
       "enterpriseWorkflowList": {
         "kind": {
           "platform": {
@@ -1675,6 +1723,30 @@ export const workflowMessages = {
   },
   "es-ES": {
     "workflowExtract": {
+      "validation": {
+        "nodeIdRequired": "El ID del nodo es obligatorio",
+        "duplicateNodeId": "ID de nodo duplicado: {id}",
+        "errorTargetMissing": "{node} tiene un nodo de respaldo de error que no existe.",
+        "startNodeCount": "El flujo debe contener exactamente un nodo de inicio.",
+        "endNodeRequired": "El flujo necesita al menos un nodo final.",
+        "edgeIdRequired": "El ID de la conexión es obligatorio",
+        "duplicateEdgeId": "ID de conexión duplicado: {id}",
+        "edgeSourceMissing": "El nodo de origen de la conexión no existe: {source}",
+        "edgeTargetMissing": "El nodo de destino de la conexión no existe: {target}",
+        "errorTargetNeedsEdge": "{node} necesita una conexión hacia el nodo de respaldo de error.",
+        "requiredInputMissing": "A {node} le falta la entrada obligatoria \"{input}\". Selecciona una variable de salida anterior.",
+        "conditionBranchRequired": "{node} necesita al menos una rama.",
+        "unnamedBranch": "Rama sin nombre",
+        "branchIdRequired": "{node} tiene una rama sin ID.",
+        "duplicateBranchId": "{node} tiene el ID de rama duplicado \"{branchId}\".",
+        "branchTargetRequired": "A la rama \"{branch}\" de {node} le falta el nodo de destino.",
+        "branchTargetMissing": "El nodo de destino de la rama \"{branch}\" de {node} no existe.",
+        "branchNeedsEdge": "La rama \"{branch}\" de {node} necesita una conexión hacia el nodo de destino.",
+        "defaultBranchNoCondition": "La rama predeterminada de {node} no puede tener condiciones.",
+        "branchVariableRequired": "A la rama \"{branch}\" de {node} le falta la variable de condición.",
+        "branchOperatorRequired": "A la rama \"{branch}\" de {node} le falta el operador de condición.",
+        "defaultBranchCount": "{node} debe tener exactamente una rama predeterminada."
+      },
       "enterpriseWorkflowList": {
         "kind": {
           "platform": {

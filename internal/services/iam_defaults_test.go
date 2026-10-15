@@ -121,3 +121,20 @@ func TestKnowledgeReviewPermissionsUseGovernedRoles(t *testing.T) {
 		t.Errorf("enterprise admin must not publish knowledge without the knowledge manager or service manager role")
 	}
 }
+
+func TestPersonalQualityPermissionsUseManagerRoles(t *testing.T) {
+	permissionsByRole := make(map[string][]string)
+	for _, spec := range tenantDefaultRoleSpecs() {
+		permissionsByRole[spec.Code] = spec.Permissions
+	}
+	for _, permission := range []string{constants.PermissionTicketQualityViewAgent.Code, constants.PermissionTicketQualityDisputeReview.Code} {
+		for _, roleCode := range []string{EnterpriseRoleOwner, EnterpriseRoleAdmin, EnterpriseRoleServiceManager} {
+			if !slices.Contains(permissionsByRole[roleCode], permission) {
+				t.Errorf("role %q missing %q", roleCode, permission)
+			}
+		}
+		if slices.Contains(permissionsByRole[EnterpriseRoleEngineer], permission) {
+			t.Errorf("engineer unexpectedly includes %q", permission)
+		}
+	}
+}

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -235,6 +236,17 @@ func TestSLAWarningScanEnqueuesRiskEventIdempotently(t *testing.T) {
 	}
 	if riskEventCount != 1 {
 		t.Fatalf("sla risk event count = %d, want 1", riskEventCount)
+	}
+	var riskEvent models.DomainEvent
+	if err := db.Where("event_type = ? AND idempotency_key LIKE ?", events.EventSLAWarning, "%:sla.risk:%").First(&riskEvent).Error; err != nil {
+		t.Fatalf("load sla risk event: %v", err)
+	}
+	var payload events.SLAWarningEvent
+	if err := json.Unmarshal([]byte(riskEvent.Payload), &payload); err != nil {
+		t.Fatalf("decode sla risk event payload: %v", err)
+	}
+	if payload.ActualMinutes != 8 || payload.TargetMinutes != 10 || payload.RemainingMinutes != 2 {
+		t.Fatalf("unexpected sla risk timing payload: %+v", payload)
 	}
 	var outboxCount int64
 	if err := db.Model(&models.OutboxRecord{}).Where("event_type = ?", events.EventSLAWarning).Count(&outboxCount).Error; err != nil {

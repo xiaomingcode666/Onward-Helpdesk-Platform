@@ -317,7 +317,14 @@ func (s *platformAIModelService) ListSub2APIUserKeys(ctx context.Context, userID
 	if err != nil {
 		return nil, err
 	}
-	if _, ok := platformSub2APIUserIDs(accounts)[userID]; !ok {
+	var account *models.Sub2APITenantAccount
+	for i := range accounts {
+		if parseInt64(accounts[i].Sub2APIAccountID) == userID && accounts[i].Status != enums.StatusDeleted {
+			account = &accounts[i]
+			break
+		}
+	}
+	if account == nil {
 		return nil, errorsx.Forbidden("sub2api account is not bound to this platform")
 	}
 	host, adminAPIKey, _, _, err := s.resolveProviderConfig()
@@ -334,6 +341,22 @@ func (s *platformAIModelService) ListSub2APIUserKeys(ctx context.Context, userID
 	resp, err := provider.AdminListUserKeys(ctx, adminAPIKey, userID, defaultTimezone(timezone))
 	if err != nil {
 		return nil, err
+	}
+	legacyDefaultKeyVisible := false
+	for i := range resp.Data.Items {
+		if isLegacyTenantDefaultKey(account, &resp.Data.Items[i]) {
+			legacyDefaultKeyVisible = true
+			break
+		}
+	}
+	if legacyDefaultKeyVisible {
+		token, _, tokenErr := s.ensureAccessToken(ctx, provider, account, nil)
+		if tokenErr != nil {
+			return nil, tokenErr
+		}
+		if renameErr := EnterpriseAIModelService.renameLegacyTenantDefaultKey(ctx, provider, token, account, resp.Data.Items); renameErr != nil {
+			return nil, renameErr
+		}
 	}
 	return &PlatformSub2APIUserKeyListAggregate{
 		GeneratedAt: time.Now(),
@@ -548,7 +571,7 @@ func (s *platformAIModelService) ProvisionTenant(req request.PlatformAITenantPro
 		}
 	}
 	desiredQuota := normalizedQuota(account.Balance)
-	defaultKeyName := defaultSub2APIKeyName(tenant.Name)
+	defaultKeyName := defaultSub2APIKeyName(tenant.ID, tenant.Name)
 	key, err := s.ensureRemoteTenantDefaultKey(
 		context.Background(),
 		sub2API,
@@ -1170,7 +1193,7 @@ func sub2APIAccountNeedsAttention(account *models.Sub2APITenantAccount) bool {
 		strings.TrimSpace(account.ProvisionStatus) != "active" ||
 		strings.TrimSpace(account.DefaultKeyID) == "" ||
 		strings.TrimSpace(account.DefaultKeyCiphertext) == "" ||
-		!strings.EqualFold(strings.TrimSpace(account.DefaultKeyName), defaultSub2APIKeyName(account.AccountName)) ||
+		!strings.EqualFold(strings.TrimSpace(account.DefaultKeyName), defaultSub2APIKeyName(account.TenantID, account.AccountName)) ||
 		account.DefaultKeyGroupID != platformSub2APIDefaultKeyGroupID ||
 		!strings.EqualFold(strings.TrimSpace(account.DefaultKeyStatus), "active") ||
 		!sub2APIAccountHasLoginCredentials(account)
@@ -1252,8 +1275,46 @@ func defaultTimezone(timezone string) string {
 	return timezone
 }
 
-func defaultSub2APIKeyName(tenantName string) string {
-	return strings.TrimSpace(tenantName) + "默认key"
+func defaultSub2APIKeyName(tenantID int64, tenantName string) string {
+	companySlug := englishCompanyKeySlug(tenantName)
+	if companySlug == "" {
+		companySlug = fmt.Sprintf("ID-%d", tenantID)
+	}
+	return "RHD-COMPANY-" + companySlug + "-DEFAULT"
+}
+
+func englishCompanyKeySlug(value string) string {
+	var builder strings.Builder
+	lastWasSeparator := true
+	for _, r := range strings.ToUpper(strings.TrimSpace(value)) {
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			builder.WriteRune(r)
+			lastWasSeparator = false
+			continue
+		}
+		if !lastWasSeparator {
+			builder.WriteByte('-')
+			lastWasSeparator = true
+		}
+	}
+	slug := strings.Trim(builder.String(), "-")
+	if len(slug) > 80 {
+		slug = strings.TrimRight(slug[:80], "-")
+	}
+	return slug
+}
+
+func isLegacyTenantDefaultKey(account *models.Sub2APITenantAccount, key *providers.Sub2APIKey) bool {
+	if account == nil || key == nil {
+		return false
+	}
+	localName := strings.TrimSpace(key.Name)
+	if !strings.Contains(localName, "默认key") {
+		return false
+	}
+	legacyName := strings.TrimSpace(account.AccountName) + "默认key"
+	return strings.EqualFold(localName, legacyName) ||
+		strings.EqualFold(localName, strings.TrimSpace(account.DefaultKeyName))
 }
 
 func (s *platformAIModelService) ensureRemoteTenantDefaultKey(
@@ -1353,6 +1414,16 @@ func selectTenantDefaultSub2APIKey(
 	localID := int64(0)
 	if account != nil {
 		localID = parseInt64(account.DefaultKeyID)
+	}
+	// Reuse a legacy Chinese default key once so provisioning can rename it in place.
+	// Product keys are intentionally excluded unless their name matches the old tenant
+	// default naming convention.
+	if localID > 0 && account != nil {
+		if local := findSub2APIKey(keys, localID); local != nil {
+			if isLegacyTenantDefaultKey(account, local) {
+				return local, 1
+			}
+		}
 	}
 	candidates := make([]*providers.Sub2APIKey, 0)
 	for i := range keys {

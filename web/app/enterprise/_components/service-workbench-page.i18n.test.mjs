@@ -110,7 +110,7 @@ test("enterprise service workbench keeps split APIs, pagination, and module load
 test("enterprise service workbench keeps task queue copy concise", async () => {
   const source = await readFile(new URL("./service-workbench-page.tsx", import.meta.url), "utf8")
 
-  assert.doesNotMatch(source, /queueDescription/)
+  assert.match(source, /queueDescription/)
   assert.doesNotMatch(source, /enterpriseWorkbench\.queue\.emptyDescription/)
   assert.doesNotMatch(source, /enterpriseWorkbench\.kpi\.[^"]*Meta/)
   assert.doesNotMatch(source, /enterpriseWorkbench\.quality\.(slaRiskMeta|aiSessions|newTodayMeta|pending)/)
@@ -128,7 +128,7 @@ test("enterprise service workbench keeps task queue copy concise", async () => {
     assert.equal(queue.emptyDescription, undefined, `${locale} should not keep queue.emptyDescription`)
 
     for (const key of ["sla_risk", "unassigned", "pending", "processing", "awaiting_customer", "urgent"]) {
-      assert.equal(queue[key]?.description, undefined, `${locale} should not keep queue.${key}.description`)
+      assert.equal(typeof queue[key]?.description, "string", `${locale} missing queue.${key}.description`)
     }
     for (const key of Object.keys(kpi)) {
       assert.equal(/Meta$/.test(key), false, `${locale} should not keep kpi.${key}`)

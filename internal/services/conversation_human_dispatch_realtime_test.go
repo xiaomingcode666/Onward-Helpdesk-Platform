@@ -120,7 +120,11 @@ func captureHumanDispatchRealtimeSession(t *testing.T, topics ...string) *Client
 		Topics: map[string]struct{}{},
 		Send:   make(chan []byte, 32),
 	}
-	WsService.manager.Register(session, topics)
+	manager := WsService.manager
+	manager.Register(session, topics)
+	// The realtime registry is process-global; leaving admin topics behind marks
+	// those users online for every later test in the same package run.
+	t.Cleanup(func() { manager.Unregister(session) })
 	return session
 }
 

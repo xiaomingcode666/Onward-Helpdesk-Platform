@@ -154,7 +154,7 @@ export default function DashboardKnowledgeDocumentsPage() {
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
                 <UnderlineTabs
-                  ariaLabel={t("knowledge.tabsLabel") || t("miscTailExtract.dashboardMisc.knowledge.tabsAriaFallback")}
+                  ariaLabel={t("miscTailExtract.dashboardMisc.knowledge.tabsAriaFallback")}
                   items={knowledgeTabs}
                   value={activeTab}
                   onChange={setActiveTab}

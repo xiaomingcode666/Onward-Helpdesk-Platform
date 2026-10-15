@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { aiAgentOptionLabel } from "@/lib/ai-agent-label"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Controller, Resolver, useForm, useWatch } from "react-hook-form"
 import { z } from "zod/v4"
@@ -360,6 +361,7 @@ function ChannelFormBody({
   const channelType = useWatch({ control, name: "channelType" })
   const aiAgentId = useWatch({ control, name: "aiAgentId" })
   const openKfId = useWatch({ control, name: "openKfId" })
+  const channelName = useWatch({ control, name: "name" })
   const userTokenSecret = useWatch({ control, name: "userTokenSecret" })
   const secretRefs = useWatch({ control, name: ["metaAccessTokenSecretRef", "metaAppSecretSecretRef", "webhookVerifyTokenSecretRef"] })
   const secretRefByKey: Record<WhatsAppSecretKey, string> = {
@@ -454,8 +456,8 @@ function ChannelFormBody({
   const aiAgentOptions = availableAIAgents.map((item) => ({
     value: String(item.id),
     label: isAgentWorkflowPublished(item)
-      ? t("miscTailExtract.dashboardMisc.channels.effectiveVersion", { name: item.name, version: item.workflowVersionId })
-      : t("miscTailExtract.dashboardMisc.channels.unpublished", { name: item.name }),
+      ? t("miscTailExtract.dashboardMisc.channels.effectiveVersion", { name: aiAgentOptionLabel(item.productName, item.name), version: item.workflowVersionId })
+      : t("miscTailExtract.dashboardMisc.channels.unpublished", { name: aiAgentOptionLabel(item.productName, item.name) }),
     icon: <ShieldCheckIcon className="size-4" />,
   }))
   const wxWorkKFAccountOptions = wxWorkKFAccounts.map((item) => ({
@@ -569,7 +571,7 @@ function ChannelFormBody({
             <Field data-invalid={!!errors.name}>
               <FieldLabel htmlFor="channel-name">{t("channel.name")}</FieldLabel>
               <FieldContent>
-                <Input id="channel-name" {...register("name")} />
+                <Input id="channel-name" {...register("name")} value={channelName} />
                 <FieldError errors={[errors.name]} />
               </FieldContent>
             </Field>

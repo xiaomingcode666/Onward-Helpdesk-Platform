@@ -470,7 +470,8 @@ export const enterpriseMessages = {
         "text330": "总处理时间",
         "text331": "供应商等待",
         "text332": "供应商等待中",
-        "text333": "责任处理时间"
+        "text333": "责任处理时间",
+        "meetingRestartHint": "{status}，请重新发起视频协作。"
       },
       "reports": {
         "pageTitle": "售后服务报表",
@@ -656,7 +657,8 @@ export const enterpriseMessages = {
           "avgHandleTime": "平均处理",
           "satisfaction": "满意度",
           "meetings": "会议数",
-          "fileName": "售后服务报表-{value0}-{value1}-{value2}.csv"
+          "fileName": "售后服务报表-{value0}-{value1}-{value2}.csv",
+          "device": "设备"
         },
         "tables": {
           "noRating": "暂无评分",
@@ -1102,7 +1104,32 @@ export const enterpriseMessages = {
         "text165": "删除指标 {value0}",
         "text166": "待接入",
         "text167": "发件通道加载中",
-        "text168": "连接器加载中"
+        "text168": "连接器加载中",
+        "text169": "WhatsApp 项目接入",
+        "text170": "默认关闭",
+        "text171": "为项目配置独立 Chatwoot Community Core 与官方 WhatsApp Cloud API",
+        "text172": "已配置账号：{value0}，点击修改将在原配置上更新。",
+        "text173": "填写 WhatsApp Cloud API 参数后保存，系统即可建立该账号配置。",
+        "text174": "修改 WhatsApp 配置",
+        "text175": "配置 WhatsApp 账号",
+        "text176": "邮箱统一由新版运营配置管理，旧版表单已停用。请到工单页面的“运营配置”中修改 SMTP、IMAP 和授权码。",
+        "text177": "打开运营配置",
+        "text178": "IMAP 收件服务器",
+        "text179": "IMAP 端口",
+        "text180": "IMAP 账号",
+        "text181": "IMAP 授权码",
+        "text182": "已配置，留空保持不变",
+        "text183": "请输入授权码",
+        "text184": "启用自动收件",
+        "text185": "首次连接只建立起点，不导入旧邮件；随后每分钟收取新邮件并建单。附件暂不导入，请在原邮箱查看。",
+        "text186": "正在连接收件…",
+        "text187": "连接并收取",
+        "text188": "本次处理 {value0} 封。",
+        "text189": "收件失败",
+        "text190": "收件检查失败，请稍后重试",
+        "text191": "WhatsApp 账号配置已保存",
+        "text192": "WhatsApp 账号保存失败",
+        "text193": "待人工检查：{value0} 封（请到原邮箱查看，避免误关联工单）。"
       },
       "aiServiceCenter": {
         "text001": "进入待接入池",
@@ -1804,6 +1831,14 @@ export const enterpriseMessages = {
         "text018": "租户管理员",
         "text019": "授权协助",
         "text020": "维修工程师"
+      },
+      "products": {
+        "columnStatus": "状态",
+        "productCount": "共 {count} 个产品",
+        "empty": "暂无产品",
+        "archiveLoadingAria": "正在加载产品档案",
+        "knowledgeStatsLoading": "正在加载知识统计",
+        "sectionLoadingAria": "正在加载{title}"
       }
     },
     "products": {
@@ -2284,7 +2319,8 @@ export const enterpriseMessages = {
         "text330": "End-to-end",
         "text331": "Supplier wait",
         "text332": "Waiting for supplier",
-        "text333": "Accountable"
+        "text333": "Accountable",
+        "meetingRestartHint": "{status}. Start a new video collaboration."
       },
       "reports": {
         "pageTitle": "After-sales reports",
@@ -2470,7 +2506,8 @@ export const enterpriseMessages = {
           "avgHandleTime": "Average handle",
           "satisfaction": "Satisfaction",
           "meetings": "Meetings",
-          "fileName": "after-sales-reports-{value0}-{value1}-{value2}.csv"
+          "fileName": "after-sales-reports-{value0}-{value1}-{value2}.csv",
+          "device": "Device"
         },
         "tables": {
           "noRating": "No rating yet",
@@ -2916,7 +2953,32 @@ export const enterpriseMessages = {
         "text165": "delete metric {value0}",
         "text166": "Pending integration",
         "text167": "Loading outbound mail channel",
-        "text168": "Loading connectors"
+        "text168": "Loading connectors",
+        "text169": "WhatsApp project integration",
+        "text170": "Disabled by default",
+        "text171": "Configure a dedicated Chatwoot Community Core and official WhatsApp Cloud API for this project",
+        "text172": "Configured account: {value0}. Editing updates the existing configuration.",
+        "text173": "Save the WhatsApp Cloud API parameters to create this account configuration.",
+        "text174": "Edit WhatsApp configuration",
+        "text175": "Configure WhatsApp account",
+        "text176": "Email is managed by the new operational configuration. The legacy form is disabled. Update SMTP, IMAP, and credentials from “Operational configuration” on the ticket page.",
+        "text177": "Open operational configuration",
+        "text178": "IMAP incoming server",
+        "text179": "IMAP port",
+        "text180": "IMAP account",
+        "text181": "IMAP app password",
+        "text182": "Saved; leave blank to keep unchanged",
+        "text183": "Enter an app password",
+        "text184": "Enable automatic mail intake",
+        "text185": "The first connection only sets the starting point. New mail is fetched every minute and converted into tickets. Attachments are not imported; view them in the original mailbox.",
+        "text186": "Connecting to mailbox…",
+        "text187": "Connect and receive",
+        "text188": "Processed {value0} messages.",
+        "text189": "Mail intake failed",
+        "text190": "Mail intake check failed. Please try again later.",
+        "text191": "WhatsApp account configuration saved",
+        "text192": "Failed to save WhatsApp account configuration",
+        "text193": "Manual review required: {value0} pending messages. Check the original mailbox to avoid incorrect ticket association."
       },
       "aiServiceCenter": {
         "text001": "Move to pending integration pool",
@@ -3618,6 +3680,14 @@ export const enterpriseMessages = {
         "text018": "Tenant administrator",
         "text019": "Authorized support",
         "text020": "Repair engineer"
+      },
+      "products": {
+        "columnStatus": "Status",
+        "productCount": "{count} products",
+        "empty": "No products yet",
+        "archiveLoadingAria": "Loading product profile",
+        "knowledgeStatsLoading": "Loading knowledge statistics",
+        "sectionLoadingAria": "Loading {title}"
       }
     },
     "products": {
@@ -4098,7 +4168,8 @@ export const enterpriseMessages = {
         "text330": "Tiempo total",
         "text331": "Espera de proveedor",
         "text332": "Esperando proveedor",
-        "text333": "Tiempo responsable"
+        "text333": "Tiempo responsable",
+        "meetingRestartHint": "{status}. Inicia una nueva colaboración por vídeo."
       },
       "reports": {
         "pageTitle": "Informes de posventa",
@@ -4284,7 +4355,8 @@ export const enterpriseMessages = {
           "avgHandleTime": "Manejo medio",
           "satisfaction": "Satisfaccion",
           "meetings": "Reuniones",
-          "fileName": "informes-posventa-{value0}-{value1}-{value2}.csv"
+          "fileName": "informes-posventa-{value0}-{value1}-{value2}.csv",
+          "device": "Dispositivo"
         },
         "tables": {
           "noRating": "Sin valoracion",
@@ -4730,7 +4802,32 @@ export const enterpriseMessages = {
         "text165": "eliminar metrica {value0}",
         "text166": "texto access 166",
         "text167": "Cargando canal de envio",
-        "text168": "Cargando conectores"
+        "text168": "Cargando conectores",
+        "text169": "Integración de proyecto de WhatsApp",
+        "text170": "Desactivado de forma predeterminada",
+        "text171": "Configura un Chatwoot Community Core independiente y la API oficial de WhatsApp Cloud para este proyecto",
+        "text172": "Cuenta configurada: {value0}. Al editar se actualizará la configuración existente.",
+        "text173": "Guarda los parámetros de WhatsApp Cloud API para crear esta configuración.",
+        "text174": "Editar configuración de WhatsApp",
+        "text175": "Configurar cuenta de WhatsApp",
+        "text176": "El correo se gestiona desde la nueva configuración operativa. El formulario antiguo está desactivado. Actualiza SMTP, IMAP y las credenciales desde la configuración operativa de la página de tickets.",
+        "text177": "Abrir configuración operativa",
+        "text178": "Servidor entrante IMAP",
+        "text179": "Puerto IMAP",
+        "text180": "Cuenta IMAP",
+        "text181": "Contraseña de aplicación IMAP",
+        "text182": "Guardado; deja vacío para mantenerlo sin cambios",
+        "text183": "Introduce la contraseña de aplicación",
+        "text184": "Activar recepción automática de correo",
+        "text185": "La primera conexión solo establece el punto inicial. El correo nuevo se recibe cada minuto y se convierte en tickets. Los adjuntos no se importan; consúltalos en el buzón original.",
+        "text186": "Conectando al buzón…",
+        "text187": "Conectar y recibir",
+        "text188": "Procesados {value0} mensajes.",
+        "text189": "Falló la recepción de correo",
+        "text190": "Falló la comprobación de recepción. Inténtalo más tarde.",
+        "text191": "Configuración de la cuenta de WhatsApp guardada",
+        "text192": "No se pudo guardar la configuración de la cuenta de WhatsApp",
+        "text193": "Revisión manual necesaria: {value0} mensajes pendientes. Consulta el buzón original para evitar asociar tickets incorrectamente."
       },
       "aiServiceCenter": {
         "text001": "Mover al grupo pendiente de integracion",
@@ -5432,6 +5529,14 @@ export const enterpriseMessages = {
         "text018": "Administrador del inquilino",
         "text019": "Asistencia autorizada",
         "text020": "Ingeniero de reparacion"
+      },
+      "products": {
+        "columnStatus": "Estado",
+        "productCount": "{count} productos",
+        "empty": "Aún no hay productos",
+        "archiveLoadingAria": "Cargando ficha del producto",
+        "knowledgeStatsLoading": "Cargando estadísticas de conocimiento",
+        "sectionLoadingAria": "Cargando {title}"
       }
     },
     "products": {

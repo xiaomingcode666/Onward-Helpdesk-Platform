@@ -12,9 +12,8 @@ import {
   SaveIcon,
   SparklesIcon,
 } from "lucide-react"
-import { RailopsButton, StatusTag, type StatusTagTone } from "@railops/ui"
+import { RailopsButton, StatusTag } from "@railops/ui"
 
-import { translateCurrentMessage } from "@/i18n/messages"
 import { useAppLocale } from "@/i18n/provider"
 import {
   createTicketQualityReview,
@@ -25,32 +24,19 @@ import {
   type TicketQualityReview,
   type TicketQualityScorecard,
 } from "@/lib/api/enterprise-tickets"
+import {
+  effectiveQualityOutcome,
+  qualityCriterionLabel as criterionLabel,
+  qualityResultLabel as resultLabel,
+  qualityResultTone as resultTone,
+  qualityReviewText as qt,
+  TicketQualityReviewDetail,
+} from "./ticket-quality-review-detail"
 
 type Props = {
   ticketID: number
   sampleID?: number
   onSubmitted?: (review: TicketQualityReview) => Promise<void> | void
-}
-
-function qt(key: string, values?: Record<string, string | number>) {
-  return translateCurrentMessage(`ticketQuality.review.${key}`, values)
-}
-
-function resultTone(result: string): StatusTagTone {
-  if (result === "pass") return "success"
-  if (result === "needs_improvement") return "warning"
-  return "error"
-}
-
-function resultLabel(result: string) {
-  if (result === "pass") return qt("result.pass")
-  if (result === "needs_improvement") return qt("result.needsImprovement")
-  return qt("result.fail")
-}
-
-function criterionLabel(code: string, fallback: string) {
-  const value = qt(`criteria.${code}`)
-  return value.includes(`criteria.${code}`) ? fallback : value
 }
 
 function qualityResult(total: number, max: number) {
@@ -68,10 +54,8 @@ export function TicketQualityPanel({ ticketID, sampleID, onSubmitted }: Props) {
   const [reviews, setReviews] = useState<TicketQualityReview[]>([])
   const [answers, setAnswers] = useState<Record<string, number>>({})
   const [remark, setRemark] = useState("")
-  const [defectCodes, setDefectCodes] = useState("")
+  const [defectCodes, setDefectCodes] = useState<string[]>([])
   const [evidence, setEvidence] = useState("")
-  const [disputeStatus, setDisputeStatus] = useState("none")
-  const [disputeNote, setDisputeNote] = useState("")
   const [coachingAction, setCoachingAction] = useState("")
   const [showAssessment, setShowAssessment] = useState(true)
   const [scoreDetailsOpen, setScoreDetailsOpen] = useState(false)
@@ -97,11 +81,9 @@ export function TicketQualityPanel({ ticketID, sampleID, onSubmitted }: Props) {
       setReviews(reviewItems)
       setAssessment(assessmentResponse.data)
       setAnswers(assessmentResponse.data.answers)
-      setDefectCodes(assessmentResponse.data.defect_codes.join(", "))
+      setDefectCodes(assessmentResponse.data.defect_codes)
       setEvidence("")
       setRemark("")
-      setDisputeStatus("none")
-      setDisputeNote("")
       setCoachingAction("")
       setShowAssessment(reviewItems.length === 0)
     } catch (cause) {
@@ -117,6 +99,11 @@ export function TicketQualityPanel({ ticketID, sampleID, onSubmitted }: Props) {
   const max = scorecard?.items.reduce((sum, item) => sum + item.max, 0) ?? assessment?.max_score ?? 18
   const result = qualityResult(total, max)
   const latestReview = reviews[0]
+  const scorecardCodes = useMemo(() => new Set(scorecard?.items.map((item) => item.code) ?? []), [scorecard])
+  // Only codes from the active scorecard are accepted by the server.
+  const selectedDefects = defectCodes.filter((code) => scorecardCodes.has(code))
+  const needsIssues = result !== "pass"
+  const toggleDefect = (code: string) => setDefectCodes((current) => (current.includes(code) ? current.filter((value) => value !== code) : [...current, code]))
   const generatedEvidence = useMemo(() => {
     // The translator reads the active catalog globally; consuming locale keeps generated evidence reactive.
     void locale
@@ -133,6 +120,15 @@ export function TicketQualityPanel({ ticketID, sampleID, onSubmitted }: Props) {
       setError(qt("evidenceRequired"))
       return
     }
+    // A result below pass must say what went wrong and how to improve.
+    if (result !== "pass" && selectedDefects.length === 0) {
+      setError(qt("defectRequired"))
+      return
+    }
+    if (result !== "pass" && (!coachingAction.trim() || coachingAction.trim() === qt("noCoaching"))) {
+      setError(qt("coachingRequired"))
+      return
+    }
     setSaving(true)
     setError("")
     setSaved(false)
@@ -141,12 +137,10 @@ export function TicketQualityPanel({ ticketID, sampleID, onSubmitted }: Props) {
         sample_id: sampleID,
         answers,
         remark,
-        defect_codes: defectCodes.split(",").map((value) => value.trim()).filter(Boolean),
+        defect_codes: selectedDefects,
         evidence: finalEvidence,
-        dispute_status: disputeStatus,
-        dispute_note: disputeNote,
         outcome: result,
-        coaching_action: coachingAction.trim() || qt("noCoaching"),
+        coaching_action: coachingAction.trim(),
       })
       if (!response.success) throw new Error(response.error?.message || qt("saveFailed"))
       setSaved(true)
@@ -157,6 +151,26 @@ export function TicketQualityPanel({ ticketID, sampleID, onSubmitted }: Props) {
     } finally {
       setSaving(false)
     }
+  }
+
+  function renderIssuesFields() {
+    return (
+      <fieldset className="space-y-3 rounded-md border border-border p-3" data-testid="ticket-quality-issues">
+        <legend className="px-1 text-sm font-medium">{qt("issuesAndCoaching")}{needsIssues ? <span className="ml-1 text-xs text-red-600">*{qt("required")}</span> : null}</legend>
+        <div>
+          <div className="text-xs text-muted-foreground">{qt("defectTypes")}</div>
+          <div className="mt-1 grid gap-1 sm:grid-cols-3">
+            {scorecard?.items.map((item) => (
+              <label key={item.code} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={selectedDefects.includes(item.code)} onChange={() => toggleDefect(item.code)} />
+                {criterionLabel(item.code, item.title)}
+              </label>
+            ))}
+          </div>
+        </div>
+        <label className="block text-xs text-muted-foreground">{qt("coaching")}<textarea className="mt-1 min-h-16 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground" value={coachingAction} onChange={(event) => setCoachingAction(event.target.value)} placeholder={needsIssues ? qt("coachingPlaceholder") : qt("noCoaching")} /></label>
+      </fieldset>
+    )
   }
 
   if (loading) {
@@ -185,7 +199,7 @@ export function TicketQualityPanel({ ticketID, sampleID, onSubmitted }: Props) {
               <div className="text-xs text-muted-foreground">{qt("latestResult")}</div>
               <div className="mt-1 flex items-center gap-2">
                 <span className="text-2xl font-semibold tabular-nums">{latestReview.total_score}/{latestReview.max_score}</span>
-                <StatusTag tone={resultTone(latestReview.outcome || latestReview.result)}>{resultLabel(latestReview.outcome || latestReview.result)}</StatusTag>
+                <StatusTag tone={resultTone(effectiveQualityOutcome(latestReview))}>{resultLabel(effectiveQualityOutcome(latestReview))}</StatusTag>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">{new Date(latestReview.reviewed_at).toLocaleString(locale, { hour12: false })}</div>
             </div>
@@ -248,17 +262,16 @@ export function TicketQualityPanel({ ticketID, sampleID, onSubmitted }: Props) {
             <textarea className="mt-1 min-h-16 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground" placeholder={qt("remarkPlaceholder")} value={remark} onChange={(event) => setRemark(event.target.value)} />
           </label>
 
+          {needsIssues ? renderIssuesFields() : null}
+
           <button type="button" className="flex w-full items-center justify-between border-b border-border py-2 text-left text-sm font-medium" onClick={() => setAdvancedOpen((value) => !value)}>
             <span>{qt("advanced")}</span>
             {advancedOpen ? <ChevronUpIcon className="size-4" /> : <ChevronDownIcon className="size-4" />}
           </button>
           {advancedOpen ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs text-muted-foreground">{qt("defectCodes")}<input className="mt-1 h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground" value={defectCodes} onChange={(event) => setDefectCodes(event.target.value)} placeholder={qt("defectCodesPlaceholder")} /></label>
-              <label className="text-xs text-muted-foreground">{qt("coaching")}<input className="mt-1 h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground" value={coachingAction} onChange={(event) => setCoachingAction(event.target.value)} placeholder={qt("noCoaching")} /></label>
-              <label className="text-xs text-muted-foreground">{qt("disputeStatus")}<select className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground" value={disputeStatus} onChange={(event) => setDisputeStatus(event.target.value)}><option value="none">{qt("dispute.none")}</option><option value="open">{qt("dispute.open")}</option><option value="resolved">{qt("dispute.resolved")}</option></select></label>
-              {disputeStatus !== "none" ? <label className="text-xs text-muted-foreground">{qt("disputeNote")}<input className="mt-1 h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground" value={disputeNote} onChange={(event) => setDisputeNote(event.target.value)} /></label> : null}
-              <label className="text-xs text-muted-foreground sm:col-span-2">{qt("evidenceLabel")}<textarea className="mt-1 min-h-24 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground" value={evidence} onChange={(event) => setEvidence(event.target.value)} placeholder={generatedEvidence || qt("evidencePlaceholder")} /></label>
+            <div className="grid gap-3">
+              {needsIssues ? null : renderIssuesFields()}
+              <label className="text-xs text-muted-foreground">{qt("evidenceLabel")}<textarea className="mt-1 min-h-24 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground" value={evidence} onChange={(event) => setEvidence(event.target.value)} placeholder={generatedEvidence || qt("evidencePlaceholder")} /></label>
             </div>
           ) : null}
 
@@ -278,16 +291,7 @@ export function TicketQualityPanel({ ticketID, sampleID, onSubmitted }: Props) {
 function ReviewHistory({ reviews, locale }: { reviews: TicketQualityReview[]; locale: string }) {
   return (
     <div className="divide-y divide-border rounded-md border border-border">
-      {reviews.map((review) => (
-        <div key={review.id} className="px-3 py-2.5 text-xs">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span>{new Date(review.reviewed_at).toLocaleString(locale, { hour12: false })}</span>
-            <span className="font-medium">{review.total_score}/{review.max_score} · {resultLabel(review.outcome || review.result)}</span>
-          </div>
-          {review.remark ? <p className="mt-2 whitespace-pre-wrap break-words text-muted-foreground">{review.remark}</p> : null}
-          <p className="mt-2 whitespace-pre-wrap break-words leading-5 text-muted-foreground">{review.evidence}</p>
-        </div>
-      ))}
+      {reviews.map((review) => <TicketQualityReviewDetail key={review.id} review={review} locale={locale} />)}
     </div>
   )
 }

@@ -32,11 +32,12 @@ import { AIWorkflowRunsWorkspace } from "@/app/dashboard/ai-workflow-runs/_compo
 import { EnterpriseWorkflowDetailPage } from "@/app/enterprise/workflow/[workflowId]/template-page"
 import { EnterpriseAIFeatureGuard } from "@/components/enterprise/ai-feature-guard"
 import { TicketStatusWorkflowCard } from "./ticket-status-workflow"
+import { ticketWorkflowCopy } from "./ticket-status-workflow-i18n"
 import { DashboardListPage, type DashboardListColumn } from "@/components/dashboard/list"
 import { useRouteBreadcrumbItems } from "@/components/layout/route-breadcrumbs"
 import { CanUseButton } from "@/components/layout/permission-guard"
 import { Input } from "antd"
-import { useI18n } from "@/i18n/provider"
+import { useAppLocale, useI18n } from "@/i18n/provider"
 
 import { type AIWorkflow } from "@/lib/api/admin"
 import {
@@ -272,14 +273,16 @@ export default function EnterpriseWorkflowPage() {
   const searchParams = useSearchParams()
   const workflowId = normalizeEnterpriseDetailId(searchParams.get("workflowId"))
   const [workspace, setWorkspace] = useState("tickets")
+  const { locale } = useAppLocale()
+  const ticketWorkflowText = ticketWorkflowCopy(locale)
   const breadcrumb = useRouteBreadcrumbItems()
   return (
     <>
-      {!workflowId && <div className="mb-3 flex gap-2" role="group" aria-label="工作流类型">
-        <RailopsButton aria-pressed={workspace === "tickets"} onClick={() => setWorkspace("tickets")}>工单状态</RailopsButton>
-        <RailopsButton aria-pressed={workspace === "ai"} onClick={() => setWorkspace("ai")}>智能客服流程</RailopsButton>
+      {!workflowId && <div className="mb-3 flex gap-2" role="group" aria-label={ticketWorkflowText.workflowTypeAria}>
+        <RailopsButton aria-pressed={workspace === "tickets"} onClick={() => setWorkspace("tickets")}>{ticketWorkflowText.ticketWorkspace}</RailopsButton>
+        <RailopsButton aria-pressed={workspace === "ai"} onClick={() => setWorkspace("ai")}>{ticketWorkflowText.aiWorkspace}</RailopsButton>
       </div>}
-      {!workflowId && workspace === "tickets" ? <PageShell title="工作流引擎" breadcrumb={breadcrumb}><TicketStatusWorkflowCard /></PageShell> : <EnterpriseAIFeatureGuard title="AI Workflow">
+      {!workflowId && workspace === "tickets" ? <PageShell title={ticketWorkflowText.engineTitle} breadcrumb={breadcrumb}><TicketStatusWorkflowCard /></PageShell> : <EnterpriseAIFeatureGuard title="AI Workflow">
       {workflowId > 0
         ? <EnterpriseWorkflowDetailPage workflowId={workflowId} defaultPreviewOpen />
         : <EnterpriseWorkflowListPage />}
@@ -358,7 +361,7 @@ function EnterpriseWorkflowListPage() {
   const [summaryLoading, setSummaryLoading] = useState(true)
   const [workflowSearchDraft, setWorkflowSearchDraft] = useState("")
   const [workflowSearchQuery, setWorkflowSearchQuery] = useState("")
-  const [workflowListReloadKey, setWorkflowListReloadKey] = useState(0)
+  const [workflowListReloadKey] = useState(0)
   const [createOpen, setCreateOpen] = useState(false)
   const [workflowTab, setWorkflowTab] = useState<"templates" | "runs">("templates")
   const [creating, setCreating] = useState(false)
@@ -477,7 +480,7 @@ function EnterpriseWorkflowListPage() {
       {
         key: "scope",
         label: wl(t, "columns.source"),
-        className: "hidden w-[100px] max-w-[100px] md:table-cell",
+        className: "hidden min-w-[145px] md:table-cell",
         render: (item) => {
           const kind = workflowKind(item, t)
           return <StatusTag tone={kind.variant === "default" ? "blue" : "neutral"}>{kind.label}</StatusTag>
@@ -486,14 +489,14 @@ function EnterpriseWorkflowListPage() {
       {
         key: "capability",
         label: wl(t, "columns.capability"),
-        className: "hidden w-[135px] max-w-[135px] lg:table-cell",
+        className: "hidden min-w-[245px] lg:table-cell",
         render: (item) => {
           const capability = workflowServiceCapability(item, t)
           const Icon = capability.icon
           return (
-            <StatusTag tone="neutral" className="inline-flex max-w-full items-center gap-1.5 whitespace-nowrap">
+            <StatusTag tone="neutral" className="rhd-railops-workflow-capability-tag inline-flex max-w-[280px] items-start gap-1.5 whitespace-normal break-words text-left leading-5">
               <Icon className="size-3.5 shrink-0" />
-              <span>{capability.label}</span>
+              <span className="min-w-0">{capability.label}</span>
             </StatusTag>
           )
         },
@@ -501,7 +504,7 @@ function EnterpriseWorkflowListPage() {
       {
         key: "status",
         label: wl(t, "columns.status"),
-        className: "w-[100px] max-w-[100px] sm:w-[150px] sm:max-w-[150px]",
+        className: "min-w-[190px] sm:min-w-[220px]",
         render: (item) => {
           const state = workflowGovernanceState(
             item,
@@ -511,7 +514,7 @@ function EnterpriseWorkflowListPage() {
             t,
           )
           return (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex max-w-[245px] flex-wrap gap-1.5">
               <StatusTag tone={item.currentStableVersionId > 0 ? "blue" : "neutral"}>
                 {item.currentStableVersionId > 0 ? wl(t, "status.published") : wl(t, "status.draft")}
               </StatusTag>
@@ -525,7 +528,7 @@ function EnterpriseWorkflowListPage() {
       {
         key: "adoption",
         label: wl(t, "columns.adoption"),
-        className: "w-[70px] max-w-[70px] sm:w-[110px] sm:max-w-[110px]",
+        className: "min-w-[140px] sm:min-w-[155px]",
         render: (item) => {
           const adopted = adoption.get(item.id) ?? 0
           const stableAdopted = stableAdoption.get(item.id) ?? 0
@@ -549,13 +552,13 @@ function EnterpriseWorkflowListPage() {
       {
         key: "updated",
         label: wl(t, "columns.updatedAt"),
-        className: "hidden w-[135px] max-w-[135px] xl:table-cell",
+        className: "hidden min-w-[150px] xl:table-cell",
         render: (item) => <span className="text-sm">{formatDateTime(item.updatedAt)}</span>,
       },
       {
         key: "action",
         label: <span className="sr-only">{wl(t, "columns.actions")}</span>,
-        className: "hidden w-28 max-w-28 text-right sm:table-cell",
+        className: "hidden min-w-[136px] text-right sm:table-cell",
         render: (item) => (
           <RailopsButton
             size="small"
@@ -607,7 +610,7 @@ function EnterpriseWorkflowListPage() {
         </div>
 
         {workflowTab === "templates" ? (
-          <div className="rhd-railops-workflow-content mt-0">
+          <div className="rhd-railops-workflow-content rhd-railops-workflow-list mt-0">
           <DashboardListPage<AIWorkflow>
             key={`workflow-list-${workflowSearchQuery}-${workflowListReloadKey}`}
             layout="fragment"

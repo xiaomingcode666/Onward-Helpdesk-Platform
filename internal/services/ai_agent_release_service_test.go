@@ -536,3 +536,135 @@ func createApprovedAgentRelease(t *testing.T, agentID int64, operator *dto.AuthP
 	}
 	return repositories.AIAgentReleaseRepository.Get(sqls.DB(), item.ID)
 }
+
+// A model change on the tenant default agent must build its candidate on the
+// platform's current stable workflow, otherwise the candidate can never be deployed.
+func TestTenantDefaultModelDraftFollowsCurrentStableWorkflow(t *testing.T) {
+	db, fixture := setupProductCenterTestDB(t)
+	agent, err := TenantDefaultAIAgentService.EnsureDB(db, fixture.Tenant.ID, fixture.Operator)
+	if err != nil {
+		t.Fatalf("EnsureDB() error = %v", err)
+	}
+	pinned := repositories.AIWorkflowVersionRepository.Get(db, agent.WorkflowVersionID)
+	if pinned == nil {
+		t.Fatalf("tenant default agent has no workflow version: %+v", agent)
+	}
+	now := time.Now()
+	newer := &models.AIWorkflowVersion{
+		WorkflowID:          pinned.WorkflowID,
+		Version:             repositories.AIWorkflowVersionRepository.MaxVersionByWorkflowID(db, pinned.WorkflowID) + 1,
+		Status:              enums.StatusOk,
+		Definition:          pinned.Definition,
+		DefinitionHash:      pinned.DefinitionHash,
+		ModelPolicySnapshot: pinned.ModelPolicySnapshot,
+		ReleaseChannel:      models.AIWorkflowReleaseChannelStable,
+		SchemaVersion:       pinned.SchemaVersion,
+		ChangeSummary:       "newer platform stable version",
+		PublishedAt:         &now,
+		PublishedByName:     "system",
+		AuditFields:         models.AuditFields{CreatedAt: now, CreateUserName: "system", UpdatedAt: now, UpdateUserName: "system"},
+	}
+	if err := repositories.AIWorkflowVersionRepository.Create(db, newer); err != nil {
+		t.Fatalf("create newer stable version: %v", err)
+	}
+	if err := db.Model(&models.AIWorkflow{}).Where("id = ?", pinned.WorkflowID).Update("current_stable_version_id", newer.ID).Error; err != nil {
+		t.Fatalf("promote newer stable version: %v", err)
+	}
+
+	if err := AIAgentService.UpdateAIAgent(request.UpdateAIAgentRequest{
+		ID:                   agent.ID,
+		CreateAIAgentRequest: request.CreateAIAgentRequest{AIConfigID: agent.AIConfigID, LLMModelName: "gpt-5.4"},
+	}, fixture.Operator); err != nil {
+		t.Fatalf("UpdateAIAgent(default agent) error = %v", err)
+	}
+	updated := repositories.AIAgentRepository.Get(db, agent.ID)
+	if updated.WorkflowVersionID != newer.ID {
+		t.Fatalf("default agent draft stayed on workflow version %d, want current stable %d", updated.WorkflowVersionID, newer.ID)
+	}
+	candidates := repositories.AIAgentReleaseRepository.Find(db, sqls.NewCnd().
+		Eq("agent_id", agent.ID).
+		Eq("deployment_status", models.AIAgentReleaseDeploymentInactive).
+		Desc("release_no"))
+	if len(candidates) == 0 || candidates[0].WorkflowVersionID != newer.ID {
+		t.Fatalf("model draft candidate = %+v, want workflow version %d", candidates, newer.ID)
+	}
+	candidate := candidates[0]
+	if err := AIAgentReleaseService.SubmitReview(candidate.ID, fixture.Operator); err != nil {
+		t.Fatalf("SubmitReview() error = %v", err)
+	}
+	if err := AIAgentReleaseService.Review(candidate.ID, true, "approved", fixture.Operator); err != nil {
+		t.Fatalf("Review() error = %v", err)
+	}
+	if err := AIAgentReleaseService.Deploy(candidate.ID, fixture.Operator); err != nil {
+		t.Fatalf("Deploy() error = %v", err)
+	}
+}
+
+// A platform workflow upgrade must leave the tenant default agent with a
+// deployable candidate on the new stable version without any manual edit.
+func TestSyncStaleTenantDefaultWorkflowDraftCreatesDeployableCandidate(t *testing.T) {
+	db, fixture := setupProductCenterTestDB(t)
+	agent, err := TenantDefaultAIAgentService.EnsureDB(db, fixture.Tenant.ID, fixture.Operator)
+	if err != nil {
+		t.Fatalf("EnsureDB() error = %v", err)
+	}
+	pinned := repositories.AIWorkflowVersionRepository.Get(db, agent.WorkflowVersionID)
+	if pinned == nil {
+		t.Fatalf("tenant default agent has no workflow version: %+v", agent)
+	}
+	if failures, err := TenantDefaultAIAgentService.SyncStaleWorkflowDraftsDB(db); err != nil || len(failures) > 0 {
+		t.Fatalf("SyncStaleWorkflowDraftsDB(current) = %v, %v", failures, err)
+	}
+	if unchanged := repositories.AIAgentRepository.Get(db, agent.ID); unchanged.DraftRevision != agent.DraftRevision {
+		t.Fatalf("sync touched an up-to-date agent: revision %d -> %d", agent.DraftRevision, unchanged.DraftRevision)
+	}
+	now := time.Now()
+	newer := &models.AIWorkflowVersion{
+		WorkflowID:          pinned.WorkflowID,
+		Version:             repositories.AIWorkflowVersionRepository.MaxVersionByWorkflowID(db, pinned.WorkflowID) + 1,
+		Status:              enums.StatusOk,
+		Definition:          pinned.Definition,
+		DefinitionHash:      pinned.DefinitionHash,
+		ModelPolicySnapshot: pinned.ModelPolicySnapshot,
+		ReleaseChannel:      models.AIWorkflowReleaseChannelStable,
+		SchemaVersion:       pinned.SchemaVersion,
+		ChangeSummary:       "newer platform stable version",
+		PublishedAt:         &now,
+		PublishedByName:     "system",
+		AuditFields:         models.AuditFields{CreatedAt: now, CreateUserName: "system", UpdatedAt: now, UpdateUserName: "system"},
+	}
+	if err := repositories.AIWorkflowVersionRepository.Create(db, newer); err != nil {
+		t.Fatalf("create newer stable version: %v", err)
+	}
+	if err := db.Model(&models.AIWorkflow{}).Where("id = ?", pinned.WorkflowID).Update("current_stable_version_id", newer.ID).Error; err != nil {
+		t.Fatalf("promote newer stable version: %v", err)
+	}
+
+	if failures, err := TenantDefaultAIAgentService.SyncStaleWorkflowDraftsDB(db); err != nil || len(failures) > 0 {
+		t.Fatalf("SyncStaleWorkflowDraftsDB(stale) = %v, %v", failures, err)
+	}
+	updated := repositories.AIAgentRepository.Get(db, agent.ID)
+	if updated.WorkflowVersionID != newer.ID {
+		t.Fatalf("default agent draft stayed on workflow version %d, want current stable %d", updated.WorkflowVersionID, newer.ID)
+	}
+	candidates := repositories.AIAgentReleaseRepository.Find(db, sqls.NewCnd().
+		Eq("agent_id", agent.ID).
+		Eq("workflow_version_id", newer.ID).
+		Desc("release_no"))
+	if len(candidates) == 0 {
+		t.Fatalf("sync created no release on workflow version %d", newer.ID)
+	}
+	candidate := candidates[0]
+	if candidate.DeploymentStatus == models.AIAgentReleaseDeploymentActive {
+		return
+	}
+	if err := AIAgentReleaseService.SubmitReview(candidate.ID, fixture.Operator); err != nil {
+		t.Fatalf("SubmitReview() error = %v", err)
+	}
+	if err := AIAgentReleaseService.Review(candidate.ID, true, "approved", fixture.Operator); err != nil {
+		t.Fatalf("Review() error = %v", err)
+	}
+	if err := AIAgentReleaseService.Deploy(candidate.ID, fixture.Operator); err != nil {
+		t.Fatalf("Deploy() error = %v", err)
+	}
+}

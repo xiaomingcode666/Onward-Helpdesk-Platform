@@ -637,6 +637,7 @@ func enterpriseIAMQuery(ctx *gin.Context) services.EnterpriseIAMQuery {
 		Status: ctx.Query("status"),
 		Page:   queryPositiveInt(ctx, "page", 1),
 		Limit:  queryPositiveInt(ctx, "limit", 20),
+		Locale: i18nx.Locale(ctx),
 	}
 }
 

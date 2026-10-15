@@ -121,6 +121,9 @@ func ValidateDraftShape(doc Document) error {
 	}
 	if r := doc.Runtime; r != nil {
 		refs := []string{r.Mail.PasswordRef}
+		if r.Mail.IMAP != nil {
+			refs = append(refs, r.Mail.IMAP.PasswordRef)
+		}
 		for _, i := range r.Integrations {
 			refs = append(refs, i.SecretRef, i.KeyRef)
 		}
@@ -151,6 +154,15 @@ type SecretChecker func(tenantID int64, environment, ref string) error
 var secretName = regexp.MustCompile(`^secret://[a-z][a-z0-9_-]{0,63}$`)
 
 func ValidSecretReference(ref string) bool { return secretName.MatchString(ref) }
+
+// DatabaseSecretReference identifies a credential managed by the application
+// rather than a deployment-mounted secret file. The two legacy mail aliases
+// are accepted during migration so old versions do not require a secret
+// directory; the mail resolver still falls back to the mounted file for those
+// aliases when no encrypted database credential exists.
+func DatabaseSecretReference(ref string) bool {
+	return ref == "secret://managed-smtp" || ref == "secret://managed-imap" || ref == "secret://smtp-password" || ref == "secret://imap-password"
+}
 
 func CheckSecret(root string, tenantID int64, environment, ref string) error {
 	_, err := ReadSecret(root, tenantID, environment, ref)
@@ -204,6 +216,9 @@ func ReadSecret(root string, tenantID int64, environment, ref string) ([]byte, e
 }
 
 func RuntimeSecretCheck(tenantID int64, environment, ref string) error {
+	if DatabaseSecretReference(ref) {
+		return nil
+	}
 	return CheckSecret(os.Getenv("RHD_PROJECT_SECRET_DIR"), tenantID, environment, ref)
 }
 

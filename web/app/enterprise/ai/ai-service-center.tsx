@@ -27,6 +27,7 @@ import {
 } from "@railops/ui"
 
 import { useAuth } from "@/components/auth-provider"
+import { useAppLocale } from "@/i18n/provider"
 import { useRouteBreadcrumbItems } from "@/components/layout/route-breadcrumbs"
 import { CanUseButton } from "@/components/layout/permission-guard"
 import { ProductTree, buildProductTreeGroups } from "@/components/product/product-tree"
@@ -136,40 +137,50 @@ function CapabilityStatus({
   const selectedModelName = savingModelName || capability.modelName || undefined
 
   return (
-    <div className="flex min-w-0 items-center gap-2 px-3 py-2">
-      {capability.type === "embedding" ? (
-        <DatabaseIcon className="size-4 shrink-0 text-muted-foreground" />
-      ) : (
-        <SettingsIcon className="size-4 shrink-0 text-muted-foreground" />
-      )}
-      <span className="whitespace-nowrap text-sm font-medium">{label}</span>
-      <StatusTag tone={capability.available ? "success" : "error"}>
-        {capability.available ? ee("aiServiceCenter.text014") : ee("aiServiceCenter.text015")}
-      </StatusTag>
+    <div className="rhd-railops-ai-capability grid min-w-0 gap-2 px-3 py-3">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        {capability.type === "embedding" ? (
+          <DatabaseIcon className="size-4 shrink-0 text-muted-foreground" />
+        ) : (
+          <SettingsIcon className="size-4 shrink-0 text-muted-foreground" />
+        )}
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="text-sm font-medium">{label}</span>
+          <StatusTag tone={capability.available ? "success" : "error"}>
+            {capability.available ? ee("aiServiceCenter.text014") : ee("aiServiceCenter.text015")}
+          </StatusTag>
+        </div>
+      </div>
       {canSelectDefaultModel ? (
-        <SelectField
-          className="min-w-0 flex-1"
-          style={{ marginBottom: 0 }}
-          selectProps={{
-            "aria-label": ee("aiServiceCenter.text016"),
-            placeholder: ee("aiServiceCenter.text017"),
-            value: selectedModelName,
-            onChange: (value) => {
-              if (value && value !== capability.modelName) onDefaultModelChange(value)
-            },
-            disabled: Boolean(savingModelName) || !capability.available,
-            loading: Boolean(savingModelName),
-            options: [
-              ...(selectedModelName && !models.includes(selectedModelName)
-                ? [{ value: selectedModelName, label: selectedModelName }]
-                : []),
-              ...models.map((model) => ({ value: model, label: model })),
-            ],
-            style: { width: "100%" },
-          }}
-        />
+        <div className="min-w-0">
+          <SelectField
+            className="rhd-railops-ai-model-field"
+            style={{ marginBottom: 0 }}
+            selectProps={{
+              className: "rhd-railops-ai-model-select",
+              "aria-label": ee("aiServiceCenter.text016"),
+              placeholder: ee("aiServiceCenter.text017"),
+              value: selectedModelName,
+              onChange: (value) => {
+                if (value && value !== capability.modelName) onDefaultModelChange(value)
+              },
+              disabled: Boolean(savingModelName) || !capability.available,
+              loading: Boolean(savingModelName),
+              popupMatchSelectWidth: false,
+              classNames: { popup: { root: "rhd-railops-ai-model-dropdown" } },
+              styles: { popup: { root: { minWidth: 320, maxWidth: "calc(100vw - 2rem)", zIndex: 1300 } } },
+              options: [
+                ...(selectedModelName && !models.includes(selectedModelName)
+                  ? [{ value: selectedModelName, label: selectedModelName }]
+                  : []),
+                ...models.map((model) => ({ value: model, label: model })),
+              ],
+              style: { width: "100%" },
+            }}
+          />
+        </div>
       ) : capability.modelName ? (
-        <span className="max-w-56 truncate font-mono text-xs text-muted-foreground">
+        <span className="min-w-0 whitespace-normal break-all font-mono text-xs leading-5 text-muted-foreground">
           {capability.modelName}
         </span>
       ) : null}
@@ -182,10 +193,10 @@ function CapabilityStatus({
               <div className="text-sm font-medium">{label}{ee("aiServiceCenter.text019")}</div>
             </div>
             <ScrollArea className="h-64">
-              <div className="grid grid-cols-1 gap-1 p-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-1 p-2">
                 {models.map((model) => (
-                  <div key={model} className="flex min-w-0 items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-muted">
-                    <span className="truncate font-mono">{model}</span>
+                  <div key={model} className="flex min-w-0 items-start justify-between gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-muted">
+                    <span className="min-w-0 whitespace-normal break-all font-mono leading-5">{model}</span>
                     {model === capability.modelName ? <StatusTag tone="blue">{ee("aiServiceCenter.text020")}</StatusTag> : null}
                   </div>
                 ))}
@@ -220,7 +231,7 @@ function ModelSettingsPopover({
       <PopoverTrigger render={<RailopsButton size="small" title={ee("aiServiceCenter.text021")} aria-label={ee("aiServiceCenter.text021")} />}>
         <SettingsIcon className="size-3.5" />
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[min(34rem,calc(100vw-2rem))] gap-0 overflow-hidden p-0">
+      <PopoverContent align="end" className="rhd-railops-ai-model-popover w-[min(38rem,calc(100vw-2rem))] gap-0 overflow-hidden p-0">
         <div className="flex items-center justify-between gap-3 border-b px-3 py-2.5">
           <div>
             <div className="text-sm font-semibold">{ee("aiServiceCenter.text021")}</div>
@@ -236,9 +247,7 @@ function ModelSettingsPopover({
           </div>
         ) : hasCapabilities ? (
           <div
-            className={llmCapability && embeddingCapability
-              ? "grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0"
-              : "grid"}
+            className="grid divide-y"
             aria-label={ee("aiServiceCenter.text026")}
           >
             {llmCapability ? (
@@ -264,14 +273,14 @@ type DefaultCredential = NonNullable<EnterpriseAICapabilities["defaultCredential
 
 function knowledgeSummary(agent: AIAgent) {
   if (agent.knowledgeBaseNames?.length) {
-    return agent.knowledgeBaseNames.slice(0, 2).join("、")
+    return agent.knowledgeBaseNames.slice(0, 2).join(translateCurrentMessage("common.listSeparator"))
   }
   return ee("aiServiceCenter.text028", { value0: agent.knowledgeIds?.length ?? 0 })
 }
 
 function handoffTeamSummary(agent: AIAgent) {
   const names = (agent.teams ?? []).map((team) => team.name).filter(Boolean)
-  if (names.length > 0) return names.slice(0, 2).join("、")
+  if (names.length > 0) return names.slice(0, 2).join(translateCurrentMessage("common.listSeparator"))
   return ee("aiServiceCenter.text029")
 }
 
@@ -295,6 +304,7 @@ function agentReleaseActionIcon(agent: AIAgent, canCreateRelease: boolean, canRe
 export function EnterpriseAiServiceCenter() {
   const router = useRouter()
   const { ready: authReady, session } = useAuth()
+  const { locale } = useAppLocale()
   // Knowledge-support tenants are scoped to the tenant-wide knowledge base;
   // do not expose a product selector even when an older session omitted the
   // derived `product: false` capability flag.
@@ -624,7 +634,7 @@ export function EnterpriseAiServiceCenter() {
       fixed: "right",
       align: "right",
       render: (_, agent) => (
-        <div className="rhd-railops-row-actions justify-end">
+        <div className="rhd-railops-row-actions rhd-railops-ai-row-actions justify-end">
           <RailopsButton size="small" onClick={() => openAgentRelease(agent)}>
             {agentReleaseActionIcon(agent, canCreateRelease, canReviewRelease)}
             {agentReleaseActionLabel(agent, canCreateRelease, canReviewRelease)}
@@ -633,7 +643,7 @@ export function EnterpriseAiServiceCenter() {
         </div>
       ),
     },
-  ], [canCreateRelease, canReviewRelease, openAgent, openAgentRelease])
+  ], [canCreateRelease, canReviewRelease, locale, openAgent, openAgentRelease])
 
   return (
     <PageShell

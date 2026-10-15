@@ -54,11 +54,13 @@ import {
   updateNotificationRecipientSetting,
 } from "@/lib/api/enterprise-notifications"
 import { readSession } from "@/lib/auth"
+import { useAppLocale } from "@/i18n/provider"
 import type {
   EnterpriseNotification,
   EnterpriseNotificationListResponse,
   NotificationRecipientSetting,
 } from "@/lib/api/types"
+import { localizeEnterpriseNotification } from "@/lib/notification-i18n"
 import { buildEnterpriseTicketWorkbenchPath, normalizeEnterpriseActionUrl } from "@/lib/ticket-workbench-route"
 import { cn } from "@/lib/utils"
 function ee(key: string, values?: Record<string, unknown>) {
@@ -349,6 +351,7 @@ export function relativeNotificationTime(value?: string) {
 export function EnterpriseNotificationsLivePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { locale } = useAppLocale()
   const {
     notifyNotificationStateChange,
     notificationRevision,
@@ -398,7 +401,10 @@ export function EnterpriseNotificationsLivePage() {
       page_size: DEFAULT_PAGE_SIZE,
     })
     if (res.success && res.data) {
-      setData(res.data)
+      setData({
+        ...res.data,
+        items: res.data.items.map((item) => localizeEnterpriseNotification(item, locale)),
+      })
       setNotificationListLoaded(true)
       if (!res.data.can_view_tenant_scope && scope !== res.data.scope) {
         setScope(res.data.scope)
@@ -407,7 +413,7 @@ export function EnterpriseNotificationsLivePage() {
       setError(res.error?.message || ee("enterpriseLive.text060"))
     }
     setLoading(false)
-  }, [category, page, readStatus, scope, search, setData, setError, setLoading, setNotificationListLoaded, setScope])
+  }, [category, locale, page, readStatus, scope, search, setData, setError, setLoading, setNotificationListLoaded, setScope])
 
   const loadRecipientSetting = useCallback(async () => {
     const res = await fetchNotificationRecipientSetting()

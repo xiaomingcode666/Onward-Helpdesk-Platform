@@ -164,24 +164,13 @@ function supplierContextFromMessagePayload(message: ImMessage): SupplierMessageC
 
 function supplierContextBadge(
   context: SupplierMessageContext | undefined,
-  locale: string,
   t: I18nT,
 ) {
   if (!context) return ""
-  const supplier = t("customerEntryExtract.event.supplier")
-  const moduleName = context.productModuleName.trim()
-  if (moduleName) {
-    return locale.toLowerCase().startsWith("zh")
-      ? `${moduleName}${supplier}`
-      : `${supplier} · ${moduleName}`
-  }
-  const companyName = context.partnerCompanyName.trim()
-  if (companyName) {
-    return locale.toLowerCase().startsWith("zh")
-      ? `${companyName}${supplier}`
-      : `${supplier} · ${companyName}`
-  }
-  return supplier
+  const name = context.productModuleName.trim() || context.partnerCompanyName.trim()
+  return name
+    ? t("customerEntryExtract.chat.supplierWithContext", { name })
+    : t("customerEntryExtract.chat.supplier")
 }
 
 function messageSenderName(message: ImMessage, t: I18nT) {
@@ -189,7 +178,7 @@ function messageSenderName(message: ImMessage, t: I18nT) {
     return t("portalExtract.customerMobile.conversation.me")
   }
   if (message.senderType === "partner") {
-    return message.senderName || t("customerEntryExtract.event.supplier")
+    return message.senderName || t("customerEntryExtract.chat.supplier")
   }
   return message.senderName || t("portalExtract.customerMobile.conversation.onlineSupport")
 }
@@ -1566,7 +1555,7 @@ export function MobileCustomerConversationWorkbench({ navigate }: { navigate: Mo
           const supplierContext = message.senderType === "partner"
             ? supplierContextFromMessagePayload(message) ?? supplierMessageContexts.get(partnerMessageCollaborationId(message))
             : undefined
-          const supplierBadge = supplierContextBadge(supplierContext, locale, t)
+          const supplierBadge = supplierContextBadge(supplierContext, t)
           return (
             <div key={message.id || message.clientMsgId} className={cn("flex", mine ? "justify-end" : "justify-start")}>
               <div className={cn("max-w-[84%]", mine && "text-right")}>

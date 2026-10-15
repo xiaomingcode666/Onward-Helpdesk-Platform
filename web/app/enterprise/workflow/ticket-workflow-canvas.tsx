@@ -8,25 +8,15 @@ import {
 } from "@xyflow/react"
 import { ArrowDown, Check, CircleCheck, LockKeyhole, Maximize2, Minimize2, Network, RotateCcw, Wrench, X } from "lucide-react"
 import { RailopsButton } from "@railops/ui"
+import { useAppLocale } from "@/i18n/provider"
 import { caseStatusLabel } from "@/lib/ticket-case-labels"
+import { ticketWorkflowCopy, ticketWorkflowDestinationLabel, ticketWorkflowTransitionSettingsLabel, type TicketWorkflowDetail } from "./ticket-status-workflow-i18n"
 
 type Workflow = { transitions: Record<string, string[]> }
 type Props = {
   states: string[]; workflow: Workflow; allowed: Workflow; required: Record<string, string[]>
   editing: boolean; busy: boolean
   onChangeTransition: (from: string, to: string, enabled: boolean) => void
-}
-const details: Record<string, { role: string; action: string; group: string; hint: string }> = {
-  new: { role: "系统", action: "收到客户问题，建立工单", group: "受理", hint: "工单刚进入系统，等待工程师接单。" },
-  acknowledged: { role: "工程师", action: "已接单，持续跟进", group: "受理", hint: "历史阶段：工程师接单后负责跟进后续处理。" },
-  in_triage: { role: "工程师", action: "分析原因，判断处理方向", group: "处理", hint: "分析客户问题，确定处理方式和需要的支持。" },
-  assigned: { role: "工程师", action: "已分配工程师，推进处理", group: "处理", hint: "通过工单的分配操作指定工程师后，进入此状态。" },
-  waiting: { role: "工程师", action: "等待客户资料或外部协助", group: "等待分支", hint: "处理暂时需要等待。结束等待时返回等待前的阶段；是否暂停计时由时限规则决定。" },
-  restored: { role: "工程师", action: "服务恢复，继续确认解决", group: "处理", hint: "服务已经能使用，但可能还需要验证修复结果或继续处理根因。" },
-  resolved: { role: "工程师", action: "确认解决，留下处理结果", group: "收尾", hint: "问题已解决或请求已完成，需要保留解决说明。设备工单通过处理记录确认解决。" },
-  closure_pending: { role: "工程师", action: "等待最终确认关闭", group: "收尾", hint: "完成解决后，核对是否满足关闭条件。" },
-  closed: { role: "工程师 / 系统", action: "处理结束，保留完整记录", group: "收尾", hint: "满足关闭条件后结束工单。是否允许重新打开，以此流程配置为准。" },
-  cancelled: { role: "工程师", action: "撤回或不再处理本次请求", group: "取消分支", hint: "记录取消原因并结束本次请求，不等同于问题已解决。" },
 }
 const mainPath = ["new", "acknowledged", "in_triage", "assigned", "restored", "resolved", "closure_pending", "closed"]
 function initialPosition(state: string): XYPosition {
@@ -36,9 +26,11 @@ function initialPosition(state: string): XYPosition {
 }
 type StatusNode = Node<{ status: string; count: number; muted: boolean }, "status">
 function StatusWorkflowNode({ data, selected, isConnectable }: NodeProps<StatusNode>) {
-  const detail = details[data.status]
+  const { locale } = useAppLocale()
+  const copy = ticketWorkflowCopy(locale)
+  const detail = copy.details[data.status]
   const Icon = data.status === "cancelled" ? X : data.status === "waiting" ? RotateCcw
-    : data.status === "closed" ? CircleCheck : detail.role === "系统" ? Network : Wrench
+    : data.status === "closed" ? CircleCheck : data.status === "new" ? Network : Wrench
   return <div className={`w-[216px] rounded-lg border border-t-[3px] bg-card shadow-sm transition-[border-color,box-shadow,opacity] ${selected ? "border-blue-500 ring-2 ring-blue-500/15" : data.status === "waiting" ? "border-border border-t-amber-500" : data.status === "cancelled" || data.status === "closed" ? "border-border border-t-slate-400" : "border-border border-t-blue-500"} ${data.muted ? "opacity-40" : ""}`}>
     <Handle id="in" type="target" position={Position.Top} isConnectable={isConnectable} className="!size-2.5 !border-2 !border-background !bg-blue-500" />
     <Handle id="in-left" type="target" position={Position.Left} isConnectable={false} style={{ top: "30%" }} className="!size-1.5 !border-0 !bg-slate-400" />
@@ -49,7 +41,7 @@ function StatusWorkflowNode({ data, selected, isConnectable }: NodeProps<StatusN
       <span className="text-[10px] text-muted-foreground">{detail.group}</span>
     </div>
     <p className="px-3 pt-1.5 text-[11px] text-muted-foreground">{detail.action}</p>
-    <div className="mt-2 flex justify-between border-t px-3 py-1.5 text-[10px] text-muted-foreground"><span>{detail.role}</span><span>{data.count ? `${data.count} 个去向` : "流程结束"}</span></div>
+    <div className="mt-2 flex justify-between border-t px-3 py-1.5 text-[10px] text-muted-foreground"><span>{detail.role}</span><span>{ticketWorkflowDestinationLabel(locale, data.count)}</span></div>
     {data.status !== "cancelled" && <Handle id="out" type="source" position={Position.Bottom} isConnectable={isConnectable} className="!size-2.5 !border-2 !border-background !bg-blue-500" />}
     <Handle id="out-left" type="source" position={Position.Left} isConnectable={false} style={{ top: "70%" }} className="!size-1.5 !border-0 !bg-slate-400" />
     <Handle id="out-right" type="source" position={Position.Right} isConnectable={false} style={{ top: "70%" }} className="!size-1.5 !border-0 !bg-slate-400" />
@@ -78,6 +70,9 @@ function WorkflowEdge(props: EdgeProps<RoutedEdge>) {
 const edgeTypes = { routed: WorkflowEdge }
 
 export function TicketWorkflowCanvas({ states, workflow, allowed, required, editing, busy, onChangeTransition }: Props) {
+  const { locale } = useAppLocale()
+  const copy = ticketWorkflowCopy(locale)
+  const details: Record<string, TicketWorkflowDetail> = copy.details
   const [selected, setSelected] = useState("")
   const [selectedEdge, setSelectedEdge] = useState<{ from: string; to: string } | null>(null)
   const [positions, setPositions] = useState<Record<string, XYPosition>>({})
@@ -88,7 +83,7 @@ export function TicketWorkflowCanvas({ states, workflow, allowed, required, edit
   const position = (state: string) => positions[state] ?? initialPosition(state)
   const nodes: StatusNode[] = states.map(state => ({
     id: state, type: "status", position: position(state), selected: selected === state,
-    ariaLabel: `${caseStatusLabel(state)}，点击查看流转设置`,
+    ariaLabel: ticketWorkflowTransitionSettingsLabel(locale, caseStatusLabel(state)),
     data: { status: state, count: workflow.transitions[state]?.length ?? 0, muted: Boolean(selected && selected !== state && !targets.includes(state) && !workflow.transitions[state]?.includes(selected)) },
   }))
   const allEdges = useMemo(() => Object.entries(workflow.transitions).flatMap(([from, next]) => next.map(to => ({ from, to }))), [workflow])
@@ -135,11 +130,11 @@ export function TicketWorkflowCanvas({ states, workflow, allowed, required, edit
 
   return <div className="overflow-hidden rounded-lg border bg-background" data-testid="ticket-status-workflow-graph">
     <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
-      <div className="flex items-center gap-2 text-sm"><Network size={16} className="text-blue-600" /><span className="font-medium">{selected ? `${caseStatusLabel(selected)} · 相关流转` : "工单处理流程"}</span><span className="text-xs text-muted-foreground">10 个状态 · 已显示全部 {total} 条流转</span></div>
+      <div className="flex items-center gap-2 text-sm"><Network size={16} className="text-blue-600" /><span className="font-medium">{selected ? `${caseStatusLabel(selected)} · ${copy.relatedTransitions}` : copy.graphTitle}</span><span className="text-xs text-muted-foreground">{copy.statusCount(total)}</span></div>
       <div className="flex gap-1">
-        {selected && <RailopsButton size="small" onClick={() => select("")}>返回总览</RailopsButton>}
-        <RailopsButton size="small" aria-label="自动排列节点" onClick={() => { setPositions({}); requestAnimationFrame(() => { requestAnimationFrame(() => { void instance?.fitView({ padding: 0.12, maxZoom: 1 }) }) }) }}><RotateCcw size={14} />自动排列</RailopsButton>
-        <RailopsButton size="small" aria-label={expanded ? "收起画布" : "展开画布"} onClick={() => setExpanded(!expanded)}>{expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</RailopsButton>
+        {selected && <RailopsButton size="small" onClick={() => select("")}>{copy.backOverview}</RailopsButton>}
+        <RailopsButton size="small" aria-label={copy.autoLayout} onClick={() => { setPositions({}); requestAnimationFrame(() => { requestAnimationFrame(() => { void instance?.fitView({ padding: 0.12, maxZoom: 1 }) }) }) }}><RotateCcw size={14} />{copy.autoLayout}</RailopsButton>
+        <RailopsButton size="small" aria-label={expanded ? copy.collapseCanvas : copy.expandCanvas} onClick={() => setExpanded(!expanded)}>{expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</RailopsButton>
       </div>
     </div>
     <div className="grid lg:grid-cols-[minmax(0,1fr)_272px]">
@@ -167,20 +162,20 @@ export function TicketWorkflowCanvas({ states, workflow, allowed, required, edit
             onChangeTransition(connection.source, connection.target, true)
             setSelected(connection.source); setSelectedEdge({ from: connection.source, to: connection.target })
           }}
-          aria-label="工单状态流程图"
+          aria-label={copy.graphAria}
         >
           <Background gap={22} size={1} color="var(--border)" />
           <Controls showInteractive={false} />
         </ReactFlow>
         <div className="pointer-events-none absolute left-3 top-3 max-w-[260px] rounded border bg-card/95 px-3 py-2 text-[11px] text-muted-foreground">
-          {selected ? "蓝色为下一步，青色为进入此状态的连线。其他已配置连线仍保留。" : "全部已配置连线均已显示。点击状态突出相关连线；点击空白处返回总览。"}
+          {selected ? copy.graphHintSelected : copy.graphHintOverview}
         </div>
       </div>
-      <aside className="border-t bg-card lg:border-l lg:border-t-0" aria-label="状态流转设置">
+      <aside className="border-t bg-card lg:border-l lg:border-t-0" aria-label={copy.transitionSettingsAria}>
         <div className="border-b p-4">
-          <label className="text-xs font-medium" htmlFor="workflow-selected-state">查看状态</label>
+          <label className="text-xs font-medium" htmlFor="workflow-selected-state">{copy.viewStatus}</label>
           <select id="workflow-selected-state" className="mt-2 w-full rounded-md border bg-background px-2 py-2 text-sm" value={selected} onChange={event => select(event.target.value)}>
-            <option value="">流程总览</option>
+            <option value="">{copy.overview}</option>
             {states.map(state => <option key={state} value={state}>{caseStatusLabel(state)}</option>)}
           </select>
         </div>
@@ -188,26 +183,26 @@ export function TicketWorkflowCanvas({ states, workflow, allowed, required, edit
           <div><h3 className="text-sm font-semibold">{caseStatusLabel(selected)}</h3><p className="mt-2 text-xs leading-5 text-muted-foreground">{details[selected].hint}</p></div>
           {selectedEdge && <div className="space-y-2 rounded-md border border-blue-200 bg-blue-50/30 p-3 text-xs dark:bg-blue-950/20" data-testid="selected-workflow-edge">
             <div>{caseStatusLabel(selectedEdge.from)} → {caseStatusLabel(selectedEdge.to)}</div>
-            {required[selectedEdge.from]?.includes(selectedEdge.to) ? <p className="flex items-center gap-1 text-muted-foreground"><LockKeyhole size={12} />必要流转，不能移除</p>
-              : canEdit ? <RailopsButton size="small" onClick={() => { onChangeTransition(selectedEdge.from, selectedEdge.to, false); setSelectedEdge(null) }}>移除此连线</RailopsButton> : <p className="text-muted-foreground">{editing ? "正在保存，请稍候" : "点击“修改流程”后可调整"}</p>}
+            {required[selectedEdge.from]?.includes(selectedEdge.to) ? <p className="flex items-center gap-1 text-muted-foreground"><LockKeyhole size={12} />{copy.requiredTransition}</p>
+              : canEdit ? <RailopsButton size="small" onClick={() => { onChangeTransition(selectedEdge.from, selectedEdge.to, false); setSelectedEdge(null) }}>{copy.removeTransition}</RailopsButton> : <p className="text-muted-foreground">{editing ? copy.saving : copy.adjustHint}</p>}
           </div>}
           <div>
-            <h4 className="flex items-center gap-1.5 text-xs font-semibold"><ArrowDown size={13} />允许进入的下一步</h4>
-            <p className="mt-1 text-[11px] leading-5 text-muted-foreground">{editing ? "勾选即可连接，取消勾选即可移除。必要流转已锁定。" : "已勾选的是当前允许的去向。"}</p>
+            <h4 className="flex items-center gap-1.5 text-xs font-semibold"><ArrowDown size={13} />{copy.nextStep}</h4>
+            <p className="mt-1 text-[11px] leading-5 text-muted-foreground">{editing ? copy.editTransitionHint : copy.currentTransitionHint}</p>
             <div className="mt-2 space-y-1">
               {(allowed.transitions[selected] ?? []).map(to => <label key={to} className="flex items-center gap-2 rounded-md px-2 py-2 text-xs hover:bg-muted/50">
                 <input type="checkbox" className="size-3.5 accent-blue-600" aria-label={`${caseStatusLabel(selected)} → ${caseStatusLabel(to)}`} checked={targets.includes(to)} disabled={!canEdit || required[selected]?.includes(to)} onChange={event => { onChangeTransition(selected, to, event.target.checked); setSelectedEdge(null) }} />
-                <span className="flex-1">{caseStatusLabel(to)}</span>{required[selected]?.includes(to) && <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><LockKeyhole size={10} />必要</span>}
+                <span className="flex-1">{caseStatusLabel(to)}</span>{required[selected]?.includes(to) && <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><LockKeyhole size={10} />{copy.required}</span>}
               </label>)}
-              {!allowed.transitions[selected]?.length && <p className="rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">此状态结束流程，没有下一步。</p>}
+              {!allowed.transitions[selected]?.length && <p className="rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">{copy.noNextStep}</p>}
             </div>
           </div>
         </div> : <div className="space-y-5 p-4 text-xs leading-5">
-          <div><h3 className="font-semibold">像搭流程图一样设置</h3><p className="mt-2 text-muted-foreground">选中一个状态，右侧就会显示它允许进入的下一步。</p></div>
-          <div className="space-y-3 text-muted-foreground"><p>① 点击下方“修改流程”。</p><p>② 从节点底部圆点连到下一状态顶部，也可以在右侧勾选。</p><p>③ 填写原因，保存草稿并发布。</p></div>
-          <p className="flex items-start gap-2 rounded-md bg-muted/40 p-3 text-muted-foreground"><Check size={15} className="mt-0.5 shrink-0" />十种状态已准备好，无需新增节点。不能连接的状态会由系统限制。</p>
+          <div><h3 className="font-semibold">{copy.setupTitle}</h3><p className="mt-2 text-muted-foreground">{copy.setupDescription}</p></div>
+          <div className="space-y-3 text-muted-foreground"><p>{copy.setupStep1}</p><p>{copy.setupStep2}</p><p>{copy.setupStep3}</p></div>
+          <p className="flex items-start gap-2 rounded-md bg-muted/40 p-3 text-muted-foreground"><Check size={15} className="mt-0.5 shrink-0" />{copy.prepared}</p>
         </div>}
-        <div className="border-t px-4 py-3 text-[11px] leading-5 text-muted-foreground">拖动只调整本次画布的位置。连线表示允许流转，不会自动执行处理，也不要求逐个经过所有状态。</div>
+        <div className="border-t px-4 py-3 text-[11px] leading-5 text-muted-foreground">{copy.footer}</div>
       </aside>
     </div>
   </div>

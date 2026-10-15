@@ -170,15 +170,15 @@ func TestClearSub2APIDefaultKeyRemovesStaleRemoteMapping(t *testing.T) {
 func TestEnsureRemoteTenantDefaultKeyUpdatesExistingDefaultInsteadOfCreatingDuplicate(t *testing.T) {
 	provider := &sub2APIDefaultKeyProvider{keys: []providers.Sub2APIKey{
 		{ID: 57, Key: "sk-product", Name: "RHD-PRODUCT-13", GroupID: 2, Quota: 2.11, Status: "active"},
-		{ID: 56, Key: "sk-default-56", Name: "SIT Tenant默认key", GroupID: 2, Quota: 15, Status: "active"},
-		{ID: 55, Key: "sk-default-55", Name: "SIT Tenant默认key", GroupID: 2, Quota: 15, Status: "active"},
+		{ID: 56, Key: "sk-default-56", Name: "RHD-COMPANY-SIT-TENANT-DEFAULT", GroupID: 2, Quota: 15, Status: "active"},
+		{ID: 55, Key: "sk-default-55", Name: "RHD-COMPANY-SIT-TENANT-DEFAULT", GroupID: 2, Quota: 15, Status: "active"},
 	}}
 	account := &models.Sub2APITenantAccount{
 		TenantID: 11, AccountName: "SIT Tenant", DefaultKeyID: "57", DefaultKeyName: "RHD-PRODUCT-13", DefaultKeyCiphertext: "product-ciphertext",
 	}
 
 	key, err := (&platformAIModelService{}).ensureRemoteTenantDefaultKey(
-		context.Background(), provider, "token", account, "SIT Tenant默认key", 16, nil, "",
+		context.Background(), provider, "token", account, "RHD-COMPANY-SIT-TENANT-DEFAULT", 16, nil, "",
 	)
 	if err != nil {
 		t.Fatalf("ensureRemoteTenantDefaultKey() error = %v", err)
@@ -191,7 +191,7 @@ func TestEnsureRemoteTenantDefaultKeyUpdatesExistingDefaultInsteadOfCreatingDupl
 	}
 
 	key, err = (&platformAIModelService{}).ensureRemoteTenantDefaultKey(
-		context.Background(), provider, "token", account, "SIT Tenant默认key", 16, nil, "",
+		context.Background(), provider, "token", account, "RHD-COMPANY-SIT-TENANT-DEFAULT", 16, nil, "",
 	)
 	if err != nil {
 		t.Fatalf("second ensureRemoteTenantDefaultKey() error = %v", err)
@@ -208,13 +208,42 @@ func TestEnsureRemoteTenantDefaultKeyCreatesOnlyWhenNamedDefaultIsMissing(t *tes
 	account := &models.Sub2APITenantAccount{TenantID: 11, AccountName: "SIT Tenant", DefaultKeyID: "57", DefaultKeyName: "RHD-PRODUCT-13"}
 
 	key, err := (&platformAIModelService{}).ensureRemoteTenantDefaultKey(
-		context.Background(), provider, "token", account, "SIT Tenant默认key", 15, nil, "",
+		context.Background(), provider, "token", account, "RHD-COMPANY-SIT-TENANT-DEFAULT", 15, nil, "",
 	)
 	if err != nil {
 		t.Fatalf("ensureRemoteTenantDefaultKey() error = %v", err)
 	}
 	if key == nil || key.ID != 99 || provider.createCalls != 1 || provider.updateCalls != 0 {
 		t.Fatalf("created key=%+v create=%d update=%d", key, provider.createCalls, provider.updateCalls)
+	}
+}
+
+func TestSelectTenantDefaultSub2APIKeyReusesLegacyChineseName(t *testing.T) {
+	account := &models.Sub2APITenantAccount{
+		TenantID: 14, AccountName: "北京霜林网络科技有限公司", DefaultKeyID: "56",
+		DefaultKeyName: "北京霜林网络科技有限公司默认key",
+	}
+	keys := []providers.Sub2APIKey{{ID: 56, Name: "北京霜林网络科技有限公司默认key"}}
+	key, count := selectTenantDefaultSub2APIKey(account, keys, defaultSub2APIKeyName(account.TenantID, account.AccountName), 0, nil)
+	if key == nil || key.ID != 56 || count != 1 {
+		t.Fatalf("legacy key selection = key=%+v count=%d", key, count)
+	}
+}
+
+func TestRenameLegacyTenantDefaultKeyUsesEnglishNameAndKeepsKey(t *testing.T) {
+	provider := &sub2APIDefaultKeyProvider{keys: []providers.Sub2APIKey{{
+		ID: 56, Key: "sk-default-56", Name: "北京霜林网络科技有限公司默认key", GroupID: 2, Quota: 15, Status: "active",
+	}}}
+	account := &models.Sub2APITenantAccount{
+		TenantID: 14, AccountName: "北京霜林网络科技有限公司", DefaultKeyID: "56",
+		DefaultKeyName: "北京霜林网络科技有限公司默认key",
+	}
+	keys := append([]providers.Sub2APIKey(nil), provider.keys...)
+	if err := (&enterpriseAIModelService{}).renameLegacyTenantDefaultKey(context.Background(), provider, "token", account, keys); err != nil {
+		t.Fatalf("renameLegacyTenantDefaultKey() error = %v", err)
+	}
+	if provider.updateCalls != 1 || keys[0].Name != "RHD-COMPANY-ID-14-DEFAULT" || keys[0].Key != "sk-default-56" {
+		t.Fatalf("renamed key = %+v, updates=%d", keys[0], provider.updateCalls)
 	}
 }
 
@@ -228,13 +257,13 @@ func TestDefaultKeyValidationRejectsProductKeyMapping(t *testing.T) {
 	}
 	keys := []providers.Sub2APIKey{
 		{ID: 57, Name: "RHD-PRODUCT-13"},
-		{ID: 56, Name: "SIT Tenant默认key"},
+		{ID: 56, Name: "RHD-COMPANY-SIT-TENANT-DEFAULT"},
 	}
 	if got := findAccountDefaultSub2APIKey(account, keys); got != nil {
 		t.Fatalf("enterprise sync selected product key as tenant default: %+v", got)
 	}
 	account.DefaultKeyID = "56"
-	account.DefaultKeyName = "SIT Tenant默认key"
+	account.DefaultKeyName = "RHD-COMPANY-SIT-TENANT-DEFAULT"
 	if got := findAccountDefaultSub2APIKey(account, keys); got == nil || got.ID != 56 {
 		t.Fatalf("enterprise sync did not select the valid tenant default key: %+v", got)
 	}
@@ -242,8 +271,8 @@ func TestDefaultKeyValidationRejectsProductKeyMapping(t *testing.T) {
 
 func TestResolveTenantDefaultKeySecretUsesRemoteSecretWhenLocalMappingIsWrong(t *testing.T) {
 	account := &models.Sub2APITenantAccount{DefaultKeyID: "57", DefaultKeyName: "RHD-PRODUCT-13", DefaultKeyCiphertext: "product-ciphertext"}
-	key := &providers.Sub2APIKey{ID: 56, Name: "SIT Tenant默认key", Key: "sk-default-56"}
-	ciphertext, fingerprint, err := resolveTenantDefaultKeySecret(account, key, "SIT Tenant默认key")
+	key := &providers.Sub2APIKey{ID: 56, Name: "RHD-COMPANY-SIT-TENANT-DEFAULT", Key: "sk-default-56"}
+	ciphertext, fingerprint, err := resolveTenantDefaultKeySecret(account, key, "RHD-COMPANY-SIT-TENANT-DEFAULT")
 	if err != nil {
 		t.Fatalf("resolveTenantDefaultKeySecret() error = %v", err)
 	}
@@ -255,7 +284,7 @@ func TestResolveTenantDefaultKeySecretUsesRemoteSecretWhenLocalMappingIsWrong(t 
 func TestRemoteTenantDefaultKeyExpiryComparisonUsesSeconds(t *testing.T) {
 	expiresAt := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Second)
 	formatted := expiresAt.Format(time.RFC3339)
-	key := &providers.Sub2APIKey{ID: 56, Name: "SIT Tenant默认key", GroupID: 2, Quota: 15, Status: "active", ExpiresAt: &formatted}
+	key := &providers.Sub2APIKey{ID: 56, Name: "RHD-COMPANY-SIT-TENANT-DEFAULT", GroupID: 2, Quota: 15, Status: "active", ExpiresAt: &formatted}
 	if !remoteTenantDefaultKeyMatches(key, key.Name, key.Quota, &expiresAt) {
 		t.Fatal("equivalent default key expiry should be reusable")
 	}

@@ -11127,6 +11127,33 @@ button.ent-product-list-item {
   min-width: 0;
 }
 
+.rhd-railops-workflow-list [data-slot="table"] {
+  min-width: 760px;
+  table-layout: auto;
+}
+
+.rhd-railops-workflow-list [data-slot="table"] td {
+  vertical-align: top;
+}
+
+.rhd-railops-workflow-capability-tag {
+  height: auto !important;
+  min-height: 24px;
+  white-space: normal !important;
+}
+
+@media (min-width: 768px) {
+  .rhd-railops-workflow-list [data-slot="table"] {
+    min-width: 980px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .rhd-railops-workflow-list [data-slot="table"] {
+    min-width: 1180px;
+  }
+}
+
 .rhd-railops-workflow-template-card {
   border-color: #e2e8f0;
   border-radius: 8px;
@@ -12346,6 +12373,63 @@ button.ent-product-list-item {
   gap: 8px;
 }
 
+.rhd-railops-ai-model-popover {
+  max-width: calc(100vw - 2rem);
+}
+
+.rhd-railops-ai-capability {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.rhd-railops-ai-model-field,
+.rhd-railops-ai-model-select {
+  min-width: 0;
+  width: 100%;
+}
+
+.rhd-railops-ai-model-select .ant-select-selector {
+  min-height: 36px !important;
+  height: auto !important;
+  align-items: center;
+}
+
+.rhd-railops-ai-model-select.ant-select-single .ant-select-selector {
+  height: auto !important;
+  min-height: 36px !important;
+  padding-block: 6px !important;
+}
+
+.rhd-railops-ai-model-select .ant-select-selection-item,
+.rhd-railops-ai-model-select .ant-select-selection-placeholder {
+  display: block;
+  flex: 1 1 auto;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  line-height: 20px;
+}
+
+.rhd-railops-ai-model-dropdown {
+  max-width: calc(100vw - 2rem);
+}
+
+.rhd-railops-ai-model-dropdown .ant-select-item {
+  height: auto;
+  min-height: 40px;
+  white-space: normal;
+}
+
+.rhd-railops-ai-model-dropdown .ant-select-item-option-content {
+  display: block;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  line-height: 20px;
+}
+
 .rhd-railops-ai-agent-list {
   display: grid;
   gap: 12px;
@@ -12394,6 +12478,32 @@ button.ent-product-list-item {
 .rhd-railops-ai-table .ant-table-tbody > tr > td.ant-table-cell-fix-right,
 .rhd-railops-ai-table .ant-table-thead > tr > th.ant-table-cell-fix-right {
   text-align: right !important;
+}
+
+// The AI service table has one text action and one icon action. The shared
+// row-action rule sizes icon buttons to 28px, which also used to squeeze the
+// text action and make its label overlap the arrow button.
+.rhd-railops-ai-row-actions {
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-width: max-content;
+}
+
+.rhd-railops-ai-row-actions > .railops-button:not(.railops-icon-button) {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: max-content;
+  height: 28px;
+  min-height: 28px;
+  padding-inline: 10px;
+  white-space: nowrap;
+}
+
+.rhd-railops-ai-row-actions > .railops-icon-button {
+  flex: 0 0 32px;
+  width: 32px;
+  min-width: 32px;
 }
 
 .rhd-railops-ai-table-empty {

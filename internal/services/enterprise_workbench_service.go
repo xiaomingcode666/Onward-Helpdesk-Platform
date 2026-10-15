@@ -976,7 +976,7 @@ func (s *enterpriseWorkbenchService) productLoads(tenantID int64, products []mod
 		}
 		if team, ok := teamByProduct[product.ID]; ok {
 			row.TeamID = team.ID
-			row.TeamName = team.Name
+			row.TeamName = team.DisplayName(operatorLocale(operator))
 		}
 		if item, ok := usage[product.ID]; ok {
 			row.QuotaLimit = item.Limit

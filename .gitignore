@@ -58,6 +58,9 @@ blob-report/
 __pycache__/
 *.py[cod]
 .venv/
+/services/ai_phone_agent/.venv-ai-phone/
+/services/ai_phone_agent/*.egg-info/
+/services/ai_phone_agent/.env.local
 node_modules/
 .next/
 *.tsbuildinfo

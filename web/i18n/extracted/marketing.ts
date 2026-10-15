@@ -322,7 +322,8 @@ export const marketingMessages = {
         "t040": "知识问答",
         "t041": "知识、会话与人工接管",
         "t042": "协作网络",
-        "t043": "总部、伙伴与供应商"
+        "t043": "总部、伙伴与供应商",
+        "tenantReady": "租户就绪"
       }
     }
   },
@@ -646,7 +647,8 @@ export const marketingMessages = {
         "t040": "Knowledge Q&A",
         "t041": "Knowledge, conversations and human takeover",
         "t042": "Collaboration network",
-        "t043": "Headquarters, partners and suppliers"
+        "t043": "Headquarters, partners and suppliers",
+        "tenantReady": "Tenant ready"
       }
     }
   },
@@ -970,7 +972,8 @@ export const marketingMessages = {
         "t040": "Preguntas y respuestas",
         "t041": "Conocimiento, conversaciones y traspaso a una persona",
         "t042": "Red de colaboración",
-        "t043": "Sede, socios y proveedores"
+        "t043": "Sede, socios y proveedores",
+        "tenantReady": "Tenant listo"
       }
     }
   }

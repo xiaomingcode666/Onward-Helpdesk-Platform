@@ -17,5 +17,5 @@ export function agentMemberName(
     || item.nickname?.trim()
     || item.username?.trim()
     || item.agentCode?.trim()
-    || (item.userId ? translateCurrentMessage("orgExtract.orgMembers.memberNameFallback", { id: item.userId }) : fallback)
+    || (item.userId ? translateCurrentMessage("orgExtract.orgMembers.table.memberNameFallback", { id: item.userId }) : fallback)
 }

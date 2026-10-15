@@ -32,6 +32,8 @@ type EnterpriseIAMQuery struct {
 	Status string
 	Page   int
 	Limit  int
+	// Locale 为请求界面语言，用于渲染系统内置团队等名称。
+	Locale string
 }
 
 type AuditLogQuery struct {
@@ -1015,12 +1017,12 @@ func (s *enterpriseIAMService) ListMembers(tenantID int64, query EnterpriseIAMQu
 		Users:            users,
 		Departments:      departments,
 		EngineerProfiles: engineers,
-		ProductGroups:    s.memberProductGroups(tenantID, items),
+		ProductGroups:    s.memberProductGroups(tenantID, items, query.Locale),
 		RolesBySubject:   rolesBySubject,
 	}, nil
 }
 
-func (s *enterpriseIAMService) memberProductGroups(tenantID int64, members []models.TenantMember) map[int64][]dto.EnterpriseIAMProductGroupDTO {
+func (s *enterpriseIAMService) memberProductGroups(tenantID int64, members []models.TenantMember, locale string) map[int64][]dto.EnterpriseIAMProductGroupDTO {
 	ret := make(map[int64][]dto.EnterpriseIAMProductGroupDTO)
 	if tenantID <= 0 || len(members) == 0 || !sqls.DB().Migrator().HasTable(&models.AgentTeamMember{}) {
 		return ret
@@ -1093,7 +1095,7 @@ func (s *enterpriseIAMService) memberProductGroups(tenantID int64, members []mod
 		seen[member.ID][team.ID] = struct{}{}
 		ret[member.ID] = append(ret[member.ID], dto.EnterpriseIAMProductGroupDTO{
 			TeamID:      team.ID,
-			TeamName:    team.Name,
+			TeamName:    team.DisplayName(locale),
 			ProductID:   team.ProductID,
 			ProductName: productName,
 		})

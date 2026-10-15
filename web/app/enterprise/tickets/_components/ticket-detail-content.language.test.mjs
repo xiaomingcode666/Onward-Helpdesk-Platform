@@ -15,7 +15,9 @@ test("ticket assignment history is rendered and translated during render", () =>
   assert.match(source, /data-testid="ticket-assignment-history"/)
   assert.match(source, /assignmentOutcomeLabel\(item\.outcome\)/)
   assert.match(source, /assignmentSourceLabel\(item\.source\)/)
-  assert.match(source, /ee\("ticketDetail\.text118", \{ value0: item\.reason \}\)/)
+  assert.match(source, /ee\("ticketDetail\.text118", \{ value0: localizeTimelineReason\(item\.reason\) \}\)/)
+  assert.match(source, /ticketSupportTakeoverAssigned/)
+  assert.match(source, /renderCustomerConversationSummary\(/)
   assert.match(source, /ee\("ticketDetail\.text106"\)/)
 })
 

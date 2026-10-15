@@ -104,6 +104,64 @@ func (s *tenantDefaultAIAgentService) EnsureDB(db *gorm.DB, tenantID int64, oper
 	return result, err
 }
 
+// SyncStaleWorkflowDraftsDB re-provisions tenant default agents whose draft is
+// still pinned to a superseded platform workflow version, so a platform upgrade
+// yields a deployable candidate instead of leaving every new release stranded.
+// It returns the IDs of tenants whose sync failed; one tenant never blocks others.
+func (s *tenantDefaultAIAgentService) SyncStaleWorkflowDraftsDB(db *gorm.DB) (map[int64]error, error) {
+	if db == nil {
+		return nil, errorsx.InvalidParam("database is required")
+	}
+	for _, table := range []any{&models.Tenant{}, &models.AIWorkflow{}, &models.AIAgent{}} {
+		if !db.Migrator().HasTable(table) {
+			return nil, nil
+		}
+	}
+	agentTable, err := tableNameOf(db, &models.AIAgent{})
+	if err != nil {
+		return nil, err
+	}
+	workflowTable, err := tableNameOf(db, &models.AIWorkflow{})
+	if err != nil {
+		return nil, err
+	}
+	var tenantIDs []int64
+	if err := db.Table(agentTable+" AS a").
+		Joins("JOIN "+workflowTable+" AS w ON w.id = a.workflow_id").
+		Where("a.source = ? AND a.product_id = 0 AND a.status <> ?", TenantDefaultAIAgentSource, enums.StatusDeleted).
+		Where("w.scope = ? AND w.current_stable_version_id > 0 AND w.current_stable_version_id <> a.workflow_version_id", models.AIWorkflowScopePlatform).
+		Distinct("a.tenant_id").
+		Order("a.tenant_id ASC").
+		Pluck("a.tenant_id", &tenantIDs).Error; err != nil {
+		return nil, err
+	}
+	failures := make(map[int64]error)
+	for _, tenantID := range tenantIDs {
+		tenant := repositories.PlatformIAMRepository.GetTenant(db, tenantID)
+		if tenant == nil || tenant.Status == enums.StatusDeleted || !tenant.IsAIEnabled() {
+			continue
+		}
+		operator := &dto.AuthPrincipal{
+			TenantID:   tenantID,
+			Username:   "platform-workflow-sync",
+			DomainType: models.DomainTypeEnterprise,
+			Domain:     models.DomainTypeEnterprise,
+		}
+		if _, err := s.EnsureDB(db, tenantID, operator); err != nil {
+			failures[tenantID] = err
+		}
+	}
+	return failures, nil
+}
+
+func tableNameOf(db *gorm.DB, model any) (string, error) {
+	stmt := &gorm.Statement{DB: db}
+	if err := stmt.Parse(model); err != nil {
+		return "", err
+	}
+	return stmt.Schema.Table, nil
+}
+
 func (s *tenantDefaultAIAgentService) EnsureDefaultCredential(tenantID int64, operator *dto.AuthPrincipal) error {
 	if tenantID <= 0 {
 		return errorsx.InvalidParam("tenant is required")

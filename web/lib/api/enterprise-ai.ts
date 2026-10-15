@@ -259,6 +259,8 @@ export function rollbackEnterpriseAIWorkflowVersion(workflowId: number, versionI
   })
 }
 
+const WORKFLOW_TEST_RUN_TIMEOUT_MS = 180_000
+
 export function testEnterpriseAIWorkflow(
   id: number,
   payload: {
@@ -280,6 +282,9 @@ export function testEnterpriseAIWorkflow(
   return request<AIWorkflowTestRunResult>(`/api/enterprise/v1/ai-workflows/${id}/_test`, {
     method: "POST",
     body: JSON.stringify(payload),
+    // A trial run executes real retrieval and model calls; the default 20s
+    // request timeout aborts it mid-run. Match the agent reply budget instead.
+    timeoutMs: WORKFLOW_TEST_RUN_TIMEOUT_MS,
   })
 }
 

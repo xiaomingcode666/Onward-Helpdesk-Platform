@@ -984,6 +984,7 @@ func (s *slaService) enqueueUpcomingWarnings(ticket models.Ticket, policy SLAPol
 			continue
 		}
 		actualMinutes := policy.elapsed(ticket.CreatedAt, now, pausedDuration)
+		remainingMinutes := max(0, target.targetMinutes-actualMinutes)
 		eventID := "tenant:" + tenantID + ":sla.risk:" + ticketID + ":" + target.violationType + ":" + strconv.FormatInt(bucket, 10)
 		created := false
 		if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
@@ -996,6 +997,7 @@ func (s *slaService) enqueueUpcomingWarnings(ticket models.Ticket, policy SLAPol
 					EventID: eventID, TicketID: ticketID, TenantID: tenantID,
 					ViolationType: target.violationType, Severity: "warning",
 					TargetMinutes: target.targetMinutes, ActualMinutes: actualMinutes,
+					RemainingMinutes: remainingMinutes,
 				},
 				Source: "sla_service", AggregateID: ticketID, CreatedAt: now,
 			})
@@ -1195,13 +1197,14 @@ func (s *slaService) createViolation(ticketID, tenantID, violationType string, t
 			IdempotencyKey: eventID,
 			EventType:      events.EventSLAWarning,
 			Payload: events.SLAWarningEvent{
-				EventID:       eventID,
-				TicketID:      ticketID,
-				TenantID:      tenantID,
-				ViolationType: violationType,
-				Severity:      violation.Severity,
-				TargetMinutes: targetMinutes,
-				ActualMinutes: actualMinutes,
+				EventID:          eventID,
+				TicketID:         ticketID,
+				TenantID:         tenantID,
+				ViolationType:    violationType,
+				Severity:         violation.Severity,
+				TargetMinutes:    targetMinutes,
+				ActualMinutes:    actualMinutes,
+				RemainingMinutes: max(0, targetMinutes-actualMinutes),
 			},
 			Source:      "sla_service",
 			AggregateID: ticketID,

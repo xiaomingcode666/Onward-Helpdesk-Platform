@@ -37,7 +37,7 @@ import { useRouteBreadcrumbItems } from "@/components/layout/route-breadcrumbs"
 import { useConfirm } from "@/components/confirm-provider"
 import { ModuleLoading } from "@/components/shared/loading-states"
 import { PlatformError, formatDateTime } from "@/components/platform/platform-live-ui"
-import { useAppLocale, useI18n } from "@/i18n/provider"
+import { useI18n } from "@/i18n/provider"
 import { formatFileSize } from "@/lib/im-message"
 import { toast } from "sonner"
 
@@ -77,15 +77,12 @@ type SystemPolicyForm = {
 }
 
 export default function PlatformSystemConfigPage() {
-  const { locale } = useAppLocale()
   const t = useI18n()
   const { session } = useAuth()
   const confirm = useConfirm()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const introNamespace = locale === "zh-CN" ? "platformExtract.systemIntroPage" : "systemIntroPage"
-  const commonNamespace = locale === "zh-CN" ? "platformExtract.common" : "common"
-  const introT = useCallback((key: string, values?: Record<string, string | number>) => t(`${introNamespace}.${key}`, values), [introNamespace, t])
-  const commonT = useCallback((key: string, values?: Record<string, string | number>) => t(`${commonNamespace}.${key}`, values), [commonNamespace, t])
+  const introT = useCallback((key: string, values?: Record<string, string | number>) => t(`systemIntroPage.${key}`, values), [t])
+  const commonT = useCallback((key: string, values?: Record<string, string | number>) => t(`common.${key}`, values), [t])
 
   const [sectionKey, setSectionKey] = useState<SystemConfigSectionKey>("system-intro")
 

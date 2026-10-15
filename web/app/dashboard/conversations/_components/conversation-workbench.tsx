@@ -211,7 +211,7 @@ export function ConversationWorkbench() {
           ) : (
             <div className="min-w-0 flex-1">
               <FilterTabs
-                ariaLabel={t("conversation.filterLabel") || t("miscTailExtract.dashboardMisc.conversations.filterAriaFallback")}
+                ariaLabel={t("miscTailExtract.dashboardMisc.conversations.filterAriaFallback")}
                 items={conversationFilterTabs}
                 value={conversationFilter}
                 onChange={(value) =>

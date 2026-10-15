@@ -82,6 +82,9 @@ func (s *enterpriseAIModelService) GetWorkspace(ctx context.Context, tenantID in
 	if err != nil {
 		return nil, err
 	}
+	if err := s.renameLegacyTenantDefaultKey(ctx, provider, token, account, keysResp.Data.Items); err != nil {
+		return nil, err
+	}
 	if err := s.syncDefaultKeySnapshot(account, keysResp.Data.Items, operator); err != nil {
 		return nil, err
 	}
@@ -100,6 +103,67 @@ func (s *enterpriseAIModelService) GetWorkspace(ctx context.Context, tenantID in
 		KeyProductBindings: keyProductBindings,
 		Subscriptions:      subscriptionsResp,
 	}, nil
+}
+
+func (s *enterpriseAIModelService) renameLegacyTenantDefaultKey(
+	ctx context.Context,
+	provider providers.Sub2APIProvider,
+	token string,
+	account *models.Sub2APITenantAccount,
+	keys []providers.Sub2APIKey,
+) error {
+	if account == nil || provider == nil {
+		return nil
+	}
+	keyID := parseInt64(account.DefaultKeyID)
+	current := findSub2APIKey(keys, keyID)
+	if !isLegacyTenantDefaultKey(account, current) {
+		for i := range keys {
+			if isLegacyTenantDefaultKey(account, &keys[i]) {
+				current = &keys[i]
+				keyID = current.ID
+				break
+			}
+		}
+	}
+	if !isLegacyTenantDefaultKey(account, current) {
+		return nil
+	}
+	newName := defaultSub2APIKeyName(account.TenantID, account.AccountName)
+	ipWhitelist := stringSliceFromAny(current.IPWhitelist)
+	ipBlacklist := stringSliceFromAny(current.IPBlacklist)
+	expiresAt := ""
+	if current.ExpiresAt != nil {
+		expiresAt = *current.ExpiresAt
+	}
+	updated, err := provider.UpdateKey(ctx, token, keyID, providers.Sub2APIUpdateKeyRequest{
+		Name:        newName,
+		GroupID:     current.GroupID,
+		IPWhitelist: &ipWhitelist,
+		IPBlacklist: &ipBlacklist,
+		Quota:       &current.Quota,
+		ExpiresAt:   expiresAt,
+		RateLimit5h: current.RateLimit5h,
+		RateLimit1d: current.RateLimit1d,
+		RateLimit7d: current.RateLimit7d,
+		Status:      current.Status,
+	})
+	if err != nil {
+		return err
+	}
+	if updated == nil || updated.Data.ID <= 0 {
+		return errors.New("sub2api default key rename returned an empty key")
+	}
+	if strings.TrimSpace(updated.Data.Key) == "" {
+		updated.Data.Key = current.Key
+	}
+	for i := range keys {
+		if keys[i].ID == keyID {
+			keys[i] = updated.Data
+			break
+		}
+	}
+	return nil
 }
 
 func (s *enterpriseAIModelService) refreshAccountBalance(ctx context.Context, tenantID int64, operator *dto.AuthPrincipal) error {
@@ -447,7 +511,7 @@ func findAccountDefaultSub2APIKey(account *models.Sub2APITenantAccount, keys []p
 	if account == nil {
 		return nil
 	}
-	expectedName := defaultSub2APIKeyName(account.AccountName)
+	expectedName := defaultSub2APIKeyName(account.TenantID, account.AccountName)
 	defaultID := parseInt64(account.DefaultKeyID)
 	if defaultID > 0 {
 		if item := findSub2APIKey(keys, defaultID); item != nil && strings.EqualFold(strings.TrimSpace(item.Name), expectedName) {

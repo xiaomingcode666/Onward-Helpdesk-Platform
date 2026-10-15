@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -143,6 +144,7 @@ func (s *wsService) upgradeConnection(ctx *gin.Context, principal *dto.AuthPrinc
 		External:     external,
 		Role:         role,
 		TerminalType: s.resolveTerminalType(ctx, role),
+		Locale:       realtimeSessionLocale(ctx, principal),
 		Topics:       make(map[string]struct{}),
 		Send:         make(chan []byte, realtimeSendBufferSize),
 	}
@@ -607,7 +609,13 @@ func (s *wsService) publishRawToLocalTopics(topics []string, payload []byte, exc
 }
 
 func (s *wsService) payloadForSession(payload []byte, session *ClientSession) []byte {
-	if session == nil || session.Role != realtimeRoleUser || len(payload) == 0 {
+	if session == nil || len(payload) == 0 {
+		return payload
+	}
+	if localized, ok := localizeRealtimePayload(payload, session.Locale); ok {
+		payload = localized
+	}
+	if session.Role != realtimeRoleUser {
 		return payload
 	}
 	sanitized, ok := sanitizeCustomerRealtimePayload(payload)
@@ -1150,4 +1158,59 @@ func formatWsTime(t *time.Time) string {
 		return ""
 	}
 	return t.Format(time.DateTime)
+}
+
+// realtimeSessionLocale 返回连接声明的界面语言。浏览器无法为 WebSocket 设置 X-Locale，
+// 前端改用 locale 查询参数；未声明时沿用登录用户的语言偏好。
+func realtimeSessionLocale(ctx *gin.Context, principal *dto.AuthPrincipal) string {
+	if ctx != nil {
+		if value := strings.TrimSpace(ctx.Query("locale")); value != "" {
+			return i18nx.NormalizeLocale(value)
+		}
+	}
+	if principal != nil && strings.TrimSpace(principal.Locale) != "" {
+		return i18nx.NormalizeLocale(principal.Locale)
+	}
+	return ""
+}
+
+// localizeRealtimePayload 按连接语言渲染消息事件中的 AI 发送人名称。事件只构建一次并广播给所有连接
+// （含其他节点转发的事件），因此在逐连接下发时替换；用户自定义的名称原样保留。
+func localizeRealtimePayload(payload []byte, locale string) ([]byte, bool) {
+	if locale == "" || !bytes.Contains(payload, []byte(enums.IMRealtimeEventMessageCreated)) {
+		return payload, false
+	}
+	var event map[string]any
+	if err := json.Unmarshal(payload, &event); err != nil {
+		return payload, false
+	}
+	if eventType, _ := event["type"].(string); eventType != enums.IMRealtimeEventMessageCreated {
+		return payload, false
+	}
+	data, _ := event["data"].(map[string]any)
+	message, _ := data["message"].(map[string]any)
+	if message == nil {
+		return payload, false
+	}
+	if senderType, _ := data["senderType"].(string); senderType != string(enums.IMSenderTypeAI) {
+		return payload, false
+	}
+	senderID, _ := data["senderId"].(float64)
+	if senderID <= 0 {
+		return payload, false
+	}
+	agent := AIAgentService.Get(int64(senderID))
+	if agent == nil {
+		return payload, false
+	}
+	name := agent.DisplayName(locale)
+	if current, _ := message["senderName"].(string); current == name {
+		return payload, false
+	}
+	message["senderName"] = name
+	ret, err := json.Marshal(event)
+	if err != nil {
+		return payload, false
+	}
+	return ret, true
 }

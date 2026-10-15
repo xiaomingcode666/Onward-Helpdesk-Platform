@@ -39,7 +39,7 @@ import {
 } from "@/components/platform/platform-live-ui"
 import { ModuleLoading } from "@/components/shared/loading-states"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { useAppLocale, useI18n } from "@/i18n/provider"
+import { useI18n } from "@/i18n/provider"
 import {
   fetchPlatformGlobalization,
   fetchPlatformTenants,
@@ -173,7 +173,6 @@ function PreferenceMultiSelect({
 
 export default function PlatformGlobalizationPage() {
   const { session } = useAuth()
-  const { locale } = useAppLocale()
   const t = useI18n()
   const [data, setData] = useState<PlatformGlobalizationResponse | null>(null)
   const [tenantCatalog, setTenantCatalog] = useState<PlatformTenantItem[]>([])
@@ -191,21 +190,19 @@ export default function PlatformGlobalizationPage() {
   const [saving, setSaving] = useState(false)
   const pageSize = 20
   const canUpdateTenant = CanUseButton("tenant.update", session?.permissions)
-  const globalizationNamespace = locale === "zh-CN" ? "platformExtract.globalization" : "platformGlobalization"
-  const commonNamespace = locale === "zh-CN" ? "platformExtract.common" : "common"
-  const globalizationT = useCallback((key: string, values?: Record<string, string | number>) => t(`${globalizationNamespace}.${key}`, values), [globalizationNamespace, t])
-  const commonT = useCallback((key: string, values?: Record<string, string | number>) => t(`${commonNamespace}.${key}`, values), [commonNamespace, t])
+  const globalizationT = useCallback((key: string, values?: Record<string, string | number>) => t(`platformGlobalization.${key}`, values), [t])
+  const commonT = useCallback((key: string, values?: Record<string, string | number>) => t(`common.${key}`, values), [t])
   const localeLabels = useMemo<Record<string, string>>(() => ({
     "en-US": "English (United States) · en-US",
-    "zh-CN": locale === "zh-CN" ? `${globalizationT("locale.zhCN")} · zh-CN` : "Simplified Chinese · zh-CN",
+    "zh-CN": `${t("platformExtract.tenantLanguages.zhCN")} · zh-CN`,
     "de-DE": "Deutsch · de-DE",
     "fr-FR": "Français · fr-FR",
     "es-ES": "Español · es-ES",
     "pt-BR": "Português (Brasil) · pt-BR",
-    "ja-JP": locale === "zh-CN" ? `${globalizationT("locale.jaJP")} · ja-JP` : "Japanese · ja-JP",
+    "ja-JP": `${t("platformExtract.tenantLanguages.jaJP")} · ja-JP`,
     "ko-KR": "한국어 · ko-KR",
     "ar-SA": "العربية · ar-SA",
-  }), [globalizationT, locale])
+  }), [t])
 
   const loadGlobalization = useCallback(async () => {
     setGlobalizationLoading(true)
@@ -450,7 +447,7 @@ export default function PlatformGlobalizationPage() {
         {error && hasData ? <div className="border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">{error}</div> : null}
         {tenantCatalogError ? (
           <div className="border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
-            {hasLoadedTenantCatalog ? tenantCatalogError : `${globalizationT("selectTenant")}${globalizationT("temporaryUnavailable")}：${tenantCatalogError}`}
+            {hasLoadedTenantCatalog ? tenantCatalogError : globalizationT("tenantCatalogUnavailable", { error: tenantCatalogError })}
           </div>
         ) : null}
 

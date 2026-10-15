@@ -24,3 +24,8 @@ test("account dialogs avoid explanatory description copy", () => {
     assert.equal(Object.hasOwn(messages.account, "changePasswordDescription"), false, `${locale} should not keep password description copy`)
   }
 })
+
+test("language save confirmation uses the locale that was just saved", () => {
+  assert.match(accountMenuSource, /const savedLocale = normalizeLocale\(nextSession\.user\?\.locale \|\| nextLocale\)/)
+  assert.match(accountMenuSource, /toast\.success\(translateMessage\(savedLocale, "account\.languageSaved"\)\)/)
+})

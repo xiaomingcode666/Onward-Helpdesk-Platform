@@ -215,25 +215,6 @@ func NotificationMailSettingGet(ctx *gin.Context) {
 	httpx.WriteJSON(ctx, setting)
 }
 
-func NotificationMailSettingSave(ctx *gin.Context) {
-	tenantID, ok := resolveEnterpriseTenantIDInt(ctx)
-	if !ok {
-		return
-	}
-	var req request.UpdateMailSettingRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		httpx.WriteJSON(ctx, errorsx.InvalidParam("invalid request body"))
-		return
-	}
-	setting, err := services.MailSettingService.Save(tenantID, req)
-	if err != nil {
-		httpx.WriteJSON(ctx, err)
-		return
-	}
-	recordNotificationAudit(ctx, services.AuthService.GetAuthPrincipal(ctx), tenantID, "notification.mail_settings.updated", "tenant_mail_setting", fmt.Sprint(tenantID), setting)
-	httpx.WriteJSON(ctx, setting)
-}
-
 func NotificationMailSettingTest(ctx *gin.Context) {
 	tenantID, ok := resolveEnterpriseTenantIDInt(ctx)
 	if !ok {

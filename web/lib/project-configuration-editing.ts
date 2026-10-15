@@ -64,3 +64,36 @@ export function replaceProjectRuntime(document: ProjectConfiguration, runtime: P
   ])]
   return { ...document, runtime: normalizedRuntime, secret_refs }
 }
+
+type MailSecretInput = { smtpPassword: string; imapPassword: string }
+
+// Write-only SMTP/IMAP passwords are stored as tenant-managed secrets; the
+// document only carries their secret:// references.
+export function withManagedMailSecrets(document: ProjectConfiguration, mailSecrets: MailSecretInput): ProjectConfiguration {
+  const copy = structuredClone(document)
+  const integrationRefs = new Set((copy.runtime?.integrations ?? []).flatMap(integration => [integration.secret_ref, integration.key_ref]).filter(Boolean))
+  const refs = new Set(copy.runtime ? integrationRefs : (copy.secret_refs ?? []))
+  if (copy.runtime && mailSecrets.smtpPassword.trim()) {
+    if (copy.runtime.mail.password_ref && !integrationRefs.has(copy.runtime.mail.password_ref)) refs.delete(copy.runtime.mail.password_ref)
+    copy.runtime.mail.password_ref = "secret://managed-smtp"
+    refs.add("secret://managed-smtp")
+  } else if (copy.runtime?.mail.password_ref === "secret://managed-smtp") {
+    // A blank input means "keep the saved password"; its reference stays declared.
+    refs.add("secret://managed-smtp")
+  } else if (copy.runtime && copy.runtime.mail.password_ref && !integrationRefs.has(copy.runtime.mail.password_ref)) {
+    refs.delete(copy.runtime.mail.password_ref)
+    copy.runtime.mail.password_ref = ""
+  }
+  if (copy.runtime?.mail.imap && mailSecrets.imapPassword.trim()) {
+    if (copy.runtime.mail.imap.password_ref && !integrationRefs.has(copy.runtime.mail.imap.password_ref)) refs.delete(copy.runtime.mail.imap.password_ref)
+    copy.runtime.mail.imap.password_ref = "secret://managed-imap"
+    refs.add("secret://managed-imap")
+  } else if (copy.runtime?.mail.imap?.password_ref === "secret://managed-imap") {
+    refs.add("secret://managed-imap")
+  } else if (copy.runtime?.mail.imap?.password_ref && !integrationRefs.has(copy.runtime.mail.imap.password_ref)) {
+    refs.delete(copy.runtime.mail.imap.password_ref)
+    copy.runtime.mail.imap.password_ref = ""
+  }
+  copy.secret_refs = [...refs]
+  return copy
+}

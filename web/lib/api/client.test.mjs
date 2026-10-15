@@ -30,3 +30,10 @@ test("both API clients send the current UI locale explicitly", () => {
   assert.match(source, /if \(!authHeaders\.has\("X-Locale"\)\) \{\s+authHeaders\.set\("X-Locale", readStoredLocale\(\)\)/)
   assert.match(source, /headers\["X-Locale"\] = readStoredLocale\(\)/)
 })
+
+test("API error display falls back to the current language instead of leaking CJK text", () => {
+  assert.match(source, /function containsCjk\(value: string\)/)
+  assert.match(source, /readStoredLocale\(\) === "en-US" && containsCjk\(message\)/)
+  assert.match(source, /displayApiErrorMessage\(payload\.message, translateCurrentMessage\("api\.requestFailed"\)\)/)
+  assert.match(source, /json\.error\.message/)
+})

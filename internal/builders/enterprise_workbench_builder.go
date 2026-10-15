@@ -12,7 +12,7 @@ import (
 	"github.com/mlogclub/simple/sqls"
 )
 
-func BuildEnterpriseWorkbenchConversations(items []models.Conversation) []dto.EnterpriseWorkbenchConversationDTO {
+func BuildEnterpriseWorkbenchConversations(items []models.Conversation, locale string) []dto.EnterpriseWorkbenchConversationDTO {
 	result := make([]dto.EnterpriseWorkbenchConversationDTO, 0, len(items))
 	now := time.Now()
 	customerLastSeenByConversationID := services.ConversationService.BuildConversationCustomerLastSeenAtMap(items)
@@ -47,7 +47,7 @@ func BuildEnterpriseWorkbenchConversations(items []models.Conversation) []dto.En
 		}
 		if item.CurrentTeamID > 0 {
 			if team := repositories.AgentTeamRepository.Get(sqls.DB(), item.CurrentTeamID); team != nil {
-				row.CurrentTeamName = team.Name
+				row.CurrentTeamName = team.DisplayName(locale)
 			}
 		}
 		if item.ProductID > 0 {

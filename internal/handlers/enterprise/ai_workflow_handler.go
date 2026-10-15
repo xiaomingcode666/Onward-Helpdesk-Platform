@@ -275,7 +275,7 @@ func AIWorkflowVersionList(ctx *gin.Context) {
 		params.QueryFilter{ParamName: "releaseChannel", ColumnName: "release_channel"},
 	).Eq("workflow_id", workflowID).NotEq("status", enums.StatusDeleted).Desc("version").Desc("id")
 	list, paging := services.AIWorkflowService.FindVersionPageByCnd(cnd)
-	httpx.WriteJSON(ctx, &web.PageResult{Results: builders.BuildAIWorkflowVersionList(list), Page: paging})
+	httpx.WriteJSON(ctx, &web.PageResult{Results: builders.BuildAIWorkflowVersionList(list, i18nx.Locale(ctx)), Page: paging})
 }
 
 func AIWorkflowTemplateCreate(ctx *gin.Context) {
@@ -389,7 +389,7 @@ func AIWorkflowPublish(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAIWorkflowVersion(item))
+	httpx.WriteJSON(ctx, builders.BuildAIWorkflowVersion(item, i18nx.Locale(ctx)))
 }
 
 func AIWorkflowVersionRollback(ctx *gin.Context) {
@@ -419,7 +419,7 @@ func AIWorkflowVersionRollback(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAIWorkflowVersion(item))
+	httpx.WriteJSON(ctx, builders.BuildAIWorkflowVersion(item, i18nx.Locale(ctx)))
 }
 
 func AIWorkflowTestRun(ctx *gin.Context) {

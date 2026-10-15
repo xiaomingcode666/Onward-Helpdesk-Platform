@@ -1717,7 +1717,7 @@ function WorkflowValidationIndicator({
         {we(t, "validation.pendingCount", { count: errors.length })}
       </PopoverTrigger>
       <PopoverContent side="bottom" align="start" className="w-80">
-        <div className="text-sm font-medium">Validation issues</div>
+        <div className="text-sm font-medium">{we(t, "validation.panelTitle")}</div>
         <ul className="mt-2 max-h-72 space-y-1 overflow-y-auto text-xs text-destructive">
           {errors.map((error) => (
             <li key={error} className="rounded-md bg-destructive/10 px-2 py-1.5">

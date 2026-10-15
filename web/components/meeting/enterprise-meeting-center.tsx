@@ -66,6 +66,7 @@ import { publishMeetingSync, subscribeMeetingSync } from "@/lib/meeting-sync"
 import { buildEnterpriseTicketWorkbenchPath } from "@/lib/ticket-workbench-route"
 import { cn } from "@/lib/utils"
 import { readStoredLocale } from "@/i18n/config"
+import { useAppLocale } from "@/i18n/provider"
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
     return translateCurrentMessage(`enterpriseExtract.${key}`)
@@ -97,15 +98,19 @@ type DeviceRouteFilter = {
   label: string
 }
 
-const FILTERS: Array<{ value: MeetingFilter; label: string }> = [
-  { value: "all", label: ee("meetingCenter.text001") },
-  { value: "waiting", label: ee("meetingCenter.text002") },
-  { value: "active", label: ee("meetingCenter.text003") },
-  { value: "finished", label: ee("meetingCenter.text004") },
-]
+const MEETING_FILTER_VALUES: MeetingFilter[] = ["all", "waiting", "active", "finished"]
+
+function meetingFilters(t: (key: string, values?: Record<string, string | number>) => string) {
+  return [
+    { value: "all" as const, label: t("enterpriseExtract.meetingCenter.text001") },
+    { value: "waiting" as const, label: t("enterpriseExtract.meetingCenter.text002") },
+    { value: "active" as const, label: t("enterpriseExtract.meetingCenter.text003") },
+    { value: "finished" as const, label: t("enterpriseExtract.meetingCenter.text004") },
+  ]
+}
 
 function parseMeetingRouteFilter(value: string | null): MeetingFilter {
-  return FILTERS.some((item) => item.value === value) ? value as MeetingFilter : "all"
+  return MEETING_FILTER_VALUES.includes(value as MeetingFilter) ? value as MeetingFilter : "all"
 }
 
 const MEETING_READY_TICKET_STATUSES = new Set([
@@ -116,21 +121,29 @@ const MEETING_READY_TICKET_STATUSES = new Set([
   "supplier_support",
 ])
 
-function parseDeviceRouteFilter(searchParams: Pick<URLSearchParams, "get">): DeviceRouteFilter | null {
+function parseDeviceRouteFilter(
+  searchParams: Pick<URLSearchParams, "get">,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): DeviceRouteFilter | null {
   const id = Number(searchParams.get("device_id") || searchParams.get("deviceId") || 0)
   if (!Number.isSafeInteger(id) || id <= 0) {
     return null
   }
   const deviceNo = (searchParams.get("device_no") || searchParams.get("deviceNo") || "").trim()
-  return { id, label: deviceNo || ee("meetingCenter.text005", { value0: id }) }
+  return { id, label: deviceNo || t("enterpriseExtract.meetingCenter.text005", { value0: id }) }
 }
 
 export function EnterpriseMeetingCenter() {
+  const { t } = useAppLocale()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const deviceFilter = useMemo(() => parseDeviceRouteFilter(searchParams), [searchParams])
+  const filters = useMemo(() => meetingFilters(t), [t])
+  const deviceFilter = useMemo(() => parseDeviceRouteFilter(searchParams, t), [searchParams, t])
   const deviceFilterId = deviceFilter?.id ?? 0
-  const deviceFilterFields: TableFilterField[] = useMemo(() => [{ key: "device", label: ee("meetingCenter.text006") }], [])
+  const deviceFilterFields: TableFilterField[] = useMemo(
+    () => [{ key: "device", label: t("enterpriseExtract.meetingCenter.text006") }],
+    [t],
+  )
   const deviceFilterValues: TableFilterValues = deviceFilter ? { device: deviceFilter.label } : {}
   const [data, setData] = useState<MeetingListResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -219,10 +232,10 @@ export function EnterpriseMeetingCenter() {
 		participantsOnline: Number(data?.summary.participants_online || 0),
 		total: Number(data?.summary.mine || data?.total || meetings.length),
 	}), [data, meetings])
-  const filterTabs = useMemo(() => FILTERS.map((item) => ({
+  const filterTabs = useMemo(() => filters.map((item) => ({
     ...item,
     count: meetingFilterCount(item.value, counts),
-  })), [counts])
+  })), [counts, filters])
 
   const filteredMeetings = meetings
   const hasMeetings = filteredMeetings.length > 0

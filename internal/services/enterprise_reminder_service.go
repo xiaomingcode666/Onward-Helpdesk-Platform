@@ -145,6 +145,7 @@ func (s *enterpriseReminderService) ticketReminders(tenantID int64, operator *dt
 	}
 	tickets := repositories.TicketRepository.Find(sqls.DB(), cnd)
 	ret := make([]dto.EnterpriseTicketReminderDTO, 0, len(tickets))
+	teamNames := newAgentTeamDisplayNames(tenantID, operator)
 	for _, ticket := range tickets {
 		item := EnterpriseTicketService.BuildListItem(ticket)
 		ret = append(ret, dto.EnterpriseTicketReminderDTO{
@@ -153,7 +154,7 @@ func (s *enterpriseReminderService) ticketReminders(tenantID int64, operator *dt
 			TicketNo:    item.TicketNo,
 			Title:       item.Title,
 			ProductName: item.ProductName,
-			TeamName:    item.TeamName,
+			TeamName:    teamNames.name(item.CurrentTeamID, item.TeamName),
 			Priority:    item.Priority,
 			Status:      item.Status,
 			CreatedAt:   item.CreatedAt,

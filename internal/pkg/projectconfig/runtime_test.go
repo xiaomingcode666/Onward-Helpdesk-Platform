@@ -62,6 +62,17 @@ func TestRuntimeValidation(t *testing.T) {
 	}
 }
 
+func TestLegacyMailReferencesValidateWithoutSecretDirectory(t *testing.T) {
+	t.Setenv("RHD_PROJECT_SECRET_DIR", "")
+	d := runtimeTestDocument()
+	d.Runtime.Mail.PasswordRef = "secret://smtp-password"
+	d.Runtime.Mail.IMAP = &IMAP{Enabled: false, Host: "imap.qq.com", Port: 993, Username: "mail@qq.com", PasswordRef: "secret://imap-password", ProjectKey: "", TicketType: ""}
+	d.SecretRefs = []string{"secret://smtp-password", "secret://imap-password"}
+	if report := Validate(d, 1, "development", RuntimeSecretCheck); !report.Valid {
+		t.Fatalf("legacy mail references still require a secret directory: %+v", report)
+	}
+}
+
 func TestRuntimeCalendarBoundaries(t *testing.T) {
 	c := runtimeTestDocument().Runtime.Calendars[0]
 	parse := func(s string) time.Time {

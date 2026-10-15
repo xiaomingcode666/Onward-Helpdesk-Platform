@@ -25,7 +25,8 @@ import { toast } from "sonner"
 import { OptionCombobox } from "@/components/option-combobox"
 import { useAuth } from "@/components/auth-provider"
 import { useRouteBreadcrumbItems } from "@/components/layout/route-breadcrumbs"
-import { useI18n } from "@/i18n/provider"
+import { useAppLocale, useI18n } from "@/i18n/provider"
+import type { AppLocale } from "@/i18n/config"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   fetchAgentTeamMemberAvailability,
@@ -51,6 +52,10 @@ type OrgSchedulesT = ReturnType<typeof useI18n>
 const os = (t: OrgSchedulesT, key: string, values?: Record<string, string | number>) => t(`${orgSchedulesI18nPrefix}${key}`, values)
 
 const PRODUCT_TEAM_TYPE = "product_repair"
+
+function displayTeamName(team: Pick<AdminAgentTeam, "productName" | "name"> | undefined) {
+  return team?.productName || team?.name || ""
+}
 const WEEKDAYS = [
   { value: 1, labelKey: "weekday.1", shortLabelKey: "weekday.short1", weekend: false },
   { value: 2, labelKey: "weekday.2", shortLabelKey: "weekday.short2", weekend: false },
@@ -204,6 +209,7 @@ type UnifiedPersonalScheduleWeekProps = {
   schedules: AdminAgentTeamSchedule[]
   draftSchedules: AdminAgentTeamSchedule[]
   t: OrgSchedulesT
+  locale: AppLocale
 }
 
 type PersonalScheduleOverride = {
@@ -217,6 +223,7 @@ function UnifiedPersonalScheduleWeek({
   schedules,
   draftSchedules,
   t,
+  locale,
 }: UnifiedPersonalScheduleWeekProps) {
   const teamByID = new Map(teams.map((team) => [team.id, team]))
   const overridesByWeekday = new Map<number, PersonalScheduleOverride[]>()
@@ -236,8 +243,10 @@ function UnifiedPersonalScheduleWeek({
   for (const items of overridesByWeekday.values()) {
     items.sort((left, right) => {
       if (left.draft !== right.draft) return left.draft ? 1 : -1
-      const teamOrder = (teamByID.get(left.item.teamId)?.productName || teamByID.get(left.item.teamId)?.name || "")
-        .localeCompare(teamByID.get(right.item.teamId)?.productName || teamByID.get(right.item.teamId)?.name || "", "zh-CN")
+      const teamOrder = displayTeamName(teamByID.get(left.item.teamId)).localeCompare(
+        displayTeamName(teamByID.get(right.item.teamId)),
+        locale,
+      )
       return teamOrder || (left.item.startMinute || 0) - (right.item.startMinute || 0) || left.item.id - right.item.id
     })
   }
@@ -391,6 +400,7 @@ function LeaveRequestDialog({ open, saving, onOpenChange, onSubmit, t }: LeaveRe
 
 export default function EnterpriseOrgSchedulesPage() {
   const { session } = useAuth()
+  const { locale } = useAppLocale()
   const t = useI18n()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -666,7 +676,7 @@ export default function EnterpriseOrgSchedulesPage() {
               <div className="w-full sm:w-72">
                 <OptionCombobox
                   value={selectedTeamId}
-                  options={productTeams.map((team) => ({ value: String(team.id), label: team.productName || team.name }))}
+                  options={productTeams.map((team) => ({ value: String(team.id), label: displayTeamName(team) }))}
                   placeholder={loadingTeams ? os(t, "teamPicker.loading") : os(t, "teamPicker.select")}
                   searchPlaceholder={os(t, "teamPicker.search")}
                   emptyText={os(t, "teamPicker.empty")}
@@ -717,7 +727,7 @@ export default function EnterpriseOrgSchedulesPage() {
         <section className="rhd-railops-org-schedule-hero">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">{selectedTeam.productName || selectedTeam.name}</span>
+              <span className="font-medium">{displayTeamName(selectedTeam)}</span>
               {hasDraft ? (
                 <StatusTag tone="neutral">{os(t, "scope.draftVersion", { version: schedules[0]?.version || selectedTeam.scheduleVersion + 1 })}</StatusTag>
               ) : selectedTeam.scheduleEnforced ? (
@@ -765,6 +775,7 @@ export default function EnterpriseOrgSchedulesPage() {
                   schedules={schedules}
                   draftSchedules={draftSchedules}
                   t={t}
+                  locale={locale}
                 />
               ) : (
                 <Skeleton.Node active className="w-full" style={{ width: "100%", height: 224 }} />
@@ -774,7 +785,7 @@ export default function EnterpriseOrgSchedulesPage() {
                   <div className="font-medium">{os(t, "mySchedule.emptyCoverageWarning")}</div>
                   <div className="mt-1 text-xs text-muted-foreground">
                     {os(t, "mySchedule.emptyCoverageWarningDetail", {
-                      teams: teamsWithEmptyPublishedCoverage.map((team) => `${team.productName || team.name} v${team.scheduleVersion}`).join(os(t, "listSeparator")),
+                      teams: teamsWithEmptyPublishedCoverage.map((team) => `${displayTeamName(team)} v${team.scheduleVersion}`).join(os(t, "listSeparator")),
                     })}
                   </div>
                 </div>
@@ -787,7 +798,7 @@ export default function EnterpriseOrgSchedulesPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {productTeams.map((team) => (
-                  <StatusTag key={team.id} tone="neutral" className="px-3 py-1.5">{team.productName || team.name}</StatusTag>
+                  <StatusTag key={team.id} tone="neutral" className="px-3 py-1.5">{displayTeamName(team)}</StatusTag>
                 ))}
                 {productTeams.length === 0 ? <span className="text-sm text-muted-foreground">{os(t, "mySchedule.notJoinedProductGroup")}</span> : null}
               </div>

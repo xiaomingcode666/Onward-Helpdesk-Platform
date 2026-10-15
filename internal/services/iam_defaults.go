@@ -266,7 +266,7 @@ func tenantDefaultRoleSpecs() []iamDefaultRoleSpec {
 		"mcp.view",
 		"mcp.call",
 	))
-	serviceManagerPermissions := permissionCodesForPrefixes("conversation.", "ticket.", "meeting.", "notification.", "customer.", "product.", "productModel.", "device.", "serviceCode.", "serviceCodeBatch.", "knowledgeBase.", "knowledgeDocument.", "knowledgeFAQ.", "report.")
+	serviceManagerPermissions := permissionCodesForPrefixes("conversation.", "ticket.", "ticketQuality.", "meeting.", "notification.", "customer.", "product.", "productModel.", "device.", "serviceCode.", "serviceCodeBatch.", "knowledgeBase.", "knowledgeDocument.", "knowledgeFAQ.", "report.")
 	engineerPermissions := permissionCodesByExactOrPrefix(
 		[]string{"ticket.view", "ticket.update", "ticket.changeStatus", "ticket.progress", "ticket.repairHistory.view", "conversation.view", "conversation.send", "meeting.preview", "meeting.create", "meeting.view", "meeting.update", "device.view", "product.view", "productModel.view", "notification.view", "notification.update"},
 	)

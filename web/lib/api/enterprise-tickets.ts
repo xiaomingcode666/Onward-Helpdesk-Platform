@@ -424,6 +424,43 @@ export interface TicketQualityReview {
   remark: string
   reviewer_id: number
   reviewed_at: string
+  /** Starts as `outcome`; only an overturned dispute changes it. */
+  final_outcome: string
+  reviewed_agent_id: number
+  reviewed_team_id: number
+  ticket_no: string
+  ticket_title: string
+  scorecard_version: string
+  score_items: TicketQualityScoreItem[]
+  reviewer_name: string
+  reviewed_agent_name: string
+  dispute?: TicketQualityDispute
+  dispute_deadline?: string
+  /** Viewers without personal-quality access only receive the score and final outcome. */
+  detail_restricted: boolean
+  can_dispute: boolean
+}
+
+export interface TicketQualityScoreItem {
+  code: string
+  title: string
+  score: number
+  max: number
+}
+
+export interface TicketQualityDispute {
+  id: number
+  review_id: number
+  raised_by: number
+  raised_by_name: string
+  reason: string
+  raised_at: string
+  status: "open" | "upheld" | "overturned" | string
+  decided_by: number
+  decided_by_name: string
+  decision_note: string
+  decided_outcome: string
+  decided_at?: string
 }
 
 export interface TicketQualityAutoAssessmentItem {
@@ -469,8 +506,6 @@ export async function createTicketQualityReview(
     remark: string
     defect_codes: string[]
     evidence: string
-    dispute_status: string
-    dispute_note: string
     outcome?: string
     coaching_action: string
   },

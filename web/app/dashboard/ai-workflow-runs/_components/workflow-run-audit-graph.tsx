@@ -201,7 +201,7 @@ export function WorkflowRunAuditGraph({ run }: { run: AIWorkflowRun }) {
         data: {
           nodeId: node.id,
           nodeType: node.type,
-          name: node.name || node.id,
+          name: (node.name || node.id),
           executed: Boolean(nodeRun),
           statusName: nodeRun?.statusName,
           durationMs: nodeRun?.durationMs,
@@ -646,7 +646,7 @@ function BranchDecisionBlock({ decision }: { decision: BranchDecision }) {
     <div className="space-y-2 rounded-md border bg-muted/20 p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="text-xs font-medium">{wr(t, "branch.title")}</div>
-        <Badge variant="outline">{decision.selectedBranchName || decision.selectedBranchId || "default"}</Badge>
+        <Badge variant="outline">{(decision.selectedBranchName || decision.selectedBranchId || "default")}</Badge>
       </div>
       <div className="space-y-1 text-xs text-muted-foreground">
         <div>{wr(t, "branch.targetNode", { value: decision.selectedTargetNodeId || "-" })}</div>
@@ -657,7 +657,7 @@ function BranchDecisionBlock({ decision }: { decision: BranchDecision }) {
           {decision.evaluations.map((item, index) => (
             <div key={`${item.edgeId || item.branchId || index}`} className="rounded-md border bg-background px-2 py-1.5 text-xs">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{item.branchName || item.branchId || item.edgeId || wr(t, "branch.conditionFallback", { index: index + 1 })}</span>
+                <span className="font-medium">{(item.branchName || item.branchId || item.edgeId || wr(t, "branch.conditionFallback", { index: index + 1 }))}</span>
                 <Badge variant={item.matched ? "default" : "secondary"}>{item.matched ? wr(t, "branch.matched") : wr(t, "branch.notMatched")}</Badge>
               </div>
               <div className="mt-1 break-all text-muted-foreground">

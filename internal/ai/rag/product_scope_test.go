@@ -1,6 +1,7 @@
 package rag
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -12,6 +13,26 @@ import (
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
 )
+
+func TestBuildKnowledgeRuntimeScopeKeys(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		tenantID  int64
+		productID int64
+		want      []string
+	}{
+		{name: "tenant general", tenantID: 14, want: []string{"tenant:14"}},
+		{name: "product includes tenant shared", tenantID: 14, productID: 88, want: []string{"tenant:14", "product:88"}},
+		{name: "missing tenant", productID: 88},
+		{name: "invalid tenant", tenantID: -1, productID: 88},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := BuildKnowledgeRuntimeScopeKeys(tt.tenantID, tt.productID); !slices.Equal(got, tt.want) {
+				t.Fatalf("runtime scope keys = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
 
 func TestResolveKnowledgeEntryProductScopeSeparatesProductAndTenantSharedKnowledge(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "_")+"?mode=memory&cache=shared"), &gorm.Config{})

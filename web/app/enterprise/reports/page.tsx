@@ -690,7 +690,7 @@ function TeamPerformanceTable({ rows }: { rows: AgentPerformance[] }) {
       width: 180,
       render: (_, row) => (
         <div className="rhd-railops-reports-name-cell">
-          <strong>{row.agent_name || `用户 ${row.agent_id}`}</strong>
+          <strong>{row.agent_name || ee("reports.common.userFallback", { value0: row.agent_id })}</strong>
           <span>ID {row.agent_id || "—"}</span>
         </div>
       ),

@@ -139,7 +139,7 @@ export function RetrieveLogDetailDrawer({
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground">Request ID</div>
+                    <div className="text-xs text-muted-foreground">{t("knowledge.requestId")}</div>
                     <div className="mt-1 break-all font-mono text-xs">{detail.log.requestId || "-"}</div>
                   </div>
                   <div className="md:col-span-2">

@@ -9,6 +9,15 @@ import (
 	"remotehelpdesk/internal/pkg/providers"
 )
 
+func TestDefaultSub2APIKeyNameUsesEnglishCompanyKey(t *testing.T) {
+	if got := defaultSub2APIKeyName(14, "北京霜林网络科技有限公司"); got != "RHD-COMPANY-ID-14-DEFAULT" {
+		t.Fatalf("Chinese company key = %q, want an English stable fallback", got)
+	}
+	if got := defaultSub2APIKeyName(14, "Acme Support, Inc."); got != "RHD-COMPANY-ACME-SUPPORT-INC-DEFAULT" {
+		t.Fatalf("English company key = %q", got)
+	}
+}
+
 func TestNormalizePlatformSub2APIUsersQuery(t *testing.T) {
 	query := normalizePlatformSub2APIUsersQuery(request.PlatformSub2APIUsersQueryRequest{
 		Page:     -1,
@@ -56,7 +65,7 @@ func TestSub2APIAccountNeedsAttentionIncludesLoginCredentials(t *testing.T) {
 		AccountName:             "Tenant",
 		ProvisionStatus:         "active",
 		DefaultKeyID:            "101",
-		DefaultKeyName:          "Tenant默认key",
+		DefaultKeyName:          "RHD-COMPANY-TENANT-DEFAULT",
 		DefaultKeyGroupID:       platformSub2APIDefaultKeyGroupID,
 		DefaultKeyCiphertext:    "encrypted-key",
 		DefaultKeyStatus:        "active",

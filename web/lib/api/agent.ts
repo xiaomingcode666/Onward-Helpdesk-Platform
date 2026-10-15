@@ -212,6 +212,23 @@ export function uploadAgentConversationAudio(conversationId: number, file: File)
   })
 }
 
+export type AgentVoiceTranscription = {
+  text: string
+  language: string
+  provider: string
+  durationSeconds: number
+}
+
+export function transcribeAgentConversationAudio(conversationId: number, file: File) {
+  const formData = new FormData()
+  formData.set("conversationId", String(conversationId))
+  formData.set("file", file)
+  return request<AgentVoiceTranscription>("/api/dashboard/conversation/transcribe_audio", {
+    method: "POST",
+    body: formData,
+  })
+}
+
 export function closeAgentConversation(
   conversationId: number,
   closeReason: string

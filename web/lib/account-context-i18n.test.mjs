@@ -62,6 +62,12 @@ test("uses English labels and preserves unknown custom values", async () => {
   assert.equal(getAccountDomainLabel("enterprise", "en-US"), "Enterprise portal")
   assert.equal(getAccountSubjectLabel("partner_account", 8, "en-US"), "Partner account #8")
   assert.equal(getAccountRoleLabel("tenant_admin", "en-US"), "Enterprise administrator")
+  assert.deepEqual(
+    ["租户所有者", "企业管理员", "服务负责人", "服务工程师", "知识管理员", "企业只读成员"].map((value) =>
+      getAccountRoleLabel(value, "en-US")
+    ),
+    ["Tenant owner", "Enterprise administrator", "Service manager", "Service engineer", "Knowledge manager", "Enterprise viewer"]
+  )
   assert.equal(getAccountRoleLabel("regional_reviewer", "zh-CN"), "regional_reviewer")
 })
 

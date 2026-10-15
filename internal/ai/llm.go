@@ -87,10 +87,9 @@ func (s *llm) ChatWithConfig(ctx context.Context, config models.AIConfig, system
 		Messages: messages,
 		Model:    shared.ChatModel(config.ModelName),
 	}
-	if config.MaxOutputTokens > 0 {
-		params.MaxCompletionTokens = openai.Int(int64(config.MaxOutputTokens))
-	}
+	applyChatOutputLimit(&params, config)
 	applyProviderSpecificChatParams(&params, config)
+	applyReasoningEffort(ctx, &params)
 
 	client := newOpenAIClient(config)
 	chatResp, err := client.Chat.Completions.New(ctx, params)
@@ -114,6 +113,22 @@ func (s *llm) ChatWithConfig(ctx context.Context, config models.AIConfig, system
 	}, nil
 }
 
+func applyChatOutputLimit(params *openai.ChatCompletionNewParams, config models.AIConfig) {
+	if params == nil {
+		return
+	}
+	if config.MaxOutputTokens > 0 {
+		params.MaxCompletionTokens = openai.Int(int64(config.MaxOutputTokens))
+		return
+	}
+	if config.Provider == enums.AIProviderSub2API {
+		// Tenant capability routes do not currently carry a per-model output limit.
+		// Bound gateway responses so long RAG contexts cannot consume the whole
+		// request timeout while generating an unbounded answer.
+		params.MaxCompletionTokens = openai.Int(2048)
+	}
+}
+
 func applyProviderSpecificChatParams(params *openai.ChatCompletionNewParams, config models.AIConfig) {
 	if params == nil {
 		return
@@ -129,4 +144,22 @@ func isDashScopeQwenThinkingModel(config models.AIConfig) bool {
 	baseURL := strings.ToLower(strings.TrimSpace(config.BaseURL))
 	modelName := strings.ToLower(strings.TrimSpace(config.ModelName))
 	return strings.Contains(baseURL, "dashscope.aliyuncs.com") && strings.HasPrefix(modelName, "qwen3")
+}
+
+type reasoningEffortContextKey struct{}
+
+// WithReasoningEffort asks reasoning models to spend less (or more) effort on
+// calls made with ctx. Latency-bound callers such as the phone agent use it;
+// calls without it keep the provider default.
+func WithReasoningEffort(ctx context.Context, effort string) context.Context {
+	return context.WithValue(ctx, reasoningEffortContextKey{}, strings.TrimSpace(effort))
+}
+
+func applyReasoningEffort(ctx context.Context, params *openai.ChatCompletionNewParams) {
+	if ctx == nil || params == nil {
+		return
+	}
+	if effort, _ := ctx.Value(reasoningEffortContextKey{}).(string); effort != "" {
+		params.ReasoningEffort = shared.ReasoningEffort(effort)
+	}
 }

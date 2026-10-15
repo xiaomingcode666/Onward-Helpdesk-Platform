@@ -396,6 +396,7 @@ func (s *ticketService) prepareTicketCreate(db *gorm.DB, req request.CreateTicke
 	if err := prepareTicketSourceDB(db, ticket, req.TicketIntakeInput); err != nil {
 		return nil, nil, err
 	}
+	fillConversationContactPhoneDB(db, ticket)
 	if err := prepareProjectRuntimeTicketDB(db, ticket); err != nil {
 		return nil, nil, err
 	}

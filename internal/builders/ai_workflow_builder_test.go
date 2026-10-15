@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	workflowbuiltin "remotehelpdesk/internal/ai/workflow/builtin"
 	"remotehelpdesk/internal/ai/workflow/dsl"
 	workflowregistry "remotehelpdesk/internal/ai/workflow/registry"
 	"remotehelpdesk/internal/models"
@@ -84,6 +85,7 @@ func TestBuildAIWorkflowRunIncludesAuditDisplayFields(t *testing.T) {
 			InvokedToolCodes:         []string{"builtin/skill"},
 			SourceMessageID:          44,
 		},
+		"zh-CN",
 	)
 
 	if resp.WorkflowName != "售后会话流程" {
@@ -162,6 +164,7 @@ func TestBuildAIWorkflowRunDetailIncludesPublishedDefinitionSnapshot(t *testing.
 		&models.AIWorkflowVersion{Version: 3, Definition: string(buf)},
 		&models.AIAgent{Name: "售后 Agent"},
 		nil,
+		"zh-CN",
 	)
 
 	if resp.Definition.EntryNodeID != "start_1" {
@@ -182,4 +185,35 @@ func hasResponseVariable(items []workflowregistry.VariableSpec, name string) boo
 		}
 	}
 	return false
+}
+
+func TestBuildAIWorkflowRunDetailLocalizesBuiltinNames(t *testing.T) {
+	manifest, ok, err := workflowbuiltin.Get("knowledge_customer_service_default")
+	if err != nil || !ok {
+		t.Fatalf("load builtin manifest: ok=%v err=%v", ok, err)
+	}
+	buf, err := json.Marshal(manifest.Definition)
+	if err != nil {
+		t.Fatalf("marshal definition: %v", err)
+	}
+
+	resp := BuildAIWorkflowRunDetailWithContext(
+		&models.AIWorkflowRun{ID: 9, WorkflowVersionID: 22, Status: 1, StartedAt: time.Now()},
+		nil,
+		&models.AIWorkflow{Scope: models.AIWorkflowScopePlatform, Code: manifest.Code, Name: manifest.Name},
+		&models.AIWorkflowVersion{Version: 1, Definition: string(buf)},
+		&models.AIAgent{Name: "My agent"},
+		nil,
+		"en-US",
+	)
+
+	if resp.WorkflowName != "AI knowledge Q&A service flow" {
+		t.Fatalf("expected localized workflow name, got %q", resp.WorkflowName)
+	}
+	if resp.AIAgentName != "My agent" {
+		t.Fatalf("expected user-defined agent name to stay unchanged, got %q", resp.AIAgentName)
+	}
+	if resp.Definition.Nodes[0].Name != "User starts consultation" {
+		t.Fatalf("expected localized builtin node name, got %q", resp.Definition.Nodes[0].Name)
+	}
 }

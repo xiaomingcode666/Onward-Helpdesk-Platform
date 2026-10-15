@@ -358,6 +358,57 @@ func TestKnowledgeRetrievalUsesActiveGenerationAndWritesRetrieveLog(t *testing.T
 	}
 }
 
+func TestKnowledgeRetrievalTenantGeneralUsesDenseSearchWithoutProduct(t *testing.T) {
+	tenantID := setupKnowledgeRetrievalServiceTestDB(t)
+	provider := &knowledgeRetrievalTestProvider{}
+	service := newKnowledgeRetrievalService()
+	service.resolveTenantScope = func(scope dto.KnowledgeScopeContext) (*dto.ResolvedKnowledgeScope, error) {
+		return &dto.ResolvedKnowledgeScope{
+			Context:                      scope,
+			KnowledgeBaseIDs:             []int64{11},
+			TenantSharedKnowledgeBaseIDs: []int64{11},
+			EntryKeys:                    []string{"document:101"},
+			RevisionIDs:                  []int64{501},
+		}, nil
+	}
+	service.generateEmbedding = func(context.Context, string) (*ai.EmbeddingResult, error) {
+		return &ai.EmbeddingResult{Vector: []float32{0.1, 0.2}, ModelName: "embed-v1", Dimension: 2}, nil
+	}
+	service.getProvider = func() vectordb.Provider { return provider }
+	service.lexicalSearch = func(context.Context, knowledgeLexicalSearchRequest) ([]rag.RetrieveResult, error) {
+		t.Fatal("tenant general dense search must not require lexical fallback")
+		return nil, nil
+	}
+	service.getRAGConfig = func() config.RAGConfig {
+		return config.RAGConfig{RetrievalMode: knowledgeRetrievalModeDenseOnly}.Normalized()
+	}
+	result, err := service.Retrieve(context.Background(), KnowledgeRetrievalRequest{
+		Scope:                   dto.KnowledgeScopeContext{TenantID: tenantID, Locale: "en-US", Audience: "customer"},
+		AllowedKnowledgeBaseIDs: []int64{11},
+		TenantKnowledgeOnly:     true,
+		Query:                   "startup pressure issue",
+	})
+	if err != nil {
+		t.Fatalf("Retrieve() error = %v", err)
+	}
+	if provider.lastSearchRequest == nil || provider.lastSearchRequest.Filter == nil {
+		t.Fatal("tenant general vector search was not invoked")
+	}
+	filter := provider.lastSearchRequest.Filter
+	if want := []string{"tenant:" + strconv.FormatInt(tenantID, 10)}; !slices.Equal(filter.ScopeKeys, want) {
+		t.Fatalf("tenant general scope keys = %v, want %v", filter.ScopeKeys, want)
+	}
+	if filter.TenantID != tenantID || !slices.Equal(filter.KnowledgeBaseIDs, []int64{11}) ||
+		!slices.Equal(filter.EntryKeys, []string{"document:101"}) || !slices.Equal(filter.RevisionIDs, []int64{501}) ||
+		filter.ReviewStatus != "published" || filter.IndexGenerationID != 9 {
+		t.Fatalf("tenant general search lost publication or tenant constraints: %+v", filter)
+	}
+	if result == nil || result.NoAnswerReason != "" || result.Strategy.AppliedMode != knowledgeRetrievalModeDenseOnly ||
+		len(result.ContextHits) != 1 || result.ContextHits[0].DocumentID != 101 {
+		t.Fatalf("tenant general dense context not returned: %+v", result)
+	}
+}
+
 func TestKnowledgeRetrievalUsesTenantResolverWithoutProductContext(t *testing.T) {
 	tenantID := setupKnowledgeRetrievalServiceTestDB(t)
 	service := newKnowledgeRetrievalService()

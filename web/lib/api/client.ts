@@ -55,6 +55,18 @@ function isAbortError(error: unknown) {
 
 const AUTH_ERROR_CODES = new Set([3000, 3002])
 
+function containsCjk(value: string) {
+  return /[\u3400-\u9fff]/u.test(value)
+}
+
+function displayApiErrorMessage(value: string | undefined, fallback: string) {
+  const message = value?.trim()
+  if (!message) {
+    return fallback
+  }
+  return readStoredLocale() === "en-US" && containsCjk(message) ? fallback : message
+}
+
 function isAuthenticationFailure(httpStatus: number, errorCode?: number) {
   return httpStatus === 401 || (errorCode !== undefined && AUTH_ERROR_CODES.has(errorCode))
 }
@@ -79,16 +91,19 @@ async function parseResult<T>(response: Response, expireStoredAuth: boolean) {
   }
   if (!payload) {
     throw new Error(
-      responseText.trim() ||
-        response.statusText ||
-        translateCurrentMessage("api.requestFailed")
+      displayApiErrorMessage(
+        responseText.trim() || response.statusText,
+        translateCurrentMessage("api.requestFailed"),
+      )
     )
   }
   if (!response.ok || !payload.success) {
     if (expireStoredAuth && isAuthenticationFailure(response.status, payload.errorCode)) {
       expireSession()
     }
-    const error = new Error(payload.message || translateCurrentMessage("api.requestFailed"))
+    const error = new Error(
+      displayApiErrorMessage(payload.message, translateCurrentMessage("api.requestFailed")),
+    )
     ;(error as Error & { errorCode?: number }).errorCode = payload.errorCode
     throw error
   }
@@ -276,7 +291,10 @@ async function scopedApiFetch<T>(
         data: null as unknown as T,
         error: {
           code: `HTTP_${response.status}`,
-          message: responseText.trim() || response.statusText || "Request failed",
+          message: displayApiErrorMessage(
+            responseText.trim() || response.statusText,
+            translateCurrentMessage("api.requestFailed"),
+          ),
         },
       }
     }
@@ -285,13 +303,25 @@ async function scopedApiFetch<T>(
       if (isAuthenticationFailure(response.status, json.errorCode)) {
         expireSession()
       }
+      const error = json.error
+        ? {
+            ...json.error,
+            message: displayApiErrorMessage(
+              json.error.message,
+              translateCurrentMessage("api.requestFailed"),
+            ),
+          }
+        : {
+            code: json.errorCode !== undefined ? `ERROR_${json.errorCode}` : `HTTP_${response.status}`,
+            message: displayApiErrorMessage(
+              json.message || response.statusText,
+              translateCurrentMessage("api.requestFailed"),
+            ),
+          }
       return {
         success: false,
         data: null as unknown as T,
-        error: json.error || {
-          code: json.errorCode !== undefined ? `ERROR_${json.errorCode}` : `HTTP_${response.status}`,
-          message: json.message || response.statusText || "Request failed",
-        },
+        error,
         requestId: json.requestId,
         timestamp: json.timestamp,
       }
@@ -306,9 +336,10 @@ async function scopedApiFetch<T>(
         code: isAbortError(err) ? "REQUEST_TIMEOUT" : "NETWORK_ERROR",
         message: isAbortError(err)
           ? translateCurrentMessage("api.requestTimeout")
-          : err instanceof Error
-            ? err.message
-            : "Network request failed",
+          : displayApiErrorMessage(
+              err instanceof Error ? err.message : undefined,
+              translateCurrentMessage("api.requestFailed"),
+            ),
       },
     }
   } finally {

@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE, type AppLocale, readStoredLocale } from "@/i18n/config"
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type AppLocale, readStoredLocale } from "@/i18n/config"
 import { getExtractedMessage } from "@/i18n/extracted"
 import enUSMessages from "@/messages/en-US.json"
 import esESMessages from "@/messages/es-ES.json"
@@ -41,6 +41,48 @@ export function translateCurrentMessage(
   values?: Record<string, string | number>
 ): string {
   return translateMessage(readStoredLocale(), key, values)
+}
+
+/**
+ * Recognizes text that was rendered from `key` in any supported locale and
+ * returns its placeholder values. Use it only for legacy records that stored
+ * rendered text instead of a message key, so they can be shown in the current
+ * locale without hardcoding source-language patterns in components.
+ */
+export function matchMessage(
+  key: string,
+  text: string
+): Record<string, string> | null {
+  const normalizedText = normalizeMatchText(text)
+  for (const locale of SUPPORTED_LOCALES) {
+    const template = getMessage(locale, key)
+    if (typeof template !== "string") continue
+    const names: string[] = []
+    const pattern = normalizeMatchText(template)
+      .split(/(\{\w+\})/)
+      .map((part) => {
+        const placeholder = part.match(/^\{(\w+)\}$/)
+        if (!placeholder) return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        names.push(placeholder[1])
+        return "\\s*(.+?)\\s*"
+      })
+      .join("")
+    const match = normalizedText.match(new RegExp(`^${pattern}$`))
+    if (match) {
+      return Object.fromEntries(names.map((name, index) => [name, match[index + 1]]))
+    }
+  }
+  return null
+}
+
+function normalizeMatchText(value: string) {
+  return value
+    .trim()
+    .replace(/：/g, ":")
+    .replace(/（/g, "(")
+    .replace(/）/g, ")")
+    .replace(/\s*([:()])\s*/g, "$1")
+    .replace(/[.。]$/, "")
 }
 
 function getMessage(locale: AppLocale, key: string): unknown {

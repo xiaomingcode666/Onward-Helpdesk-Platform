@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises"
 import test from "node:test"
 
 const panel = await readFile(new URL("./ticket-quality-panel.tsx", import.meta.url), "utf8")
+const detail = await readFile(new URL("./ticket-quality-review-detail.tsx", import.meta.url), "utf8")
 const page = await readFile(new URL("../../ticket-quality/page.tsx", import.meta.url), "utf8")
 const api = await readFile(new URL("../../../../lib/api/enterprise-tickets.ts", import.meta.url), "utf8")
 
@@ -31,6 +32,21 @@ test("sample list exposes saved results and uses equal-size analysis controls", 
 })
 
 test("saved review history shows the complete multiline evidence", () => {
-  assert.match(panel, /whitespace-pre-wrap break-words leading-5/)
-  assert.doesNotMatch(panel, /line-clamp-2 text-muted-foreground">\{review\.evidence\}/)
+  assert.match(panel, /<TicketQualityReviewDetail key=\{review\.id\} review=\{review\}/)
+  assert.match(detail, /whitespace-pre-wrap break-words leading-5/)
+  assert.match(detail, /qualityReviewText\("detail\.evidence"\)\}>\{review\.evidence/)
+  assert.doesNotMatch(detail, /line-clamp-2/)
+})
+
+test("reviews explain deductions, issue types, coaching and disputes", () => {
+  assert.match(detail, /review\.score_items/)
+  assert.match(detail, /data-deducted/)
+  assert.match(detail, /review\.defect_codes/)
+  assert.match(detail, /review\.coaching_action/)
+  assert.match(detail, /review\.dispute/)
+  assert.match(detail, /detail_restricted/)
+  assert.match(panel, /qt\("defectRequired"\)/)
+  assert.match(panel, /qt\("coachingRequired"\)/)
+  assert.doesNotMatch(panel, /dispute_status/)
+  assert.doesNotMatch(panel, /coachingAction\.trim\(\) \|\| qt\("noCoaching"\)/)
 })

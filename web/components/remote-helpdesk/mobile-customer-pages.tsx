@@ -601,7 +601,7 @@ export function MobileCustomerTicketsPage({ navigate }: { navigate: MobileCustom
               {ticketDetailLoading && !selectedTicketDetail ? (
                 <p className="flex items-center gap-2 py-4 text-xs text-[#939dab]" role="status" aria-live="polite">
                   <Loader2Icon className="size-3.5 animate-spin" />
-                  {t("portalExtract.customerMobile.common.ticketDetailLoading")}
+                  {t("portalExtract.customerMobile.serviceShell.ticketDetailLoading")}
                 </p>
               ) : ticketDetailError && !selectedTicketDetail ? (
                 <p className="py-4 text-xs text-red-600">{ticketDetailError}</p>
@@ -1030,7 +1030,6 @@ export function MobileCustomerDevicesPage({ navigate }: { navigate: MobileCustom
 
 export function MobileCustomerProfilePage() {
   const t = useI18n()
-  const { locale } = useAppLocale()
   const { session, signOut } = useAuth()
   const hasDeviceConcept = session?.featureFlags?.device !== false
   const [state, setState] = useState<AsyncState>({ loading: true, error: "" })

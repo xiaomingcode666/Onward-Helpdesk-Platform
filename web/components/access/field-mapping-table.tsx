@@ -166,7 +166,7 @@ export function FieldMappingTable({
                 {t("access.transformType") || "Transform"}
               </TableHead>
               <TableHead className="w-[90px]">
-                {t("common.status") || "Status"}
+                {t("common.status")}
               </TableHead>
               {!readonly && <TableHead className="w-12" />}
             </TableRow>

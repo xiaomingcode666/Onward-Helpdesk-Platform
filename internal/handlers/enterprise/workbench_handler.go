@@ -7,6 +7,7 @@ import (
 	"remotehelpdesk/internal/pkg/constants"
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/httpx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -44,7 +45,7 @@ func WorkbenchGetQueue(ctx *gin.Context) {
 		return
 	}
 	httpx.WriteJSON(ctx, &dto.EnterpriseWorkbenchQueueDTO{
-		Conversations:           builders.BuildEnterpriseWorkbenchConversations(aggregate.Conversations),
+		Conversations:           builders.BuildEnterpriseWorkbenchConversations(aggregate.Conversations, i18nx.Locale(ctx)),
 		ConversationsPagination: aggregate.ConversationPagination,
 		Tickets:                 aggregate.Tickets,
 		TicketsPagination:       aggregate.TicketPagination,

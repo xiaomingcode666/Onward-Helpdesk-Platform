@@ -39,6 +39,7 @@ func setupEmailMVP(t *testing.T) (*gorm.DB, *dto.AuthPrincipal) {
 	require.NoError(t, db.AutoMigrate(models.Models...))
 	require.NoError(t, db.Create(&models.Tenant{ID: 1, Name: "Synthetic mail tenant", ServiceScene: "knowledge_support", Status: enums.StatusOk}).Error)
 	require.NoError(t, db.Create(&models.Tenant{ID: 2, Name: "Other mail tenant", ServiceScene: "knowledge_support", Status: enums.StatusOk}).Error)
+	require.NoError(t, db.Create(&models.CustomerUser{TenantID: 1, CustomerOrgID: 1, UserID: 1, DisplayName: "Synthetic customer", Email: "customer@example.test", Status: enums.StatusOk}).Error)
 	return db, &dto.AuthPrincipal{TenantID: 1, UserID: 7, DomainType: models.DomainTypeEnterprise, Roles: []string{EnterpriseRoleAdmin}, Permissions: []string{constants.PermissionTicketView.Code, constants.PermissionTicketProgress.Code}}
 }
 func sampleInbound(id string) InboundEmailInput {
@@ -131,6 +132,40 @@ func TestEmailMVPAtomicIngestAndThreadIsolation(t *testing.T) {
 	denied.Permissions = nil
 	_, err = QueueTicketEmailReply(created.TicketID, "回复", "denied", &denied)
 	require.Error(t, err)
+}
+
+func TestEmailOnlyCustomerSendersCreateTickets(t *testing.T) {
+	db, _ := setupEmailMVP(t)
+	require.NoError(t, db.Create(&models.CustomerUser{TenantID: 1, CustomerOrgID: 1, UserID: 2, Email: "disabled@example.test", Status: enums.StatusDisabled}).Error)
+	require.NoError(t, db.Create(&models.CustomerUser{TenantID: 2, CustomerOrgID: 2, UserID: 3, Email: "other-tenant@example.test", Status: enums.StatusOk}).Error)
+	for _, sender := range []string{"stranger@example.test", "disabled@example.test", "other-tenant@example.test"} {
+		t.Run(sender, func(t *testing.T) {
+			in := sampleInbound("filtered-" + sender)
+			in.FromAddress = sender
+			r, err := IngestInboundEmail(in)
+			require.NoError(t, err)
+			require.Equal(t, InboundEmailFiltered, r.Action)
+			require.Zero(t, r.TicketID)
+			var row models.InboundEmail
+			require.NoError(t, db.First(&row, r.InboundEmailID).Error)
+			require.Equal(t, InboundEmailFiltered, row.Status)
+			require.Equal(t, "non_customer_sender", row.FailureReason)
+			require.NotNil(t, row.ProcessedAt, "filtered mail must not be retried")
+			again, err := IngestInboundEmail(in)
+			require.NoError(t, err)
+			require.Equal(t, InboundEmailDuplicate, again.Action)
+		})
+	}
+	require.EqualValues(t, 0, emailCount(t, db, &models.Ticket{}))
+	pending, err := ListPendingInboundEmailLinks(1)
+	require.NoError(t, err)
+	require.Empty(t, pending, "filtered mail must not reach the manual link queue")
+	in := sampleInbound("customer-case@example.test")
+	in.FromAddress = "Customer <Customer@Example.TEST>"
+	created, err := IngestInboundEmail(in)
+	require.NoError(t, err)
+	require.Equal(t, InboundEmailCreated, created.Action)
+	require.NotZero(t, created.TicketID)
 }
 
 func TestEmailPendingManualLinkCanBeResolvedWithoutGuessing(t *testing.T) {

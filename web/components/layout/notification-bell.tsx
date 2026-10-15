@@ -31,7 +31,8 @@ import {
 import type { RealtimeConnectionStatus } from "@/lib/realtime-connection"
 import { normalizeEnterpriseActionUrl } from "@/lib/ticket-workbench-route"
 import { cn } from "@/lib/utils"
-import { useI18n } from "@/i18n/provider"
+import { useAppLocale, useI18n } from "@/i18n/provider"
+import { localizeEnterpriseNotification } from "@/lib/notification-i18n"
 
 export function NotificationBell({ domain }: { domain: string }) {
   const t = useI18n()
@@ -328,6 +329,7 @@ function PlatformNotificationBell() {
 
 function EnterpriseNotificationBell() {
   const t = useI18n()
+  const { locale } = useAppLocale()
   const router = useRouter()
   const {
     notifyNotificationStateChange,
@@ -347,7 +349,7 @@ function EnterpriseNotificationBell() {
     try {
     const res = await fetchEnterpriseNotifications({ scope: "personal", page: 1, page_size: 8 })
       if (res.success && res.data) {
-        setItems(res.data.items ?? [])
+        setItems((res.data.items ?? []).map((item) => localizeEnterpriseNotification(item, locale)))
         setUnread(res.data.summary?.unread ?? 0)
         setMarkableUnread(res.data.summary?.markable_unread ?? 0)
         setNotificationsLoaded(true)
@@ -355,7 +357,7 @@ function EnterpriseNotificationBell() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [locale])
 
   useEffect(() => {
     void refresh().catch(() => undefined)

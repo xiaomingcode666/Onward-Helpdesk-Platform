@@ -352,7 +352,7 @@ func validateRuntimeSearchFilter(filter *SearchFilter) error {
 		return err
 	}
 	if len(filter.ScopeKeys) == 0 {
-		return fmt.Errorf("search filter product scope keys are required")
+		return fmt.Errorf("search filter knowledge scope keys are required")
 	}
 	return nil
 }

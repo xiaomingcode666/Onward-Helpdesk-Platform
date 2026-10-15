@@ -1,6 +1,11 @@
 package vectordb
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/qdrant/go-client/qdrant"
+	"google.golang.org/protobuf/proto"
+)
 
 func TestQdrantBuildFilterRequiresTenantAndRevisionScope(t *testing.T) {
 	provider := &QdrantProvider{}
@@ -45,7 +50,7 @@ func TestQdrantBuildFilterIncludesTenantKeyword(t *testing.T) {
 	}
 }
 
-func TestQdrantRuntimeFilterRequiresProductScope(t *testing.T) {
+func TestQdrantRuntimeFilterRequiresKnowledgeScope(t *testing.T) {
 	err := validateRuntimeSearchFilter(&SearchFilter{
 		TenantID:     42,
 		EntryKeys:    []string{"document:1"},
@@ -53,7 +58,45 @@ func TestQdrantRuntimeFilterRequiresProductScope(t *testing.T) {
 		RevisionIDs:  []int64{101},
 	})
 	if err == nil {
-		t.Fatal("validateRuntimeSearchFilter() error = nil, want product scope validation error")
+		t.Fatal("validateRuntimeSearchFilter() error = nil, want knowledge scope validation error")
+	}
+}
+
+func TestQdrantTenantGeneralFilterPreservesIsolation(t *testing.T) {
+	for _, allowLegacy := range []bool{false, true} {
+		input := &SearchFilter{
+			TenantID:          14,
+			EntryKeys:         []string{"document:27"},
+			KnowledgeBaseIDs:  []int64{16},
+			ReviewStatus:      "published",
+			RevisionIDs:       []int64{26},
+			ScopeKeys:         []string{"tenant:14"},
+			AllowLegacyScope:  allowLegacy,
+			IndexGenerationID: 1,
+		}
+		if err := validateRuntimeSearchFilter(input); err != nil {
+			t.Fatalf("tenant general runtime filter rejected: %v", err)
+		}
+		filter, err := (&QdrantProvider{}).buildFilter(input)
+		if err != nil {
+			t.Fatalf("buildFilter() error = %v", err)
+		}
+		scopeConditions := []*qdrant.Condition{qdrant.NewMatchKeywords("scope_keys", "tenant:14")}
+		if allowLegacy {
+			scopeConditions = append(scopeConditions, qdrant.NewIsEmpty("scope_version"))
+		}
+		want := &qdrant.Filter{Must: []*qdrant.Condition{
+			qdrant.NewMatchKeyword("tenant_id", "14"),
+			qdrant.NewMatchKeyword("review_status", "published"),
+			qdrant.NewMatchKeywords("entry_key", "document:27"),
+			qdrant.NewMatchInts("revision_id", 26),
+			qdrant.NewFilterAsCondition(&qdrant.Filter{Should: scopeConditions}),
+			qdrant.NewMatchInts("knowledge_base_id", 16),
+			qdrant.NewMatchInt("index_generation_id", 1),
+		}}
+		if !proto.Equal(filter, want) {
+			t.Fatalf("tenant general filter loses isolation (allowLegacy=%v): got %v, want %v", allowLegacy, filter, want)
+		}
 	}
 }
 

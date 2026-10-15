@@ -482,7 +482,7 @@ export function EnterpriseReminderPoller() {
       const seen = readSeenReminders(storeKey, now)
       const cards = [
         ...(response.data.meeting_reminders || []).map(meetingReminderToCard),
-        ...(response.data.ticket_reminders || []).map(ticketReminderToCard),
+        ...(response.data.ticket_reminders || []).map((item) => ticketReminderToCard(item)),
       ].filter((card) => !seen[card.key])
       sinceRef.current = checkedAt
       if (cards.length === 0) {

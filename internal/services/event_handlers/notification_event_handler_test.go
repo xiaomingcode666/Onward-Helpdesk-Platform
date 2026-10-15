@@ -23,6 +23,63 @@ import (
 	"gorm.io/gorm/schema"
 )
 
+func TestFormatSLAWarningContentShowsElapsedAndRemainingTime(t *testing.T) {
+	tests := []struct {
+		name  string
+		event events.SLAWarningEvent
+		want  string
+	}{
+		{
+			name: "less than one minute uses an explicit label",
+			event: events.SLAWarningEvent{
+				ViolationType:    "frt",
+				TargetMinutes:    30,
+				ActualMinutes:    0,
+				RemainingMinutes: 30,
+			},
+			want: "首次响应目标 30 分钟，当前有效计时不足 1 分钟，预计剩余约 30 分钟。",
+		},
+		{
+			name: "legacy event derives remaining time",
+			event: events.SLAWarningEvent{
+				ViolationType: "assignment",
+				TargetMinutes: 30,
+				ActualMinutes: 25,
+			},
+			want: "派工目标 30 分钟，当前有效计时 25 分钟，预计剩余约 5 分钟。",
+		},
+		{
+			name: "breach states the overdue duration",
+			event: events.SLAWarningEvent{
+				ViolationType: "resolution",
+				TargetMinutes: 30,
+				ActualMinutes: 35,
+			},
+			want: "解决时长目标 30 分钟，当前已超时 5 分钟。",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatSLAWarningContent(tt.event); got != tt.want {
+				t.Fatalf("formatSLAWarningContent() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatSLAWarningContentSupportsEnglishLocale(t *testing.T) {
+	content := formatSLAWarningContentLocale(events.SLAWarningEvent{
+		ViolationType:    "frt",
+		TargetMinutes:    30,
+		ActualMinutes:    25,
+		RemainingMinutes: 5,
+	}, "en-US")
+	if content != "First response target: 30 minutes; 25 minutes of effective time have elapsed; approximately 5 minutes remain." {
+		t.Fatalf("english SLA content = %q", content)
+	}
+}
+
 func TestTicketAssignedInAppNotification(t *testing.T) {
 	setupNotificationEventHandlerTestDB(t)
 	seedNotificationEventRecipient(t, 1, 11, constants.PermissionTicketView.Code)

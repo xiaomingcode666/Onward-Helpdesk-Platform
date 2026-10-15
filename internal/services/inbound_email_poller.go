@@ -66,7 +66,7 @@ func resolveInboundMailbox(tenantID int64) (*inboundMailbox, error) {
 		if !enabled {
 			return nil, nil
 		}
-		secret, err := projectconfig.ReadSecret(os.Getenv("RHD_PROJECT_SECRET_DIR"), tenantID, projectconfig.Environment(), i.PasswordRef)
+		secret, err := readManagedOrMountedMailSecret(tenantID, i.PasswordRef, false)
 		if err != nil {
 			return nil, errors.New("IMAP 密钥不可读取")
 		}
@@ -91,6 +91,35 @@ func resolveInboundMailbox(tenantID int64) (*inboundMailbox, error) {
 		return nil, errors.New("IMAP 密钥不可读取")
 	}
 	return &inboundMailbox{TenantID: tenantID, Host: s.IMAPHost, Port: s.IMAPPort, Username: s.IMAPUsername, Password: password}, nil
+}
+
+func readManagedOrMountedMailSecret(tenantID int64, ref string, smtp bool) ([]byte, error) {
+	managed := ref == "secret://managed-smtp" || ref == "secret://managed-imap"
+	if managed || projectconfig.DatabaseSecretReference(ref) {
+		var setting models.TenantMailSetting
+		dbErr := sqls.DB().Where("tenant_id = ?", tenantID).First(&setting).Error
+		ciphertext := setting.IMAPPassword
+		if smtp {
+			ciphertext = setting.Password
+		}
+		if dbErr == nil && strings.TrimSpace(ciphertext) != "" {
+			plain, err := secretstore.Decrypt(ciphertext)
+			if err != nil {
+				return nil, err
+			}
+			return []byte(strings.TrimSpace(plain)), nil
+		}
+		if managed {
+			if dbErr != nil {
+				return nil, dbErr
+			}
+			return nil, errors.New("managed mail credential is empty")
+		}
+		// Legacy references may still point to a deployment-mounted file. Keep
+		// that read path only as a compatibility fallback; new UI writes use the
+		// encrypted database-managed handles above.
+	}
+	return projectconfig.ReadSecret(os.Getenv("RHD_PROJECT_SECRET_DIR"), tenantID, projectconfig.Environment(), ref)
 }
 
 // PollEnabledInboundMail uses the durable cursor, never Seen flags. Each tenant

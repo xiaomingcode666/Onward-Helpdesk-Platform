@@ -101,3 +101,12 @@ func TestDeploymentRejectsTamperingScopeAndTrailingData(t *testing.T) {
 		}
 	}
 }
+
+func TestLegacyMailReferencesDoNotRequireSecretDirectory(t *testing.T) {
+	t.Setenv("RHD_PROJECT_SECRET_DIR", "")
+	for _, ref := range []string{"secret://smtp-password", "secret://imap-password"} {
+		if err := RuntimeSecretCheck(7, "development", ref); err != nil {
+			t.Fatalf("legacy mail reference %s still requires a secret directory: %v", ref, err)
+		}
+	}
+}

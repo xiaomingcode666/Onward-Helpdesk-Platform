@@ -1,9 +1,21 @@
-import { translateCurrentMessage } from "@/i18n/messages"
+import { matchMessage, translateCurrentMessage } from "@/i18n/messages"
 import { apiGet, apiPost } from "@/lib/api/client"
 
 export const caseTypes = ["user_case", "incident", "major_incident", "problem", "known_error", "service_request"] as const
 export type CaseType = typeof caseTypes[number]
 export function governanceLabel(key: string, values?: Record<string, string | number>) { return translateCurrentMessage(`ticketGovernance.${key}`, values) }
+
+// Governance explanations are persisted with older backend records as rendered
+// text. Recognize the system generated values in any locale and show them in the
+// current one, preserving user supplied or future explanation text.
+const PRIORITY_EXPLANATION_KEYS = ["defaultHelp", "manualSource"]
+
+export function governanceExplanationLabel(value: unknown) {
+  const text = String(value ?? "").trim()
+  const key = PRIORITY_EXPLANATION_KEYS.find((item) => matchMessage(`ticketGovernance.${item}`, text))
+  return key ? governanceLabel(key) : text
+}
+
 export type PriorityFacts = { impact: string; urgency: string; safety: string; reach: string; workaround: string; evidence: string; root_cause: string }
 export const emptyPriorityFacts: PriorityFacts = { impact: "unknown", urgency: "unknown", safety: "unknown", reach: "unknown", workaround: "unknown", evidence: "", root_cause: "" }
 export interface PriorityPolicy { version: string; defaults: Record<CaseType, string>; matrix: string[][] }

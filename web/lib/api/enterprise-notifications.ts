@@ -4,7 +4,6 @@ import type {
   EnterpriseNotificationListResponse,
   NotificationMailSetting,
   NotificationRecipientSetting,
-  UpdateNotificationMailSettingPayload,
   UpdateNotificationRecipientSettingPayload,
 } from "@/lib/api/types"
 
@@ -34,12 +33,6 @@ export async function markAllEnterpriseNotificationsRead(): Promise<ApiResponse<
 
 export async function fetchNotificationMailSettings(): Promise<ApiResponse<NotificationMailSetting>> {
   return apiGet<NotificationMailSetting>("/notifications/mail-settings")
-}
-
-export async function updateNotificationMailSettings(
-  payload: UpdateNotificationMailSettingPayload
-): Promise<ApiResponse<NotificationMailSetting>> {
-  return apiPost<NotificationMailSetting>("/notifications/mail-settings", payload)
 }
 
 export async function sendNotificationTestMail(to: string): Promise<ApiResponse<void>> {

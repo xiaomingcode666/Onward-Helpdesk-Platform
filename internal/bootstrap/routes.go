@@ -256,6 +256,7 @@ func registerDashboardConversationRoutes(group *gin.RouterGroup) {
 	group.POST("/upload_attachment", dashboard.ConversationPostUpload_attachment)
 	group.POST("/upload_image", dashboard.ConversationPostUpload_image)
 	group.POST("/upload_audio", dashboard.ConversationPostUpload_audio)
+	group.POST("/transcribe_audio", dashboard.ConversationPostTranscribe_audio)
 }
 
 func registerDashboardTicketRoutes(group *gin.RouterGroup) {
@@ -514,6 +515,15 @@ func registerThirdMetaWhatsAppRoutes(group *gin.RouterGroup) {
 	group.POST("/webhook", third.MetaWhatsAppPostWebhook)
 }
 
+func registerThirdAIPhoneRoutes(group *gin.RouterGroup) {
+	group.POST("/decisions", third.AIPhonePostDecision)
+	group.POST("/tickets", third.AIPhonePostTicket)
+}
+
+func registerThirdTelnyxVoiceRoutes(group *gin.RouterGroup) {
+	group.POST("/webhook", third.TelnyxVoicePostWebhook)
+}
+
 // ------ Enterprise 路由（SLA、升级） ------
 
 func registerEnterpriseSLARoutes(group *gin.RouterGroup) {
@@ -712,6 +722,10 @@ func registerEnterpriseTicketRoutes(group *gin.RouterGroup) {
 	group.GET("/tickets/:id/quality-reviews", require(constants.PermissionTicketView), enterprise.TicketQualityReviewList)
 	group.POST("/tickets/:id/quality-reviews", require(constants.PermissionTicketProgress), enterprise.TicketQualityReviewCreate)
 	group.GET("/ticket-quality/samples", require(constants.PermissionTicketView), enterprise.TicketQualitySampleList)
+	group.GET("/ticket-quality/my-reviews", require(constants.PermissionTicketView), enterprise.TicketQualityMyReviewList)
+	group.POST("/ticket-quality/reviews/:id/disputes", require(constants.PermissionTicketView), enterprise.TicketQualityDisputeCreate)
+	group.GET("/ticket-quality/disputes", require(constants.PermissionTicketQualityDisputeReview), enterprise.TicketQualityDisputeList)
+	group.POST("/ticket-quality/disputes/:id/_decide", require(constants.PermissionTicketQualityDisputeReview), enterprise.TicketQualityDisputeDecide)
 	group.POST("/ticket-quality/samples/_generate", require(constants.PermissionTicketUpdate), enterprise.TicketQualitySampleGenerate)
 	group.POST("/ticket-quality/samples/:id/_start", require(constants.PermissionTicketUpdate), enterprise.TicketQualitySampleStart)
 	group.POST("/ticket-quality/samples/:id/_complete", require(constants.PermissionTicketUpdate), enterprise.TicketQualitySampleComplete)
@@ -867,7 +881,6 @@ func registerEnterpriseNotificationRoutes(group *gin.RouterGroup) {
 	group.GET("/notifications/mail-settings/receive-status", require(constants.PermissionNotificationChannelManage), enterprise.MailReceiveStatus)
 	group.GET("/notifications/mail-settings/pending-links", require(constants.PermissionNotificationChannelManage), enterprise.MailPendingLinks)
 	group.POST("/notifications/mail-settings/pending-links/:id/link", require(constants.PermissionTicketProgress), enterprise.MailPendingLinkResolve)
-	group.POST("/notifications/mail-settings", require(constants.PermissionNotificationChannelManage), enterprise.NotificationMailSettingSave)
 	group.POST("/notifications/mail-settings/_test", require(constants.PermissionNotificationChannelManage), enterprise.NotificationMailSettingTest)
 }
 

@@ -56,7 +56,7 @@ func TestBuildChannelResponseExposesOnlySecretStatus(t *testing.T) {
 		t.Fatalf("apply: %v", err)
 	}
 
-	raw, err := json.Marshal(buildChannelResponse(&channel))
+	raw, err := json.Marshal(buildChannelResponse(&channel, ""))
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestBuildChannelResponseExposesOnlySecretStatus(t *testing.T) {
 	if err := db.Create(&web).Error; err != nil {
 		t.Fatalf("create web channel: %v", err)
 	}
-	webRaw, err := json.Marshal(buildChannelResponse(&web))
+	webRaw, err := json.Marshal(buildChannelResponse(&web, ""))
 	if err != nil {
 		t.Fatalf("marshal web: %v", err)
 	}

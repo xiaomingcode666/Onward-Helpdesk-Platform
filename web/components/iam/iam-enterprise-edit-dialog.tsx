@@ -15,7 +15,8 @@ import {
   type EnterpriseIAMPartner,
   type IAMRole,
 } from "@/lib/api/platform-iam"
-import { useI18n } from "@/i18n/provider"
+import { useAppLocale, useI18n } from "@/i18n/provider"
+import { getAccountRoleLabel } from "@/lib/account-context-i18n"
 
 export type IAMEnterpriseEditTarget =
   | { kind: "member"; item: EnterpriseIAMMember }
@@ -58,6 +59,7 @@ export function IAMEnterpriseEditDialog({
   onSaved: () => void
 }) {
   const t = useI18n()
+  const { locale } = useAppLocale()
   const [form, setForm] = useState(initialForm)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
@@ -250,7 +252,7 @@ export function IAMEnterpriseEditDialog({
                     placeholder: t("iamExtract.dialog.selectRole"),
                     value: form.roleCode || undefined,
                     onChange: (value) => setForm((current) => ({ ...current, roleCode: (value as string) ?? "" })),
-                    options: selectableRoles.map((role) => ({ value: role.code, label: role.name })),
+                    options: selectableRoles.map((role) => ({ value: role.code, label: getAccountRoleLabel(role.code || role.name, locale) })),
                     style: { width: "100%" },
                   }}
                 />

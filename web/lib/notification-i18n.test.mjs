@@ -29,6 +29,11 @@ async function loadModule() {
               "notification.ticketAssignedTitle": "Ticket assigned",
               "notification.ticketAssignedLine": `Ticket ${values.ticketNo} has been assigned to you.`,
               "notification.assignmentReason": `Assignment reason: ${values.reason}`,
+              "notification.slaWarningTitle": `Ticket ${values.ticketNo} is approaching its SLA`,
+              "notification.slaViolationFRT": "First response",
+              "notification.slaElapsedMinutes": `${values.minutes} minutes of effective time have elapsed`,
+              "notification.slaContentReached": `${values.label} target: ${values.targetMinutes} minutes; the target time has been reached.`,
+              "notification.slaContentRemaining": `${values.label} target: ${values.targetMinutes} minutes; ${values.elapsed}; approximately ${values.remainingMinutes} minutes remain.`,
             }
             return messages[key] ?? key
           },
@@ -64,4 +69,44 @@ test("localizes realtime ticket assignment notification to English", async () =>
     result.content,
     "Ticket TK-100 has been assigned to you.\nCannot sign in\nAssignment reason: urgent"
   )
+})
+
+test("localizes legacy SLA notification content to English", async () => {
+  const { localizeEnterpriseNotification, localizeNotificationItem } = await loadModule()
+  const content = "首次响应目标 30 分钟，当前有效计时 22 分钟，预计剩余约 8 分钟。"
+
+  const enterprise = localizeEnterpriseNotification(
+    {
+      title: "工单 TK-100 SLA 告警",
+      content,
+      notification_type: "sla_warning",
+    },
+    "en-US",
+  )
+  assert.equal(enterprise.title, "Ticket TK-100 is approaching its SLA")
+  assert.equal(
+    enterprise.content,
+    "First response target: 30 minutes; 22 minutes of effective time have elapsed; approximately 8 minutes remain.",
+  )
+
+  const templated = localizeEnterpriseNotification(
+    { title: "Ticket TK-100 is approaching its SLA", content: `${content}\n\nPlease handle it before the response or resolution target.`, notification_type: "sla_warning" },
+    "en-US",
+  )
+  assert.equal(
+    templated.content,
+    "First response target: 30 minutes; 22 minutes of effective time have elapsed; approximately 8 minutes remain.\n\nPlease handle it before the response or resolution target.",
+  )
+
+  const realtime = localizeNotificationItem(
+    { title: "工单 TK-100 SLA 告警", content, notificationType: "sla_warning" },
+    "en-US",
+  )
+  assert.equal(realtime.content, enterprise.content)
+
+  const reached = localizeEnterpriseNotification(
+    { title: "Ticket TK-100 is approaching its SLA", content: "首次响应目标 30 分钟，目标时间已到。", notification_type: "sla_warning" },
+    "en-US",
+  )
+  assert.equal(reached.content, "First response target: 30 minutes; the target time has been reached.")
 })

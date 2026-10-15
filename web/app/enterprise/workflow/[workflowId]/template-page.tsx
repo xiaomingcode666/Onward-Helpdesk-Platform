@@ -1,5 +1,6 @@
 "use client"
 
+import { aiAgentOptionLabel } from "@/lib/ai-agent-label"
 import {
   Background,
   Handle,
@@ -70,7 +71,7 @@ import { ModuleLoading } from "@/components/shared/loading-states"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox as AntCheckbox } from "antd"
-import { useI18n } from "@/i18n/provider"
+import { useAppLocale, useI18n } from "@/i18n/provider"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -612,7 +613,8 @@ function workflowEdgeLabel(t: WorkflowDetailT, edge: WorkflowDefinitionEdge, nod
   if (source?.type !== "condition") return undefined
   const branch = getConditionBranches(source).find((item) => item.targetNodeId === edge.target)
   if (!branch) return undefined
-  return branch.default ? branch.name || wd(t, "nodeLabels.edge.defaultBranch") : branch.name || branch.id
+  const branchName = branch.name ? cleanWorkflowBusinessLabel(t, branch.name) : ""
+  return branch.default ? branchName || wd(t, "nodeLabels.edge.defaultBranch") : branchName || branch.id
 }
 
 function workflowGraphLayout(definition: AIWorkflowDefinition) {
@@ -1563,12 +1565,11 @@ function WorkflowModelCredentialPolicy({
             },
             disabled: !editable,
             options: [
-              { value: preset, label: presentation.label, disabled: preset === "custom" },
               { value: "product_then_tenant", label: wd(t, "credentialPolicy.productThenTenant") },
               { value: "tenant_then_product", label: wd(t, "credentialPolicy.tenantThenProduct") },
               { value: "product_only", label: wd(t, "credentialPolicy.productOnly") },
               { value: "tenant_only", label: wd(t, "credentialPolicy.tenantOnly") },
-              ...(preset === "custom" ? [{ value: "custom", label: wd(t, "credentialPolicy.custom"), disabled: true }] : []),
+              ...(preset === "custom" ? [{ value: "custom", label: presentation.label, disabled: true }] : []),
             ],
             style: { width: "100%" },
           }}
@@ -1628,7 +1629,12 @@ function WorkflowOrchestrationPanel({
   onDefinitionChange: (definition: AIWorkflowDefinition) => void
 }) {
   const t = useI18n()
-  const profile = useMemo(() => getWorkflowProductProfile(definition), [definition])
+  const { locale } = useAppLocale()
+  const profile = useMemo(() => {
+    // Profile labels are resolved by the localized workflow helper.
+    void locale
+    return getWorkflowProductProfile(definition)
+  }, [definition, locale])
   const knowledgeSupport = isKnowledgeSupportWorkflowDefinition(definition)
   const currentBlueprint = getWorkflowServiceBlueprint(definition)
   const blueprintOptions = useMemo(() => workflowBlueprintOptions(templates), [templates])
@@ -1846,7 +1852,7 @@ function WorkflowOrchestrationPanel({
                       <div className="rhd-railops-workflow-branch-list">
                         {selectedNodeBranches.map((branch, index) => {
                           const target = branch.targetNodeId ? nodeById.get(branch.targetNodeId) : undefined
-                          const branchLabel = branch.name || branch.id || wd(t, "nodeLabels.branchName", { index: index + 1 })
+                          const branchLabel = (branch.name ? cleanWorkflowBusinessLabel(t, branch.name) : "") || branch.id || wd(t, "nodeLabels.branchName", { index: index + 1 })
                           return (
                             <div key={`${branch.id || "branch"}:${index}`} className="rhd-railops-workflow-branch-row">
                               <div className="min-w-0">
@@ -2359,11 +2365,11 @@ function WorkflowVersionPanel({
               <div className="px-4 py-5">
                 <div className="text-xs font-semibold text-muted-foreground">{wd(t, "versionsPanel.stepChanges")}</div>
                 <div className="mt-3 space-y-2 text-sm">
-                  {change.addedNodes.map((node) => <div key={`add:${node.id}`} className="flex items-center gap-2"><Badge>{wd(t, "versionsPanel.added")}</Badge><span>{node.title}</span></div>)}
-                  {change.changedNodes.map((node) => <div key={`change:${node.id}`} className="flex items-center gap-2"><Badge variant="outline">{wd(t, "versionsPanel.changed")}</Badge><span>{node.title}</span></div>)}
-                  {change.removedNodes.map((node) => <div key={`remove:${node.id}`} className="flex items-center gap-2"><Badge variant="destructive">{wd(t, "versionsPanel.removed")}</Badge><span>{node.title}</span></div>)}
-                  {change.addedEdges.map((edge) => <div key={`edge-add:${edge.key}`} className="flex items-center gap-2"><Badge>{wd(t, "versionsPanel.addedPath")}</Badge><span>{edge.from} <ArrowRightIcon className="inline size-3.5" /> {edge.to}</span></div>)}
-                  {change.removedEdges.map((edge) => <div key={`edge-remove:${edge.key}`} className="flex items-center gap-2"><Badge variant="destructive">{wd(t, "versionsPanel.removedPath")}</Badge><span>{edge.from} <ArrowRightIcon className="inline size-3.5" /> {edge.to}</span></div>)}
+                  {change.addedNodes.map((node) => <div key={`add:${node.id}`} className="flex items-center gap-2"><Badge>{wd(t, "versionsPanel.added")}</Badge><span>{cleanWorkflowBusinessLabel(t, node.title)}</span></div>)}
+                  {change.changedNodes.map((node) => <div key={`change:${node.id}`} className="flex items-center gap-2"><Badge variant="outline">{wd(t, "versionsPanel.changed")}</Badge><span>{cleanWorkflowBusinessLabel(t, node.title)}</span></div>)}
+                  {change.removedNodes.map((node) => <div key={`remove:${node.id}`} className="flex items-center gap-2"><Badge variant="destructive">{wd(t, "versionsPanel.removed")}</Badge><span>{cleanWorkflowBusinessLabel(t, node.title)}</span></div>)}
+                  {change.addedEdges.map((edge) => <div key={`edge-add:${edge.key}`} className="flex items-center gap-2"><Badge>{wd(t, "versionsPanel.addedPath")}</Badge><span>{cleanWorkflowBusinessLabel(t, edge.from)} <ArrowRightIcon className="inline size-3.5" /> {cleanWorkflowBusinessLabel(t, edge.to)}</span></div>)}
+                  {change.removedEdges.map((edge) => <div key={`edge-remove:${edge.key}`} className="flex items-center gap-2"><Badge variant="destructive">{wd(t, "versionsPanel.removedPath")}</Badge><span>{cleanWorkflowBusinessLabel(t, edge.from)} <ArrowRightIcon className="inline size-3.5" /> {cleanWorkflowBusinessLabel(t, edge.to)}</span></div>)}
                   {!change.addedNodes.length && !change.changedNodes.length && !change.removedNodes.length && !change.addedEdges.length && !change.removedEdges.length ? <div className="text-muted-foreground">{wd(t, "versionsPanel.noPathChange")}</div> : null}
                 </div>
               </div>
@@ -2628,6 +2634,7 @@ function WorkflowTestPanel({
   onRunBatch: (scenarios: WorkflowTestScenario[]) => void
 }) {
   const t = useI18n()
+  const { locale } = useAppLocale()
   const nodeByID = new Map(definition.nodes.map((node) => [node.id, node]))
   const resultByID = new Map((result?.nodes ?? []).map((node) => [node.nodeId, node]))
   const orderedNodes = result
@@ -2638,7 +2645,7 @@ function WorkflowTestPanel({
             key: `${nodeResult.nodeId}:executed:${index}`,
             nodeId: nodeResult.nodeId,
             nodeType: node?.type || nodeResult.nodeType,
-            name: node?.name || nodeResult.nodeId,
+            name: node ? workflowBusinessNodeTitle(t, node) : cleanWorkflowBusinessLabel(t, nodeResult.nodeId),
             nodeResult,
           }
         }),
@@ -2646,7 +2653,7 @@ function WorkflowTestPanel({
           key: `${node.id}:not-visited`,
           nodeId: node.id,
           nodeType: node.type,
-          name: node.name || node.id,
+          name: workflowBusinessNodeTitle(t, node),
           nodeResult: undefined,
         })),
       ]
@@ -2655,7 +2662,9 @@ function WorkflowTestPanel({
   const StatusIcon = statusMeta?.Icon
   const stoppedNodeID = result?.failedNodeId || result?.interruptNodeId || ""
   const stoppedNode = stoppedNodeID ? nodeByID.get(stoppedNodeID) : undefined
-  const stoppedNodeLabel = stoppedNode?.name || stoppedNode?.id || stoppedNodeID
+  const stoppedNodeLabel = stoppedNode
+    ? workflowBusinessNodeTitle(t, stoppedNode)
+    : stoppedNodeID
   const resultError = describeWorkflowRunError(result?.errorMessage || "")
   const conditionNodes = definition.nodes
     .filter((node) => node.type === "condition")
@@ -2664,7 +2673,11 @@ function WorkflowTestPanel({
   const hasHandoffNode = definition.nodes.some((node) => node.type === "handoff_to_human")
   const hasConfirmationNode = definition.nodes.some((node) => node.type === "human_confirm")
   const overrideCount = Object.keys(branchOverrides).length
-  const testScenarios = useMemo(() => getWorkflowTestScenarios(definition), [definition])
+  const testScenarios = useMemo(() => {
+    // Scenario titles and messages are localized by the workflow helper.
+    void locale
+    return getWorkflowTestScenarios(definition)
+  }, [definition, locale])
   const [excludedBatchKeys, setExcludedBatchKeys] = useState<string[]>([])
   const selectedBatchKeys = testScenarios.filter((scenario) => !excludedBatchKeys.includes(scenario.key)).map((scenario) => scenario.key)
   const batchResultByKey = new Map(batchResults.map((item) => [item.scenarioKey, item]))
@@ -2680,7 +2693,7 @@ function WorkflowTestPanel({
   })
   const selectedAgent = agents.find((agent) => agent.id === agentId)
   const selectedAgentLabel = selectedAgent
-    ? `${selectedAgent.productName ? `${selectedAgent.productName} · ` : ""}${selectedAgent.name}`
+    ? aiAgentOptionLabel(selectedAgent.productName, selectedAgent.name)
     : wd(t, "testPanel.testAgent")
 
   return (
@@ -2690,7 +2703,7 @@ function WorkflowTestPanel({
       title={(
         <span className="flex min-w-0 items-center gap-2">
           <PlayIcon className="size-4 shrink-0 text-primary" />
-          <span className="truncate">{wd(t, "testPanel.title", { name: workflow.name })}</span>
+          <span className="truncate">{wd(t, "testPanel.title", { name: cleanWorkflowBusinessLabel(t, workflow.name) })}</span>
         </span>
       )}
       width={672}
@@ -2748,7 +2761,7 @@ function WorkflowTestPanel({
                           {batchItem?.status === "failed" ? <Badge variant="destructive"><CircleAlertIcon />{wd(t, "testPanel.failed")}</Badge> : null}
                         </span>
                         {batchItem?.result ? <span className="mt-1 block text-xs text-muted-foreground">{wd(t, "testPanel.durationNodes", { duration: batchItem.result.durationMs, nodes: batchItem.result.nodes.length })}</span> : null}
-                        {failedNodeId ? <span className="mt-1 block text-xs text-destructive">{wd(t, "testPanel.stoppedAt", { node: failedNode?.name || failedNodeId })}</span> : null}
+                        {failedNodeId ? <span className="mt-1 block text-xs text-destructive">{wd(t, "testPanel.stoppedAt", { node: failedNode ? workflowBusinessNodeTitle(t, failedNode) : failedNodeId })}</span> : null}
                         {error.summary ? <span className="mt-1 block text-xs leading-5 text-destructive">{error.summary}</span> : null}
                       </span>
                     </label>
@@ -2802,8 +2815,7 @@ function WorkflowTestPanel({
                         label: (
                           <span className="flex items-center gap-2">
                             <ShieldCheckIcon className="size-4 shrink-0 text-muted-foreground" />
-                            {agent.productName ? `${agent.productName} · ` : ""}
-                            {agent.name}
+                            {aiAgentOptionLabel(agent.productName, agent.name)}
                           </span>
                         ),
                       })),
@@ -2890,13 +2902,13 @@ function WorkflowTestPanel({
                       return (
                         <div key={node.id} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(14rem,1.2fr)] sm:items-center">
                           <div>
-                            <div className="text-sm font-medium">{node.name || node.id}</div>
+                            <div className="text-sm font-medium">{workflowBusinessNodeTitle(t, node)}</div>
                             <div className="mt-0.5 text-rhd-xs text-muted-foreground">{wd(t, "testPanel.onlyThisRun")}</div>
                           </div>
                           <SelectField
                             style={{ marginBottom: 0 }}
                             selectProps={{
-                              "aria-label": wd(t, "testPanel.branchOverrideAria", { node: node.name || node.id }),
+                              "aria-label": wd(t, "testPanel.branchOverrideAria", { node: workflowBusinessNodeTitle(t, node) }),
                               value: branchOverrides[node.id] || "__actual__",
                               onChange: (value) => {
                                 if (!value) return
@@ -2906,11 +2918,11 @@ function WorkflowTestPanel({
                                 onBranchOverridesChange(next)
                               },
                               options: [
-                                ...(branches.some((branch) => (branch.id || "") === (branchOverrides[node.id] || "__actual__"))
+                                ...(!branchOverrides[node.id] || branches.some((branch) => (branch.id || "") === branchOverrides[node.id])
                                   ? []
-                                  : [{ value: branchOverrides[node.id] || "__actual__", label: wd(t, "testPanel.actualConditionDecision"), disabled: true }]),
+                                  : [{ value: branchOverrides[node.id], label: wd(t, "testPanel.actualConditionDecision"), disabled: true }]),
                                 { value: "__actual__", label: wd(t, "testPanel.actualConditionDecision") },
-                                ...branches.map((branch) => ({ value: branch.id || "", label: `${branch.name || branch.id}${branch.default ? wd(t, "testPanel.defaultBranch") : ""}` })),
+                                ...branches.map((branch) => ({ value: branch.id || "", label: `${(branch.name ? cleanWorkflowBusinessLabel(t, branch.name) : "") || branch.id}${branch.default ? wd(t, "testPanel.defaultBranch") : ""}` })),
                               ],
                               style: { width: "100%" },
                             }}
@@ -3141,7 +3153,7 @@ function RuntimeBindingsPanel({ definition }: { definition: AIWorkflowDefinition
                   <DatabaseIcon className="size-4" />
                 </span>
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold">{node.name || wd(t, "runtime.knowledgeNode", { index: index + 1 })}</div>
+                  <div className="text-sm font-semibold">{node.name ? cleanWorkflowBusinessLabel(t, node.name) : wd(t, "runtime.knowledgeNode", { index: index + 1 })}</div>
                 </div>
               </div>
             </article>
@@ -3263,7 +3275,7 @@ export function EnterpriseWorkflowDetailPage({
         .finally(() => setVersionsLoading(false))
 
       setAvailableAgentsLoading(true)
-      const availableAgentsTask = fetchEnterpriseAIAgents({ productScoped: 0, page: 1, limit: WORKFLOW_AGENT_OPTION_PAGE_SIZE })
+      const availableAgentsTask = fetchEnterpriseAIAgents({ page: 1, limit: WORKFLOW_AGENT_OPTION_PAGE_SIZE })
         .then((response) => {
           const availableAgentPage = unwrapEnterpriseAgentPage(response, t)
           const activeAgents = availableAgentPage.results.filter((item) => item.status === Status.Ok)
@@ -3354,7 +3366,6 @@ export function EnterpriseWorkflowDetailPage({
     setAvailableAgentsLoading(true)
     try {
       const nextPage = unwrapEnterpriseAgentPage(await fetchEnterpriseAIAgents({
-        productScoped: 0,
         page,
         limit: availableAgentsPage.limit,
       }), t)
@@ -3592,7 +3603,7 @@ export function EnterpriseWorkflowDetailPage({
   async function archiveTemplate() {
     if (!workflow || workflow.scope !== "tenant" || workflow.agentId !== 0 || adoptionCount > 0 || saving) return
     const accepted = await confirm({
-      title: wd(t, "confirm.archiveTitle", { name: workflow.name }),
+      title: wd(t, "confirm.archiveTitle", { name: cleanWorkflowBusinessLabel(t, workflow.name) }),
       confirmText: wd(t, "confirm.archive"),
       variant: "destructive",
     })

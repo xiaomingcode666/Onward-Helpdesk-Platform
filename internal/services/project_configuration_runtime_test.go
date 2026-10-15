@@ -165,6 +165,89 @@ func TestProjectRuntimeMailResolutionAndMissingSecret(t *testing.T) {
 	_, err = resolveProjectMailConfig(1)
 	require.Error(t, err)
 }
+
+func TestProjectRuntimeManagedMailCredentialsAreEncryptedAndIdempotent(t *testing.T) {
+	db, op, doc := setupProjectRuntime(t)
+	doc.Runtime.Mail = projectconfig.Mail{
+		Enabled:     true,
+		Host:        "smtp.qq.com",
+		Port:        465,
+		Username:    "fixture@qq.com",
+		FromAddress: "fixture@qq.com",
+		UseTLS:      true,
+		RetryPolicy: "retry_3_10m",
+	}
+	doc.Runtime.Mail.IMAP = &projectconfig.IMAP{
+		Enabled:    true,
+		Host:       "imap.qq.com",
+		Port:       993,
+		Username:   "fixture@qq.com",
+		TicketType: "incident",
+	}
+	foundEmailChannel := false
+	for i := range doc.Runtime.Channels {
+		if doc.Runtime.Channels[i].Name == "email" {
+			doc.Runtime.Channels[i].Enabled = true
+			foundEmailChannel = true
+		}
+	}
+	if !foundEmailChannel {
+		doc.Runtime.Channels = append(doc.Runtime.Channels, projectconfig.Channel{Name: "email", Enabled: true})
+	}
+	doc.SecretRefs = []string{}
+	view, err := GetProjectConfiguration(1)
+	require.NoError(t, err)
+	requestKey := "managed-mail-idempotency"
+	input := ProjectConfigDraft{
+		Document:      doc,
+		BaseVersionID: view.ActiveVersionID,
+		RequestKey:    requestKey,
+		Note:          "QQ mail credentials",
+		SMTPPassword:  "qq-smtp-authorization-code",
+		IMAPPassword:  "qq-imap-authorization-code",
+	}
+	first, err := SaveProjectConfigurationDraft(1, input, op)
+	require.NoError(t, err)
+	second, err := SaveProjectConfigurationDraft(1, input, op)
+	require.NoError(t, err)
+	require.Equal(t, first.ID, second.ID)
+
+	var setting models.TenantMailSetting
+	require.NoError(t, db.Where("tenant_id = ?", 1).First(&setting).Error)
+	require.True(t, strings.HasPrefix(setting.Password, "enc:v1:"))
+	require.True(t, strings.HasPrefix(setting.IMAPPassword, "enc:v1:"))
+	require.NotContains(t, setting.Password, input.SMTPPassword)
+	require.NotContains(t, setting.IMAPPassword, input.IMAPPassword)
+	encoded, err := json.Marshal(first)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), input.SMTPPassword)
+	require.NotContains(t, string(encoded), input.IMAPPassword)
+	configView, err := GetProjectConfiguration(1)
+	require.NoError(t, err)
+	encoded, err = json.Marshal(configView)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), input.SMTPPassword)
+	require.NotContains(t, string(encoded), input.IMAPPassword)
+
+	_, err = SaveProjectConfigurationDraft(1, ProjectConfigDraft{
+		Document:      doc,
+		BaseVersionID: view.ActiveVersionID,
+		RequestKey:    requestKey,
+		Note:          input.Note,
+		SMTPPassword:  "different-smtp-code",
+		IMAPPassword:  input.IMAPPassword,
+	}, op)
+	require.ErrorIs(t, err, ErrProjectConfigConflict)
+
+	_, err = ApplyProjectConfiguration(1, first.ID, op)
+	require.NoError(t, err)
+	smtp, err := resolveProjectMailConfig(1)
+	require.NoError(t, err)
+	require.Equal(t, input.SMTPPassword, smtp.Password)
+	inbound, err := resolveInboundMailbox(1)
+	require.NoError(t, err)
+	require.Equal(t, input.IMAPPassword, inbound.Password)
+}
 func TestProjectRuntimeInvalidApplyRollsBack(t *testing.T) {
 	db, op, doc := setupProjectRuntime(t)
 	first := activateRuntime(t, doc, op)

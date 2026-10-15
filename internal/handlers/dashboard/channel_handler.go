@@ -7,6 +7,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto/response"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/httpx"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/services"
 
 	"remotehelpdesk/internal/pkg/httpx/params"
@@ -28,7 +29,7 @@ func ChannelAnyList(ctx *gin.Context) {
 	).Where("status <> ?", enums.StatusDeleted).Desc("id"))
 	results := make([]response.ChannelResponse, 0, len(list))
 	for _, item := range list {
-		results = append(results, buildChannelResponse(&item))
+		results = append(results, buildChannelResponse(&item, i18nx.Locale(ctx)))
 	}
 	httpx.WriteJSON(ctx, &web.PageResult{Results: results, Page: paging})
 }
@@ -47,7 +48,7 @@ func ChannelGetBy(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0062"))
 		return
 	}
-	httpx.WriteJSON(ctx, buildChannelResponse(item))
+	httpx.WriteJSON(ctx, buildChannelResponse(item, i18nx.Locale(ctx)))
 }
 
 func ChannelAnyWxworkKfAccounts(ctx *gin.Context) {
@@ -79,7 +80,7 @@ func ChannelPostCreate(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, buildChannelResponse(item))
+	httpx.WriteJSON(ctx, buildChannelResponse(item, i18nx.Locale(ctx)))
 }
 
 func ChannelPostUpdate(ctx *gin.Context) {
@@ -155,13 +156,13 @@ func ChannelPostDelete(ctx *gin.Context) {
 	httpx.WriteJSON(ctx, nil)
 }
 
-func buildChannelResponse(item *models.Channel) response.ChannelResponse {
+func buildChannelResponse(item *models.Channel, locale string) response.ChannelResponse {
 	ret := response.BuildChannelResponse(item)
 	if item == nil {
 		return ret
 	}
 	if aiAgent := services.AIAgentService.Get(item.AIAgentID); aiAgent != nil {
-		ret.AIAgentName = aiAgent.Name
+		ret.AIAgentName = aiAgent.DisplayName(locale)
 	}
 	if item.ChannelType == enums.ChannelTypeWhatsApp {
 		ret.WhatsAppSecrets = services.ChannelSecretService.Statuses(item.ID)

@@ -206,12 +206,14 @@ const (
 	TicketSourceManual       TicketSource = "manual"
 	TicketSourceConversation TicketSource = "conversation"
 	TicketSourceEmail        TicketSource = "email"
+	TicketSourceAIPhone      TicketSource = "ai_phone"
 )
 
 var TicketSourceValues = []TicketSource{
 	TicketSourceManual,
 	TicketSourceConversation,
 	TicketSourceEmail,
+	TicketSourceAIPhone,
 }
 
 func IsValidTicketSource(source string) bool {

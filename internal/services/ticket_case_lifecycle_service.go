@@ -68,7 +68,18 @@ func ticketCaseActions(ticket *models.Ticket, operator *dto.AuthPrincipal) []str
 		}
 	case "acknowledged":
 		actions = append(actions, "triage", "wait")
-	case "in_triage", "assigned":
+	case "in_triage":
+		actions = append(actions, "wait", "restore")
+		if ticket.ProductID == 0 && ticket.DeviceID == 0 {
+			actions = append(actions, "resolve")
+		}
+	case "assigned":
+		// Once the assigned engineer has accepted the ticket, expose the
+		// explicit Assigned -> In Triage step. Pending acceptance still uses
+		// the separate engineer acceptance action in the workbench.
+		if ticket.AcceptedAt != nil {
+			actions = append(actions, "triage")
+		}
 		actions = append(actions, "wait", "restore")
 		if ticket.ProductID == 0 && ticket.DeviceID == 0 {
 			actions = append(actions, "resolve")

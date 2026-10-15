@@ -405,7 +405,7 @@ func TestEnterpriseIAMMemberProductGroupsOnlyIncludeActiveDispatchProducts(t *te
 		}
 	}
 
-	groups := EnterpriseIAMService.memberProductGroups(tenant.ID, []models.TenantMember{*result.Member})[result.Member.ID]
+	groups := EnterpriseIAMService.memberProductGroups(tenant.ID, []models.TenantMember{*result.Member}, "")[result.Member.ID]
 	if len(groups) != 1 || groups[0].TeamID != activeTeam.ID || groups[0].ProductID != activeProduct.ID {
 		t.Fatalf("member product groups should only include active product teams, got %+v", groups)
 	}

@@ -1,3 +1,5 @@
+import { readStoredLocale } from "@/i18n/config"
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ||
   (process.env.NODE_ENV === "development" ? "http://127.0.0.1:8083" : "")
@@ -6,12 +8,19 @@ const ACCESS_TOKEN_PROTOCOL_PREFIX = "rhd.access."
 const CUSTOMER_SESSION_PROTOCOL_PREFIX = "rhd.customer."
 const CREDENTIAL_PROTOCOL = "rhd.credential"
 
+// Browsers cannot set headers on WebSocket requests, so the interface language that
+// other requests send as X-Locale travels as a query parameter instead.
+export function withRealtimeLocale(url: string, locale: string = readStoredLocale()) {
+  const separator = url.includes("?") ? "&" : "?"
+  return `${url}${separator}locale=${encodeURIComponent(locale)}`
+}
+
 function createCredentialWebSocket(url: string, prefix: string, credential: string) {
   const normalizedCredential = credential.trim()
   if (!normalizedCredential) {
     throw new Error("WebSocket credential is required")
   }
-  return new WebSocket(url, [CREDENTIAL_PROTOCOL, `${prefix}${normalizedCredential}`])
+  return new WebSocket(withRealtimeLocale(url), [CREDENTIAL_PROTOCOL, `${prefix}${normalizedCredential}`])
 }
 
 export function createAccessTokenWebSocket(url: string, accessToken: string) {

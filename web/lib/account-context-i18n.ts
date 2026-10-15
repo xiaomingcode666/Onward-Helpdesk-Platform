@@ -167,5 +167,15 @@ export function getAccountSubjectLabel(
 export function getAccountRoleLabel(value: string | null | undefined, locale: string) {
   const normalized = normalize(value)
   if (!normalized) return "-"
-  return labelsFor(locale).roles[normalized] ?? normalized
+  const roleKey = labelsFor(locale).roles[normalized] ? normalized : roleKeyForDisplayName(normalized) ?? normalized
+  return labelsFor(locale).roles[roleKey] ?? normalized
+}
+
+// Built-in roles may be stored with the display name rendered in any locale.
+function roleKeyForDisplayName(name: string) {
+  for (const labels of Object.values(ACCOUNT_CONTEXT_LABELS)) {
+    const match = Object.entries(labels.roles).find(([, label]) => label === name)
+    if (match) return match[0]
+  }
+  return undefined
 }

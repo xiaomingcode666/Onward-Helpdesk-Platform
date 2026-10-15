@@ -217,6 +217,7 @@ func sub2APICapabilityRoute(modelType enums.AIModelType, scope CapabilityScope) 
 		ModelName:                 modelName,
 		Dimension:                 dimension,
 		TimeoutMS:                 int(timeout.Milliseconds()),
+		MaxOutputTokens:           2048,
 		MaxRetryCount:             maxRetries,
 		Status:                    enums.StatusOk,
 		Remark:                    "Resolved internally from the tenant Sub2API account.",

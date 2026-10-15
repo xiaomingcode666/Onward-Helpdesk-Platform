@@ -1756,7 +1756,7 @@ func defaultAgentWorkflowName(agentName string) string {
 }
 
 func marshalDefinition(def dsl.Definition) (string, error) {
-	buf, err := json.Marshal(def)
+	buf, err := json.Marshal(workflowbuiltin.CanonicalizeDefinition(def))
 	if err != nil {
 		return "", errorsx.InvalidParam("invalid workflow definition")
 	}

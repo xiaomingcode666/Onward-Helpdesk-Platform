@@ -175,15 +175,18 @@ test("configuration drafts, validation, activation and restore use real handlers
   await dialog.getByText("运营设置升级验收", {exact:true}).locator("..").getByRole("button",{name:"载入为新草稿"}).click()
   await expect(dialog.getByRole("textbox",{name:"默认时区",exact:true})).toHaveValue("Asia/Shanghai")
   // Retaining a current runtime while loading v1 history must also retain its
-  // declared secrets. No SMTP/network call occurs; these are fixture files.
+  // declared secret handles. Password values are write-only and never enter
+  // the configuration document or the browser response.
   await dialog.getByRole("button", { name: "重新加载", exact: true }).click()
   await openSection(/^邮件发送$/)
   await dialog.getByRole("checkbox", { name: "启用邮件发送", exact: true }).check()
   await dialog.getByRole("textbox", { name: "SMTP 地址", exact: true }).fill("smtp.example.test")
   await dialog.getByRole("spinbutton", { name: "SMTP 端口", exact: true }).fill("465")
   await dialog.getByRole("textbox", { name: "发信账号", exact: true }).fill("fixture@example.test")
-  await dialog.getByRole("textbox", { name: "邮件密钥引用", exact: true }).fill("secret://config-shared")
+  await dialog.getByRole("textbox", { name: "SMTP 密码/授权码", exact: true }).fill("fixture-smtp-authorization-code")
   await dialog.getByRole("textbox", { name: "发信邮箱地址", exact: true }).fill("fixture@example.test")
+  await dialog.getByRole("button", { name: "检查配置", exact: true }).click()
+  await expect(dialog.getByText("配置检查通过；应用时还会再次检查。")).toBeVisible()
   await openSection(/^外部系统接入$/)
   await dialog.getByRole("button", { name: "添加接入设置", exact: true }).click()
   await dialog.getByRole("textbox", { name: "接入标识 1", exact: true }).fill("webhook")
@@ -203,7 +206,7 @@ test("configuration drafts, validation, activation and restore use real handlers
   await dialog.locator("summary").filter({ hasText: "历史与草稿" }).click()
   await dialog.getByText("电话资料规则验收", { exact: true }).locator("..").getByRole("button", { name: "载入为新草稿" }).click()
   await openSection(/部署所需密钥引用/)
-  await expect(dialog.getByRole("textbox", { name: "密钥引用", exact: true })).toHaveValue("secret://config-shared\nsecret://config-app-key")
+  await expect(dialog.getByRole("textbox", { name: "密钥引用", exact: true })).toHaveValue("secret://config-shared\nsecret://config-app-key\nsecret://managed-smtp")
   await dialog.getByRole("button", { name: "保存草稿", exact: true }).click()
   await expect(dialog.getByText(/草稿 V\d+ 已保存，尚未生效/)).toBeVisible()
   await dialog.getByRole("button", { name: "检查配置", exact: true }).click()
@@ -212,17 +215,18 @@ test("configuration drafts, validation, activation and restore use real handlers
   await dialog.getByRole("button", { name: "应用已检查的草稿" }).click()
   await expect(dialog.getByText(/当前生效版本为 V\d+/)).toBeVisible()
 
-  // Changing the mail reference must not undeclare the integration's shared
-  // reference; deleting the integration must remove only its unused refs.
+  // Changing the mail password keeps the managed handle and must not undeclare
+  // the integration's shared references; deleting the integration removes only
+  // its unused refs.
   await openSection(/^邮件发送$/)
-  await dialog.getByRole("textbox", { name: "邮件密钥引用", exact: true }).fill("secret://config-mail")
+  await dialog.getByRole("textbox", { name: "SMTP 密码/授权码", exact: true }).fill("fixture-smtp-authorization-code-2")
   await openSection(/部署所需密钥引用/)
-  await expect(dialog.getByRole("textbox", { name: "密钥引用", exact: true })).toHaveValue("secret://config-shared\nsecret://config-app-key\nsecret://config-mail")
+  await expect(dialog.getByRole("textbox", { name: "密钥引用", exact: true })).toHaveValue("secret://config-shared\nsecret://config-app-key\nsecret://managed-smtp")
   await dialog.getByRole("button", { name: "检查配置", exact: true }).click()
   await expect(dialog.getByText("配置检查通过；应用时还会再次检查。")).toBeVisible()
   await openSection(/^外部系统接入$/)
   await dialog.getByRole("button", { name: "删除此接入", exact: true }).click()
-  await expect(dialog.getByRole("textbox", { name: "密钥引用", exact: true })).toHaveValue("secret://config-mail")
+  await expect(dialog.getByRole("textbox", { name: "密钥引用", exact: true })).toHaveValue("secret://managed-smtp")
   await dialog.getByRole("button", { name: "检查配置", exact: true }).click()
   await expect(dialog.getByText("配置检查通过；应用时还会再次检查。")).toBeVisible()
   await page.setViewportSize({width:390,height:844})

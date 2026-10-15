@@ -25,6 +25,15 @@ test("model settings are a right-side gear popover instead of a full-width row",
   assert.doesNotMatch(source, /<details className="group overflow-hidden rounded-md border bg-card">/)
 })
 
+test("model settings show complete model names in the selector and list", () => {
+  assert.match(source, /popupMatchSelectWidth: false/)
+  assert.match(source, /classNames: \{ popup: \{ root: "rhd-railops-ai-model-dropdown" \} \}/)
+  assert.match(source, /styles: \{ popup: \{ root: \{ minWidth: 320, maxWidth: "calc\(100vw - 2rem\)", zIndex: 1300 \} \} \}/)
+  assert.doesNotMatch(source, /dropdownStyle/)
+  assert.match(source, /whitespace-normal break-all font-mono/)
+  assert.match(source, /className="grid divide-y"/)
+})
+
 test("tenant default reception is a first-class scope beside product agents", () => {
   assert.match(source, /type AgentScopeSelection = "tenant" \| "all" \| number/)
   assert.match(source, /<section className="rhd-railops-ai-workspace">/)

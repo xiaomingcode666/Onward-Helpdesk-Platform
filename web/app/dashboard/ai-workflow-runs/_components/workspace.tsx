@@ -422,6 +422,7 @@ function WorkflowRunDetailDialog({
   t: TFunction
   onOpenConversation: (conversationId: number) => void | Promise<void>
 }) {
+
   return (
     <ProjectDialog
       open={open}

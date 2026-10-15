@@ -43,7 +43,7 @@ func TestAnalyzeTicketQualityReturnsLocaleNeutralDimensionCodes(t *testing.T) {
 	require.NoError(t, db.AutoMigrate(models.Models...))
 	ticket := models.Ticket{TenantID: 1, TicketNo: "QA-EMPTY", Title: "缺少维度", Status: enums.TicketStatusClosed}
 	require.NoError(t, db.Create(&ticket).Error)
-	operator := &dto.AuthPrincipal{TenantID: 1, UserID: 9, Roles: []string{EnterpriseRoleOwner}, Permissions: []string{"ticket.view", "ticket.progress"}}
+	operator := &dto.AuthPrincipal{TenantID: 1, UserID: 9, Roles: []string{EnterpriseRoleOwner}, Permissions: []string{"ticket.view", "ticket.progress", "ticketQuality.viewAgent"}}
 	card, err := GetActiveTicketQualityScorecard(1)
 	require.NoError(t, err)
 	answers := make(map[string]int, len(card.Items))

@@ -38,6 +38,7 @@ import {
   type SelectableLocale,
 } from "@/i18n/config"
 import { useAppLocale } from "@/i18n/provider"
+import { translateMessage } from "@/i18n/messages"
 import { updateOwnProfile } from "@/lib/api/auth"
 import {
   getAccountDomainLabel,
@@ -168,9 +169,10 @@ export function AccountMenu({ domain }: AccountMenuProps) {
         timezone: currentTimezone(),
       })
       await refreshProfile()
-      setLocale(normalizeLocale(nextSession.user?.locale || nextLocale))
+      const savedLocale = normalizeLocale(nextSession.user?.locale || nextLocale)
+      setLocale(savedLocale)
       setLanguageOpen(false)
-      toast.success(t("account.languageSaved"))
+      toast.success(translateMessage(savedLocale, "account.languageSaved"))
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("account.languageSaveFailed"))
     } finally {

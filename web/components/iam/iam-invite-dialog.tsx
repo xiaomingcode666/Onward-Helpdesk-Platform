@@ -18,6 +18,7 @@ import {
   type IAMRole,
 } from "@/lib/api/platform-iam"
 import { useAppLocale, useI18n } from "@/i18n/provider"
+import { getAccountRoleLabel } from "@/lib/account-context-i18n"
 
 export type IAMInviteKind = "platform-staff" | "enterprise-people" | "enterprise-customer-users" | "enterprise-partners"
 
@@ -264,7 +265,7 @@ export function IAMInviteDialog({
                 placeholder: t("iamExtract.dialog.selectRole"),
                 value: form.roleCode || undefined,
                 onChange: (value) => setForm((current) => ({ ...current, roleCode: (value as string) ?? "" })),
-                options: roles.map((role) => ({ value: role.code, label: role.name })),
+                options: roles.map((role) => ({ value: role.code, label: getAccountRoleLabel(role.code || role.name, locale) })),
                 style: { width: "100%" },
               }}
             />

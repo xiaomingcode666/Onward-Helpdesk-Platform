@@ -40,6 +40,7 @@ import {
   getRemoteHelpdeskPermissionGroupOrder,
 } from "@/lib/navigation-remote-helpdesk"
 import { translateCurrentMessage } from "@/i18n/messages"
+import { getAccountRoleLabel } from "@/lib/account-context-i18n"
 
 const iamTitleClass = "text-base font-semibold text-foreground"
 const iamMutedTextClass = "text-muted-foreground"
@@ -93,6 +94,7 @@ export function IAMDetailSheet({
 }
 
 function IAMDetailHeader({ detail }: { detail: IAMWorkspaceDetail }) {
+  const { locale } = useAppLocale()
   switch (detail.kind) {
     case "role":
       return (
@@ -101,10 +103,7 @@ function IAMDetailHeader({ detail }: { detail: IAMWorkspaceDetail }) {
             <KeyRoundIcon className="size-4" />
           </div>
           <div className="min-w-0">
-            <div className={iamTitleClass}>{detail.role.name}</div>
-            <div className={`mt-1 break-all font-mono text-xs ${iamMutedTextClass}`}>
-              {detail.role.code}
-            </div>
+            <div className={iamTitleClass}>{getAccountRoleLabel(detail.role.code || detail.role.name, locale)}</div>
           </div>
         </div>
       )
@@ -493,11 +492,12 @@ function RoleDetail({ catalog, role }: { catalog: AdminPermission[]; role: IAMRo
 
 function MemberDetail({ member }: { member: EnterpriseIAMMember }) {
   const t = useI18n()
+  const { locale } = useAppLocale()
   const skills = parseDetailList(member.skill_tags_json)
   const languages = parseDetailList(member.languages_json)
   const regions = parseDetailList(member.service_regions_json)
   const productGroups = (member.product_groups || []).map((group) =>
-    group.product_name || group.team_name || t("iamExtract.workspace.detail.productGroupWithId", { id: group.team_id }),
+    group.product_name || group.team_name || t("iamExtract.detail.productGroupWithId", { id: group.team_id }),
   )
 
   return (
@@ -526,7 +526,7 @@ function MemberDetail({ member }: { member: EnterpriseIAMMember }) {
           </dl>
         </section>
 
-        <DetailBadgeSection icon={<KeyRoundIcon className="size-4" />} title={t("iamExtract.detail.assignedRoles")} values={member.role_names || member.roles} empty={t("iamExtract.detail.noRole")} />
+        <DetailBadgeSection icon={<KeyRoundIcon className="size-4" />} title={t("iamExtract.detail.assignedRoles")} values={(member.role_names || member.roles).map((role) => getAccountRoleLabel(role, locale))} empty={t("iamExtract.detail.noRole")} />
         <DetailBadgeSection icon={<WrenchIcon className="size-4" />} title={t("iamExtract.detail.productGroup")} values={productGroups} empty={t("iamExtract.detail.noProductGroup")} />
         <DetailBadgeSection icon={<WrenchIcon className="size-4" />} title={t("iamExtract.detail.engineerSkills")} values={skills} empty={t("iamExtract.detail.noSkill")} />
         <DetailBadgeSection icon={<CheckCircle2Icon className="size-4" />} title={t("iamExtract.detail.serviceLanguage")} values={languages} empty={t("iamExtract.detail.noServiceLanguage")} />

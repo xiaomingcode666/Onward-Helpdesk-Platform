@@ -294,6 +294,11 @@ func (s *aIAgentService) updateTenantDefaultAIAgentModelDraft(
 		}); err != nil {
 			return err
 		}
+		// Build the candidate on the platform's current stable workflow; a draft pinned
+		// to a superseded version produces a release that can never be deployed.
+		if err := AIAgentReleaseService.AlignAgentWorkflowToCurrentStableDB(ctx.Tx, current.ID, operator); err != nil {
+			return err
+		}
 		updated := repositories.AIAgentRepository.Get(ctx.Tx, current.ID)
 		if updated == nil {
 			return errorsx.InvalidParam("tenant default AI agent does not exist")

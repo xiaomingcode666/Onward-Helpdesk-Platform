@@ -10,6 +10,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/dto/response"
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/i18nx"
 )
 
 func TestWsNotificationTopic(t *testing.T) {
@@ -405,5 +406,61 @@ func drainRealtimeEvents(events <-chan []byte) {
 		default:
 			return
 		}
+	}
+}
+
+func TestWsMessageCreatedRendersAISenderNameInSessionLocale(t *testing.T) {
+	db := setupCustomerWorkbenchSecurityTestDB(t, &models.AIAgent{})
+	builtin := models.AIAgent{
+		TenantID: 1,
+		Name:     i18nx.TLocale(i18nx.LocaleZhCN, "builtin.aiAgent.tenantDefault.name"),
+		NameText: i18nx.NewText("builtin.aiAgent.tenantDefault.name", nil),
+		Status:   enums.StatusOk,
+	}
+	custom := models.AIAgent{TenantID: 1, Name: "Custom bot", Status: enums.StatusOk}
+	for _, agent := range []*models.AIAgent{&builtin, &custom} {
+		if err := db.Create(agent).Error; err != nil {
+			t.Fatalf("create ai agent: %v", err)
+		}
+	}
+	event := func(senderType enums.IMSenderType, agent models.AIAgent) []byte {
+		payload, err := json.Marshal(RealtimeEvent{
+			Type: enums.IMRealtimeEventMessageCreated,
+			Data: RealtimeMessageCreatedPayload{
+				SenderType: senderType,
+				SenderID:   agent.ID,
+				Message:    response.MessageResponse{SenderName: agent.Name},
+			},
+		})
+		if err != nil {
+			t.Fatalf("marshal event: %v", err)
+		}
+		return payload
+	}
+	senderName := func(payload []byte) string {
+		var decoded struct {
+			Data struct {
+				Message struct {
+					SenderName string `json:"senderName"`
+				} `json:"message"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(payload, &decoded); err != nil {
+			t.Fatalf("decode payload: %v", err)
+		}
+		return decoded.Data.Message.SenderName
+	}
+
+	english := &ClientSession{Role: realtimeRoleAdmin, Locale: i18nx.LocaleEnUS}
+	want := i18nx.TLocale(i18nx.LocaleEnUS, "builtin.aiAgent.tenantDefault.name")
+	if got := senderName((&wsService{}).payloadForSession(event(enums.IMSenderTypeAI, builtin), english)); got != want {
+		t.Fatalf("expected localized AI sender name %q, got %q", want, got)
+	}
+	if got := senderName((&wsService{}).payloadForSession(event(enums.IMSenderTypeAI, custom), english)); got != "Custom bot" {
+		t.Fatalf("expected user-defined agent name to stay unchanged, got %q", got)
+	}
+	unset := &ClientSession{Role: realtimeRoleAdmin}
+	if got := senderName((&wsService{}).payloadForSession(event(enums.IMSenderTypeAI, builtin), unset)); got != builtin.Name {
+		t.Fatalf("expected stored name without a session locale, got %q", got)
 	}
 }

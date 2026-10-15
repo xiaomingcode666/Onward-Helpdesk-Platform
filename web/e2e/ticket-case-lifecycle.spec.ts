@@ -26,7 +26,7 @@ function sampleAggregate() {
     device_context: {}, flow: { current_step: "Accept", steps: [] },
     assignment: { assignee_id: 9001, assignee_name: "工程师小李", team_id: 1, team_name: "工程师组", assigned_at: "2026-09-14T01:10:00Z", accepted_at: "2026-09-14T01:20:00Z", accept_deadline_at: "", dispatch_attempts: 0, dispatch_deferred_until: "", last_dispatch_failure_reason: "" },
     meeting: {}, repair: { parts: [], resolution: "" }, timeline: [], assets: [], audit_refs: [], actions: {},
-    case_lifecycle: { status: "assigned", revision: 1, acknowledged_at: "2026-09-14T01:20:00Z", restored_at: "", waiting_reason: "", allowed_actions: ["wait", "restore"], legacy_record: false },
+    case_lifecycle: { status: "assigned", revision: 1, acknowledged_at: "2026-09-14T01:20:00Z", restored_at: "", waiting_reason: "", allowed_actions: ["triage", "wait", "restore"], legacy_record: false },
   }
 }
 
@@ -67,10 +67,12 @@ test("engineer handling has no separate support-agent reception or owner handove
     if (path.endsWith("/tickets")) return { items: [{ ...aggregate.ticket, ...aggregate.assignment, customer_name: "测试客户" }], total: 1, page: 1, page_size: 10, total_pages: 1 }
     if (path.endsWith("/lifecycle") && method === "POST") {
       requests.push(body)
-      if (body.action === "wait") {
-        Object.assign(aggregate.case_lifecycle, { status: "waiting", revision: 2, waiting_reason: body.reason, allowed_actions: ["resume"] })
+      if (body.action === "triage") {
+        Object.assign(aggregate.case_lifecycle, { status: "in_triage", revision: 2, waiting_reason: "", allowed_actions: ["wait", "restore"] })
+      } else if (body.action === "wait") {
+        Object.assign(aggregate.case_lifecycle, { status: "waiting", revision: 3, waiting_reason: body.reason, allowed_actions: ["resume"] })
       } else if (body.action === "resume") {
-        Object.assign(aggregate.case_lifecycle, { status: "in_triage", revision: 3, waiting_reason: "", allowed_actions: ["wait"] })
+        Object.assign(aggregate.case_lifecycle, { status: "in_triage", revision: 4, waiting_reason: "", allowed_actions: ["wait"] })
       }
       aggregate.ticket.case_status = aggregate.case_lifecycle.status
       return { ticket_id: aggregate.ticket.id, operation_key: body.idempotency_key, status: aggregate.case_lifecycle.status, revision: aggregate.case_lifecycle.revision }
@@ -82,6 +84,12 @@ test("engineer handling has no separate support-agent reception or owner handove
   const lifecycle = page.getByTestId("ticket-case-lifecycle")
   await expect(lifecycle.getByTestId("ticket-case-status")).toHaveText("已派单")
   await expect(lifecycle.getByText("工程师小李", { exact: true })).toBeVisible()
+  await lifecycle.getByTestId("case-update-status").click()
+  await expect(lifecycle.getByTestId("case-action-triage")).toHaveText("开始分析")
+  await lifecycle.getByTestId("case-action-triage").click()
+  await lifecycle.getByRole("button", { name: /^确\s*认$/ }).click()
+  await expect(lifecycle.getByTestId("ticket-case-status")).toHaveText("分析中")
+  await expect(lifecycle.getByTestId("case-update-status")).toBeVisible()
   // The removed support-agent concepts must not reappear anywhere in the case panel.
   await expect(lifecycle.getByText("负责跟进的客服", { exact: true })).toHaveCount(0)
   await expect(lifecycle.getByTestId("case-owner-transfer")).toHaveCount(0)
@@ -90,19 +98,20 @@ test("engineer handling has no separate support-agent reception or owner handove
   let dialog = page.getByRole("dialog", { name: "等待中", exact: true })
   await dialog.getByRole("button", { name: /^确\s*认$/ }).click()
   await expect(dialog.getByRole("alert")).toHaveText("请填写操作说明")
-  expect(requests).toHaveLength(0)
+  expect(requests).toHaveLength(1)
   await dialog.getByRole("textbox", { name: "操作说明" }).fill("等待客户补充错误发生时间")
   await dialog.getByRole("button", { name: /^确\s*认$/ }).click()
   await expect(lifecycle.getByTestId("ticket-case-status")).toHaveText("等待中")
   await expect(lifecycle.getByText("等待客户补充错误发生时间", { exact: true })).toBeVisible()
-  expect(requests[0]).toMatchObject({ action: "wait", expected_status: "assigned", expected_revision: 1, reason: "等待客户补充错误发生时间" })
+  expect(requests[0]).toMatchObject({ action: "triage", expected_status: "assigned", expected_revision: 1, reason: "" })
+  expect(requests[1]).toMatchObject({ action: "wait", expected_status: "in_triage", expected_revision: 2, reason: "等待客户补充错误发生时间" })
   expect(requests[0].idempotency_key).toMatch(/^[\da-f-]{36}$/)
   await clickCaseAction(lifecycle, "resume")
   dialog = page.getByRole("dialog", { name: "继续处理", exact: true })
   await dialog.getByRole("textbox", { name: "操作说明" }).fill("客户已补齐时间")
   await dialog.getByRole("button", { name: /^确\s*认$/ }).click()
   await expect(lifecycle.getByTestId("ticket-case-status")).toHaveText("分析中")
-  expect(requests[1]).toMatchObject({ action: "resume", expected_status: "waiting", expected_revision: 2 })
+  expect(requests[2]).toMatchObject({ action: "resume", expected_status: "waiting", expected_revision: 3 })
   expect(errors).toEqual([])
 })
 

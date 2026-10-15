@@ -55,7 +55,7 @@ func (s *dashboardService) GetOverview(rangeValue string, locale string) respons
 		})
 	})
 
-	onlineAgents, busyAgents, offlineAgents, teamLoads := s.buildAgentStats(now, agentTeams, agentProfiles, activeSchedules, activeConversations)
+	onlineAgents, busyAgents, offlineAgents, teamLoads := s.buildAgentStats(now, agentTeams, agentProfiles, activeSchedules, activeConversations, locale)
 
 	enabledAIAgentCount := repositories.DashboardRepository.CountAIAgents(db, func(tx *gorm.DB) *gorm.DB {
 		return tx.Where("status = ?", enums.StatusOk)
@@ -115,7 +115,7 @@ func (s *dashboardService) GetOverview(rangeValue string, locale string) respons
 	}
 }
 
-func (s *dashboardService) buildAgentStats(now time.Time, teams []models.AgentTeam, profiles []models.AgentProfile, schedules []models.AgentTeamSchedule, conversations []models.Conversation) (int64, int64, int64, []response.DashboardTeamLoadResponse) {
+func (s *dashboardService) buildAgentStats(now time.Time, teams []models.AgentTeam, profiles []models.AgentProfile, schedules []models.AgentTeamSchedule, conversations []models.Conversation, locale string) (int64, int64, int64, []response.DashboardTeamLoadResponse) {
 	const onlineWindow = 15 * time.Minute
 
 	scheduledTeamIDs := make(map[int64]bool, len(schedules))
@@ -190,7 +190,7 @@ func (s *dashboardService) buildAgentStats(now time.Time, teams []models.AgentTe
 		}
 		teamLoads = append(teamLoads, response.DashboardTeamLoadResponse{
 			TeamID:                  team.ID,
-			TeamName:                team.Name,
+			TeamName:                team.DisplayName(locale),
 			TotalAgents:             counter.totalAgents,
 			OnlineAgents:            counter.onlineAgents,
 			BusyAgents:              counter.busyAgents,

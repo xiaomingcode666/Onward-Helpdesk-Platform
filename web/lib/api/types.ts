@@ -757,24 +757,6 @@ export interface NotificationMailSetting {
   imap_enabled: boolean
 }
 
-export interface UpdateNotificationMailSettingPayload {
-  fromAddress: string
-  fromName: string
-  smtpHost: string
-  smtpPort: number
-  username?: string
-  password?: string
-  replyTo: string
-  retryPolicy: string
-  useTls: boolean
-  imapHost?: string
-  imapPort?: number
-  imapUsername?: string
-  imapPassword?: string
-  imapUseTls?: boolean
-  imapEnabled?: boolean
-}
-
 export interface NotificationRecipientSetting {
   profile_email: string
   override_email: string

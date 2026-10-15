@@ -77,7 +77,7 @@ import {
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
-type SelectOption = { label: string; value: string; detail?: string; labelKey?: string }
+type SelectOption = { label: string; value: string; labelKey?: string }
 type TenantServiceScene = "equipment_after_sales" | "knowledge_support"
 type TenantServerConsoleMode = "external" | "iframe"
 type TenantEditTab = "profile" | "service" | "branding" | "localization"
@@ -112,16 +112,7 @@ const tenantCountryOptions: SelectOption[] = [
   { label: "United Arab Emirates", value: "United Arab Emirates" },
 ]
 
-const tenantDataRegionOptions: SelectOption[] = [
-  { label: "欧洲中部", value: "eu-central", detail: "法兰克福" },
-  { label: "美国东部", value: "us-east", detail: "弗吉尼亚" },
-  { label: "美国西部", value: "us-west", detail: "俄勒冈" },
-  { label: "亚太东南", value: "ap-southeast", detail: "新加坡" },
-  { label: "亚太东北", value: "ap-northeast", detail: "东京" },
-  { label: "中国华东", value: "cn-hangzhou", detail: "杭州" },
-  { label: "中国香港", value: "cn-hongkong", detail: "香港" },
-  { label: "全球区域", value: "global", detail: "默认区域" },
-]
+const tenantDataRegionValues = ["eu-central", "us-east", "us-west", "ap-southeast", "ap-northeast", "cn-hangzhou", "cn-hongkong", "global"]
 
 const tenantLanguageOptions: SelectOption[] = [
   { label: "English (US)", value: "en-US", labelKey: "platformExtract.tenantLanguages.enUS" },
@@ -1335,9 +1326,9 @@ export default function PlatformTenantsPage() {
                 placeholder: t("platformExtract.tenants.selectDataRegion"),
                 value: form.dataRegion || undefined,
                 onChange: (value) => setForm((current) => ({ ...current, dataRegion: (value as string) ?? "" })),
-                options: tenantDataRegionOptions.map((option) => ({
-                  value: option.value,
-                  label: option.detail ? `${option.label} · ${option.detail}` : option.label,
+                options: tenantDataRegionValues.map((value) => ({
+                  value,
+                  label: `${t(`tenantDataRegions.${value}.name`)} · ${t(`tenantDataRegions.${value}.detail`)}`,
                 })),
                 style: { width: "100%" },
               }}
@@ -1473,9 +1464,9 @@ export default function PlatformTenantsPage() {
                   placeholder: t("platformExtract.tenants.selectDataRegion"),
                   value: editForm.dataRegion || undefined,
                   onChange: (value) => setEditForm((current) => ({ ...current, dataRegion: (value as string) ?? "" })),
-                  options: tenantDataRegionOptions.map((option) => ({
-                    value: option.value,
-                    label: option.detail ? `${option.label} · ${option.detail}` : option.label,
+                  options: tenantDataRegionValues.map((value) => ({
+                    value,
+                    label: `${t(`tenantDataRegions.${value}.name`)} · ${t(`tenantDataRegions.${value}.detail`)}`,
                   })),
                   style: { width: "100%" },
                 }}

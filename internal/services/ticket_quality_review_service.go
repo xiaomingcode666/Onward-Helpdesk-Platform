@@ -64,6 +64,8 @@ type TicketQualityAutoAssessment struct {
 	ReviewRequiredCount int                               `json:"review_required_count"`
 }
 
+const ticketQualityNoCoaching = "无需辅导"
+
 func ticketQualityResult(total, max int) string {
 	passScore := (max*5 + 5) / 6
 	improvementScore := (max*5 + 8) / 9
@@ -315,9 +317,8 @@ func PublishTicketQualityScorecardVersion(id int64, operator *dto.AuthPrincipal)
 
 func CreateTicketQualityReview(ticketID int64, answers map[string]int, remark string, operator *dto.AuthPrincipal) (*models.TicketQualityReview, error) {
 	return CreateTicketQualityReviewWithMetadata(ticketID, answers, remark, TicketQualityReviewMetadata{
-		DisputeStatus:  "none",
 		Evidence:       "legacy review evidence",
-		CoachingAction: "无需辅导",
+		CoachingAction: ticketQualityNoCoaching,
 	}, operator)
 }
 
@@ -346,28 +347,27 @@ func CreateTicketQualityReviewWithMetadata(ticketID int64, answers map[string]in
 		maxScore += item.Max
 	}
 	result := ticketQualityResult(total, maxScore)
-	metadata.DisputeStatus = strings.ToLower(strings.TrimSpace(metadata.DisputeStatus))
-	if metadata.DisputeStatus == "" {
-		metadata.DisputeStatus = "none"
-	}
-	if metadata.DisputeStatus != "none" && metadata.DisputeStatus != "open" && metadata.DisputeStatus != "resolved" {
-		return nil, errorsx.InvalidParam("争议状态必须为 none、open 或 resolved")
+	// Disputes belong to the reviewed agent after the review; a reviewer cannot pre-record one.
+	if status := strings.ToLower(strings.TrimSpace(metadata.DisputeStatus)); (status != "" && status != "none") || strings.TrimSpace(metadata.DisputeNote) != "" {
+		return nil, errorsx.InvalidParam("异议由被质检客服在质检后提出，提交质检时不能填写")
 	}
 	metadata.Evidence = strings.TrimSpace(metadata.Evidence)
-	metadata.DisputeNote = strings.TrimSpace(metadata.DisputeNote)
 	metadata.CoachingAction = strings.TrimSpace(metadata.CoachingAction)
 	if metadata.Evidence == "" {
 		return nil, errorsx.InvalidParam("证据不能为空")
 	}
-	if metadata.CoachingAction == "" {
-		return nil, errorsx.InvalidParam("辅导动作不能为空")
-	}
-	if len([]rune(metadata.Evidence)) > 5000 || len([]rune(metadata.DisputeNote)) > 2000 || len([]rune(metadata.CoachingAction)) > 2000 {
-		return nil, errorsx.InvalidParam("证据、争议说明或辅导动作过长")
+	if len([]rune(metadata.Evidence)) > 5000 || len([]rune(metadata.CoachingAction)) > 2000 {
+		return nil, errorsx.InvalidParam("证据或辅导措施过长")
 	}
 	defectCodes := normalizeQualityDefectCodes(metadata.DefectCodes)
-	if len(defectCodes) > 0 && metadata.Evidence == "" {
-		return nil, errorsx.InvalidParam("填写缺陷码时必须提供证据")
+	scorecardCodes := make(map[string]bool, len(scorecard.Items))
+	for _, item := range scorecard.Items {
+		scorecardCodes[item.Code] = true
+	}
+	for _, code := range defectCodes {
+		if !scorecardCodes[code] {
+			return nil, errorsx.InvalidParam("问题类型必须从当前评分表的评分项中选择")
+		}
 	}
 	outcome := strings.TrimSpace(metadata.Outcome)
 	if outcome == "" {
@@ -376,10 +376,20 @@ func CreateTicketQualityReviewWithMetadata(ticketID int64, answers map[string]in
 	if outcome != result {
 		return nil, errorsx.InvalidParam("评估结果与评分不一致")
 	}
+	if outcome != "pass" {
+		if len(defectCodes) == 0 {
+			return nil, errorsx.InvalidParam("结论不是合格时，至少选择一个问题类型")
+		}
+		if metadata.CoachingAction == "" || metadata.CoachingAction == ticketQualityNoCoaching {
+			return nil, errorsx.InvalidParam("结论不是合格时，必须填写具体的辅导或改进措施")
+		}
+	} else if metadata.CoachingAction == "" {
+		metadata.CoachingAction = ticketQualityNoCoaching
+	}
 	defectJSON, _ := json.Marshal(defectCodes)
 	snapshot, _ := json.Marshal(map[string]any{"version": scorecard.Version, "items": scorecard.Items, "answers": answers})
 	now := time.Now().UTC()
-	review := &models.TicketQualityReview{TenantID: operator.TenantID, TicketID: ticket.ID, ScorecardVersionID: scorecard.ID, ScoreSnapshotJSON: string(snapshot), TotalScore: total, MaxScore: maxScore, Result: result, Outcome: outcome, DefectCodesJSON: string(defectJSON), Evidence: metadata.Evidence, DisputeStatus: metadata.DisputeStatus, DisputeNote: metadata.DisputeNote, CoachingAction: metadata.CoachingAction, Remark: strings.TrimSpace(remark), ReviewerID: operator.UserID, ReviewedAt: now}
+	review := &models.TicketQualityReview{TenantID: operator.TenantID, TicketID: ticket.ID, ScorecardVersionID: scorecard.ID, ScoreSnapshotJSON: string(snapshot), TotalScore: total, MaxScore: maxScore, Result: result, Outcome: outcome, DefectCodesJSON: string(defectJSON), Evidence: metadata.Evidence, DisputeStatus: "none", CoachingAction: metadata.CoachingAction, Remark: strings.TrimSpace(remark), ReviewerID: operator.UserID, ReviewedAt: now, ReviewedAgentID: ticket.CurrentAssigneeID, ReviewedTeamID: ticket.CurrentTeamID, FinalOutcome: outcome}
 	if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 		var sample models.TicketQualitySample
 		if metadata.SampleID > 0 {
@@ -418,19 +428,6 @@ func normalizeQualityDefectCodes(codes []string) []string {
 		result = append(result, code)
 	}
 	return result
-}
-
-func ListTicketQualityReviews(ticketID int64, operator *dto.AuthPrincipal) ([]models.TicketQualityReview, error) {
-	if operator == nil || operator.TenantID <= 0 || !operator.HasPermission("ticket.view") {
-		return nil, errorsx.Forbidden("无工单查看权限")
-	}
-	var ticket models.Ticket
-	if err := sqls.DB().Where("id = ? AND tenant_id = ?", ticketID, operator.TenantID).First(&ticket).Error; err != nil {
-		return nil, err
-	}
-	var rows []models.TicketQualityReview
-	err := sqls.DB().Where("tenant_id = ? AND ticket_id = ?", operator.TenantID, ticketID).Order("reviewed_at DESC, id DESC").Find(&rows).Error
-	return rows, err
 }
 
 func validateScorecardItems(items []TicketQualityScorecardItem) error {

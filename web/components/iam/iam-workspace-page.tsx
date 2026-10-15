@@ -65,7 +65,9 @@ import {
   getAuditTargetLabel,
 } from "@/lib/audit-i18n"
 import { translateCurrentMessage } from "@/i18n/messages"
-import { useI18n } from "@/i18n/provider"
+import { useAppLocale, useI18n } from "@/i18n/provider"
+import { getAccountRoleLabel } from "@/lib/account-context-i18n"
+import type { AppLocale } from "@/i18n/config"
 
 function tr(key: string, values?: Record<string, string | number>) {
   return translateCurrentMessage(`iamExtract.${key}`, values)
@@ -128,51 +130,64 @@ const AUDIT_PERIOD_ITEMS = [
   { value: "180d", count: 180 },
 ]
 
-const identityColumns: WorkspaceColumn[] = [
-  { key: "subject", label: tr("workspace.columns.subject") },
-  { key: "identity", label: tr("workspace.columns.identity") },
-  { key: "roles", label: tr("workspace.columns.roles") },
-  { key: "scope", label: tr("workspace.columns.scope") },
-  { key: "status", label: tr("workspace.columns.status") },
-  { key: "updated", label: tr("workspace.columns.updated") },
-]
+function identityColumns(): WorkspaceColumn[] {
+  return [
+    { key: "subject", label: tr("workspace.columns.subject") },
+    { key: "identity", label: tr("workspace.columns.identity") },
+    { key: "roles", label: tr("workspace.columns.roles") },
+    { key: "scope", label: tr("workspace.columns.scope") },
+    { key: "status", label: tr("workspace.columns.status") },
+    { key: "updated", label: tr("workspace.columns.updated") },
+  ]
+}
 
-const platformStaffColumns: WorkspaceColumn[] = [
-  { key: "subject", label: tr("workspace.columns.subject") },
-  { key: "email", label: tr("workspace.columns.email") },
-  { key: "roles", label: tr("workspace.columns.roles") },
-  { key: "scope", label: tr("workspace.columns.scope") },
-  { key: "status", label: tr("workspace.columns.status") },
-  { key: "updated", label: tr("workspace.columns.updated") },
-]
+function platformStaffColumns(): WorkspaceColumn[] {
+  return [
+    { key: "subject", label: tr("workspace.columns.subject") },
+    { key: "email", label: tr("workspace.columns.email") },
+    { key: "roles", label: tr("workspace.columns.roles") },
+    { key: "scope", label: tr("workspace.columns.scope") },
+    { key: "status", label: tr("workspace.columns.status") },
+    { key: "updated", label: tr("workspace.columns.updated") },
+  ]
+}
 
-// 客户用户无角色概念,不展示角色列
-const customerUserColumns: WorkspaceColumn[] = [
-  { key: "subject", label: tr("workspace.columns.subject") },
-  { key: "identity", label: tr("workspace.columns.identity") },
-  { key: "scope", label: tr("workspace.columns.scope") },
-  { key: "status", label: tr("workspace.columns.status") },
-  { key: "updated", label: tr("workspace.columns.updated") },
-]
+// Customer users do not have roles, so the roles column is omitted.
+function customerUserColumns(): WorkspaceColumn[] {
+  return [
+    { key: "subject", label: tr("workspace.columns.subject") },
+    { key: "identity", label: tr("workspace.columns.identity") },
+    { key: "scope", label: tr("workspace.columns.scope") },
+    { key: "status", label: tr("workspace.columns.status") },
+    { key: "updated", label: tr("workspace.columns.updated") },
+  ]
+}
 
-const roleColumns: WorkspaceColumn[] = [
-  { key: "role", label: tr("workspace.columns.role") },
-  { key: "domain", label: tr("workspace.columns.domain") },
-  { key: "permissions", label: tr("workspace.columns.permissions") },
-  { key: "builtin", label: tr("workspace.columns.builtin") },
-  { key: "status", label: tr("workspace.columns.status") },
-  { key: "updated", label: tr("workspace.columns.updated") },
-]
+function roleColumns(): WorkspaceColumn[] {
+  return [
+    { key: "role", label: tr("workspace.columns.role") },
+    { key: "domain", label: tr("workspace.columns.domain") },
+    { key: "permissions", label: tr("workspace.columns.permissions") },
+    { key: "builtin", label: tr("workspace.columns.builtin") },
+    { key: "status", label: tr("workspace.columns.status") },
+    { key: "updated", label: tr("workspace.columns.updated") },
+  ]
+}
 
-const auditColumns: WorkspaceColumn[] = [
-  { key: "action", label: tr("workspace.columns.action") },
-  { key: "actor", label: tr("workspace.columns.actor") },
-  { key: "target", label: tr("workspace.columns.target") },
-  { key: "status", label: tr("workspace.columns.result") },
-  { key: "occurred", label: tr("workspace.columns.occurred") },
-]
+function auditColumns(): WorkspaceColumn[] {
+  return [
+    { key: "action", label: tr("workspace.columns.action") },
+    { key: "actor", label: tr("workspace.columns.actor") },
+    { key: "target", label: tr("workspace.columns.target") },
+    { key: "status", label: tr("workspace.columns.result") },
+    { key: "occurred", label: tr("workspace.columns.occurred") },
+  ]
+}
 
-const baseCopy: Record<IAMWorkspaceKind, Pick<IAMWorkspaceModel, "emptyMessage" | "searchPlaceholder" | "title"> & { actions?: WorkspaceAction[]; tabs?: string[] }> = {
+type IAMWorkspaceBaseCopy = Pick<IAMWorkspaceModel, "emptyMessage" | "searchPlaceholder" | "title"> & { actions?: WorkspaceAction[]; tabs?: string[] }
+
+function getBaseCopy(): Record<IAMWorkspaceKind, IAMWorkspaceBaseCopy> {
+  return {
   "enterprise-people": {
     title: tr("workspace.copy.enterprise-people.title"),
     tabs: [tr("workspace.tabs.allMembers"), tr("workspace.tabs.dispatchable"), tr("workspace.tabs.assignedRole"), tr("workspace.tabs.disabled")],
@@ -234,11 +249,13 @@ const baseCopy: Record<IAMWorkspaceKind, Pick<IAMWorkspaceModel, "emptyMessage" 
     emptyMessage: tr("workspace.copy.platform-audit.emptyMessage"),
     actions: [{ label: tr("workspace.actions.exportLogs"), primary: true }, { label: tr("workspace.actions.retentionSettings") }],
   },
+  }
 }
 
-const defaultState: IAMWorkspaceModel = {
+function getDefaultState(): IAMWorkspaceModel {
+  return {
   actions: [],
-  columns: identityColumns,
+  columns: identityColumns(),
   details: [],
   emptyMessage: tr("workspace.emptyRecord"),
   metrics: [
@@ -254,10 +271,12 @@ const defaultState: IAMWorkspaceModel = {
   searchPlaceholder: tr("workspace.searchPlaceholder"),
   tabs: [],
   title: "",
+  }
 }
 
 export function IAMWorkspacePage({ kind }: { kind: IAMWorkspaceKind }) {
   const t = useI18n()
+  const { locale } = useAppLocale()
   const { ready, session } = useAuth()
   const confirm = useConfirm()
   const searchParams = useSearchParams()
@@ -286,7 +305,7 @@ export function IAMWorkspacePage({ kind }: { kind: IAMWorkspaceKind }) {
       return
     }
 
-    loadIAMWorkspace(kind, tenantId, auditFilters, auditSearch)
+    loadIAMWorkspace(kind, tenantId, auditFilters, auditSearch, locale)
       .then((next) => {
         if (!cancelled) {
           setLoadState({ error: "", key: requestKey, model: next })
@@ -297,7 +316,7 @@ export function IAMWorkspacePage({ kind }: { kind: IAMWorkspaceKind }) {
           setLoadState({
             error: err instanceof Error ? err.message : t("iamExtract.workspace.loadingFailed"),
             key: requestKey,
-            model: mergeBase(kind, defaultState),
+            model: mergeBase(kind, getDefaultState()),
           })
         }
       })
@@ -305,9 +324,9 @@ export function IAMWorkspacePage({ kind }: { kind: IAMWorkspaceKind }) {
     return () => {
       cancelled = true
     }
-  }, [auditFilters, kind, ready, requestKey, session, t, tenantId])
+  }, [auditFilters, auditSearch, kind, locale, ready, requestKey, session, t, tenantId])
 
-  const fallbackModel = mergeBase(kind, defaultState)
+  const fallbackModel = mergeBase(kind, getDefaultState())
   const currentState = loadState?.key === requestKey ? loadState : null
   const page = !ready || (session && !currentState)
     ? {
@@ -370,7 +389,7 @@ export function IAMWorkspacePage({ kind }: { kind: IAMWorkspaceKind }) {
     if (deletingKey) return
     const confirmed = await confirm({
       title: t("iamExtract.workspace.confirm.deletePlatformRole"),
-      description: role.name || role.code,
+      description: getAccountRoleLabel(role.code || role.name, locale),
       confirmText: t("iamExtract.common.delete"),
       variant: "destructive",
     })
@@ -871,7 +890,7 @@ function PlatformAuditRetentionDialog({
     return () => {
       cancelled = true
     }
-  }, [open])
+  }, [open, t])
 
   const minDays = settings?.minRetentionDays ?? 1
   const maxDays = settings?.maxRetentionDays ?? 180
@@ -991,7 +1010,7 @@ function resolveInviteKind(kind: IAMWorkspaceKind): IAMInviteKind | null {
   return null
 }
 
-async function loadIAMWorkspace(kind: IAMWorkspaceKind, tenantId: number, auditFilters: AuditWorkspaceFilters, auditSearch = ""): Promise<IAMWorkspaceModel> {
+async function loadIAMWorkspace(kind: IAMWorkspaceKind, tenantId: number, auditFilters: AuditWorkspaceFilters, auditSearch = "", locale: AppLocale = "en-US"): Promise<IAMWorkspaceModel> {
   switch (kind) {
     case "platform-staff": {
       const staff = await fetchPlatformStaff({ status: "all" })
@@ -1003,7 +1022,7 @@ async function loadIAMWorkspace(kind: IAMWorkspaceKind, tenantId: number, auditF
         fetchPlatformAudit({ page: 1, limit: 20 }).then((page) => page.results).catch(() => []),
         loadPermissionCatalog(),
       ])
-      return buildRoleWorkspace(kind, roles, audits, 0, permissionCatalog)
+      return buildRoleWorkspace(kind, roles, audits, permissionCatalog, locale)
     }
     case "platform-audit": {
       const page = await fetchPlatformAudit(auditFiltersToQuery(auditFilters, auditSearch, { includeSource: false }))
@@ -1014,7 +1033,7 @@ async function loadIAMWorkspace(kind: IAMWorkspaceKind, tenantId: number, auditF
         fetchEnterpriseIAMMembers({ page: 1, limit: 100 }, tenantId),
         fetchEnterpriseIAMRoles(tenantId).catch(() => []),
       ])
-      return buildEnterpriseMembers(page.results, page.page.total, tenantId, roles)
+      return buildEnterpriseMembers(page.results, page.page.total, tenantId, roles, locale)
     }
     case "enterprise-customer-users": {
       const page = await fetchEnterpriseIAMCustomerUsers({ page: 1, limit: 100 }, tenantId)
@@ -1034,7 +1053,7 @@ async function loadIAMWorkspace(kind: IAMWorkspaceKind, tenantId: number, auditF
         fetchEnterpriseIAMAudit({ page: 1, limit: 20 }, tenantId).then((page) => page.results).catch(() => []),
         loadPermissionCatalog(),
       ])
-      return buildRoleWorkspace(kind, roles, audits, tenantId, permissionCatalog)
+      return buildRoleWorkspace(kind, roles, audits, permissionCatalog, locale)
     }
     case "enterprise-audit": {
       const page = await fetchEnterpriseIAMAudit(auditFiltersToQuery(auditFilters, auditSearch), tenantId)
@@ -1093,7 +1112,7 @@ function resolveIAMTenantId(rawTenantId: string | null, sessionTenantId?: number
 function buildPlatformStaff(items: PlatformStaff[]): IAMWorkspaceModel {
   const active = items.filter((item) => item.status === 0)
   return mergeBase("platform-staff", {
-    columns: platformStaffColumns,
+    columns: platformStaffColumns(),
     metrics: [
       metric(tr("workspace.metrics.platformStaff"), items.length, "", "blue"),
       metric(tr("workspace.metrics.activeAccounts"), active.length, "", "green"),
@@ -1140,14 +1159,14 @@ function buildPlatformStaff(items: PlatformStaff[]): IAMWorkspaceModel {
   })
 }
 
-function buildEnterpriseMembers(items: EnterpriseIAMMember[], total: number, tenantId: number, roleCatalog: IAMRole[]): IAMWorkspaceModel {
-  const roleNameByCode = new Map(roleCatalog.map((role) => [role.code, role.name || role.code]))
+function buildEnterpriseMembers(items: EnterpriseIAMMember[], total: number, tenantId: number, roleCatalog: IAMRole[], locale: AppLocale): IAMWorkspaceModel {
+  const roleNameByCode = new Map(roleCatalog.map((role) => [role.code, getAccountRoleLabel(role.code || role.name, locale)]))
   const members = items.map((member) => ({
     ...member,
-    role_names: member.roles.map((code) => roleNameByCode.get(code) || code),
+    role_names: member.roles.map((code) => roleNameByCode.get(code) || getAccountRoleLabel(code, locale)),
   }))
   return mergeBase("enterprise-people", {
-    columns: identityColumns,
+    columns: identityColumns(),
     details: members.map((member) => ({ id: String(member.id), kind: "enterprise-member", member })),
     metrics: [
       metric(tr("workspace.metrics.enterpriseMember"), total, tr("common.tenant", { id: tenantId }), "blue"),
@@ -1192,11 +1211,11 @@ function buildEnterpriseMembers(items: EnterpriseIAMMember[], total: number, ten
   })
 }
 
-function productGroupSummary(groups?: EnterpriseIAMMember["product_groups"]) {
+function productGroupSummary(groups: EnterpriseIAMMember["product_groups"] | undefined) {
   if (!groups?.length) {
     return ""
   }
-  const names = groups.map((group) => group.product_name || group.team_name || tr("workspace.detail.productGroupWithId", { id: group.team_id })).filter(Boolean)
+  const names = groups.map((group) => group.product_name || group.team_name || tr("detail.productGroupWithId", { id: group.team_id })).filter(Boolean)
   if (names.length <= 2) {
     return tr("workspace.detail.productGroupLabel", { names: names.join("、") })
   }
@@ -1205,7 +1224,7 @@ function productGroupSummary(groups?: EnterpriseIAMMember["product_groups"]) {
 
 function buildEnterpriseCustomerUsers(items: EnterpriseIAMCustomerUser[], total: number, tenantId: number): IAMWorkspaceModel {
   return mergeBase("enterprise-customer-users", {
-    columns: customerUserColumns,
+    columns: customerUserColumns(),
     details: items.map((customerUser) => ({
       id: String(customerUser.id),
       kind: "enterprise-customer-user",
@@ -1245,7 +1264,7 @@ function buildEnterpriseCustomerUsers(items: EnterpriseIAMCustomerUser[], total:
 
 function buildEnterprisePartners(items: EnterpriseIAMPartner[]): IAMWorkspaceModel {
   return mergeBase("enterprise-partners", {
-    columns: identityColumns,
+    columns: identityColumns(),
     details: items.map((partner) => ({
       id: String(partner.id),
       kind: "enterprise-partner",
@@ -1279,7 +1298,7 @@ function buildEnterprisePartners(items: EnterpriseIAMPartner[]): IAMWorkspaceMod
 
 function buildEnterpriseDepartments(items: EnterpriseIAMDepartment[], total: number, tenantId: number): IAMWorkspaceModel {
   return mergeBase("enterprise-org", {
-    columns: identityColumns,
+    columns: identityColumns(),
     metrics: [
       metric(tr("workspace.metrics.organizationNode"), total, tr("common.tenant", { id: tenantId }), "blue"),
       metric(tr("workspace.metrics.memberCoverage"), items.reduce((sum, item) => sum + item.member_count, 0), "members", "green"),
@@ -1317,12 +1336,12 @@ function buildRoleWorkspace(
   kind: "enterprise-permissions" | "platform-permissions",
   roles: IAMRole[],
   audits: IAMAuditLog[],
-  tenantId = 0,
-  permissionCatalog: AdminPermission[] = []
+  permissionCatalog: AdminPermission[] = [],
+  locale: AppLocale = "en-US"
 ): IAMWorkspaceModel {
   const domain = kind === "platform-permissions" ? tr("workspace.detail.platform") : tr("workspace.detail.enterprise")
   return mergeBase(kind, {
-    columns: roleColumns,
+    columns: roleColumns(),
     details: roles.map((role) => ({ id: String(role.id), kind: "role", role })),
     metrics: [
       metric(tr("workspace.metrics.role"), roles.length, domain, "blue"),
@@ -1335,14 +1354,14 @@ function buildRoleWorkspace(
     rows: roles.map((role) => ({
       id: String(role.id),
       role,
-      accessibleLabel: tr("workspace.detail.roleAccessible", { name: role.name || role.code }),
-      searchText: compactSearch([role.name, role.code, role.description, ...(role.permissions ?? [])]),
+      accessibleLabel: tr("workspace.detail.roleAccessible", { name: getAccountRoleLabel(role.code || role.name, locale) }),
+      searchText: compactSearch([getAccountRoleLabel(role.code || role.name, locale), role.name, role.code, role.description, ...(role.permissions ?? [])]),
       tags: [
         role.isBuiltin ? tr("workspace.detail.systemRole") : tr("workspace.detail.customRole"),
         ...statusTags(role.status),
       ],
       cells: {
-        role: detail(role.name || role.code, role.code),
+        role: strong(getAccountRoleLabel(role.code || role.name, locale)),
         domain: detail(role.domainType === "platform" ? tr("workspace.detail.platformPermissionDomain") : tr("workspace.detail.enterprisePermissionDomain"), tr("common.tenant", { id: role.tenantId })),
         permissions: `${role.permissions?.length ?? 0}`,
         builtin: role.isBuiltin ? <StatusPill tone="blue">{tr("workspace.detail.systemRole")}</StatusPill> : <StatusPill>{tr("workspace.detail.custom")}</StatusPill>,
@@ -1359,7 +1378,7 @@ function buildAuditWorkspace(kind: "enterprise-audit" | "platform-audit", audits
   const assistedAccess = audits.filter(isAssistedAccessAudit)
   const chatRecords = audits.filter(isChatRecordAudit)
   return mergeBase(kind, {
-    columns: auditColumns,
+    columns: auditColumns(),
     details: audits.map((audit) => ({
       id: String(audit.id),
       kind: "audit-log",
@@ -1406,9 +1425,9 @@ function buildAuditWorkspace(kind: "enterprise-audit" | "platform-audit", audits
 }
 
 function mergeBase(kind: IAMWorkspaceKind, data: Partial<IAMWorkspaceModel>): IAMWorkspaceModel {
-  const copy = baseCopy[kind]
+  const copy = getBaseCopy()[kind]
   return {
-    ...defaultState,
+    ...getDefaultState(),
     ...copy,
     ...data,
     actions: data.actions ?? copy.actions ?? [],

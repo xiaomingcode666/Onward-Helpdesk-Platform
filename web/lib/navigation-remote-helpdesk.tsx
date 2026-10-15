@@ -279,6 +279,14 @@ export const enterpriseNavItems: RemoteHelpdeskNavItem[] = [
     requiredPermission: "report.view",
   },
   {
+    key: "my-quality",
+    titleKey: "remoteNav.enterprise.my-quality",
+    href: "/enterprise/my-quality",
+    domain: "enterprise",
+    icon: BadgeCheckIcon,
+    requiredPermission: "ticket.view",
+  },
+  {
     key: "people",
     titleKey: "remoteNav.enterprise.people",
     href: "/enterprise/people",

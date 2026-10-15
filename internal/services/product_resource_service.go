@@ -334,44 +334,10 @@ func (s *productResourceService) UpdateProductAIQuota(ctx context.Context, tenan
 	if quotaLimit < 0 {
 		return nil, errorsx.InvalidParam("quota_limit must be greater than or equal to 0")
 	}
-	credential := repositories.ProductAIUsageCredentialRepository.GetByProduct(sqls.DB(), tenantID, productID)
-	if credential == nil || credential.Status == enums.StatusDeleted || strings.TrimSpace(credential.Sub2APIKeyID) == "" {
-		if err := s.createOrResetProvisioningJob(product, quotaLimit, operator, true); err != nil {
-			return nil, err
-		}
+	if _, err := s.ensureProductSub2APIKey(ctx, product, quotaLimit, operator); err != nil {
+		// Keep the existing API contract: provisioning errors are reflected in the
+		// resource status and can be retried from the product resource panel.
 		return s.buildProductResourcesDTO(tenantID, productID), nil
-	}
-
-	provider, token, err := s.resolveProductSub2APIProvider(ctx, tenantID, operator)
-	if err != nil {
-		_ = s.markProductCredentialFailed(credential, err, operator)
-		return s.buildProductResourcesDTO(tenantID, productID), nil
-	}
-	keyID := parseInt64(credential.Sub2APIKeyID)
-	key, err := s.findRemoteSub2APIKey(ctx, provider, token, keyID, defaultProductSub2APIKeyName(product))
-	if err != nil {
-		_ = s.markProductCredentialFailed(credential, err, operator)
-		return s.buildProductResourcesDTO(tenantID, productID), nil
-	}
-	if key == nil {
-		err := fmt.Errorf("sub2api key %s not found", credential.Sub2APIKeyID)
-		_ = s.markProductCredentialFailed(credential, err, operator)
-		return s.buildProductResourcesDTO(tenantID, productID), nil
-	}
-	updated, err := s.updateRemoteKeyQuota(ctx, provider, token, key, quotaLimit)
-	if err != nil {
-		_ = s.markProductCredentialFailed(credential, err, operator)
-		return s.buildProductResourcesDTO(tenantID, productID), nil
-	}
-	if updated != nil {
-		key = updated
-		keyID = key.ID
-	}
-	if err := s.saveProductCredentialFromKey(credential, product, key, quotaLimit, operator); err != nil {
-		return nil, err
-	}
-	if keyID > 0 && key.ID == 0 {
-		_ = repositories.ProductAIUsageCredentialRepository.Updates(sqls.DB(), credential.ID, map[string]any{"sub2api_key_id": fmt.Sprintf("%d", keyID)})
 	}
 	return s.buildProductResourcesDTO(tenantID, productID), nil
 }
@@ -388,6 +354,10 @@ func (s *productResourceService) ResetProductAIQuota(ctx context.Context, tenant
 	if credential == nil || credential.Status == enums.StatusDeleted || strings.TrimSpace(credential.Sub2APIKeyID) == "" {
 		return s.RetryProductResourceProvisioning(ctx, tenantID, productID, operator)
 	}
+	if _, err := s.ensureProductSub2APIKey(ctx, product, credential.QuotaLimit, operator); err != nil {
+		return s.buildProductResourcesDTO(tenantID, productID), nil
+	}
+	credential = repositories.ProductAIUsageCredentialRepository.GetByProduct(sqls.DB(), tenantID, productID)
 	provider, token, err := s.resolveProductSub2APIProvider(ctx, tenantID, operator)
 	if err != nil {
 		_ = s.markProductCredentialFailed(credential, err, operator)
@@ -552,9 +522,6 @@ func (s *productResourceService) ensureProductKnowledgeDataset(ctx context.Conte
 func (s *productResourceService) ensureProductSub2APIKey(ctx context.Context, product *models.Product, quotaLimit float64, operator *dto.AuthPrincipal) (*models.ProductAIUsageCredential, error) {
 	quotaLimit = normalizeProductAIQuotaLimit(quotaLimit)
 	credential := repositories.ProductAIUsageCredentialRepository.GetByProduct(sqls.DB(), product.TenantID, product.ID)
-	if credential != nil && credential.Status != enums.StatusDeleted && strings.TrimSpace(credential.Sub2APIKeyID) != "" && strings.TrimSpace(credential.APIKeyRef) != "" && sameFloat(credential.QuotaLimit, quotaLimit) && credential.ProvisionStatus == productResourceStatusReady {
-		return credential, nil
-	}
 	if credential == nil {
 		var err error
 		credential, err = s.createProductCredentialShell(product, quotaLimit, operator)
@@ -574,18 +541,41 @@ func (s *productResourceService) ensureProductSub2APIKey(ctx context.Context, pr
 		_ = s.markProductCredentialFailed(credential, err, operator)
 		return credential, err
 	}
+	// Product credentials are local references to the tenant's one shared key.
+	// An older credential may still point to RHD-PRODUCT-*; discard that match
+	// and resolve the canonical company key below so retries migrate it.
+	if key != nil && !isTenantSharedSub2APIKey(key, account) {
+		key = nil
+	}
+	sharedTenantKey := key != nil
+	if key == nil {
+		key, err = s.findTenantSharedSub2APIKey(ctx, provider, token, account)
+		if err != nil {
+			_ = s.markProductCredentialFailed(credential, err, operator)
+			return credential, err
+		}
+		sharedTenantKey = key != nil
+	}
+	if key != nil && sharedTenantKey {
+		key, err = s.ensureTenantSharedSub2APIKeyName(ctx, provider, token, account, key)
+		if err != nil {
+			_ = s.markProductCredentialFailed(credential, err, operator)
+			return credential, err
+		}
+	}
 	if key == nil {
 		keyResp, err := provider.CreateKey(ctx, token, providers.Sub2APICreateKeyRequest{
-			Name:    keyName,
+			Name:    defaultSub2APIKeyName(product.TenantID, account.AccountName),
 			GroupID: platformSub2APIDefaultKeyGroupID,
-			Quota:   quotaLimit,
+			Quota:   firstPositiveFloat(account.DefaultKeyQuota, quotaLimit),
 		})
 		if err != nil {
 			_ = s.markProductCredentialFailed(credential, err, operator)
 			return credential, err
 		}
 		key = &keyResp.Data
-	} else if !sameFloat(key.Quota, quotaLimit) {
+		sharedTenantKey = true
+	} else if !sharedTenantKey && !sameFloat(key.Quota, quotaLimit) {
 		updated, err := s.updateRemoteKeyQuota(ctx, provider, token, key, quotaLimit)
 		if err != nil {
 			_ = s.markProductCredentialFailed(credential, err, operator)
@@ -598,10 +588,121 @@ func (s *productResourceService) ensureProductSub2APIKey(ctx context.Context, pr
 	if strings.TrimSpace(credential.Sub2APIAccount) == "" {
 		credential.Sub2APIAccount = firstNonBlank(account.AccountName, account.LoginEmail, fmt.Sprintf("%d", product.TenantID))
 	}
+	if sharedTenantKey && strings.TrimSpace(key.Key) == "" && account != nil &&
+		parseInt64(account.DefaultKeyID) == key.ID && strings.TrimSpace(account.DefaultKeyCiphertext) != "" {
+		credential.APIKeyRef = account.DefaultKeyCiphertext
+		credential.APIKeyFingerprint = account.DefaultKeyFingerprint
+	}
 	if err := s.saveProductCredentialFromKey(credential, product, key, quotaLimit, operator); err != nil {
 		return nil, err
 	}
 	return repositories.ProductAIUsageCredentialRepository.Get(sqls.DB(), credential.ID), nil
+}
+
+func (s *productResourceService) findTenantSharedSub2APIKey(
+	ctx context.Context,
+	provider providers.Sub2APIProvider,
+	token string,
+	account *models.Sub2APITenantAccount,
+) (*providers.Sub2APIKey, error) {
+	if account == nil {
+		return nil, nil
+	}
+	keysResp, err := provider.ListKeys(ctx, token, providers.Sub2APIListKeysQuery{
+		Page:      1,
+		PageSize:  100,
+		SortBy:    "created_at",
+		SortOrder: "desc",
+		Timezone:  defaultTimezone(""),
+	})
+	if err != nil {
+		return nil, err
+	}
+	keys := keysResp.Data.Items
+	if keyID := parseInt64(account.DefaultKeyID); keyID > 0 {
+		if key := findSub2APIKey(keys, keyID); isTenantSharedSub2APIKey(key, account) {
+			return key, nil
+		}
+	}
+	defaultName := defaultSub2APIKeyName(account.TenantID, account.AccountName)
+	for i := range keys {
+		if strings.EqualFold(strings.TrimSpace(keys[i].Name), defaultName) {
+			return &keys[i], nil
+		}
+	}
+	for i := range keys {
+		if isTenantSharedSub2APIKey(&keys[i], account) {
+			return &keys[i], nil
+		}
+	}
+	return nil, nil
+}
+
+func isTenantSharedSub2APIKey(key *providers.Sub2APIKey, account *models.Sub2APITenantAccount) bool {
+	if key == nil || account == nil {
+		return false
+	}
+	name := strings.TrimSpace(key.Name)
+	if strings.EqualFold(name, defaultSub2APIKeyName(account.TenantID, account.AccountName)) {
+		return true
+	}
+	if strings.HasPrefix(strings.ToUpper(name), "RHD-COMPANY-") {
+		return true
+	}
+	return strings.Contains(name, "默认key") || strings.EqualFold(name, strings.TrimSpace(account.DefaultKeyName)) && strings.Contains(strings.TrimSpace(account.DefaultKeyName), "默认key")
+}
+
+func (s *productResourceService) ensureTenantSharedSub2APIKeyName(
+	ctx context.Context,
+	provider providers.Sub2APIProvider,
+	token string,
+	account *models.Sub2APITenantAccount,
+	current *providers.Sub2APIKey,
+) (*providers.Sub2APIKey, error) {
+	if current == nil || account == nil {
+		return current, nil
+	}
+	desiredName := defaultSub2APIKeyName(account.TenantID, account.AccountName)
+	if strings.EqualFold(strings.TrimSpace(current.Name), desiredName) {
+		return current, nil
+	}
+	ipWhitelist := stringSliceFromAny(current.IPWhitelist)
+	ipBlacklist := stringSliceFromAny(current.IPBlacklist)
+	expiresAt := ""
+	if current.ExpiresAt != nil {
+		expiresAt = *current.ExpiresAt
+	}
+	updated, err := provider.UpdateKey(ctx, token, current.ID, providers.Sub2APIUpdateKeyRequest{
+		Name:        desiredName,
+		GroupID:     current.GroupID,
+		IPWhitelist: &ipWhitelist,
+		IPBlacklist: &ipBlacklist,
+		Quota:       &current.Quota,
+		ExpiresAt:   expiresAt,
+		RateLimit5h: current.RateLimit5h,
+		RateLimit1d: current.RateLimit1d,
+		RateLimit7d: current.RateLimit7d,
+		Status:      current.Status,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if updated == nil || updated.Data.ID <= 0 {
+		return nil, errors.New("sub2api shared key rename returned an empty key")
+	}
+	if strings.TrimSpace(updated.Data.Key) == "" {
+		updated.Data.Key = current.Key
+	}
+	return &updated.Data, nil
+}
+
+func firstPositiveFloat(values ...float64) float64 {
+	for _, value := range values {
+		if value > 0 {
+			return value
+		}
+	}
+	return 0
 }
 
 func (s *productResourceService) createProductCredentialShell(product *models.Product, quotaLimit float64, operator *dto.AuthPrincipal) (*models.ProductAIUsageCredential, error) {

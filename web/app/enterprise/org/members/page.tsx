@@ -225,7 +225,7 @@ export default function EnterpriseOrgMembersPage() {
       toast.success(
         om(t, "toasts.joinedMember", {
           member: member?.display_name || member?.username || om(t, "toasts.fallbackMember"),
-          team: selectedTeam.productName || selectedTeam.name,
+          team: (selectedTeam.productName || selectedTeam.name),
         }),
       )
       setSelectedUserId("")

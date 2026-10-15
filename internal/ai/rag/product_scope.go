@@ -27,13 +27,15 @@ type KnowledgeEntryProductScope struct {
 }
 
 func BuildKnowledgeRuntimeScopeKeys(tenantID, productID int64) []string {
-	if tenantID <= 0 || productID <= 0 {
+	if tenantID <= 0 {
 		return nil
 	}
-	return []string{
-		buildKnowledgeTenantScopeKey(tenantID),
-		buildKnowledgeProductScopeKey(productID),
+	// General knowledge is indexed with the tenant scope even without a product.
+	scopeKeys := []string{buildKnowledgeTenantScopeKey(tenantID)}
+	if productID > 0 {
+		scopeKeys = append(scopeKeys, buildKnowledgeProductScopeKey(productID))
 	}
+	return scopeKeys
 }
 
 func ResolveKnowledgeEntryProductScope(db *gorm.DB, tenantID, knowledgeBaseID, entryID int64, entryType string) KnowledgeEntryProductScope {

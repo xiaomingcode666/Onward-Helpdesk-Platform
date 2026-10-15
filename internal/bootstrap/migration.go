@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
+	"log/slog"
 
 	"remotehelpdesk/internal/migration"
 	"remotehelpdesk/internal/models"
@@ -24,7 +25,21 @@ func InitMigrations() error {
 	if err := EnsurePlatformBuiltInWorkflows(sqls.DB()); err != nil {
 		return err
 	}
+	syncTenantDefaultAgentWorkflows(sqls.DB())
 	return nil
+}
+
+// syncTenantDefaultAgentWorkflows moves tenant default agents onto an upgraded
+// platform workflow. A failure is logged per tenant and never blocks startup.
+func syncTenantDefaultAgentWorkflows(db *gorm.DB) {
+	failures, err := services.TenantDefaultAIAgentService.SyncStaleWorkflowDraftsDB(db)
+	if err != nil {
+		slog.Error("sync tenant default AI agent workflows failed", "error", err)
+		return
+	}
+	for tenantID, failure := range failures {
+		slog.Error("sync tenant default AI agent workflow failed", "tenantId", tenantID, "error", failure)
+	}
 }
 
 func EnsurePlatformBuiltInWorkflows(db *gorm.DB) error {

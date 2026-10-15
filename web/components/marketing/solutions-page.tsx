@@ -67,7 +67,7 @@ export function SolutionsPage() {
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-[0_18px_48px_rgba(15,23,42,0.1)]">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <strong className="text-sm text-slate-950">{tm("marketing.solutionsPage.t004")}</strong>
-              <span className="text-xs text-blue-700">Tenant ready</span>
+              <span className="text-xs text-blue-700">{tm("marketing.solutionsPage.tenantReady")}</span>
             </div>
             <div className="mt-3 divide-y divide-slate-100">
               {[

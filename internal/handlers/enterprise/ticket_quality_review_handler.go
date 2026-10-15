@@ -170,3 +170,85 @@ func TicketQualityAnalysisGet(ctx *gin.Context) {
 	}
 	httpx.WriteJSON(ctx, value)
 }
+
+func TicketQualityMyReviewList(ctx *gin.Context) {
+	operator, err := services.AuthService.RequirePermission(ctx, constants.PermissionTicketView)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	value, err := services.ListMyTicketQualityReviews(operator)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, value)
+}
+
+func TicketQualityDisputeCreate(ctx *gin.Context) {
+	operator, err := services.AuthService.RequirePermission(ctx, constants.PermissionTicketView)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	reviewID, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
+	if err != nil || reviewID <= 0 {
+		httpx.WriteJSON(ctx, errorsx.InvalidParam("质检记录无效"))
+		return
+	}
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		httpx.WriteJSON(ctx, errorsx.InvalidParam("异议参数无效"))
+		return
+	}
+	value, err := services.RaiseTicketQualityDispute(reviewID, req.Reason, operator)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, value)
+}
+
+func TicketQualityDisputeList(ctx *gin.Context) {
+	operator, err := services.AuthService.RequirePermission(ctx, constants.PermissionTicketQualityDisputeReview)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	value, err := services.ListTicketQualityDisputes(ctx.Query("status"), operator)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, value)
+}
+
+func TicketQualityDisputeDecide(ctx *gin.Context) {
+	operator, err := services.AuthService.RequirePermission(ctx, constants.PermissionTicketQualityDisputeReview)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	disputeID, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
+	if err != nil || disputeID <= 0 {
+		httpx.WriteJSON(ctx, errorsx.InvalidParam("异议无效"))
+		return
+	}
+	var req struct {
+		Decision string `json:"decision"`
+		Outcome  string `json:"outcome"`
+		Note     string `json:"note"`
+	}
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		httpx.WriteJSON(ctx, errorsx.InvalidParam("复核参数无效"))
+		return
+	}
+	value, err := services.DecideTicketQualityDispute(disputeID, req.Decision, req.Outcome, req.Note, operator)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, value)
+}

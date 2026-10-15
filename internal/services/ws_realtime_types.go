@@ -340,6 +340,8 @@ type ClientSession struct {
 	External     *openidentity.ExternalUser
 	Role         string
 	TerminalType string
+	// Locale 为连接时声明的界面语言；为空时实时事件中的系统名称保持存储值。
+	Locale       string
 	Topics       map[string]struct{}
 	Send         chan []byte
 	Closed       atomic.Bool

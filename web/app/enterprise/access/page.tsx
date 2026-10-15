@@ -9,13 +9,12 @@ import {
   KeyRoundIcon,
   MailIcon,
   MessagesSquareIcon,
+  PencilIcon,
   PlusIcon,
   RadioTowerIcon,
   RefreshCwIcon,
   RotateCwIcon,
   SendIcon,
-  ServerCogIcon,
-  Settings2Icon,
   ShieldCheckIcon,
   Trash2Icon,
   WebhookIcon,
@@ -45,7 +44,6 @@ import {
   fetchConnectorStatus,
   fetchConnectors,
   testConnector,
-  updateConnector,
   type ConnectorListItem,
 } from "@/lib/api/access-connector"
 import {
@@ -54,13 +52,13 @@ import {
   receiveMailNow,
   type MailReceiveStatus,
   sendNotificationTestMail,
-  updateNotificationMailSettings,
 } from "@/lib/api/enterprise-notifications"
 import type { NotificationMailSetting } from "@/lib/api/types"
 import { readSession } from "@/lib/auth"
 import { cn } from "@/lib/utils"
-import { createChannel, type CreateAdminChannelPayload } from "@/lib/api/admin"
+import { createChannel, fetchChannels, updateChannel, type AdminChannel, type CreateAdminChannelPayload } from "@/lib/api/admin"
 import { Status } from "@/lib/generated/enums"
+import { useAppLocale } from "@/i18n/provider"
 import { EditDialog as ChannelEditDialog } from "@/app/dashboard/channels/_components/edit"
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
@@ -96,14 +94,6 @@ type MailForm = {
   imapPassword: string
   imapUseTls: boolean
   imapEnabled: boolean
-}
-
-type FeishuRegion = "china" | "global"
-
-type FeishuForm = {
-  region: FeishuRegion
-  appId: string
-  appSecret: string
 }
 
 type MQTTMetricMapping = {
@@ -147,12 +137,6 @@ const EMPTY_MAIL_FORM: MailForm = {
   imapEnabled: false,
 }
 
-const EMPTY_FEISHU_FORM: FeishuForm = {
-  region: "china",
-  appId: "",
-  appSecret: "",
-}
-
 const EMPTY_MQTT_FORM: MQTTForm = {
   username: "",
   password: "",
@@ -168,11 +152,6 @@ const EMPTY_MQTT_FORM: MQTTForm = {
   recordedAt: "$.recorded_at",
   metrics: [{ id: "metric-1", key: "", path: "" }],
   unknownDevicePolicy: "dead_letter",
-}
-
-const FEISHU_ENDPOINTS: Record<FeishuRegion, string> = {
-  china: "https://open.feishu.cn/open-apis",
-  global: "https://open.larksuite.com/open-apis",
 }
 
 const RETRY_OPTIONS = [
@@ -240,7 +219,6 @@ function healthTone(status: string): StatusTagTone {
 }
 
 function connectorTypeLabel(type: string) {
-  if (type === "feishu") return ee("access.text009")
   return CONNECTOR_TYPES.find((item) => item.value === type)?.label ?? type.toUpperCase()
 }
 
@@ -253,6 +231,7 @@ function displayTime(value?: string) {
 
 export default function EnterpriseAccessPage() {
   const session = readSession()
+  const { t } = useAppLocale()
   const [view, setView] = useState<AccessView>("channels")
   const [mailSetting, setMailSetting] = useState<NotificationMailSetting | null>(null)
   const [mailForm, setMailForm] = useState<MailForm>(EMPTY_MAIL_FORM)
@@ -262,7 +241,6 @@ export default function EnterpriseAccessPage() {
   const [connectorsLoaded, setConnectorsLoaded] = useState(false)
   const [mailError, setMailError] = useState("")
   const [connectorError, setConnectorError] = useState("")
-  const [savingMail, setSavingMail] = useState(false)
   const [testingMail, setTestingMail] = useState(false)
   const [receivingMail, setReceivingMail] = useState(false)
   const [receiveStatus, setReceiveStatus] = useState<MailReceiveStatus | null>(null)
@@ -272,10 +250,12 @@ export default function EnterpriseAccessPage() {
     setReceivingMail(true)
     try {
       const result = await receiveMailNow()
-      setReceiveMessage(result.success && result.data ? `${result.data.message}；本次处理 ${result.data.processed} 封。` : result.error?.message || "收件失败")
+      setReceiveMessage(result.success && result.data
+        ? `${result.data.message}; ${ee("access.text188", { value0: result.data.processed })}`
+        : result.error?.message || ee("access.text189"))
       const status = await fetchMailReceiveStatus()
       if (status.success && status.data) setReceiveStatus(status.data)
-    } catch { setReceiveMessage("收件检查失败，请稍后重试") }
+    } catch { setReceiveMessage(ee("access.text190")) }
     finally { setReceivingMail(false) }
   }
   const [testingConnector, setTestingConnector] = useState<number | null>(null)
@@ -283,24 +263,44 @@ export default function EnterpriseAccessPage() {
   const [creating, setCreating] = useState(false)
   const [newConnector, setNewConnector] = useState({ name: "", connectorType: "api", baseUrl: "", authType: "bearer", authConfig: "" })
   const [mqttForm, setMQTTForm] = useState<MQTTForm>(() => resetMQTTForm())
-  const [feishuOpen, setFeishuOpen] = useState(false)
-  const [savingFeishu, setSavingFeishu] = useState(false)
-  const [feishuForm, setFeishuForm] = useState<FeishuForm>(EMPTY_FEISHU_FORM)
   const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false)
   const [savingWhatsapp, setSavingWhatsapp] = useState(false)
+  const [whatsappChannel, setWhatsappChannel] = useState<AdminChannel | null>(null)
 
-  const createWhatsappChannel = useCallback(async (payload: CreateAdminChannelPayload) => {
+  // Reuse the existing WhatsApp account so the button edits it instead of
+  // creating another configuration on every save. Enabled ones win.
+  const loadWhatsappChannel = useCallback(async () => {
+    try {
+      const page = await fetchChannels({ channelType: "whatsapp", page: 1, limit: 20 })
+      const items = page.results ?? []
+      setWhatsappChannel(items.find((item) => item.status === Status.Ok) ?? items[0] ?? null)
+    } catch {
+      setWhatsappChannel(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadWhatsappChannel(), 0)
+    return () => window.clearTimeout(timer)
+  }, [loadWhatsappChannel])
+
+  const saveWhatsappChannel = useCallback(async (payload: CreateAdminChannelPayload) => {
     setSavingWhatsapp(true)
     try {
-      await createChannel({ ...payload, channelType: "whatsapp", status: Status.Ok })
+      if (whatsappChannel) {
+        await updateChannel({ ...payload, id: whatsappChannel.id, channelType: "whatsapp" })
+      } else {
+        await createChannel({ ...payload, channelType: "whatsapp", status: Status.Ok })
+      }
+      await loadWhatsappChannel()
       setWhatsappDialogOpen(false)
-      toast.success("WhatsApp 账号配置已保存")
+      toast.success(ee("access.text191"))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "WhatsApp 账号保存失败")
+      toast.error(error instanceof Error ? error.message : ee("access.text192"))
     } finally {
       setSavingWhatsapp(false)
     }
-  }, [])
+  }, [loadWhatsappChannel, whatsappChannel])
 
   const canManageMail = session?.permissions.includes("notification.channel.manage") ?? false
   const canCreateConnector = session?.permissions.includes("tenantIntegrationConfig.create") ?? false
@@ -361,10 +361,6 @@ export default function EnterpriseAccessPage() {
     return () => window.clearTimeout(timer)
   }, [load])
 
-  const feishuConnector = useMemo(
-    () => connectors.find((item) => item.connector_type === "feishu") ?? null,
-    [connectors]
-  )
   const businessConnectors = useMemo(
     () => connectors.filter((item) => item.connector_type !== "feishu"),
     [connectors]
@@ -375,43 +371,9 @@ export default function EnterpriseAccessPage() {
     attention: businessConnectors.filter((item) => item.health_status === "degraded" || item.health_status === "unhealthy").length,
   }), [businessConnectors])
   const accessTabs = useMemo<RailopsTabItem[]>(() => [
-    { value: "channels", label: ee("access.text013"), icon: <BellRingIcon className="size-4" /> },
-    { value: "systems", label: ee("access.text014"), icon: <DatabaseZapIcon className="size-4" />, count: businessConnectors.length },
-  ], [businessConnectors.length])
-
-  const saveMail = useCallback(async () => {
-    const port = Number(mailForm.port)
-    if (!mailForm.fromAddress.trim() || !mailForm.host.trim() || !Number.isFinite(port) || port <= 0 || port > 65535) {
-      toast.error(ee("access.text015"))
-      return
-    }
-    setSavingMail(true)
-    const result = await updateNotificationMailSettings({
-      fromAddress: mailForm.fromAddress.trim(),
-      fromName: mailForm.fromName.trim(),
-      smtpHost: mailForm.host.trim(),
-      smtpPort: port,
-      username: mailForm.username.trim(),
-      password: mailForm.password,
-      replyTo: mailForm.replyTo.trim(),
-      retryPolicy: mailForm.retryPolicy,
-      useTls: mailForm.useTls,
-      imapHost: mailForm.imapHost.trim(),
-      imapPort: Number(mailForm.imapPort) || 993,
-      imapUsername: mailForm.imapUsername.trim(),
-      imapPassword: mailForm.imapPassword,
-      imapUseTls: mailForm.imapUseTls,
-      imapEnabled: mailForm.imapEnabled,
-    })
-    setSavingMail(false)
-    if (!result.success || !result.data) {
-      toast.error(result.error?.message || ee("access.text016"))
-      return
-    }
-    setMailSetting(result.data)
-    setMailForm(mailSettingToForm(result.data))
-    toast.success(ee("access.text017"))
-  }, [mailForm, setMailForm, setMailSetting, setSavingMail])
+    { value: "channels", label: t("enterpriseExtract.access.text013"), icon: <BellRingIcon className="size-4" /> },
+    { value: "systems", label: t("enterpriseExtract.access.text014"), icon: <DatabaseZapIcon className="size-4" />, count: businessConnectors.length },
+  ], [businessConnectors.length, t])
 
   const testMail = useCallback(async () => {
     const recipient = mailForm.replyTo.trim() || mailForm.fromAddress.trim()
@@ -536,50 +498,6 @@ export default function EnterpriseAccessPage() {
     await load()
   }, [load, mqttForm, newConnector, setCreateOpen, setCreating, setMQTTForm, setNewConnector])
 
-  const openFeishuConfiguration = useCallback(() => {
-    setFeishuForm({
-      ...EMPTY_FEISHU_FORM,
-      region: feishuConnector?.base_url.includes("larksuite.com") ? "global" : "china",
-    })
-    setFeishuOpen(true)
-  }, [feishuConnector, setFeishuForm, setFeishuOpen])
-
-  const submitFeishu = useCallback(async () => {
-    const appId = feishuForm.appId.trim()
-    const appSecret = feishuForm.appSecret.trim()
-    if (!appId || !appSecret) {
-      toast.error(ee("access.text036"))
-      return
-    }
-    const payload = {
-      name: ee("access.text037"),
-      connectorType: "feishu",
-      baseUrl: FEISHU_ENDPOINTS[feishuForm.region],
-      authType: "app_credentials",
-      authConfig: JSON.stringify({ appId, appSecret }),
-    }
-    setSavingFeishu(true)
-    const saveResult = feishuConnector
-      ? await updateConnector(feishuConnector.id, payload)
-      : await createConnector(payload)
-    if (!saveResult.success || !saveResult.data) {
-      setSavingFeishu(false)
-      toast.error(saveResult.error?.message || ee("access.text038"))
-      return
-    }
-    const connectorId = saveResult.data.id || feishuConnector?.id
-    const testResult = connectorId ? await testConnector(connectorId) : null
-    setSavingFeishu(false)
-    setFeishuOpen(false)
-    setFeishuForm(EMPTY_FEISHU_FORM)
-    await load()
-    if (testResult?.success && testResult.data?.success !== false) {
-      toast.success(ee("access.text039"))
-    } else {
-      toast.warning(ee("access.text040"))
-    }
-  }, [feishuConnector, feishuForm, load, setFeishuForm, setFeishuOpen, setSavingFeishu])
-
   return (
     <PageShell
       title={ee("access.text041")}
@@ -624,17 +542,24 @@ export default function EnterpriseAccessPage() {
             className={PANEL_CLASS}
             title={(
               <span className="rhd-railops-access-module-title">
-                <MessagesSquareIcon className="size-4" />WhatsApp 项目接入
+                <MessagesSquareIcon className="size-4" />{ee("access.text169")}
               </span>
             )}
-            extra={<StatusTag tone="disabled">默认关闭</StatusTag>}
+            extra={<StatusTag tone="disabled">{ee("access.text170")}</StatusTag>}
           >
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
-                <p className="text-sm font-medium">为项目配置独立 Chatwoot Community Core 与官方 WhatsApp Cloud API</p>
-                <p className="text-sm text-muted-foreground">填写 WhatsApp Cloud API 参数后保存，系统即可建立该账号配置。</p>
+                <p className="text-sm font-medium">{ee("access.text171")}</p>
+                <p className="text-sm text-muted-foreground">
+                  {whatsappChannel
+                    ? ee("access.text172", { value0: whatsappChannel.name })
+                    : ee("access.text173")}
+                </p>
               </div>
-              <RailopsButton size="small" onClick={() => setWhatsappDialogOpen(true)}><PlusIcon className="size-4" />配置 WhatsApp 账号</RailopsButton>
+              <RailopsButton size="small" onClick={() => setWhatsappDialogOpen(true)}>
+                {whatsappChannel ? <PencilIcon className="size-4" /> : <PlusIcon className="size-4" />}
+                {whatsappChannel ? ee("access.text174") : ee("access.text175")}
+              </RailopsButton>
             </div>
           </ContentModule>
           {!canManageMail ? (
@@ -658,7 +583,11 @@ export default function EnterpriseAccessPage() {
               ) : (
                 <div className="grid xl:grid-cols-[minmax(0,1fr)_320px]">
                   <div className="grid gap-4 p-4 sm:grid-cols-2">
-                    {mailSetting?.managed_by_project && <p className="text-sm sm:col-span-2">邮箱已由版本化配置管理，请在工单页面的“项目配置”中修改并应用。这里可以检查收件连接。</p>}
+                    <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 sm:col-span-2">
+                      <p>{ee("access.text176")}</p>
+                      <Link className="mt-2 inline-block font-medium underline" href="/enterprise/tickets">{ee("access.text177")}</Link>
+                    </div>
+                    <fieldset disabled className="contents">
                     <FormField label={ee("access.text064")}>
                       <Input value={mailForm.fromAddress} onChange={(event) => setMailForm((value) => ({ ...value, fromAddress: event.target.value }))} placeholder="service@example.com" />
                     </FormField>
@@ -680,21 +609,21 @@ export default function EnterpriseAccessPage() {
                     <FormField label={ee("access.text073")}>
                       <Input value={mailForm.replyTo} onChange={(event) => setMailForm((value) => ({ ...value, replyTo: event.target.value }))} placeholder="support@example.com" />
                     </FormField>
-                    <FormField label="IMAP 收件服务器">
+                    <FormField label={ee("access.text178")}>
                       <Input value={mailForm.imapHost} onChange={(event) => setMailForm((value) => ({ ...value, imapHost: event.target.value }))} placeholder="imap.example.com" />
                     </FormField>
-                    <FormField label="IMAP 端口">
+                    <FormField label={ee("access.text179")}>
                       <Input inputMode="numeric" value={mailForm.imapPort} onChange={(event) => setMailForm((value) => ({ ...value, imapPort: event.target.value }))} placeholder="993" />
                     </FormField>
-                    <FormField label="IMAP 账号">
+                    <FormField label={ee("access.text180")}>
                       <Input autoComplete="username" value={mailForm.imapUsername} onChange={(event) => setMailForm((value) => ({ ...value, imapUsername: event.target.value }))} placeholder="support@example.com" />
                     </FormField>
-                    <FormField label="IMAP 授权码">
-                      <Input type="password" autoComplete="new-password" value={mailForm.imapPassword} onChange={(event) => setMailForm((value) => ({ ...value, imapPassword: event.target.value }))} placeholder={mailSetting?.has_imap_password ? "已配置，留空保持不变" : "请输入授权码"} />
+                    <FormField label={ee("access.text181")}>
+                      <Input type="password" autoComplete="new-password" value={mailForm.imapPassword} onChange={(event) => setMailForm((value) => ({ ...value, imapPassword: event.target.value }))} placeholder={mailSetting?.has_imap_password ? ee("access.text182") : ee("access.text183")} />
                     </FormField>
                     <div className="flex items-center justify-between rounded-md border border-border bg-muted px-3 py-2.5 sm:col-span-2">
-                      <div><div className="text-sm font-medium text-foreground">启用自动收件</div><div className="mt-0.5 text-xs text-muted-foreground">首次连接只建立起点，不导入旧邮件；随后每分钟收取新邮件并建单。附件暂不导入，请在原邮箱查看。</div></div>
-                      <Switch checked={mailForm.imapEnabled} onCheckedChange={(checked) => setMailForm((value) => ({ ...value, imapEnabled: checked }))} aria-label="启用自动收件" />
+                      <div><div className="text-sm font-medium text-foreground">{ee("access.text184")}</div><div className="mt-0.5 text-xs text-muted-foreground">{ee("access.text185")}</div></div>
+                      <Switch checked={mailForm.imapEnabled} onCheckedChange={(checked) => setMailForm((value) => ({ ...value, imapEnabled: checked }))} aria-label={ee("access.text184")} />
                     </div>
                     <SelectField
                       label={ee("access.text074")}
@@ -710,17 +639,15 @@ export default function EnterpriseAccessPage() {
                       <div><div className="text-sm font-medium text-foreground">{ee("access.text075")}</div><div className="mt-0.5 text-xs text-muted-foreground">{mailForm.useTls ? ee("access.text055") : ee("access.text076")}</div></div>
                       <Switch checked={mailForm.useTls} onCheckedChange={(checked) => setMailForm((value) => ({ ...value, useTls: checked }))} aria-label={ee("access.text075")} />
                     </div>
+                    </fieldset>
                     <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row sm:justify-end">
                       <RailopsButton onClick={() => void testMail()} disabled={testingMail || !mailSetting?.connected}>
                         <SendIcon className="size-4" />{testingMail ? ee("access.text077") : ee("access.text078")}
                       </RailopsButton>
-                      <RailopsButton onClick={() => void receiveMail()} disabled={receivingMail || !mailSetting?.imap_enabled}>{receivingMail ? "正在连接收件…" : "连接并收取"}</RailopsButton>
-                      <RailopsButton onClick={() => void saveMail()} disabled={savingMail || mailSetting?.managed_by_project}>
-                        <ServerCogIcon className="size-4" />{savingMail ? ee("access.text079") : ee("access.text080")}
-                      </RailopsButton>
+                      <RailopsButton onClick={() => void receiveMail()} disabled={receivingMail || !mailSetting?.imap_enabled}>{receivingMail ? ee("access.text186") : ee("access.text187")}</RailopsButton>
                     </div>
                     {receiveMessage && <p role="status" className="text-sm sm:col-span-2">{receiveMessage}</p>}
-                    {receiveStatus && <p className="text-sm sm:col-span-2">待人工检查：{receiveStatus.pending_count} 封（请到原邮箱查看，避免误关联工单）。{receiveStatus.mailboxes.map(m => m.last_error).filter(Boolean).join("；")}</p>}
+                    {receiveStatus && <p className="text-sm sm:col-span-2">{ee("access.text193", { value0: receiveStatus.pending_count })} {receiveStatus.mailboxes.map(m => m.last_error).filter(Boolean).join("; ")}</p>}
                   </div>
                   <aside className="border-t border-border bg-muted/60 p-4 xl:border-l xl:border-t-0">
                     <h3 className="text-xs font-semibold text-foreground">{ee("access.text081")}</h3>
@@ -740,34 +667,6 @@ export default function EnterpriseAccessPage() {
           <ContentModule className={PANEL_CLASS} title={ee("access.text089")}>
             <ChannelRow icon={<SendIcon />} name={ee("access.text090")} scope={ee("access.text091")} />
             <ChannelRow icon={<WebhookIcon />} name={ee("access.text092")} scope={ee("access.text093")} />
-            <ChannelRow
-              icon={<MessagesSquareIcon />}
-              name={ee("access.text009")}
-              scope={feishuConnector ? ee("access.text094", { value0: feishuConnector.base_url.includes("larksuite.com") ? ee("access.text132") : ee("access.text131") }) : ee("access.text095")}
-              status={!feishuConnector ? ee("access.text061") : healthLabel(feishuConnector.health_status)}
-              statusTone={!feishuConnector ? "disabled" : healthTone(feishuConnector.health_status)}
-              action={(
-                <div className="flex items-center gap-1.5">
-                  {feishuConnector ? (
-                    <IconButton
-                      icon={<RotateCwIcon className={cn("size-4", testingConnector === feishuConnector.id && "animate-spin")} />}
-                      tooltip={ee("access.text096")}
-                      aria-label={ee("access.text096")}
-                      disabled={!canTestConnector || testingConnector === feishuConnector.id}
-                      onClick={() => void runConnectorTest(feishuConnector.id)}
-                    />
-                  ) : null}
-                  <RailopsButton
-                    size="small"
-                    disabled={feishuConnector ? !canTestConnector : !canCreateConnector}
-                    onClick={openFeishuConfiguration}
-                  >
-                    {feishuConnector ? <Settings2Icon className="size-4" /> : <PlusIcon className="size-4" />}
-                    {feishuConnector ? ee("access.text097") : ee("access.text098")}
-                  </RailopsButton>
-                </div>
-              )}
-            />
           </ContentModule>
         </div>
       ) : (
@@ -815,9 +714,9 @@ export default function EnterpriseAccessPage() {
         whatsappOnly
         open={whatsappDialogOpen}
         saving={savingWhatsapp}
-        itemId={null}
+        itemId={whatsappChannel?.id ?? null}
         onOpenChange={(open) => { if (!savingWhatsapp) setWhatsappDialogOpen(open) }}
-        onSubmit={createWhatsappChannel}
+        onSubmit={saveWhatsappChannel}
       />
 
       <StandardModal
@@ -877,45 +776,6 @@ export default function EnterpriseAccessPage() {
           
       </StandardModal>
 
-      <StandardModal
-        open={feishuOpen}
-        onCancel={() => !savingFeishu && setFeishuOpen(false)}
-        title={feishuConnector ? ee("access.text127") : ee("access.text098")}
-        width={512}
-        footer={
-          <>
-            <RailopsButton onClick={() => !savingFeishu && setFeishuOpen(false)} disabled={savingFeishu}>{ee("access.text114")}</RailopsButton>
-            <RailopsButton onClick={() => void submitFeishu()} disabled={savingFeishu}>
-              {savingFeishu ? <RotateCwIcon className="size-4 animate-spin" /> : <MessagesSquareIcon className="size-4" />}
-              {savingFeishu ? ee("access.text128") : ee("access.text129")}
-            </RailopsButton>
-
-          </>
-        }
-      >
-          <div className="grid gap-4">
-            <SelectField
-              label={ee("access.text130")}
-              style={{ marginBottom: 0 }}
-              selectProps={{
-                value: feishuForm.region,
-                onChange: (value) => setFeishuForm((current) => ({ ...current, region: (value ?? "china") as FeishuRegion })),
-                options: [
-                  { value: "china", label: ee("access.text131") },
-                  { value: "global", label: ee("access.text132") },
-                ],
-                style: { width: "100%" },
-              }}
-            />
-            <FormField label="App ID">
-              <Input value={feishuForm.appId} onChange={(event) => setFeishuForm((value) => ({ ...value, appId: event.target.value }))} placeholder="cli_xxxxxxxxxxxxxxxx" autoComplete="off" />
-            </FormField>
-            <FormField label="App Secret">
-              <Input type="password" value={feishuForm.appSecret} onChange={(event) => setFeishuForm((value) => ({ ...value, appSecret: event.target.value }))} placeholder={ee("access.text133")} autoComplete="new-password" />
-            </FormField>
-          </div>
-
-      </StandardModal>
     </PageShell>
   )
 }

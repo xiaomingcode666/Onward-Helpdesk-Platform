@@ -287,6 +287,8 @@ func addRouter(app *gin.Engine) {
 	thirdGroup := app.Group("/api/third")
 	registerThirdWechatRoutes(thirdGroup.Group("/wechat"))
 	registerThirdJitsiRoutes(thirdGroup.Group("/jitsi"))
+	registerThirdAIPhoneRoutes(thirdGroup.Group("/ai-phone"))
+	registerThirdTelnyxVoiceRoutes(thirdGroup.Group("/telnyx/voice"))
 	registerThirdMetaWhatsAppRoutes(thirdGroup.Group("/meta/whatsapp"))
 	if whatsappLocalTestEnabled() {
 		registerThirdWhatsAppLocalRoutes(thirdGroup.Group("/whatsapp/local"))

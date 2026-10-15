@@ -192,6 +192,7 @@ var Models = []any{
 	&TicketQualityClue{},
 	&TicketQualityScorecardVersion{},
 	&TicketQualityReview{},
+	&TicketQualityDispute{},
 	&TicketQualitySample{},
 	&DomainEvent{},
 	&OutboxRecord{},

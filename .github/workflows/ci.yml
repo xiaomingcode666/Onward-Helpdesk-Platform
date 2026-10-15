@@ -155,6 +155,11 @@ jobs:
           node --test ../scripts/check-hardcoded-cjk.test.mjs
           node ../scripts/check-hardcoded-cjk.mjs
 
+      - name: Check i18n message keys
+        run: |
+          node --test ../scripts/check-i18n-keys.test.mjs
+          node ../scripts/check-i18n-keys.mjs
+
       - name: Build
         run: pnpm build:sdk && pnpm build
 

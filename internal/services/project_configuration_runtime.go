@@ -3,7 +3,6 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -187,17 +186,27 @@ func UpgradeProjectConfiguration(tenantID int64) (*projectconfig.Document, error
 	}
 	mcfg := config.CurrentOrDefault().Email
 	r.Mail = projectconfig.Mail{Enabled: mcfg.SMTPHost != "", Host: mcfg.SMTPHost, Port: mcfg.SMTPPort, Username: mcfg.Username, FromAddress: mcfg.FromAddress, FromName: mcfg.FromName, UseTLS: mcfg.UseTLS, RetryPolicy: "retry_3_10m"}
+	smtpManagedCredential := false
 	if db.Migrator().HasTable(&models.TenantMailSetting{}) {
 		var m models.TenantMailSetting
 		if err := db.Where("tenant_id = ?", tenantID).Limit(1).Find(&m).Error; err != nil {
 			return nil, err
 		}
 		if m.ID > 0 && m.Status == int(enums.StatusOk) {
+			smtpManagedCredential = strings.TrimSpace(m.Password) != ""
 			resolved := EmailNotificationService.resolveMailConfig(tenantID)
 			r.Mail = projectconfig.Mail{Enabled: resolved.SMTPHost != "", Host: resolved.SMTPHost, Port: resolved.SMTPPort, Username: resolved.Username, FromAddress: resolved.FromAddress, FromName: resolved.FromName, UseTLS: resolved.UseTLS, ReplyTo: m.ReplyTo, RetryPolicy: defaultString(m.RetryPolicy, "retry_3_10m")}
 			if m.IMAPEnabled {
-				r.Mail.IMAP = &projectconfig.IMAP{Enabled: true, Host: m.IMAPHost, Port: m.IMAPPort, Username: m.IMAPUsername, PasswordRef: "secret://imap-password"}
-				doc.SecretRefs = append(doc.SecretRefs, r.Mail.IMAP.PasswordRef)
+				// Mail credentials are database-managed and encrypted. The upgrade
+				// proposal must never require a deployment secret directory.
+				imapRef := ""
+				if strings.TrimSpace(m.IMAPPassword) != "" {
+					imapRef = "secret://managed-imap"
+				}
+				r.Mail.IMAP = &projectconfig.IMAP{Enabled: true, Host: m.IMAPHost, Port: m.IMAPPort, Username: m.IMAPUsername, PasswordRef: imapRef}
+				if imapRef != "" {
+					doc.SecretRefs = append(doc.SecretRefs, imapRef)
+				}
 				for i := range r.Channels {
 					if r.Channels[i].Name == "email" {
 						r.Channels[i].Enabled = true
@@ -207,8 +216,10 @@ func UpgradeProjectConfiguration(tenantID int64) (*projectconfig.Document, error
 		}
 	}
 	if r.Mail.Enabled {
-		r.Mail.PasswordRef = "secret://smtp-password"
-		doc.SecretRefs = append(doc.SecretRefs, r.Mail.PasswordRef)
+		if smtpManagedCredential {
+			r.Mail.PasswordRef = "secret://managed-smtp"
+			doc.SecretRefs = append(doc.SecretRefs, r.Mail.PasswordRef)
+		}
 	}
 	if db.Migrator().HasTable(&models.TenantIntegrationConfig{}) {
 		var rows []models.TenantIntegrationConfig
@@ -366,7 +377,7 @@ func resolveProjectMailConfig(tenantID int64) (*config.EmailConfig, error) {
 	if !m.Enabled {
 		return nil, fmt.Errorf("当前项目配置未启用邮件发送")
 	}
-	secret, err := projectconfig.ReadSecret(os.Getenv("RHD_PROJECT_SECRET_DIR"), tenantID, projectconfig.Environment(), m.PasswordRef)
+	secret, err := readManagedOrMountedMailSecret(tenantID, m.PasswordRef, true)
 	if err != nil {
 		return nil, fmt.Errorf("邮件密钥不可读取")
 	}

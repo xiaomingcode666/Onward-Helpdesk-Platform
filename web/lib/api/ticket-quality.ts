@@ -1,5 +1,6 @@
 import { apiGet, apiPost } from "@/lib/api/client"
 import type { ApiResponse } from "@/lib/api/types"
+import type { TicketQualityDispute, TicketQualityReview } from "@/lib/api/enterprise-tickets"
 
 export type TicketQualityReason = "random" | "high_priority" | "new_agent" | "complaint" | "reopened" | "risk" | string
 export type TicketQualityStatus = "pending" | "in_progress" | "completed" | string
@@ -26,6 +27,8 @@ export type TicketQualitySample = {
     max_score: number
     result: string
     outcome: string
+    final_outcome: string
+    dispute_status: string
     reviewed_at: string
   }
 }
@@ -102,4 +105,30 @@ export async function fetchTicketQualityAnalysis(params?: {
   channel?: string
 }): Promise<ApiResponse<TicketQualityAnalysis>> {
   return apiGet<TicketQualityAnalysis>("/ticket-quality/analysis", params)
+}
+
+export type TicketQualityDisputeView = TicketQualityDispute & {
+  ticket_id: number
+  ticket_no: string
+  ticket_title: string
+  review: TicketQualityReview
+}
+
+export async function fetchMyTicketQualityReviews(): Promise<ApiResponse<TicketQualityReview[]>> {
+  return apiGet<TicketQualityReview[]>("/ticket-quality/my-reviews")
+}
+
+export async function raiseTicketQualityDispute(reviewId: number, reason: string): Promise<ApiResponse<TicketQualityDispute>> {
+  return apiPost<TicketQualityDispute>(`/ticket-quality/reviews/${reviewId}/disputes`, { reason })
+}
+
+export async function fetchTicketQualityDisputes(status?: string): Promise<ApiResponse<TicketQualityDisputeView[]>> {
+  return apiGet<TicketQualityDisputeView[]>("/ticket-quality/disputes", status ? { status } : undefined)
+}
+
+export async function decideTicketQualityDispute(
+  disputeId: number,
+  payload: { decision: "upheld" | "overturned"; outcome?: string; note: string },
+): Promise<ApiResponse<TicketQualityDispute>> {
+  return apiPost<TicketQualityDispute>(`/ticket-quality/disputes/${disputeId}/_decide`, payload)
 }

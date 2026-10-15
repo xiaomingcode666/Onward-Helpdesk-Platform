@@ -34,7 +34,7 @@ import {
 } from "@/components/railops/date-range-filter"
 import { formatCurrency, formatDateTime, formatNumber } from "@/components/platform/platform-live-ui"
 import { useI18n } from "@/i18n/provider"
-import { getEnterpriseAIKeyDisplayName, getEnterpriseAIKeyProductMeta } from "@/lib/enterprise-ai-key-display"
+import { getEnterpriseAIKeyDisplayName, getEnterpriseAIKeyProductMeta, getSingleEnterpriseAIKeyName, selectSingleEnterpriseAIKey } from "@/lib/enterprise-ai-key-display"
 import {
   getEnterpriseAIModelsWorkspace,
   resetEnterpriseAIKeyQuota,
@@ -116,12 +116,20 @@ export function EnterpriseModelsPageContent() {
   const account = workspace?.account
   const activeSubscription = workspace?.activeSubscription
   const waitingForData = !workspace
+  const visibleKeys = useMemo(
+    () => selectSingleEnterpriseAIKey(workspace?.keys, account?.defaultKeyId, account?.defaultKeyName).map((key) => {
+      const displayName = getSingleEnterpriseAIKeyName(key, account?.defaultKeyName, account?.tenantId)
+      return { ...key, name: displayName, productName: undefined, productCode: undefined }
+    }),
+    [account?.defaultKeyId, account?.defaultKeyName, account?.tenantId, workspace?.keys],
+  )
+  const visibleActiveKeyCount = visibleKeys.filter((key) => key.status.toLowerCase() === "active").length
   const maxTrendCost = useMemo(() => {
     return Math.max(...(workspace?.trend ?? []).map((item) => item.actualCost), 1)
   }, [workspace?.trend])
   const filteredKeys = useMemo(() => {
     const term = keyword.trim().toLowerCase()
-    return (workspace?.keys ?? []).filter((key) => {
+    return visibleKeys.filter((key) => {
       const normalizedStatus = (key.status || "").toLowerCase()
       const statusMatched =
         keyStatus === "all" ||
@@ -145,7 +153,7 @@ export function EnterpriseModelsPageContent() {
         .toLowerCase()
       return haystack.includes(term)
     })
-  }, [keyStatus, keyword, t, workspace?.keys])
+  }, [keyStatus, keyword, t, visibleKeys])
   const usageTabItems = useMemo<RailopsTabItem[]>(() => [
     {
       label: t("enterpriseModels.trend.title"),
@@ -399,7 +407,7 @@ export function EnterpriseModelsPageContent() {
         />
         <UsageKpi
           label={t("enterpriseModels.metrics.apiKey")}
-          value={`${formatNumber(stats?.activeApiKeys ?? 0)} / ${formatNumber(stats?.totalApiKeys ?? 0)}`}
+          value={`${formatNumber(visibleActiveKeyCount)} / ${formatNumber(visibleKeys.length)}`}
           detail={t("enterpriseModels.metrics.defaultKey", { status: account?.defaultKeyStatus || "-" })}
           icon={<KeyRoundIcon className="size-4" />}
           loading={waitingForData}
@@ -499,7 +507,7 @@ export function EnterpriseModelsPageContent() {
               extra={!waitingForData ? <StatusTag tone={statusTone(user?.status || account?.accountStatus)}>{statusLabel(t, user?.status || account?.accountStatus)}</StatusTag> : null}
             >
               <div className="rhd-railops-usage-account-grid">
-                <InfoRow label={t("enterpriseModels.account.user")} value={waitingForData ? <InlineLoading /> : user?.username || "-"} />
+                <InfoRow label={t("enterpriseModels.account.user")} value={waitingForData ? <InlineLoading /> : account?.accountName || "-"} />
                 <InfoRow label={t("enterpriseModels.account.loginEmail")} value={waitingForData ? <InlineLoading className="w-32" /> : user?.email || account?.loginEmail || "-"} />
                 <InfoRow label={t("enterpriseModels.account.concurrencyLimit")} value={waitingForData ? <InlineLoading /> : formatNumber(user?.concurrency ?? account?.concurrency ?? 0)} />
                 <InfoRow label={t("enterpriseModels.account.rpmLimit")} value={waitingForData ? <InlineLoading /> : formatNumber(user?.rpmLimit ?? account?.rpmLimit ?? 0)} />
@@ -514,7 +522,7 @@ export function EnterpriseModelsPageContent() {
             className="rhd-railops-usage-key-module"
             title={t("enterpriseModels.apiKeys.title")}
             note={t("enterpriseModels.apiKeys.tableNote", { count: formatNumber(filteredKeys.length) })}
-            extra={<StatusTag tone="blue">{formatNumber(workspace?.keyPaging?.total ?? workspace?.keys.length ?? 0)}</StatusTag>}
+            extra={<StatusTag tone="blue">{formatNumber(visibleKeys.length)}</StatusTag>}
           >
             <TableToolbar
               search={
@@ -543,7 +551,7 @@ export function EnterpriseModelsPageContent() {
                   }}
                 />
               }
-              actions={<span className="rhd-railops-table-summary">{formatNumber(filteredKeys.length)} / {formatNumber(workspace?.keyPaging?.total ?? workspace?.keys.length ?? 0)}</span>}
+              actions={<span className="rhd-railops-table-summary">{formatNumber(filteredKeys.length)} / {formatNumber(visibleKeys.length)}</span>}
             />
 
             {waitingForData ? (
@@ -746,13 +754,15 @@ function EmptyBlock({ title }: { title: string }) {
 }
 
 function InlineLoading({ className = "w-20" }: { className?: string }) {
+  const t = useI18n()
   const width = className === "w-32" ? "8rem" : className === "w-28" ? "7rem" : className === "w-24" ? "6rem" : "5rem"
-  return <Skeleton.Node active style={{ width, height: 16 }} aria-label="Loading data" />
+  return <Skeleton.Node active style={{ width, height: 16 }} aria-label={t("enterpriseModels.loading.data")} />
 }
 
 function TrendLoading() {
+  const t = useI18n()
   return (
-    <div className="rhd-railops-usage-trend-list" aria-label="Loading trend data">
+    <div className="rhd-railops-usage-trend-list" aria-label={t("enterpriseModels.loading.trend")}>
       {Array.from({ length: 4 }).map((_, index) => (
         <div key={index} className="rhd-railops-usage-trend-row">
           <div className="rhd-railops-usage-trend-date">
@@ -779,7 +789,7 @@ function defaultQuery(): EnterpriseAIModelsQuery {
     granularity: "day",
     timezone: RAILOPS_DEFAULT_TIMEZONE,
     page: 1,
-    pageSize: 20,
+    pageSize: 100,
     sortBy: "created_at",
     sortOrder: "desc",
   }

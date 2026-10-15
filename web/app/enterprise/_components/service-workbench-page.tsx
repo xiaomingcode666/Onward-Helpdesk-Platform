@@ -29,6 +29,7 @@ import { useAuth } from "@/components/auth-provider"
 import { useRouteBreadcrumbItems } from "@/components/layout/route-breadcrumbs"
 import { EmptyState, ErrorState } from "@/components/shared/error-states"
 import { useAppLocale, useI18n } from "@/i18n/provider"
+import type { AppLocale } from "@/i18n/config"
 import { getEnterpriseAIKeyDisplayName, getEnterpriseAIKeyProductMeta } from "@/lib/enterprise-ai-key-display"
 import {
   fetchReportTopFailures,
@@ -310,7 +311,7 @@ function currentMonthReportRange() {
   }
 }
 
-function ticketOwnerText(ticket: TicketListItem, t: Translate, hasDeviceConcept = true) {
+function ticketOwnerText(ticket: TicketListItem, t: Translate, locale: AppLocale, hasDeviceConcept = true) {
   if (ticket.assignee_name) return ticket.assignee_name
   if (ticket.team_name && ticket.team_name !== ticket.product_name) return ticket.team_name
   if (ticket.current_team_id > 0) return t(hasDeviceConcept ? "enterpriseWorkbench.ticket.productTeamPending" : "enterpriseWorkbench.ticket.supportTeamPending")
@@ -329,6 +330,12 @@ function queueTitle(queue: EnterpriseWorkbenchQueueCard, t: Translate, hasDevice
     : `enterpriseWorkbench.queue.${queue.key}.title`
   const translated = t(key)
   return translated === key ? queue.title : translated
+}
+
+function queueDescription(queue: EnterpriseWorkbenchQueueCard, t: Translate) {
+  const key = `enterpriseWorkbench.queue.${queue.key}.description`
+  const translated = t(key)
+  return translated === key ? queue.description : translated
 }
 
 function alertTitle(alert: EnterpriseWorkbenchAlert, t: Translate) {
@@ -703,8 +710,8 @@ function APIKeyUsagePanel({
         <div className="divide-y divide-border/70">
           {keys.map((key) => {
             const usagePercent = keyUsagePercent(key.quotaUsagePercent)
-            const keyDisplayName = getEnterpriseAIKeyDisplayName(key)
-            const keyProductMeta = getEnterpriseAIKeyProductMeta(key)
+            const keyDisplayName = (getEnterpriseAIKeyDisplayName(key))
+            const keyProductMeta = (getEnterpriseAIKeyProductMeta(key))
             const keyTitle = [keyDisplayName, keyProductMeta].filter(Boolean).join(" · ")
             return (
               <Link
@@ -1200,7 +1207,7 @@ function TicketQueueTable({ tickets, hasDeviceConcept }: { tickets: TicketListIt
               </td>
               <td>
                 <span className="block truncate text-xs font-medium text-foreground">{hasDeviceConcept ? ticket.product_name || t("enterpriseWorkbench.ticket.unboundProduct") : ticket.team_name || t("enterpriseWorkbench.common.unbound")}</span>
-                <span className="mt-1 block truncate text-rhd-xs text-muted-foreground">{ticketOwnerText(ticket, t, hasDeviceConcept)}</span>
+                <span className="mt-1 block truncate text-rhd-xs text-muted-foreground">{ticketOwnerText(ticket, t, locale, hasDeviceConcept)}</span>
               </td>
               <td>
                 <span className={cn("rounded border px-1.5 py-0.5 text-rhd-xs font-medium", toneClass(priorityTone(ticket.priority)))}>
@@ -1523,7 +1530,7 @@ function QueueWorkspace({
                 <div className="rhd-railops-workbench-ticket-table-title">
                   <div className="min-w-0">
                     <h3>{activeQueue ? queueTitle(activeQueue, t, hasDeviceConcept) : t("enterpriseWorkbench.queue.title")}</h3>
-                    <p>{activeQueue?.description || t("enterpriseWorkbench.queue.tableSubtitle")}</p>
+                    <p>{activeQueue ? queueDescription(activeQueue, t) : t("enterpriseWorkbench.queue.tableSubtitle")}</p>
                   </div>
                   <StatusTag tone={statusTone(activeQueue?.tone)}>{t("enterpriseWorkbench.queue.tableCount", { count: total })}</StatusTag>
                 </div>

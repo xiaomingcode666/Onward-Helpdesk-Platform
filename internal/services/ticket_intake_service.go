@@ -13,6 +13,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
+	"remotehelpdesk/internal/repositories"
 )
 
 // sourceRecordChannels 是允许携带外部来源记录建单的渠道，用于来源去重和字段校验。
@@ -61,8 +62,8 @@ func prepareTicketSourceDB(db *gorm.DB, ticket *models.Ticket, input dto.TicketI
 	if !sourceRecordChannels[ticket.Channel] {
 		return errorsx.InvalidParam("unsupported intake channel")
 	}
-	if ticket.Channel == "phone" && ticket.Source != enums.TicketSourceManual {
-		return errorsx.InvalidParam("phone intake requires manual source")
+	if ticket.Channel == "phone" && ticket.Source != enums.TicketSourceManual && ticket.Source != enums.TicketSourceAIPhone {
+		return errorsx.InvalidParam("phone intake requires manual or ai_phone source")
 	}
 	if ticket.TenantID <= 0 {
 		return errorsx.InvalidParam("phone intake requires tenant identity")
@@ -100,6 +101,37 @@ func prepareTicketSourceDB(db *gorm.DB, ticket *models.Ticket, input dto.TicketI
 		return errorsx.InvalidParam("received_at must be a valid, non-future timestamp")
 	}
 	return nil
+}
+
+// fillConversationContactPhoneDB 为 WhatsApp 会话建单补充联系电话：WhatsApp 身份号码即客户手机号。
+// 只使用该客户的 WhatsApp 身份，其他渠道及已有号码保持不变。
+func fillConversationContactPhoneDB(db *gorm.DB, ticket *models.Ticket) {
+	if ticket.Channel != enums.ChannelTypeWhatsApp || ticket.ConversationID <= 0 || ticket.CustomerID <= 0 || ticket.CallerPhone != "" {
+		return
+	}
+	for _, identity := range repositories.CustomerIdentityRepository.FindByCustomerID(db, ticket.CustomerID) {
+		if identity.ExternalSource != enums.ExternalSourceWhatsApp {
+			continue
+		}
+		if phone := normalizeWhatsAppPhone(identity.ExternalID); phone != "" {
+			ticket.CallerPhone = phone
+			return
+		}
+	}
+}
+
+// normalizeWhatsAppPhone 把 wa_id（不带加号的国际号码）转为 E.164 格式；不是号码时返回空。
+func normalizeWhatsAppPhone(value string) string {
+	digits := strings.TrimPrefix(strings.TrimSpace(value), "+")
+	if len(digits) < 6 || len(digits) > 15 {
+		return ""
+	}
+	for _, r := range digits {
+		if r < '0' || r > '9' {
+			return ""
+		}
+	}
+	return "+" + digits
 }
 
 // BuildTicketIntakeDTO 输出工单记录的来源信息，供详情页展示。

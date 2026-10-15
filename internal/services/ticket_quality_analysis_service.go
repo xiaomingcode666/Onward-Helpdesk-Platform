@@ -56,7 +56,11 @@ func AnalyzeTicketQuality(tenantID int64, filter TicketQualityAnalysisFilter, op
 	if operator == nil || tenantID <= 0 || operator.EffectiveTenantID() != tenantID || !operator.HasPermission(constants.PermissionTicketView.Code) {
 		return nil, errorsx.Forbidden("无质量分析查看权限")
 	}
-	canViewAgents := operator.HasRole(EnterpriseRoleOwner) || operator.HasRole(EnterpriseRoleAdmin) || operator.HasRole(EnterpriseRoleServiceManager) || operator.HasPermission(constants.PermissionTicketAssign.Code)
+	canViewAgents := operator.HasPermission(constants.PermissionTicketQualityViewAgent.Code)
+	if filter.AgentID > 0 && !canViewAgents {
+		// The summary of a single-agent filter is that agent's personal result.
+		return nil, errorsx.Forbidden("无客服个人质检查看权限")
+	}
 	var reviews []models.TicketQualityReview
 	query := sqls.DB().Where("tenant_id = ?", tenantID)
 	if !filter.From.IsZero() {
@@ -107,10 +111,16 @@ func AnalyzeTicketQuality(tenantID int64, filter TicketQualityAnalysisFilter, op
 		if filter.Project != "" && ticket.ProjectKey != filter.Project {
 			continue
 		}
-		if filter.TeamID > 0 && ticket.CurrentTeamID != filter.TeamID {
+		// Reviews belong to the agent and team recorded when they were reviewed;
+		// older reviews without a snapshot fall back to the ticket's current owner.
+		agentID, teamID := review.ReviewedAgentID, review.ReviewedTeamID
+		if agentID == 0 && teamID == 0 {
+			agentID, teamID = ticket.CurrentAssigneeID, ticket.CurrentTeamID
+		}
+		if filter.TeamID > 0 && teamID != filter.TeamID {
 			continue
 		}
-		if filter.AgentID > 0 && ticket.CurrentAssigneeID != filter.AgentID {
+		if filter.AgentID > 0 && agentID != filter.AgentID {
 			continue
 		}
 		if filter.Category != "" && ticket.CaseType != filter.Category {
@@ -119,7 +129,7 @@ func AnalyzeTicketQuality(tenantID int64, filter TicketQualityAnalysisFilter, op
 		if filter.Channel != "" && ticket.Channel != filter.Channel {
 			continue
 		}
-		d := dimensions{project: ticket.ProjectKey, team: teamNames[ticket.CurrentTeamID], agent: "", category: ticket.CaseType, channel: ticket.Channel}
+		d := dimensions{project: ticket.ProjectKey, team: teamNames[teamID], agent: "", category: ticket.CaseType, channel: ticket.Channel}
 		if d.project == "" {
 			d.project = qualityAnalysisUnsetValue
 		}
@@ -133,7 +143,7 @@ func AnalyzeTicketQuality(tenantID int64, filter TicketQualityAnalysisFilter, op
 			d.channel = qualityAnalysisUnsetValue
 		}
 		if canViewAgents {
-			if user := repositories.UserRepository.Get(sqls.DB(), ticket.CurrentAssigneeID); user != nil {
+			if user := repositories.UserRepository.Get(sqls.DB(), agentID); user != nil {
 				d.agent = user.Nickname
 			}
 			if d.agent == "" {
@@ -142,13 +152,13 @@ func AnalyzeTicketQuality(tenantID int64, filter TicketQualityAnalysisFilter, op
 		}
 		summary.Reviews++
 		summary.Average += float64(review.TotalScore)
-		if review.Result == "pass" {
+		if effectiveTicketQualityOutcome(review) == "pass" {
 			summary.PassRate++
 		}
 		addQualityBucket(buckets["project"], d.project, d.project, review)
-		addQualityBucket(buckets["team"], teamKey(ticket.CurrentTeamID, d.team), d.team, review)
+		addQualityBucket(buckets["team"], teamKey(teamID, d.team), d.team, review)
 		if canViewAgents {
-			addQualityBucket(buckets["agent"], agentKey(ticket.CurrentAssigneeID, d.agent), d.agent, review)
+			addQualityBucket(buckets["agent"], agentKey(agentID, d.agent), d.agent, review)
 		}
 		addQualityBucket(buckets["category"], d.category, d.category, review)
 		addQualityBucket(buckets["channel"], d.channel, d.channel, review)
@@ -169,7 +179,7 @@ func addQualityBucket(target map[string]*TicketQualityAnalysisBucket, value, lab
 	}
 	b.Reviews++
 	b.Average += float64(review.TotalScore)
-	if review.Result == "pass" {
+	if effectiveTicketQualityOutcome(review) == "pass" {
 		b.PassRate++
 	}
 }

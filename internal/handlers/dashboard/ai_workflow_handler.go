@@ -155,7 +155,7 @@ func AIWorkflowPostPublish(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAIWorkflowVersion(item))
+	httpx.WriteJSON(ctx, builders.BuildAIWorkflowVersion(item, i18nx.Locale(ctx)))
 }
 
 func AIWorkflowGetByAgent(ctx *gin.Context) {
@@ -211,7 +211,7 @@ func AIWorkflowPostPublishAgent(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, err)
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAIWorkflowVersion(item))
+	httpx.WriteJSON(ctx, builders.BuildAIWorkflowVersion(item, i18nx.Locale(ctx)))
 }
 
 func AIWorkflowAnyVersionList(ctx *gin.Context) {
@@ -229,7 +229,7 @@ func AIWorkflowAnyVersionList(ctx *gin.Context) {
 	}
 	queryParams.Cnd = *cnd
 	list, paging := services.AIWorkflowService.FindVersionPageByParams(queryParams)
-	httpx.WriteJSON(ctx, &web.PageResult{Results: builders.BuildAIWorkflowVersionList(list), Page: paging})
+	httpx.WriteJSON(ctx, &web.PageResult{Results: builders.BuildAIWorkflowVersionList(list, i18nx.Locale(ctx)), Page: paging})
 }
 
 func AIWorkflowGetVersionBy(ctx *gin.Context) {
@@ -247,7 +247,7 @@ func AIWorkflowGetVersionBy(ctx *gin.Context) {
 		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0002"))
 		return
 	}
-	httpx.WriteJSON(ctx, builders.BuildAIWorkflowVersion(item))
+	httpx.WriteJSON(ctx, builders.BuildAIWorkflowVersion(item, i18nx.Locale(ctx)))
 }
 
 func AIWorkflowAnyRunList(ctx *gin.Context) {
@@ -272,7 +272,7 @@ func AIWorkflowAnyRunList(ctx *gin.Context) {
 	results := make([]response.AIWorkflowRunResponse, 0, len(auditItems))
 	for i := range auditItems {
 		item := auditItems[i]
-		results = append(results, builders.BuildAIWorkflowRunWithContext(&item.Run, item.Workflow, item.Version, item.Agent, &item.Skill))
+		results = append(results, builders.BuildAIWorkflowRunWithContext(&item.Run, item.Workflow, item.Version, item.Agent, &item.Skill, i18nx.Locale(ctx)))
 	}
 	httpx.WriteJSON(ctx, &web.PageResult{Results: results, Page: paging})
 }
@@ -301,7 +301,7 @@ func AIWorkflowGetRunBy(ctx *gin.Context) {
 		return
 	}
 	auditItem := auditItems[0]
-	ret := builders.BuildAIWorkflowRunDetailWithContext(&auditItem.Run, nodes, auditItem.Workflow, auditItem.Version, auditItem.Agent, &auditItem.Skill)
+	ret := builders.BuildAIWorkflowRunDetailWithContext(&auditItem.Run, nodes, auditItem.Workflow, auditItem.Version, auditItem.Agent, &auditItem.Skill, i18nx.Locale(ctx))
 	ret.HumanHandling = builders.BuildAIWorkflowHumanHandlingAudit(humanHandling)
 	httpx.WriteJSON(ctx, ret)
 }

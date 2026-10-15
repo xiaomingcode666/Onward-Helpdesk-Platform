@@ -24,7 +24,10 @@ const (
 	InboundEmailAppended      = "ticket_appended"
 	InboundEmailPendingManual = "pending_manual_link"
 	InboundEmailDuplicate     = "duplicate"
-	maxEmailBytes             = 2 * 1024 * 1024
+	// InboundEmailFiltered marks mail that is kept for audit but never becomes
+	// a ticket, such as new mail from senders who are not enabled customers.
+	InboundEmailFiltered = "filtered"
+	maxEmailBytes        = 2 * 1024 * 1024
 )
 
 type InboundEmailInput struct {
@@ -138,9 +141,18 @@ func IngestInboundEmail(input InboundEmailInput) (*InboundEmailResult, error) {
 		if input.HoldReason != "" {
 			hold = input.HoldReason
 		}
+		customer := true
+		if hold == "" && ticketID == 0 {
+			if customer, err = isEnabledCustomerEmail(db, input.TenantID, input.FromAddress); err != nil {
+				return err
+			}
+		}
 		if hold != "" {
 			row.Status = InboundEmailPendingManual
 			row.FailureReason = hold
+		} else if !customer {
+			row.Status = InboundEmailFiltered
+			row.FailureReason = "non_customer_sender"
 		} else if ticketID > 0 {
 			var ticket models.Ticket
 			if err := db.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND tenant_id = ?", ticketID, input.TenantID).First(&ticket).Error; err != nil {
@@ -240,6 +252,17 @@ func ResolveInboundEmailManualLink(inboundEmailID, ticketID int64, operator *dto
 var emailTicketMarker = regexp.MustCompile(`(?i)\[Ticket #([A-Za-z0-9_-]{1,64})\]`)
 
 // All hints must agree; subject numbers alone never authorize a sender.
+// isEnabledCustomerEmail limits new email tickets to enabled customer users of
+// the same tenant, so spam and unknown senders cannot flood the ticket queue.
+func isEnabledCustomerEmail(db *gorm.DB, tenantID int64, address string) (bool, error) {
+	if address == "" {
+		return false, nil
+	}
+	var n int64
+	err := db.Model(&models.CustomerUser{}).Where("tenant_id = ? AND status = ? AND LOWER(email) = ?", tenantID, enums.StatusOk, strings.ToLower(address)).Count(&n).Error
+	return n > 0, err
+}
+
 func matchInboundTicket(db *gorm.DB, in InboundEmailInput) (int64, string, string, error) {
 	ids := append([]string{in.InReplyTo}, in.References...)
 	candidates := map[int64]bool{}

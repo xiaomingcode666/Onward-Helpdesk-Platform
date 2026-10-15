@@ -210,7 +210,7 @@ func TestTicketQualityThresholdScalesWithScorecardMaximum(t *testing.T) {
 		}
 	}
 	review, err := CreateTicketQualityReviewWithMetadata(ticket.ID, answers, "", TicketQualityReviewMetadata{
-		Evidence: "工单记录", DisputeStatus: "none", CoachingAction: "重新培训", Outcome: "needs_improvement",
+		Evidence: "工单记录", DefectCodes: []string{"custom_check"}, CoachingAction: "重新培训", Outcome: "needs_improvement",
 	}, operator)
 	require.NoError(t, err)
 	require.Equal(t, 20, review.MaxScore)

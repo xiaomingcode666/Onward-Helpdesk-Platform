@@ -5,9 +5,11 @@ import test from "node:test"
 const source = await readFile(new URL("./template-page.tsx", import.meta.url), "utf8")
 
 test("workflow detail loads agents through paged enterprise APIs", () => {
-  assert.match(source, /fetchEnterpriseAIAgents\(\{ productScoped: 0, page: 1, limit: WORKFLOW_AGENT_OPTION_PAGE_SIZE \}\)/)
+  assert.match(source, /fetchEnterpriseAIAgents\(\{ page: 1, limit: WORKFLOW_AGENT_OPTION_PAGE_SIZE \}\)/)
   assert.match(source, /fetchEnterpriseAIAgents\(\{ workflowId, page: 1, limit: WORKFLOW_ADOPTION_PAGE_SIZE \}\)/)
   assert.match(source, /fetchEnterpriseAIWorkflowAdoption\(\[workflowId\]\)/)
+  // The tenant default agent has productId 0; trial runs must be able to select it.
+  assert.doesNotMatch(source, /productScoped/)
   assert.match(source, /loadAvailableAgentPage/)
   assert.match(source, /loadAdoptedAgentPage/)
   assert.match(source, /ListPagination/)
@@ -30,7 +32,7 @@ test("workflow detail renders the template before secondary modules finish", () 
   assert.match(source, /const \[availableAgentsLoading, setAvailableAgentsLoading\] = useState\(false\)/)
   assert.match(source, /const \[blueprintTemplatesLoading, setBlueprintTemplatesLoading\] = useState\(false\)/)
   assert.match(source, /const versionsTask = fetchWorkflowVersionPage/)
-  assert.match(source, /const availableAgentsTask = fetchEnterpriseAIAgents\(\{ productScoped: 0, page: 1, limit: WORKFLOW_AGENT_OPTION_PAGE_SIZE \}\)/)
+  assert.match(source, /const availableAgentsTask = fetchEnterpriseAIAgents\(\{ page: 1, limit: WORKFLOW_AGENT_OPTION_PAGE_SIZE \}\)/)
   assert.match(source, /const adoptedAgentsTask = fetchEnterpriseAIAgents\(\{ workflowId, page: 1, limit: WORKFLOW_ADOPTION_PAGE_SIZE \}\)/)
   assert.match(source, /const blueprintTemplatesTask = fetchEnterpriseAIWorkflows\(\{ page: 1, limit: WORKFLOW_BLUEPRINT_TEMPLATE_PAGE_SIZE, scope: "platform" \}\)/)
   assert.match(source, /className="flex h-full min-h-0 flex-col overflow-hidden"/)
@@ -116,4 +118,18 @@ test("workflow detail avoids old explanatory copy", () => {
   assert.doesNotMatch(source, /运行结果按节点顺序展开/)
   assert.match(source, /wd\(t, "testPanel\.isolation"\)/)
   assert.match(source, /wd\(t, "testPanel\.emptyResult"\)/)
+})
+
+test("workflow node and branch names use the locale display mapping", () => {
+  assert.match(source, /displayWorkflowNodeName/)
+  assert.match(source, /displayWorkflowName/)
+  assert.match(source, /const branchName = branch\.name \? cleanWorkflowBusinessLabel\(t, branch\.name\)/)
+  assert.match(source, /workflowBusinessNodeTitle\(t, node\)/)
+  assert.match(source, /cleanWorkflowBusinessLabel\(t, node\.name\)/)
+})
+
+test("workflow test agent selector localizes and deduplicates agent labels", () => {
+  assert.match(source, /displayAIAgentOptionLabel\(selectedAgent\.productName, selectedAgent\.name, locale\)/)
+  assert.match(source, /displayAIAgentOptionLabel\(agent\.productName, agent\.name, locale\)/)
+  assert.doesNotMatch(source, /agent\.productName \? `\$\{agent\.productName\} · `/)
 })

@@ -19,6 +19,7 @@ async function loadModule(env, windowLocation) {
     module: { exports: {} },
     process: { env },
     window: { location: windowLocation },
+    require: (name) => (name === "@/i18n/config" ? { readStoredLocale: () => "en-US" } : {}),
   }
   sandbox.exports = sandbox.module.exports
   vm.runInNewContext(compiled.outputText, sandbox)
@@ -50,4 +51,14 @@ test("browser websocket base keeps localhost during development", async () => {
   )
 
   assert.equal(createWebSocketBaseUrl(), "ws://127.0.0.1:8083")
+})
+
+test("realtime urls carry the interface locale", async () => {
+  const { withRealtimeLocale } = await loadModule(
+    { NODE_ENV: "production", NEXT_PUBLIC_API_BASE_URL: "" },
+    { protocol: "https:", host: "example.com", href: "https://example.com/" },
+  )
+
+  assert.equal(withRealtimeLocale("wss://example.com/api/ws/dashboard"), "wss://example.com/api/ws/dashboard?locale=en-US")
+  assert.equal(withRealtimeLocale("wss://example.com/api/ws/open?channelId=7", "zh-CN"), "wss://example.com/api/ws/open?channelId=7&locale=zh-CN")
 })

@@ -192,7 +192,7 @@ func handleSLAWarningInAppNotification(ctx context.Context, event events.SLAWarn
 	return services.NotificationAudienceService.Deliver(recipients, request.CreateNotificationRequest{
 		TenantID:         ticket.TenantID,
 		TitleText:        i18nx.NewText("notificationText.sla.title", i18nx.Params{"ticketNo": notificationTicketNo(ticket.ID, ticket.TicketNo)}),
-		ContentText:      i18nx.NewText("notificationText.sla.content", i18nx.Params{"target": slaViolationText(event.ViolationType), "targetMinutes": event.TargetMinutes, "actualMinutes": event.ActualMinutes}),
+		ContentText:      slaWarningContentText(event),
 		NotificationType: "sla_warning",
 		BizType:          "ticket",
 		BizID:            ticket.ID,
@@ -203,11 +203,62 @@ func handleSLAWarningInAppNotification(ctx context.Context, event events.SLAWarn
 		// 模板变量：已批准模板按接收人语言渲染时使用，避免出现未替换的占位符。
 		TemplateCode: "sla_warning",
 		TemplateVariables: map[string]string{
-			"TicketNo":    notificationTicketNo(ticket.ID, ticket.TicketNo),
-			"TicketTitle": strings.TrimSpace(ticket.Title),
+			"TicketNo":      notificationTicketNo(ticket.ID, ticket.TicketNo),
+			"TicketTitle":   strings.TrimSpace(ticket.Title),
+			"Content.zh-CN": formatSLAWarningContentLocale(event, "zh-CN"),
+			"Content.en-US": formatSLAWarningContentLocale(event, "en-US"),
+			"Content.es-ES": formatSLAWarningContentLocale(event, "es-ES"),
 		},
 		IdempotencyKey: firstEventID(event.EventID, fmt.Sprintf("sla:%d:%s:%s:%d", ticket.ID, event.ViolationType, event.Severity, event.ActualMinutes)),
 	})
+}
+
+func formatSLAWarningContent(event events.SLAWarningEvent) string {
+	return formatSLAWarningContentLocale(event, i18nx.LocaleZhCN)
+}
+
+func formatSLAWarningContentLocale(event events.SLAWarningEvent, locale string) string {
+	return slaWarningContentText(event).Render(locale)
+}
+
+func slaWarningContentText(event events.SLAWarningEvent) i18nx.Text {
+	target := slaViolationText(event.ViolationType)
+	targetMinutes := max(0, event.TargetMinutes)
+	actualMinutes := max(0, event.ActualMinutes)
+	if targetMinutes <= 0 {
+		return i18nx.NewText("notificationText.sla.status.targetMissing", i18nx.Params{"target": target, "elapsed": slaElapsedText(actualMinutes)})
+	}
+
+	if actualMinutes >= targetMinutes {
+		overdueMinutes := actualMinutes - targetMinutes
+		if overdueMinutes < 1 {
+			return i18nx.NewText("notificationText.sla.status.reached", i18nx.Params{"target": target, "targetMinutes": targetMinutes})
+		}
+		return i18nx.NewText("notificationText.sla.status.overdue", i18nx.Params{"target": target, "targetMinutes": targetMinutes, "overdueMinutes": overdueMinutes})
+	}
+
+	// RemainingMinutes was added after some SLA events had already been
+	// persisted. Derive it for those events so their wording remains clear.
+	remainingMinutes := event.RemainingMinutes
+	if remainingMinutes <= 0 {
+		remainingMinutes = targetMinutes - actualMinutes
+	}
+	if remainingMinutes > targetMinutes-actualMinutes {
+		remainingMinutes = targetMinutes - actualMinutes
+	}
+	return i18nx.NewText("notificationText.sla.status.remaining", i18nx.Params{
+		"target":           target,
+		"targetMinutes":    targetMinutes,
+		"elapsed":          slaElapsedText(actualMinutes),
+		"remainingMinutes": remainingMinutes,
+	})
+}
+
+func slaElapsedText(minutes int) i18nx.Text {
+	if minutes <= 0 {
+		return i18nx.NewText("notificationText.sla.elapsed.none", nil)
+	}
+	return i18nx.NewText("notificationText.sla.elapsed.minutes", i18nx.Params{"minutes": minutes})
 }
 
 func handleSecurityAlertInAppNotification(ctx context.Context, event events.SecurityAlertEvent) error {
@@ -254,7 +305,7 @@ func quotaResourceText(resourceType string) i18nx.Text {
 }
 
 func slaViolationText(violationType string) i18nx.Text {
-	switch strings.TrimSpace(violationType) {
+	switch strings.ToLower(strings.TrimSpace(violationType)) {
 	case "frt":
 		return i18nx.NewText("notificationText.sla.target.firstResponse", nil)
 	case "assignment":

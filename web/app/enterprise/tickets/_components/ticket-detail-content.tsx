@@ -1,7 +1,7 @@
 "use client"
 import { TicketEmailPanel } from "./ticket-email-panel"
 
-import { translateCurrentMessage } from "@/i18n/messages"
+import { matchMessage, translateCurrentMessage } from "@/i18n/messages"
 import {
   AlertTriangleIcon,
   CheckCircle2Icon,
@@ -24,6 +24,8 @@ import type { TicketAggregateDTO, TicketFlowStepDTO } from "@/lib/api/types"
 import { displayTicketStatus, isCaseStatus, isProcessingTicketStatus, isTerminalTicketStatus } from "@/lib/ticket-lifecycle"
 import { caseLabel, caseStatusLabel, localizeCaseTimelineContent } from "@/lib/ticket-case-labels"
 import { cn, formatDateTime } from "@/lib/utils"
+import { useI18n } from "@/i18n/provider"
+import { renderCustomerConversationSummary } from "@/lib/customer-conversation-summary-i18n"
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
     return translateCurrentMessage(`enterpriseExtract.${key}`)
@@ -374,12 +376,17 @@ function extractTimelineReason(value: string) {
   return match?.[1]?.trim() ?? ""
 }
 
+const TIMELINE_REASON_KEYS = [
+  "ticketReasonAutoAssign",
+  "ticketReasonInitialAssignee",
+  "ticketReasonManualAutoAssign",
+  "ticketSupportTakeoverAssigned",
+]
+
 function localizeTimelineReason(value: string) {
   const normalized = value.trim()
-  if (normalized === "自动分配") return cee("ticketReasonAutoAssign")
-  if (normalized === "创建工单时指定负责人") return cee("ticketReasonInitialAssignee")
-  if (normalized === "手动触发自动分配") return cee("ticketReasonManualAutoAssign")
-  return normalized
+  const key = TIMELINE_REASON_KEYS.find((item) => matchMessage(`customerEntryExtract.event.${item}`, normalized))
+  return key ? cee(key) : normalized
 }
 
 function localizeEventDuration(value: string | undefined) {
@@ -509,6 +516,7 @@ export function EnterpriseTicketDetailContent({
   showDeviceContext = true,
 }: TicketDetailContentProps) {
   const { ready: authReady, session } = useAuth()
+  const t = useI18n()
   const [activeTab, setActiveTab] = useState<DetailTabKey>("overview")
   const detailTabs = buildDetailTabs()
   const compact = variant === "compact"
@@ -520,6 +528,17 @@ export function EnterpriseTicketDetailContent({
   const repair = aggregate.repair
   const repairParts = repair.parts ?? []
   const conversation = aggregate.conversation_snapshot
+  const localizedConversationSummary = conversation?.summary
+    ? localizeGeneratedTimelineContent(conversation.summary, showDeviceContext)
+    : ""
+  const conversationSummaryText =
+    localizedConversationSummary && localizedConversationSummary !== conversation?.summary
+      ? localizedConversationSummary
+      : renderCustomerConversationSummary(
+          conversation?.summary,
+          (key, values) => translateCurrentMessage(key, values),
+          ee("ticketDetail.text067"),
+        )
   const feedback = aggregate.feedback
   const assets = aggregate.assets ?? []
   const timeline = aggregate.timeline ?? []
@@ -543,14 +562,16 @@ export function EnterpriseTicketDetailContent({
     ] as Array<[string, string]> : []),
     [ee("ticketDetail.text054"), sourceLabel(ticket.source)],
     ...(ticket.source_record_id ? [
-      ["受理渠道", channelLabel(ticket.channel)],
-      ["来源记录", ticket.source_record_id],
-      ["运营配置版本", ticket.project_config_version_id ? `V${ticket.project_config_version_id}` : "未绑定运营配置"],
-      ["服务项目", ticket.project_key || "-"],
-      ["工单类型", ticket.ticket_type || "-"],
-      ["来电人", ticket.caller_name || "-"],
-      ["联系电话", ticket.caller_phone || "-"],
-      ["接入时间", ticket.received_at ? formatDateTime(ticket.received_at) : "-"],
+      [t("ticketIntake.channel"), channelLabel(ticket.channel)],
+      [t("ticketIntake.sourceRecord"), ticket.source_record_id],
+      [t("ticketIntake.configVersion"), ticket.project_config_version_id ? `V${ticket.project_config_version_id}` : t("ticketIntake.configVersionUnbound")],
+      [t("ticketIntake.project"), ticket.project_key || "-"],
+      [t("ticketIntake.ticketType"), ticket.ticket_type || "-"],
+      [t("ticketIntake.caller"), ticket.caller_name || "-"],
+      [t("ticketIntake.callerPhone"), ticket.caller_phone || "-"],
+      [t("ticketIntake.receivedAt"), ticket.received_at ? formatDateTime(ticket.received_at) : "-"],
+    ] as Array<[string, string]> : ticket.caller_phone ? [
+      [t("ticketIntake.callerPhone"), ticket.caller_phone],
     ] as Array<[string, string]> : []),
     [ee("tickets.text103"), ticketServiceProfileLabel(ticket.service_profile)],
     [ee("tickets.text108"), ticketServiceTargetLabel(ticket.service_target)],
@@ -620,7 +641,7 @@ export function EnterpriseTicketDetailContent({
                 </div>
                 {item.reason ? (
                   <div className="mt-1 text-rhd-xs text-muted-foreground">
-                    {ee("ticketDetail.text118", { value0: item.reason })}
+                    {ee("ticketDetail.text118", { value0: localizeTimelineReason(item.reason) })}
                   </div>
                 ) : null}
               </div>
@@ -638,7 +659,9 @@ export function EnterpriseTicketDetailContent({
     >
       {conversation ? (
         <div className="space-y-2 text-xs leading-5 text-muted-foreground">
-          <p className="line-clamp-4">{conversation.summary || ee("ticketDetail.text067")}</p>
+          <p className="line-clamp-4">
+            {conversationSummaryText}
+          </p>
           <div className="flex flex-wrap gap-2">
             <span>{conversation.message_count}{ee("ticketDetail.text068")}</span>
             <span>{conversation.ai_served ? ee("ticketDetail.text069") : ee("ticketDetail.text070")}</span>

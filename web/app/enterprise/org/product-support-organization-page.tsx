@@ -1103,7 +1103,7 @@ export function ProductSupportOrganizationPage() {
                         width: 190,
                         render: (_, ticket: TicketListItem) => (
                           <div>
-                            <div className="text-sm">{ticket.assignee_name || ticket.team_name || selectedTeam.name}</div>
+                            <div className="text-sm">{ticket.assignee_name || (ticket.team_name || selectedTeam.name)}</div>
                             {!ticket.assignee_id ? <div className="text-xs text-muted-foreground">{ops(t, isTechnicalTeam ? "ticketsPanel.maintenanceUnclaimed" : "ticketsPanel.unclaimed")}</div> : null}
                           </div>
                         ),

@@ -45,8 +45,8 @@ export const getProjectConfiguration = (beforeId?: number) => apiGet<Configurati
 export const upgradeProjectConfiguration = () => apiGet<ProjectConfiguration>("/ticket-settings/configuration/upgrade")
 export const validateProjectConfiguration = (document: ProjectConfiguration) => apiPost<ConfigurationReport>("/ticket-settings/configuration/validate", document)
 export const previewProjectConfigurationImpact = (document: ProjectConfiguration, limit = 100) => apiPost<ConfigurationImpact>("/ticket-settings/configuration/impact-preview", { document, limit })
-export const saveProjectConfiguration = (document: ProjectConfiguration, baseVersion: number, note: string, requestKey: string) =>
-  apiPost<ConfigurationVersion>("/ticket-settings/configuration/drafts", { document, base_version_id: baseVersion, note, request_key: requestKey })
+export const saveProjectConfiguration = (document: ProjectConfiguration, baseVersion: number, note: string, requestKey: string, secrets?: { smtpPassword?: string; imapPassword?: string }) =>
+  apiPost<ConfigurationVersion>("/ticket-settings/configuration/drafts", { document, base_version_id: baseVersion, note, request_key: requestKey, smtp_password: secrets?.smtpPassword || undefined, imap_password: secrets?.imapPassword || undefined })
 export const applyProjectConfiguration = (id: number) => apiPost<ConfigurationVersion>(`/ticket-settings/configuration/${id}/apply`, {})
 export const listRetentionApprovals = (versionId: number) => apiGet<RetentionApproval[]>("/ticket-settings/configuration/retention", { version_id: versionId })
 export const submitRetentionApproval = (versionId: number) => apiPost<RetentionApproval[]>(`/ticket-settings/configuration/${versionId}/retention/submit`, {})

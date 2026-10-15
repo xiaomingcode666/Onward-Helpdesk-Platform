@@ -1,6 +1,7 @@
 "use client"
 
 import { translateCurrentMessage } from "@/i18n/messages"
+import type { AppLocale } from "@/i18n/config"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -35,12 +36,12 @@ import type { TicketAggregateDTO, TicketListItem } from "@/lib/api/types"
 import { customerDisplayName } from "@/lib/customer-identity"
 import { caseStatuses, displayTicketStatus, isProcessingTicketStatus, isTerminalTicketStatus } from "@/lib/ticket-lifecycle"
 import { caseLabel, caseStatusLabel } from "@/lib/ticket-case-labels"
+import { useAppLocale } from "@/i18n/provider"
 import { TicketCaseLifecycle } from "./_components/ticket-case-lifecycle"
 import { TicketGovernancePanel } from "./_components/ticket-governance"
 import { TicketCreateModal } from "./_components/ticket-create-modal"
 import { caseTypes, governanceLabel as g } from "@/lib/ticket-governance"
 import { ProjectConfigurationEditor } from "./_components/project-configuration-editor"
-import { readStoredLocale } from "@/i18n/config"
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
     return translateCurrentMessage(`enterpriseExtract.${key}`)
@@ -109,12 +110,12 @@ function parseTicketTime(value?: string) {
   return Number.isFinite(timestamp) ? timestamp : 0
 }
 
-function formatTicketTime(value?: string) {
+function formatTicketTime(value: string | undefined, locale: AppLocale = "zh-CN") {
   const timestamp = parseTicketTime(value)
   if (!timestamp) {
     return "-"
   }
-  return new Date(timestamp).toLocaleString(readStoredLocale(), {
+  return new Date(timestamp).toLocaleString(locale, {
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -122,7 +123,7 @@ function formatTicketTime(value?: string) {
   })
 }
 
-function formatSla(deadline: string, breached: boolean, status: string) {
+function formatSla(deadline: string, breached: boolean, status: string, locale: AppLocale = "zh-CN") {
   if (isTerminalTicketStatus(status)) {
     return ee("tickets.text002")
   }
@@ -145,7 +146,7 @@ function formatSla(deadline: string, breached: boolean, status: string) {
   if (hours < 72) {
     return ee("tickets.text007", { value0: hours })
   }
-  return formatTicketTime(deadline)
+  return formatTicketTime(deadline, locale)
 }
 
 function priorityLabel(priority: string) {
@@ -207,6 +208,7 @@ function filterToQuery(filter: TicketFilterKey) {
 
 export default function EnterpriseTicketsPage() {
   const { session } = useAuth()
+  const { locale } = useAppLocale()
   const router = useRouter()
   const searchParams = useSearchParams()
   const hasDeviceConcept = session?.featureFlags?.device !== false
@@ -496,7 +498,7 @@ export default function EnterpriseTicketsPage() {
       render: (_, ticket) => (
         <div className="rhd-railops-ticket-risk-cell">
           <StatusTag tone={priorityTagTone(ticket.priority)}>{priorityLabel(ticket.priority)}</StatusTag>
-          <StatusTag tone={slaTagTone(ticket)}>{formatSla(ticket.sla_deadline, ticket.sla_breached, ticket.status)}</StatusTag>
+          <StatusTag tone={slaTagTone(ticket)}>{formatSla(ticket.sla_deadline, ticket.sla_breached, ticket.status, locale)}</StatusTag>
         </div>
       ),
     },
@@ -505,7 +507,7 @@ export default function EnterpriseTicketsPage() {
       key: "updated",
       width: 104,
       align: "center",
-      render: (_, ticket) => formatTicketTime(ticket.updated_at || ticket.created_at),
+      render: (_, ticket) => formatTicketTime(ticket.updated_at || ticket.created_at, locale),
     },
     {
       title: "",
@@ -533,7 +535,7 @@ export default function EnterpriseTicketsPage() {
         </div>
       ),
     },
-  ], [hasDeviceConcept, openTicketModal])
+  ], [hasDeviceConcept, locale, openTicketModal])
 
   return (
     <PageShell

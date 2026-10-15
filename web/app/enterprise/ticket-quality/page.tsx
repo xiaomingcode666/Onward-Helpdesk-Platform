@@ -19,10 +19,12 @@ import {
 } from "@railops/ui"
 import { toast } from "sonner"
 
+import { useAuth } from "@/components/auth-provider"
 import { useRouteBreadcrumbItems } from "@/components/layout/route-breadcrumbs"
 import { translateCurrentMessage } from "@/i18n/messages"
 import { useAppLocale } from "@/i18n/provider"
 import { TicketQualityPanel } from "@/app/enterprise/tickets/_components/ticket-quality-panel"
+import { TicketQualityDisputeQueue } from "./dispute-queue"
 import {
   fetchTicketQualitySamples,
   fetchTicketQualityAnalysis,
@@ -128,6 +130,10 @@ export function TicketQualityContent({ embedded = false }: TicketQualityContentP
   const [analysisChannel, setAnalysisChannel] = useState("")
   const [analysisLoading, setAnalysisLoading] = useState(false)
   const breadcrumbItems = useRouteBreadcrumbItems()
+  const { session } = useAuth()
+  // Personal results are only filterable and reviewable with the dedicated permissions.
+  const canViewAgentQuality = Boolean(session?.permissions?.includes("ticketQuality.viewAgent"))
+  const canReviewDisputes = Boolean(session?.permissions?.includes("ticketQuality.disputeReview"))
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -224,7 +230,7 @@ export function TicketQualityContent({ embedded = false }: TicketQualityContentP
       render: (_, item) => item.latest_review ? (
         <div className="flex flex-col gap-0.5">
           <span className="font-medium tabular-nums">{item.latest_review.total_score}/{item.latest_review.max_score}</span>
-          <StatusTag tone={reviewResultTone(item.latest_review.outcome || item.latest_review.result)}>{reviewResultLabel(item.latest_review.outcome || item.latest_review.result)}</StatusTag>
+          <StatusTag tone={reviewResultTone(item.latest_review.final_outcome || item.latest_review.outcome || item.latest_review.result)}>{reviewResultLabel(item.latest_review.final_outcome || item.latest_review.outcome || item.latest_review.result)}</StatusTag>
         </div>
       ) : <span className="text-slate-400">{t("review.notEvaluated")}</span>,
     },
@@ -277,7 +283,7 @@ export function TicketQualityContent({ embedded = false }: TicketQualityContentP
           <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.endDate")}<DatePicker className="ticket-quality-date-picker h-9 w-full" value={analysisTo ? dayjs(analysisTo) : null} format="YYYY-MM-DD" placeholder={t("analysis.filters.datePlaceholder")} onChange={(value) => setAnalysisTo(value?.format("YYYY-MM-DD") ?? "")} /></label>
           <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.project")}<Input className="h-9 w-full" value={analysisProject} onChange={(event) => setAnalysisProject(event.target.value)} placeholder={t("analysis.filters.projectPlaceholder")} /></label>
           <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.team")}<Input className="h-9 w-full" value={analysisTeamID} onChange={(event) => setAnalysisTeamID(event.target.value.replace(/\D/g, ""))} placeholder={t("analysis.filters.idPlaceholder")} /></label>
-          <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.agent")}<Input className="h-9 w-full" value={analysisAgentID} onChange={(event) => setAnalysisAgentID(event.target.value.replace(/\D/g, ""))} placeholder={t("analysis.filters.idPlaceholder")} /></label>
+          {canViewAgentQuality ? <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.agent")}<Input className="h-9 w-full" value={analysisAgentID} onChange={(event) => setAnalysisAgentID(event.target.value.replace(/\D/g, ""))} placeholder={t("analysis.filters.idPlaceholder")} /></label> : null}
           <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.category")}<Input className="h-9 w-full" value={analysisCategory} onChange={(event) => setAnalysisCategory(event.target.value)} placeholder={t("analysis.filters.optionalPlaceholder")} /></label>
           <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.channel")}<Input className="h-9 w-full" value={analysisChannel} onChange={(event) => setAnalysisChannel(event.target.value)} placeholder={t("analysis.filters.optionalPlaceholder")} /></label>
           <RailopsButton className="h-9 w-full" onClick={refreshAnalysis} disabled={analysisLoading}><RefreshCwIcon className={analysisLoading ? "size-4 animate-spin" : "size-4"} />{t("analysis.actions.analyze")}</RailopsButton>
@@ -295,6 +301,8 @@ export function TicketQualityContent({ embedded = false }: TicketQualityContentP
           </>
         )}
       </ContentModule>
+
+      {canReviewDisputes ? <TicketQualityDisputeQueue /> : null}
 
       <StatGrid>
         <StatCard label={t("summary.total")} value={summary.total} tone="blue" />

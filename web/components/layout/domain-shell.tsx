@@ -289,6 +289,7 @@ export function DomainShell({
   const searchParams = useSearchParams()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [tenantLogoFailed, setTenantLogoFailed] = useState(false)
   const effectivePermissions = permissions ?? session?.permissions ?? []
   const effectiveFeatureFlags = session?.featureFlags
   const tenantBranding = domain === "enterprise" || domain === "customer" ? session?.tenantBranding : undefined
@@ -325,6 +326,10 @@ export function DomainShell({
       pathname?.startsWith("/enterprise/workbench") ||
       pathname?.startsWith("/enterprise/products"),
   )
+
+  useEffect(() => {
+    setTenantLogoFailed(false)
+  }, [shellBrandLogo])
 
   useEffect(() => {
     try {
@@ -452,11 +457,16 @@ export function DomainShell({
         </button>
 
         <div className="flex min-w-0 items-center gap-3">
-          {shellBrandLogo ? (
+          {shellBrandLogo && !tenantLogoFailed ? (
             <span className="inline-flex h-8 w-28 shrink-0 items-center overflow-hidden">
               {/* Tenant logos may be same-origin assets or tenant-managed HTTPS resources. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={shellBrandLogo} alt={shellBrandName} className="max-h-8 max-w-28 object-contain object-left" />
+              <img
+                src={shellBrandLogo}
+                alt={shellBrandName}
+                className="max-h-8 max-w-28 object-contain object-left"
+                onError={() => setTenantLogoFailed(true)}
+              />
             </span>
           ) : (
             <AppLogoMark alt={shellBrandName} className="size-7" imageClassName="p-0.5" priority />

@@ -27,7 +27,7 @@ export function ProfilePanel({ serviceCode }: ProfilePanelProps) {
           <p className="mt-3 text-lg font-medium">
             {t("portalExtract.serviceCode.profile.accountTitle")}
           </p>
-          <p className="text-sm text-muted-foreground">Customer Account</p>
+          <p className="text-sm text-muted-foreground">{t("portalExtract.customerMobile.common.customerAccount")}</p>
         </CardContent>
       </Card>
 
