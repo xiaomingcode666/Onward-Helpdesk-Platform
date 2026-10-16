@@ -67,3 +67,21 @@ func TestBuildVoiceTicketTitleTruncates(t *testing.T) {
 		t.Fatalf("title length = %d, want 200", utf8.RuneCountInString(got))
 	}
 }
+
+func TestBuildVoiceTicketTitleKeepsFaultCodeBeforeColon(t *testing.T) {
+	stubVoiceTicketTitleLLM(t, func(context.Context, string, string) (string, error) {
+		return "E05: Printer will not power on", nil
+	})
+	if got := buildVoiceTicketTitle(context.Background(), "printer error"); got != "E05: Printer will not power on" {
+		t.Fatalf("title = %q", got)
+	}
+}
+
+func TestBuildVoiceTicketTitleStripsEnglishLabel(t *testing.T) {
+	stubVoiceTicketTitleLLM(t, func(context.Context, string, string) (string, error) {
+		return "Title: \"Printer will not power on\"", nil
+	})
+	if got := buildVoiceTicketTitle(context.Background(), "printer error"); got != "Printer will not power on" {
+		t.Fatalf("title = %q", got)
+	}
+}

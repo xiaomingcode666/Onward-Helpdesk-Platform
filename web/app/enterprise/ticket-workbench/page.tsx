@@ -123,6 +123,7 @@ import { displayTicketStatus, isCaseStatus, isProcessingTicketStatus, isTerminal
 import { caseLabel, caseStatusLabel, localizeCaseTimelineContent } from "@/lib/ticket-case-labels"
 import { TicketCaseLifecycle } from "@/app/enterprise/tickets/_components/ticket-case-lifecycle"
 import { TicketCreateModal } from "@/app/enterprise/tickets/_components/ticket-create-modal"
+import { isAudioAttachment, TicketAudioAttachment } from "@/components/tickets/ticket-audio-attachment"
 import { TicketClassificationFields, TicketGovernancePanel } from "@/app/enterprise/tickets/_components/ticket-governance"
 import { governanceLabel, type CaseType } from "@/lib/ticket-governance"
 import { sortWorkbenchQueueItems } from "@/lib/ticket-workbench-queue"
@@ -294,6 +295,7 @@ type WorkbenchAttachment = {
   desc: string
   status: string
   tone?: Tone
+  audioAssetId?: string
 }
 
 type WorkbenchPart = {
@@ -3683,13 +3685,15 @@ function WorkbenchContextPane({
           ) : detail.attachments.length > 0 ? (
             <div className="space-y-2">
               {detail.attachments.map((attachment) => (
-                <ContextRow
-                  key={attachment.key}
-                  label={attachment.label}
-                  value={attachment.desc}
-                  badge={attachment.status}
-                  tone={attachment.tone}
-                />
+                <div key={attachment.key}>
+                  <ContextRow
+                    label={attachment.label}
+                    value={attachment.desc}
+                    badge={attachment.status}
+                    tone={attachment.tone}
+                  />
+                  {attachment.audioAssetId ? <TicketAudioAttachment assetId={attachment.audioAssetId} /> : null}
+                </div>
               ))}
             </div>
           ) : (
@@ -4862,6 +4866,7 @@ function buildAggregateAttachments(assets: AssetRefDTO[] | undefined): Workbench
     desc: asset.file_name,
     status: ee("ticketWorkbench.text303"),
     tone: "good",
+    audioAssetId: isAudioAttachment(asset) ? asset.asset_id : undefined,
   }))
 }
 

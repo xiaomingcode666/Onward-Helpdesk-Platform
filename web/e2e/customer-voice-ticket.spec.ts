@@ -2,8 +2,6 @@ import { expect, test, type Page } from "@playwright/test"
 
 test.use({ video: "off" })
 
-const CONVERSATION_ID = 4101
-
 function sineWav(seconds = 1, sampleRate = 16_000) {
   const frames = seconds * sampleRate
   const buffer = Buffer.alloc(44 + frames * 2)
@@ -25,10 +23,14 @@ function sineWav(seconds = 1, sampleRate = 16_000) {
   return buffer
 }
 
-type Captured = { transcribeContentType?: string; voiceTicketBody?: Record<string, unknown>; sentMessages: number }
+type Captured = {
+  transcribeContentType?: string
+  voiceTicketBody?: string
+  conversationCalls: string[]
+}
 
 async function mockCustomerPortal(page: Page, locale: "zh-CN" | "en-US", transcript: string): Promise<Captured> {
-  const captured: Captured = { sentMessages: 0 }
+  const captured: Captured = { conversationCalls: [] }
   const profile = {
     accessToken: "voice-ticket-fixture", domainType: "customer", tenantId: 7001,
     user: { id: 8101, username: "voice-customer", nickname: "Voice Customer", avatar: "", status: 0, roles: ["customer"] },
@@ -40,31 +42,19 @@ async function mockCustomerPortal(page: Page, locale: "zh-CN" | "en-US", transcr
     localStorage.setItem("remote-helpdesk-locale", loc)
     localStorage.setItem("remote-helpdesk-locale:customer:7001", loc)
   }, { value: profile, loc: locale })
-  const conversation = {
-    id: CONVERSATION_ID, status: "active", service_mode: 1, human_handoff_enabled: true, ticket_creation_enabled: true,
-    priority: 0, last_message_summary: "", last_message_at: "2026-10-16T08:00:00Z", last_active_at: "2026-10-16T08:00:00Z",
-    customer_unread_count: 0, device_id: 0, device_no: "", product_name: "", current_assignee_name: "",
-    current_ticket_id: 0, current_ticket_no: "", current_meeting_id: "", current_meeting_status: "",
-  }
   await page.route("**/api/**", async (route) => {
     const request = route.request()
-    const url = new URL(request.url())
-    const path = url.pathname
+    const path = new URL(request.url()).pathname
     let data: unknown = {}
+    if (path.startsWith("/api/message/") || path.startsWith("/api/conversation/")) captured.conversationCalls.push(path)
     if (path === "/api/auth/profile") data = profile
-    else if (path === "/api/customer/v1/conversations/page") data = { results: [conversation], page: { page: 1, limit: 20, total: 1 } }
-    else if (path === `/api/customer/v1/conversations/${CONVERSATION_ID}`) data = conversation
     else if (path.includes("/page") || path.endsWith("/list")) data = { results: [], page: { page: 1, limit: 20, total: 0 }, hasMore: false }
-    else if (path === "/api/message/upload_audio") data = { assetId: "voice-asset-e2e", filename: "voice.wav", contentType: "audio/wav", size: 32044 }
-    else if (path === "/api/message/send") {
-      captured.sentMessages += 1
-      data = { id: 9001, conversationId: CONVERSATION_ID, clientMsgId: "voice", senderType: "customer", messageType: "audio", content: "voice.wav", payload: "{}", createdAt: "2026-10-16T08:01:00Z" }
-    } else if (path === "/api/message/transcribe_audio") {
+    else if (path === "/api/customer/v1/voice-tickets/_transcribe") {
       captured.transcribeContentType = request.headers()["content-type"]
       data = { text: transcript, language: "zh-CN", provider: "local_whisper", durationSeconds: 1 }
-    } else if (path === "/api/conversation/voice_ticket") {
-      captured.voiceTicketBody = request.postDataJSON()
-      data = { ticketId: 501, ticketNo: "TK-VOICE-501", created: true }
+    } else if (path === "/api/customer/v1/voice-tickets") {
+      captured.voiceTicketBody = request.postDataBuffer()?.toString("latin1")
+      data = { ticketId: 501, ticketNo: "TK-VOICE-501" }
     }
     await route.fulfill({ json: { success: true, data } })
   })
@@ -72,29 +62,30 @@ async function mockCustomerPortal(page: Page, locale: "zh-CN" | "en-US", transcr
 }
 
 async function openVoiceDialog(page: Page) {
-  await page.goto(`/customer/chat?conversationId=${CONVERSATION_ID}`, { waitUntil: "domcontentloaded" })
+  await page.goto("/customer/chat", { waitUntil: "domcontentloaded" })
   await page.getByTestId("voice-ticket-open").click()
   await page.getByTestId("voice-ticket-file").setInputFiles({ name: "voice.wav", mimeType: "audio/wav", buffer: sineWav() })
 }
 
-test("customer uploads voice, reviews transcript and creates a ticket", async ({ page }) => {
+test("customer creates a standalone ticket by voice from the chat page header", async ({ page }) => {
   const transcript = "打印机今天早上无法开机，指示灯一直闪红色。"
   const captured = await mockCustomerPortal(page, "zh-CN", transcript)
   await openVoiceDialog(page)
 
   const textarea = page.getByTestId("voice-ticket-transcript")
   await expect(textarea).toHaveValue(transcript)
-  expect(captured.sentMessages).toBe(1)
   expect(captured.transcribeContentType).toContain("multipart/form-data")
 
   await textarea.fill(`${transcript}已经重启过。`)
   await page.getByTestId("voice-ticket-submit").click()
-  await expect(page.getByText("已为您创建工单 TK-VOICE-501")).toBeVisible()
-  expect(captured.voiceTicketBody).toMatchObject({
-    conversationId: CONVERSATION_ID,
-    transcript: `${transcript}已经重启过。`,
-    audioAssetId: "voice-asset-e2e",
-  })
+  await expect(page).toHaveURL(/\/customer\/ticket/)
+
+  const body = captured.voiceTicketBody ?? ""
+  expect(body).toContain('name="audio"')
+  expect(body).toContain('name="requestKey"')
+  expect(body).toContain('name="transcript"')
+  // Nothing is posted into any conversation.
+  expect(captured.conversationCalls).toEqual([])
 })
 
 test("voice ticket dialog shows only English in English mode", async ({ page }) => {

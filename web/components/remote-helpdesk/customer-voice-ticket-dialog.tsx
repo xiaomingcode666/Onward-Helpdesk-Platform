@@ -7,27 +7,19 @@ import { RailopsButton, StandardModal } from "@railops/ui"
 
 import { VoiceRecorderButton } from "@/components/chat/voice-recorder-button"
 import { useI18n } from "@/i18n/provider"
-import type { CustomerVoiceTicketResult, CustomerVoiceTranscription, ImAsset, ImMessage } from "@/lib/api/im"
+import {
+  submitCustomerVoiceTicket,
+  transcribeCustomerVoice,
+  type CustomerVoiceTicketResult,
+} from "@/lib/api/customer-voice-tickets"
 import { convertAudioToPCM16Wav } from "@/lib/audio/pcm-wav"
 import { generateUUID } from "@/lib/utils"
 
 const VOICE_TICKET_TRANSCRIPT_MAX = 4000
 
-// Customer voice ticket calls, bound to the caller's session (guest entry
-// session or logged-in customer portal).
-export type CustomerVoiceTicketApi = {
-  uploadAudio: (conversationId: number, file: File) => Promise<ImAsset>
-  sendMessage: (payload: { conversationId: number; content: string; clientMsgId: string; messageType: string; payload: string }) => Promise<ImMessage>
-  transcribe: (conversationId: number, wav: File) => Promise<CustomerVoiceTranscription>
-  submit: (body: { conversationId: number; transcript: string; audioAssetId: string }) => Promise<CustomerVoiceTicketResult>
-}
-
 type CustomerVoiceTicketDialogProps = {
   open: boolean
-  api: CustomerVoiceTicketApi
-  conversationId: number
   onOpenChange: (open: boolean) => void
-  onMessageSent: (message: ImMessage) => void
   onSubmitted: (result: CustomerVoiceTicketResult) => void
 }
 
@@ -35,19 +27,15 @@ function errorText(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback
 }
 
-export function CustomerVoiceTicketDialog({
-  open,
-  api,
-  conversationId,
-  onOpenChange,
-  onMessageSent,
-  onSubmitted,
-}: CustomerVoiceTicketDialogProps) {
+// Standalone voice ticket: the recording is transcribed, reviewed by the
+// customer and submitted as a new ticket that is not tied to any conversation.
+export function CustomerVoiceTicketDialog({ open, onOpenChange, onSubmitted }: CustomerVoiceTicketDialogProps) {
   const t = useI18n()
-  const vt = (key: string, values?: Record<string, string | number>) => t(`customerEntryExtract.chat.voiceTicket${key}`, values)
+  const vt = (key: string) => t(`customerEntryExtract.chat.voiceTicket${key}`)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const [audioAssetId, setAudioAssetId] = useState("")
+  const [audio, setAudio] = useState<File | null>(null)
   const [transcript, setTranscript] = useState("")
+  const [requestKey, setRequestKey] = useState("")
   const [transcribing, setTranscribing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
@@ -55,30 +43,20 @@ export function CustomerVoiceTicketDialog({
 
   useEffect(() => {
     if (!open) return
-    setAudioAssetId("")
+    setAudio(null)
     setTranscript("")
+    setRequestKey(generateUUID())
     setTranscribing(false)
     setSubmitting(false)
     setError("")
-  }, [open, conversationId])
+  }, [open])
 
-  async function processAudio(file: File, durationSeconds?: number) {
+  async function processAudio(file: File) {
     setTranscribing(true)
     setError("")
     setTranscript("")
+    setAudio(file)
     try {
-      // Send the original recording first so it is kept in the conversation.
-      const asset = await api.uploadAudio(conversationId, file)
-      const message = await api.sendMessage({
-        conversationId,
-        content: asset.filename,
-        clientMsgId: `entry_voice_ticket_${generateUUID()}`,
-        messageType: "audio",
-        payload: JSON.stringify({ assetId: asset.assetId, ...(durationSeconds ? { durationSeconds } : {}) }),
-      })
-      onMessageSent(message)
-      setAudioAssetId(asset.assetId)
-
       let wav: File
       try {
         wav = await convertAudioToPCM16Wav(file)
@@ -86,7 +64,7 @@ export function CustomerVoiceTicketDialog({
         setError(vt("DecodeFailed"))
         return
       }
-      const result = await api.transcribe(conversationId, wav)
+      const result = await transcribeCustomerVoice(wav)
       setTranscript(result.text.slice(0, VOICE_TICKET_TRANSCRIPT_MAX))
     } catch (processError) {
       setError(errorText(processError, vt("TranscribeFailed")))
@@ -96,13 +74,13 @@ export function CustomerVoiceTicketDialog({
   }
 
   async function submit() {
-    if (!audioAssetId || !transcript.trim() || busy) return
+    if (!audio || !transcript.trim() || busy) return
     setSubmitting(true)
     setError("")
     try {
-      const result = await api.submit({ conversationId, transcript: transcript.trim(), audioAssetId })
-      onSubmitted(result)
+      const result = await submitCustomerVoiceTicket({ transcript: transcript.trim(), requestKey, audio })
       onOpenChange(false)
+      onSubmitted(result)
     } catch (submitError) {
       setError(errorText(submitError, vt("SubmitFailed")))
     } finally {
@@ -125,7 +103,7 @@ export function CustomerVoiceTicketDialog({
             variant="primary"
             data-testid="voice-ticket-submit"
             onClick={() => void submit()}
-            disabled={!audioAssetId || !transcript.trim() || busy}
+            disabled={!audio || !transcript.trim() || busy}
           >
             {submitting ? <Loader2Icon className="size-4 animate-spin" /> : <SendIcon className="size-4" />}
             {submitting ? vt("Submitting") : vt("Submit")}
@@ -153,9 +131,10 @@ export function CustomerVoiceTicketDialog({
           <VoiceRecorderButton
             disabled={busy}
             className="border border-border"
-            onRecorded={(file, seconds) => processAudio(file, seconds)}
+            onRecorded={(file) => processAudio(file)}
             onError={(message) => setError(message)}
           />
+          {audio ? <span className="text-xs text-muted-foreground">{audio.name}</span> : null}
         </div>
         {transcribing ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">

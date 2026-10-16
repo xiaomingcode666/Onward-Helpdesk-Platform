@@ -7,8 +7,6 @@ import {
   markImMessageRead,
   requestImHumanSupport,
   sendImMessage,
-  submitImVoiceTicket,
-  transcribeImAudio,
   uploadImAttachment,
   uploadImAudio,
   uploadImImage,
@@ -116,14 +114,7 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react"
 import { toast } from "sonner"
-import { CustomerVoiceTicketDialog, type CustomerVoiceTicketApi } from "@/components/remote-helpdesk/customer-voice-ticket-dialog"
-
-const portalVoiceTicketApi: CustomerVoiceTicketApi = {
-  uploadAudio: uploadImAudio,
-  sendMessage: sendImMessage,
-  transcribe: transcribeImAudio,
-  submit: submitImVoiceTicket,
-}
+import { CustomerVoiceTicketDialog } from "@/components/remote-helpdesk/customer-voice-ticket-dialog"
 
 type I18nT = ReturnType<typeof useI18n>
 
@@ -1604,6 +1595,14 @@ export function CustomerChatPortalPage() {
 
   return (
     <div className="rhd-railops-customer-page rhd-railops-customer-chat-page space-y-4 text-rhd-md">
+      <CustomerVoiceTicketDialog
+        open={voiceTicketOpen}
+        onOpenChange={setVoiceTicketOpen}
+        onSubmitted={(result) => {
+          toast.success(t("customerEntryExtract.chat.voiceTicketCreated", { ticketNo: result.ticketNo }))
+          router.push(buildCustomerTicketPath(result.ticketId))
+        }}
+      />
       <PageHeader
         title={t("customerChat.pageTitle")}
         compact
@@ -1611,6 +1610,10 @@ export function CustomerChatPortalPage() {
           <>
             <Button type="button" variant="outline" size="icon" aria-label={t("common.refresh")} title={t("common.refresh")} onClick={() => void loadBaseData()} disabled={loading}>
               <RefreshCwIcon className={cn("size-4", loading && "animate-spin")} />
+            </Button>
+            <Button type="button" variant="outline" data-testid="voice-ticket-open" onClick={() => setVoiceTicketOpen(true)}>
+              <FileAudioIcon className="mr-2 size-4" />
+              {t("customerEntryExtract.chat.voiceTicketButton")}
             </Button>
             <Button type="button" onClick={openNewConversationDialog} disabled={creatingConversation}>
               <PlusIcon className="mr-2 size-4" />
@@ -1897,26 +1900,7 @@ export function CustomerChatPortalPage() {
                     {selectedConversation.current_ticket_no ? <Button type="button" variant="outline" size="sm" onClick={() => router.push(buildCustomerTicketPath(selectedTicketId, selectedConversationId))}>{t("customerChat.viewTicket")}</Button> : null}
                   </div>
                 ) : (
-                  <>
-                    <div className="mb-2 flex justify-end">
-                      <Button type="button" variant="outline" size="sm" data-testid="voice-ticket-open" disabled={submitting || uploadingAsset} onClick={() => setVoiceTicketOpen(true)}>
-                        <FileAudioIcon className="size-4" />
-                        {t("customerEntryExtract.chat.voiceTicketButton")}
-                      </Button>
-                    </div>
-                    <CustomerMessageEditor disabled={submitting} uploadingAsset={uploadingAsset} onSend={handleSendMessage} onUploadImage={handleUploadImage} onSendAttachment={handleSendAttachment} onSendVoice={handleSendVoice} onTypingChange={handleTypingChange} />
-                    <CustomerVoiceTicketDialog
-                      open={voiceTicketOpen}
-                      api={portalVoiceTicketApi}
-                      conversationId={selectedConversationId}
-                      onOpenChange={setVoiceTicketOpen}
-                      onMessageSent={(message) => setMessages((current) => upsertImMessageReplacingClientMessage(current, message))}
-                      onSubmitted={(result) => {
-                        toast.success(t(result.created ? "customerEntryExtract.chat.voiceTicketCreated" : "customerEntryExtract.chat.voiceTicketAppended", { ticketNo: result.ticketNo }))
-                        void loadBaseData(true)
-                      }}
-                    />
-                  </>
+                  <CustomerMessageEditor disabled={submitting} uploadingAsset={uploadingAsset} onSend={handleSendMessage} onUploadImage={handleUploadImage} onSendAttachment={handleSendAttachment} onSendVoice={handleSendVoice} onTypingChange={handleTypingChange} />
                 )}
               </div>
             </>

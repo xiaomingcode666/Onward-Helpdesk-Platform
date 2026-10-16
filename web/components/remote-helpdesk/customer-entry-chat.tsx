@@ -5,7 +5,6 @@ import {
   AlertTriangleIcon,
 	  CheckCircle2Icon,
 	  Clock3Icon,
-	  FileAudioIcon,
 	  HeadphonesIcon,
 	  ImageIcon,
 	  InfoIcon,
@@ -21,7 +20,6 @@ import { Input } from "antd"
 import { IconButton, RailopsButton, StatusTag } from "@railops/ui"
 
 import { CustomerConversationTimeline } from "@/components/remote-helpdesk/customer-conversation-timeline"
-import { CustomerVoiceTicketDialog } from "@/components/remote-helpdesk/customer-voice-ticket-dialog"
 import { VoiceRecorderButton } from "@/components/chat/voice-recorder-button"
 import { ModuleLoading } from "@/components/shared/loading-states"
 import { translateCurrentMessage } from "@/i18n/messages"
@@ -33,8 +31,6 @@ import {
 	  fetchCustomerEntryMessages,
 	  requestCustomerEntryHumanSupport,
 	  sendCustomerEntryMessage,
-	  submitCustomerVoiceTicket,
-	  transcribeCustomerEntryAudio,
 	  uploadCustomerEntryAttachment,
 	  uploadCustomerEntryAudio,
 	  uploadCustomerEntryImage,
@@ -135,8 +131,6 @@ export function CustomerEntryChatPanel({
   const [presence, setPresence] = useState<Record<string, RealtimePresencePayload>>({})
   const [remoteTyping, setRemoteTyping] = useState<RealtimeTypingState>({})
   const [error, setError] = useState("")
-  const [voiceTicketOpen, setVoiceTicketOpen] = useState(false)
-  const [voiceTicketNotice, setVoiceTicketNotice] = useState("")
 	  const [retryNonce, setRetryNonce] = useState(0)
 	  const [guestQuestionCount, setGuestQuestionCount] = useState(0)
 	  const imageInputRef = useRef<HTMLInputElement>(null)
@@ -818,13 +812,6 @@ export function CustomerEntryChatPanel({
         <div ref={messageEndRef} />
       </div>
 
-      {voiceTicketNotice ? (
-        <div className="mx-4 mb-2 flex items-center gap-2 rounded-md bg-primary/10 px-3 py-2 text-sm text-primary" role="status">
-          <CheckCircle2Icon className="size-4" />
-          <span>{voiceTicketNotice}</span>
-        </div>
-      ) : null}
-
       {error ? (
         <div className="mx-4 mb-2 flex items-center justify-between gap-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
           <span>{error}</span>
@@ -911,37 +898,7 @@ export function CustomerEntryChatPanel({
 	            onRecorded={(file, durationSeconds) => sendMediaMessage(file, "audio", durationSeconds)}
 	            onError={(message) => setError(message)}
 	          />
-	          <RailopsButton
-	            size="small"
-	            className="gap-1.5"
-	            disabled={mediaDisabled}
-	            data-testid="voice-ticket-open"
-	            onClick={() => {
-	              setVoiceTicketNotice("")
-	              setVoiceTicketOpen(true)
-	            }}
-	          >
-	            <FileAudioIcon className="size-3.5" />
-	            {cec(t, "voiceTicketButton")}
-	          </RailopsButton>
 	        </div>
-	        {token && conversation ? (
-	          <CustomerVoiceTicketDialog
-	            open={voiceTicketOpen}
-	            api={{
-	              uploadAudio: (conversationId, file) => uploadCustomerEntryAudio(token, conversationId, file),
-	              sendMessage: (payload) => sendCustomerEntryMessage(token, payload),
-	              transcribe: (conversationId, wav) => transcribeCustomerEntryAudio(token, conversationId, wav),
-	              submit: (body) => submitCustomerVoiceTicket(token, body),
-	            }}
-	            conversationId={conversation.id}
-	            onOpenChange={setVoiceTicketOpen}
-	            onMessageSent={(message) => setMessages((current) => mergeMessages(current, [message]))}
-	            onSubmitted={(result) => setVoiceTicketNotice(
-	              cec(t, result.created ? "voiceTicketCreated" : "voiceTicketAppended", { ticketNo: result.ticketNo }),
-	            )}
-	          />
-	        ) : null}
 	        <div className="mt-2 flex items-center gap-1.5 text-rhd-xs text-muted-foreground">
 	          <ShieldCheckIcon className="size-3.5" />
           {cec(t, "guestCounter", {

@@ -25,6 +25,7 @@ import { displayTicketStatus, isCaseStatus, isProcessingTicketStatus, isTerminal
 import { caseLabel, caseStatusLabel, localizeCaseTimelineContent } from "@/lib/ticket-case-labels"
 import { cn, formatDateTime } from "@/lib/utils"
 import { useI18n } from "@/i18n/provider"
+import { isAudioAttachment, TicketAudioAttachment } from "@/components/tickets/ticket-audio-attachment"
 import { renderCustomerConversationSummary } from "@/lib/customer-conversation-summary-i18n"
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
@@ -682,12 +683,14 @@ export function EnterpriseTicketDetailContent({
       {assets.length > 0 ? (
         <div className="space-y-2">
           {assets.slice(0, 4).map((asset) => (
-            <RecordRow
-              key={asset.id}
-              label={asset.file_type || ee("ticketDetail.text073")}
-              value={asset.file_name}
-              meta={`${Math.max(1, Math.round(asset.file_size / 1024))} KB`}
-            />
+            <div key={asset.id}>
+              <RecordRow
+                label={asset.file_type || ee("ticketDetail.text073")}
+                value={asset.file_name}
+                meta={`${Math.max(1, Math.round(asset.file_size / 1024))} KB`}
+              />
+              {isAudioAttachment(asset) ? <TicketAudioAttachment assetId={asset.asset_id ?? ""} /> : null}
+            </div>
           ))}
         </div>
       ) : aggregate.meeting.title ? (
