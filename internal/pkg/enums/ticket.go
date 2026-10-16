@@ -207,6 +207,9 @@ const (
 	TicketSourceConversation TicketSource = "conversation"
 	TicketSourceEmail        TicketSource = "email"
 	TicketSourceAIPhone      TicketSource = "ai_phone"
+	// TicketSourceCustomerVoice is a standalone ticket a signed-in customer
+	// submitted from a voice recording, not tied to any conversation.
+	TicketSourceCustomerVoice TicketSource = "customer_voice"
 )
 
 var TicketSourceValues = []TicketSource{
@@ -214,6 +217,7 @@ var TicketSourceValues = []TicketSource{
 	TicketSourceConversation,
 	TicketSourceEmail,
 	TicketSourceAIPhone,
+	TicketSourceCustomerVoice,
 }
 
 func IsValidTicketSource(source string) bool {

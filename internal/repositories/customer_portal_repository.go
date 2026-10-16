@@ -147,27 +147,25 @@ func (r *customerPortalRepository) FindVisibleTickets(db *gorm.DB, tenantIDs, un
 	if customerID <= 0 || len(tenantIDs) == 0 {
 		return nil
 	}
-	var list []models.Ticket
-	query := db.Where("tenant_id IN ? AND customer_id = ?", tenantIDs, customerID)
-	switch {
-	case len(deviceIDs) > 0 && len(conversationIDs) > 0 && len(unscopedTenantIDs) > 0:
-		query = query.Where("(device_id IN ? OR conversation_id IN ? OR (tenant_id IN ? AND product_id = 0 AND device_id = 0 AND conversation_id = 0))", deviceIDs, conversationIDs, unscopedTenantIDs)
-	case len(deviceIDs) > 0 && len(conversationIDs) > 0:
-		query = query.Where("(device_id IN ? OR conversation_id IN ?)", deviceIDs, conversationIDs)
-	case len(deviceIDs) > 0 && len(unscopedTenantIDs) > 0:
-		query = query.Where("(device_id IN ? OR (tenant_id IN ? AND product_id = 0 AND device_id = 0 AND conversation_id = 0))", deviceIDs, unscopedTenantIDs)
-	case len(deviceIDs) > 0:
-		query = query.Where("device_id IN ?", deviceIDs)
-	case len(conversationIDs) > 0 && len(unscopedTenantIDs) > 0:
-		query = query.Where("(conversation_id IN ? OR (tenant_id IN ? AND product_id = 0 AND device_id = 0 AND conversation_id = 0))", conversationIDs, unscopedTenantIDs)
-	case len(conversationIDs) > 0:
-		query = query.Where("conversation_id IN ?", conversationIDs)
-	case len(unscopedTenantIDs) > 0:
-		query = query.Where("tenant_id IN ? AND product_id = 0 AND device_id = 0 AND conversation_id = 0", unscopedTenantIDs)
-	default:
-		return nil
+	// The customer's own standalone voice tickets are always visible; the
+	// other branches scope tickets by device, conversation or unscoped tenant.
+	clauses := []string{"source = ?"}
+	args := []any{string(enums.TicketSourceCustomerVoice)}
+	if len(deviceIDs) > 0 {
+		clauses = append(clauses, "device_id IN ?")
+		args = append(args, deviceIDs)
 	}
-	query.
+	if len(conversationIDs) > 0 {
+		clauses = append(clauses, "conversation_id IN ?")
+		args = append(args, conversationIDs)
+	}
+	if len(unscopedTenantIDs) > 0 {
+		clauses = append(clauses, "(tenant_id IN ? AND product_id = 0 AND device_id = 0 AND conversation_id = 0)")
+		args = append(args, unscopedTenantIDs)
+	}
+	var list []models.Ticket
+	db.Where("tenant_id IN ? AND customer_id = ?", tenantIDs, customerID).
+		Where("("+strings.Join(clauses, " OR ")+")", args...).
 		Order("updated_at DESC").
 		Order("id DESC").
 		Find(&list)

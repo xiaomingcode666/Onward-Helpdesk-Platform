@@ -86,3 +86,36 @@ func TestFindActiveBindingsIncludesEveryDeviceVisibleToCustomerOrganization(t *t
 		}
 	}
 }
+
+func TestFindVisibleTicketsIncludesOwnCustomerVoiceTickets(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:customer-portal-voice-tickets?mode=memory&cache=shared"), &gorm.Config{
+		NamingStrategy: schema.NamingStrategy{TablePrefix: "t_", SingularTable: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = db.AutoMigrate(&models.Ticket{}); err != nil {
+		t.Fatal(err)
+	}
+	tickets := []models.Ticket{
+		{TenantID: 7, CustomerID: 11, TicketNo: "VOICE-OWN", Source: enums.TicketSourceCustomerVoice},
+		{TenantID: 7, CustomerID: 12, TicketNo: "VOICE-OTHER", Source: enums.TicketSourceCustomerVoice},
+		{TenantID: 8, CustomerID: 11, TicketNo: "VOICE-OTHER-TENANT", Source: enums.TicketSourceCustomerVoice},
+		{TenantID: 7, CustomerID: 11, TicketNo: "MANUAL-UNSCOPED", Source: enums.TicketSourceManual},
+	}
+	if err = db.Create(&tickets).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	// A device-scene customer with no devices or conversations still sees
+	// their own voice tickets, and only those.
+	got := CustomerPortalRepository.FindVisibleTickets(db, []int64{7}, nil, 11, nil, nil)
+	if len(got) != 1 || got[0].TicketNo != "VOICE-OWN" {
+		t.Fatalf("visible tickets = %+v, want only VOICE-OWN", got)
+	}
+
+	got = CustomerPortalRepository.FindVisibleTickets(db, []int64{7}, nil, 11, []int64{99}, nil)
+	if len(got) != 1 || got[0].TicketNo != "VOICE-OWN" {
+		t.Fatalf("visible tickets with devices = %+v, want VOICE-OWN", got)
+	}
+}
