@@ -45,6 +45,14 @@ type RequestHumanConversationRequest struct {
 	Locale         string `json:"locale"`
 }
 
+// CustomerVoiceTicketRequest submits a reviewed voice transcript as a ticket.
+type CustomerVoiceTicketRequest struct {
+	ConversationID int64  `json:"conversationId"`
+	Transcript     string `json:"transcript"`
+	AudioAssetID   string `json:"audioAssetId"`
+	Locale         string `json:"locale"`
+}
+
 type CreateOrMatchConversationRequest struct {
 	DeviceID               int64  `json:"deviceId"`
 	ServiceCodeID          int64  `json:"serviceCodeId"`

@@ -96,6 +96,7 @@ func TestNewServerRegistersGinRoutes(t *testing.T) {
 		http.MethodGet + " /api/customer/v1/meetings/:id/transcripts/page",
 		http.MethodPost + " /api/message/upload_audio",
 		http.MethodPost + " /api/message/transcribe_audio",
+		http.MethodPost + " /api/conversation/voice_ticket",
 		http.MethodGet + " /api/message/media/:assetId",
 		http.MethodGet + " /api/media/:assetId",
 		http.MethodGet + " /api/dashboard/user/list",
