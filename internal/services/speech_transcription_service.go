@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"remotehelpdesk/internal/models"
-	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/providers"
 )
@@ -38,26 +37,10 @@ func newSpeechTranscriptionService() *speechTranscriptionService {
 	return &speechTranscriptionService{}
 }
 
-// TranscribeConversationAudio accepts a PCM WAV recording. Browsers can encode
-// their MediaRecorder output to this format before calling the endpoint, which
-// keeps provider-specific audio decoding out of the server.
-func (s *speechTranscriptionService) TranscribeConversationAudio(
-	file *multipart.FileHeader,
-	conversationID int64,
-	operator *dto.AuthPrincipal,
-) (*VoiceTranscriptionResult, error) {
-	conversation := ConversationService.Get(conversationID)
-	if conversation == nil {
-		return nil, errorsx.InvalidParamI18n("error.e0116")
-	}
-	if operator == nil || principalTenantID(operator) != conversation.TenantID {
-		return nil, errorsx.Forbidden("audio does not belong to the conversation tenant")
-	}
-	return s.transcribeFile(file)
-}
-
-// TranscribeCustomerAudio transcribes a customer's PCM WAV recording. The
-// caller has already verified the customer owns the conversation.
+// TranscribeCustomerAudio accepts a PCM WAV recording. Browsers encode their
+// MediaRecorder output to this format before calling the endpoint, which keeps
+// provider-specific audio decoding out of the server. The caller has already
+// verified the customer owns the conversation.
 func (s *speechTranscriptionService) TranscribeCustomerAudio(
 	file *multipart.FileHeader,
 	conversation *models.Conversation,

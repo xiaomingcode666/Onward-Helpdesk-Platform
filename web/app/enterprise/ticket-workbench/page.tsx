@@ -12,7 +12,6 @@ import {
   CircleDotIcon,
   CircleXIcon,
   FileTextIcon,
-  FileAudioIcon,
   HandshakeIcon,
   ImageIcon,
   LanguagesIcon,
@@ -124,7 +123,6 @@ import { displayTicketStatus, isCaseStatus, isProcessingTicketStatus, isTerminal
 import { caseLabel, caseStatusLabel, localizeCaseTimelineContent } from "@/lib/ticket-case-labels"
 import { TicketCaseLifecycle } from "@/app/enterprise/tickets/_components/ticket-case-lifecycle"
 import { TicketCreateModal } from "@/app/enterprise/tickets/_components/ticket-create-modal"
-import { VoiceTicketDialog } from "@/app/enterprise/ticket-workbench/_components/voice-ticket-dialog"
 import { TicketClassificationFields, TicketGovernancePanel } from "@/app/enterprise/tickets/_components/ticket-governance"
 import { governanceLabel, type CaseType } from "@/lib/ticket-governance"
 import { sortWorkbenchQueueItems } from "@/lib/ticket-workbench-queue"
@@ -2873,7 +2871,6 @@ function WorkbenchContextPane({
   const [loadingTickets, setLoadingTickets] = useState(false)
   const [loadingAggregate, setLoadingAggregate] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [voiceTicketOpen, setVoiceTicketOpen] = useState(false)
   const [childCreateParentTicketId, setChildCreateParentTicketId] = useState(0)
   const [recordOpen, setRecordOpen] = useState(false)
   const [recordText, setRecordText] = useState("")
@@ -3755,9 +3752,6 @@ function WorkbenchContextPane({
                 disabled={creating}
               >
                 {creating ? <Loader2Icon className="size-4 animate-spin" /> : <TicketIcon className="size-4" />}{ee("ticketWorkbench.text257")}</RailopsButton>
-              <RailopsButton size="small" className="w-full gap-2" onClick={() => setVoiceTicketOpen(true)} disabled={creating}>
-                <FileAudioIcon className="size-4" /> Create from voice
-              </RailopsButton>
             </div>
           </ContextSection>
         ) : null}
@@ -4358,17 +4352,6 @@ function WorkbenchContextPane({
               const result = await fetchTicketAggregate(contextTicketId)
               if (result.success && result.data) setAggregate(result.data)
             }
-            await onTicketUpdated()
-          }}
-        />
-        <VoiceTicketDialog
-          open={voiceTicketOpen}
-          conversation={conversation}
-          currentAssigneeId={canAssignTicket ? conversation?.currentAssigneeId : undefined}
-          onOpenChange={setVoiceTicketOpen}
-          onCreated={async (createdTicket) => {
-            setLinkedTickets((current) => [createdTicket, ...current.filter((ticket) => ticket.id !== createdTicket.id)])
-            setContextTicketId(createdTicket.id)
             await onTicketUpdated()
           }}
         />

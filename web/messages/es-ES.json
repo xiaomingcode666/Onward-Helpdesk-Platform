@@ -6596,22 +6596,6 @@
       "unknown": "El resultado de la entrega es incierto. Revisa primero el buzón para no enviarlo dos veces."
     }
   },
-  "voiceTicket": {
-    "title": "Crear ticket desde voz",
-    "cancel": "Cancelar",
-    "creating": "Creando...",
-    "create": "Subir y crear ticket",
-    "chooseFile": "Elegir archivo de audio",
-    "transcribing": "Transcribiendo audio...",
-    "ticketTitle": "Título del ticket",
-    "ticketTitlePlaceholder": "Escribe un título breve para el ticket",
-    "transcript": "Transcripción (editable)",
-    "transcriptPlaceholder": "La transcripción aparecerá aquí tras el procesamiento",
-    "recordingHint": "La grabación original se sube como mensaje de audio de la conversación y seguirá disponible desde el ticket.",
-    "transcribeFailed": "No se pudo transcribir el audio",
-    "createFailed": "No se pudo crear el ticket",
-    "created": "Transcripción de voz subida y ticket creado"
-  },
   "tenantDataRegions": {
     "eu-central": {
       "name": "Europa central",

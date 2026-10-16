@@ -3,6 +3,8 @@ import { readStoredLocale } from "@/i18n/config"
 
 import {
 	persistCustomerSession,
+	type CustomerVoiceTicketResult,
+	type CustomerVoiceTranscription,
 	type ImAsset,
 	type ImConversation,
 	type ImMessage,
@@ -638,6 +640,29 @@ export function uploadCustomerEntryAttachment(token: string, conversationId: num
 
 export function uploadCustomerEntryAudio(token: string, conversationId: number, file: File) {
 	return uploadCustomerEntryAsset(token, conversationId, file, "/api/message/upload_audio")
+}
+
+export function transcribeCustomerEntryAudio(token: string, conversationId: number, wav: File) {
+	const formData = new FormData()
+	formData.set("conversationId", String(conversationId))
+	formData.set("file", wav)
+	return request<CustomerVoiceTranscription>(
+		"/api/message/transcribe_audio",
+		entrySessionAuthOptions(token, { method: "POST", body: formData })
+	)
+}
+
+export function submitCustomerVoiceTicket(
+	token: string,
+	body: { conversationId: number; transcript: string; audioAssetId: string }
+) {
+	return request<CustomerVoiceTicketResult>(
+		"/api/conversation/voice_ticket",
+		entrySessionAuthOptions(token, {
+			method: "POST",
+			body: JSON.stringify({ ...body, locale: readStoredLocale() }),
+		})
+	)
 }
 
 export function requestCustomerEntryHumanSupport(

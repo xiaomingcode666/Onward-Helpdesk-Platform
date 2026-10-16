@@ -562,6 +562,37 @@ export function uploadImAudio(conversationId: number, file: File) {
   })
 }
 
+export type CustomerVoiceTranscription = {
+  text: string
+  language: string
+  provider: string
+  durationSeconds: number
+}
+
+export type CustomerVoiceTicketResult = {
+  ticketId: number
+  ticketNo: string
+  created: boolean
+}
+
+export function transcribeImAudio(conversationId: number, wav: File) {
+  const formData = new FormData()
+  formData.set("conversationId", String(conversationId))
+  formData.set("file", wav)
+  return request<CustomerVoiceTranscription>("/api/message/transcribe_audio", {
+    ...createRequestOptions({ method: "POST", body: formData }),
+  })
+}
+
+export function submitImVoiceTicket(body: { conversationId: number; transcript: string; audioAssetId: string }) {
+  return request<CustomerVoiceTicketResult>("/api/conversation/voice_ticket", {
+    ...createRequestOptions({
+      method: "POST",
+      body: JSON.stringify({ ...body, locale: readStoredLocale() }),
+    }),
+  })
+}
+
 export async function fetchImMediaAsset(
 	assetId: string,
 	signal?: AbortSignal,

@@ -6596,22 +6596,6 @@
       "unknown": "The delivery result is uncertain. Check the mailbox first to avoid sending twice."
     }
   },
-  "voiceTicket": {
-    "title": "Create ticket from voice",
-    "cancel": "Cancel",
-    "creating": "Creating...",
-    "create": "Upload and create ticket",
-    "chooseFile": "Choose audio file",
-    "transcribing": "Transcribing audio...",
-    "ticketTitle": "Ticket title",
-    "ticketTitlePlaceholder": "Enter a concise ticket title",
-    "transcript": "Transcript (editable)",
-    "transcriptPlaceholder": "The transcript will appear here after processing",
-    "recordingHint": "The original recording is uploaded as a conversation audio message and will remain available from the ticket.",
-    "transcribeFailed": "Could not transcribe the audio",
-    "createFailed": "Could not create the ticket",
-    "created": "Voice transcript uploaded and ticket created"
-  },
   "tenantDataRegions": {
     "eu-central": {
       "name": "Central Europe",

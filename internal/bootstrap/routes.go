@@ -258,7 +258,6 @@ func registerDashboardConversationRoutes(group *gin.RouterGroup) {
 	group.POST("/upload_attachment", dashboard.ConversationPostUpload_attachment)
 	group.POST("/upload_image", dashboard.ConversationPostUpload_image)
 	group.POST("/upload_audio", dashboard.ConversationPostUpload_audio)
-	group.POST("/transcribe_audio", dashboard.ConversationPostTranscribe_audio)
 }
 
 func registerDashboardTicketRoutes(group *gin.RouterGroup) {

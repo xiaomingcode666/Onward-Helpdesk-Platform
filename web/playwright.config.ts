@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: "./e2e",
   testMatch: [
     "asset-quarantine.spec.ts",
+    "customer-voice-ticket.spec.ts",
     "ticket-status-workflow.spec.ts",
     "ticket-governance.spec.ts",
     "ticket-email.spec.ts",

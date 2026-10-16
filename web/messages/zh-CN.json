@@ -6596,22 +6596,6 @@
       "unknown": "发送结果不确定，请先到邮箱核对，避免重复发送"
     }
   },
-  "voiceTicket": {
-    "title": "语音建单",
-    "cancel": "取消",
-    "creating": "正在创建...",
-    "create": "上传并创建工单",
-    "chooseFile": "选择音频文件",
-    "transcribing": "正在转写音频...",
-    "ticketTitle": "工单标题",
-    "ticketTitlePlaceholder": "输入简洁的工单标题",
-    "transcript": "转写内容（可编辑）",
-    "transcriptPlaceholder": "处理完成后转写内容会显示在这里",
-    "recordingHint": "原始录音会作为会话语音消息上传，并可在工单中查看。",
-    "transcribeFailed": "音频转写失败",
-    "createFailed": "创建工单失败",
-    "created": "语音转写已上传，工单已创建"
-  },
   "tenantDataRegions": {
     "eu-central": {
       "name": "欧洲中部",

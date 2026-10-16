@@ -7,6 +7,8 @@ import {
   markImMessageRead,
   requestImHumanSupport,
   sendImMessage,
+  submitImVoiceTicket,
+  transcribeImAudio,
   uploadImAttachment,
   uploadImAudio,
   uploadImImage,
@@ -94,6 +96,7 @@ import {
   CircleUserRoundIcon,
   CpuIcon,
   ExternalLinkIcon,
+  FileAudioIcon,
   FileTextIcon,
   HeadphonesIcon,
   MessageSquareTextIcon,
@@ -113,6 +116,14 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react"
 import { toast } from "sonner"
+import { CustomerVoiceTicketDialog, type CustomerVoiceTicketApi } from "@/components/remote-helpdesk/customer-voice-ticket-dialog"
+
+const portalVoiceTicketApi: CustomerVoiceTicketApi = {
+  uploadAudio: uploadImAudio,
+  sendMessage: sendImMessage,
+  transcribe: transcribeImAudio,
+  submit: submitImVoiceTicket,
+}
 
 type I18nT = ReturnType<typeof useI18n>
 
@@ -740,6 +751,7 @@ export function CustomerChatPortalPage() {
   const [creatingConversation, setCreatingConversation] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [uploadingAsset, setUploadingAsset] = useState(false)
+  const [voiceTicketOpen, setVoiceTicketOpen] = useState(false)
   const [conversationAction, setConversationAction] = useState<"human" | "close" | "">("")
   const [realtimeConnected, setRealtimeConnected] = useState(false)
   const [presence, setPresence] = useState<Record<string, RealtimePresencePayload>>({})
@@ -1885,7 +1897,26 @@ export function CustomerChatPortalPage() {
                     {selectedConversation.current_ticket_no ? <Button type="button" variant="outline" size="sm" onClick={() => router.push(buildCustomerTicketPath(selectedTicketId, selectedConversationId))}>{t("customerChat.viewTicket")}</Button> : null}
                   </div>
                 ) : (
-                  <CustomerMessageEditor disabled={submitting} uploadingAsset={uploadingAsset} onSend={handleSendMessage} onUploadImage={handleUploadImage} onSendAttachment={handleSendAttachment} onSendVoice={handleSendVoice} onTypingChange={handleTypingChange} />
+                  <>
+                    <div className="mb-2 flex justify-end">
+                      <Button type="button" variant="outline" size="sm" data-testid="voice-ticket-open" disabled={submitting || uploadingAsset} onClick={() => setVoiceTicketOpen(true)}>
+                        <FileAudioIcon className="size-4" />
+                        {t("customerEntryExtract.chat.voiceTicketButton")}
+                      </Button>
+                    </div>
+                    <CustomerMessageEditor disabled={submitting} uploadingAsset={uploadingAsset} onSend={handleSendMessage} onUploadImage={handleUploadImage} onSendAttachment={handleSendAttachment} onSendVoice={handleSendVoice} onTypingChange={handleTypingChange} />
+                    <CustomerVoiceTicketDialog
+                      open={voiceTicketOpen}
+                      api={portalVoiceTicketApi}
+                      conversationId={selectedConversationId}
+                      onOpenChange={setVoiceTicketOpen}
+                      onMessageSent={(message) => setMessages((current) => upsertImMessageReplacingClientMessage(current, message))}
+                      onSubmitted={(result) => {
+                        toast.success(t(result.created ? "customerEntryExtract.chat.voiceTicketCreated" : "customerEntryExtract.chat.voiceTicketAppended", { ticketNo: result.ticketNo }))
+                        void loadBaseData(true)
+                      }}
+                    />
+                  </>
                 )}
               </div>
             </>
