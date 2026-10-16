@@ -68,10 +68,21 @@ func (s *customerVoiceTicketService) Submit(ctx context.Context, req request.Cus
 		return nil, errorsx.InvalidParamI18n("voiceTicket.transcriptTooLong", customerVoiceTranscriptMaxRunes)
 	}
 
+	// The LLM title call can take seconds, so it runs before taking the
+	// conversation ticket lock; inside the lock only the writes happen.
+	title := ""
+	if s.needsNewTicket(sqls.DB(), conversation, assetID) {
+		title = buildVoiceTicketTitle(ai.WithCapabilityScope(ctx, ai.CapabilityScope{
+			TenantID:        conversation.TenantID,
+			ProductID:       conversation.ProductID,
+			CredentialChain: []string{dsl.ModelCredentialScopeTenantDefault},
+		}), transcript)
+	}
+
 	var result *CustomerVoiceTicketResult
 	_, err := TicketService.withConversationTicketCreateLock(conversation.TenantID, conversation.ID, func() (*models.Ticket, error) {
 		var submitErr error
-		result, submitErr = s.submitLocked(ctx, conversation, transcript, assetID, req.Locale, requestID)
+		result, submitErr = s.submitLocked(conversation, transcript, title, assetID, req.Locale, requestID)
 		return nil, submitErr
 	})
 	if err != nil {
@@ -80,23 +91,41 @@ func (s *customerVoiceTicketService) Submit(ctx context.Context, req request.Cus
 	return result, nil
 }
 
-func (s *customerVoiceTicketService) submitLocked(ctx context.Context, conversation *models.Conversation, transcript, assetID, locale, requestID string) (*CustomerVoiceTicketResult, error) {
-	db := sqls.DB()
-	idempotencyKey := "customer-voice:" + assetID
+func customerVoiceIdempotencyKey(assetID string) string {
+	return "customer-voice:" + assetID
+}
+
+func customerVoiceProgressMetadataJSON(assetID string) string {
+	metadata, _ := json.Marshal(customerVoiceProgressMetadata{Source: customerVoiceProgressSource, AudioAssetID: assetID})
+	return string(metadata)
+}
+
+// previousResult returns the outcome of an earlier submission of the same
+// recording, if any.
+func (s *customerVoiceTicketService) previousResult(db *gorm.DB, conversation *models.Conversation, assetID string) *CustomerVoiceTicketResult {
 	if existing := repositories.TicketRepository.FindOne(db, sqls.NewCnd().
 		Eq("tenant_id", conversation.TenantID).
-		Eq("idempotency_key", idempotencyKey)); existing != nil {
-		return &CustomerVoiceTicketResult{TicketID: existing.ID, TicketNo: existing.TicketNo, Created: true}, nil
-	}
-	metadata, err := json.Marshal(customerVoiceProgressMetadata{Source: customerVoiceProgressSource, AudioAssetID: assetID})
-	if err != nil {
-		return nil, err
+		Eq("idempotency_key", customerVoiceIdempotencyKey(assetID))); existing != nil {
+		return &CustomerVoiceTicketResult{TicketID: existing.ID, TicketNo: existing.TicketNo, Created: true}
 	}
 	var appended models.TicketProgress
-	if db.Where("tenant_id = ? AND metadata_json = ?", conversation.TenantID, string(metadata)).First(&appended).Error == nil {
+	if db.Where("tenant_id = ? AND metadata_json = ?", conversation.TenantID, customerVoiceProgressMetadataJSON(assetID)).First(&appended).Error == nil {
 		if ticket := TicketService.Get(appended.TicketID); ticket != nil {
-			return &CustomerVoiceTicketResult{TicketID: ticket.ID, TicketNo: ticket.TicketNo, Created: false}, nil
+			return &CustomerVoiceTicketResult{TicketID: ticket.ID, TicketNo: ticket.TicketNo, Created: false}
 		}
+	}
+	return nil
+}
+
+func (s *customerVoiceTicketService) needsNewTicket(db *gorm.DB, conversation *models.Conversation, assetID string) bool {
+	return s.previousResult(db, conversation, assetID) == nil &&
+		TicketService.findActiveConversationTicket(db, conversation.TenantID, conversation.ID) == nil
+}
+
+func (s *customerVoiceTicketService) submitLocked(conversation *models.Conversation, transcript, title, assetID, locale, requestID string) (*CustomerVoiceTicketResult, error) {
+	db := sqls.DB()
+	if previous := s.previousResult(db, conversation, assetID); previous != nil {
+		return previous, nil
 	}
 
 	result := &CustomerVoiceTicketResult{}
@@ -107,7 +136,7 @@ func (s *customerVoiceTicketService) submitLocked(ctx context.Context, conversat
 			EventType:         enums.TicketProgressEventProgress,
 			Content:           transcript,
 			VisibleToCustomer: true,
-			MetadataJSON:      string(metadata),
+			MetadataJSON:      customerVoiceProgressMetadataJSON(assetID),
 			CreatedAt:         time.Now(),
 		}
 		if err := repositories.TicketProgressRepository.Create(db, progress); err != nil {
@@ -115,17 +144,16 @@ func (s *customerVoiceTicketService) submitLocked(ctx context.Context, conversat
 		}
 		result.TicketID, result.TicketNo = active.ID, active.TicketNo
 	} else {
-		titleCtx := ai.WithCapabilityScope(ctx, ai.CapabilityScope{
-			TenantID:        conversation.TenantID,
-			ProductID:       conversation.ProductID,
-			CredentialChain: []string{dsl.ModelCredentialScopeTenantDefault},
-		})
+		if title == "" {
+			// The open ticket closed between the pre-check and the lock.
+			title = voiceTicketTitleFallback(transcript)
+		}
 		ticket, err := TicketService.createFromConversationLocked(request.CreateTicketFromConversationRequest{
 			ConversationID: conversation.ID,
 			TenantID:       conversation.TenantID,
-			Title:          buildVoiceTicketTitle(titleCtx, transcript),
+			Title:          title,
 			Description:    transcript,
-			IdempotencyKey: idempotencyKey,
+			IdempotencyKey: customerVoiceIdempotencyKey(assetID),
 		}, handoffTicketOperator(conversation, s.ticketAgent(conversation)), conversation, conversation.TenantID)
 		if err != nil {
 			return nil, err

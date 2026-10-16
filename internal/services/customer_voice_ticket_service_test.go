@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -151,4 +152,29 @@ func TestCustomerVoiceTicketRejectsForeignAsset(t *testing.T) {
 	_, err := CustomerVoiceTicketService.Submit(context.Background(), req, f.external, "req-1")
 	requireI18nKey(t, err, "error.e0222")
 	require.Zero(t, f.countTickets(t))
+}
+
+func TestCustomerVoiceTicketGeneratesTitleOutsideCreateLock(t *testing.T) {
+	f := setupCustomerVoiceTicket(t, enums.IMConversationStatusAIServing)
+	lockFree := make(chan bool, 1)
+	stubVoiceTicketTitleLLM(t, func(context.Context, string, string) (string, error) {
+		acquired := make(chan struct{})
+		go func() {
+			_, _ = TicketService.withConversationTicketCreateLock(f.conversation.TenantID, f.conversation.ID, func() (*models.Ticket, error) {
+				close(acquired)
+				return nil, nil
+			})
+		}()
+		select {
+		case <-acquired:
+			lockFree <- true
+		case <-time.After(500 * time.Millisecond):
+			lockFree <- false
+		}
+		return "打印机无法开机", nil
+	})
+
+	_, err := CustomerVoiceTicketService.Submit(context.Background(), f.request(voiceTranscript), f.external, "req-1")
+	require.NoError(t, err)
+	require.True(t, <-lockFree, "the slow LLM title call must not hold the conversation ticket lock")
 }
