@@ -68,6 +68,7 @@ func registerApiMessageRoutes(group *gin.RouterGroup) {
 	group.POST("/upload_attachment", middleware.CustomerMessageRateLimitMiddleware(), api.MessagePostUpload_attachment)
 	group.POST("/upload_image", middleware.CustomerMessageRateLimitMiddleware(), api.MessagePostUpload_image)
 	group.POST("/upload_audio", middleware.CustomerMessageRateLimitMiddleware(), api.MessagePostUpload_audio)
+	group.POST("/transcribe_audio", middleware.CustomerMessageRateLimitMiddleware(), api.MessagePostTranscribe_audio)
 }
 
 func registerDashboardDashboardRoutes(group *gin.RouterGroup) {

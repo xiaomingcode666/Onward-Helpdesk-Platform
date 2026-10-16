@@ -1263,3 +1263,5 @@ error.z0172: "The child ticket already has a parent. Remove the existing relatio
 error.z0173: "The duplicate already has a main ticket, or the selected main ticket is itself marked as a duplicate."
 error.z0174: "This relationship would create a loop and cannot be saved."
 error.z0175: "You are not allowed to view this company's ticket workflow."
+speech.noSpeech: "No speech was detected. Please record again."
+speech.localUnavailable: "The local speech recognition service is unavailable. Please try again later."

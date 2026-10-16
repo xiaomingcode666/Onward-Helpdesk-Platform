@@ -1263,3 +1263,5 @@ error.z0172: "El ticket hijo ya tiene un padre. Primero elimine la relación exi
 error.z0173: "El duplicado ya tiene un ticket principal o el ticket principal elegido está marcado como duplicado."
 error.z0174: "Esta relación crearía un ciclo y no se puede guardar."
 error.z0175: "No tiene permiso para ver el flujo de tickets de esta empresa."
+speech.noSpeech: "No se detectó voz. Vuelva a grabar."
+speech.localUnavailable: "El servicio local de reconocimiento de voz no está disponible. Inténtelo más tarde."

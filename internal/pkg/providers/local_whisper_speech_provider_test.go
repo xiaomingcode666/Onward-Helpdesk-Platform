@@ -89,3 +89,27 @@ func TestLocalWhisperServerError(t *testing.T) {
 	err := stream.EndAudio(ctx)
 	require.True(t, errors.Is(err, ErrLocalSpeechUnavailable), "err = %v", err)
 }
+
+func TestLocalWhisperReadEventWaitsForEndAudio(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"text":"设备无法开机"}`))
+	}))
+	defer server.Close()
+
+	stream := openLocalWhisperStream(t, server.URL)
+	ctx := context.Background()
+	events := make(chan *SpeechTranscriptionEvent, 1)
+	go func() {
+		event, err := stream.ReadEvent(ctx)
+		if err != nil {
+			events <- nil
+			return
+		}
+		events <- event
+	}()
+	require.NoError(t, stream.WriteAudio(ctx, []byte{1, 0, 1, 0}))
+	require.NoError(t, stream.EndAudio(ctx))
+	event := <-events
+	require.NotNil(t, event, "ReadEvent returned before EndAudio produced the transcript")
+	require.Equal(t, "设备无法开机", event.Text)
+}

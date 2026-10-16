@@ -55,7 +55,7 @@ func (p *LocalWhisperSpeechProvider) Open(_ context.Context, options SpeechTrans
 	if language == "" {
 		language = "zh-CN"
 	}
-	return &localWhisperStream{provider: p, format: format, language: language}, nil
+	return &localWhisperStream{provider: p, format: format, language: language, done: make(chan struct{})}, nil
 }
 
 type localWhisperStream struct {
@@ -68,6 +68,14 @@ type localWhisperStream struct {
 	ended  bool
 	closed bool
 	event  *SpeechTranscriptionEvent
+	// done closes once EndAudio has finished (or the stream closed), so
+	// ReadEvent blocks like a streaming provider until the result exists.
+	done     chan struct{}
+	doneOnce sync.Once
+}
+
+func (s *localWhisperStream) finish() {
+	s.doneOnce.Do(func() { close(s.done) })
 }
 
 func (s *localWhisperStream) WriteAudio(_ context.Context, data []byte) error {
@@ -89,6 +97,7 @@ func (s *localWhisperStream) EndAudio(ctx context.Context) error {
 	s.ended = true
 	pcm := append([]byte(nil), s.pcm.Bytes()...)
 	s.mu.Unlock()
+	defer s.finish()
 
 	text, err := s.provider.transcribe(ctx, encodePCM16WAV(pcm, s.format), s.language)
 	if err != nil {
@@ -109,7 +118,15 @@ func (s *localWhisperStream) EndAudio(ctx context.Context) error {
 	return nil
 }
 
-func (s *localWhisperStream) ReadEvent(_ context.Context) (*SpeechTranscriptionEvent, error) {
+func (s *localWhisperStream) ReadEvent(ctx context.Context) (*SpeechTranscriptionEvent, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-s.done:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.event == nil {
@@ -125,6 +142,7 @@ func (s *localWhisperStream) Close(_ context.Context) error {
 	defer s.mu.Unlock()
 	s.closed = true
 	s.pcm.Reset()
+	s.finish()
 	return nil
 }
 

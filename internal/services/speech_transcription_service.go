@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"strings"
 	"sync"
 	"time"
 
+	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/providers"
@@ -44,18 +46,34 @@ func (s *speechTranscriptionService) TranscribeConversationAudio(
 	conversationID int64,
 	operator *dto.AuthPrincipal,
 ) (*VoiceTranscriptionResult, error) {
-	if file == nil || file.Size <= 0 {
-		return nil, errorsx.InvalidParam("audio file is required")
-	}
-	if file.Size > maxVoiceTranscriptionBytes {
-		return nil, errorsx.InvalidParam("audio file is too large")
-	}
 	conversation := ConversationService.Get(conversationID)
 	if conversation == nil {
 		return nil, errorsx.InvalidParamI18n("error.e0116")
 	}
 	if operator == nil || principalTenantID(operator) != conversation.TenantID {
 		return nil, errorsx.Forbidden("audio does not belong to the conversation tenant")
+	}
+	return s.transcribeFile(file)
+}
+
+// TranscribeCustomerAudio transcribes a customer's PCM WAV recording. The
+// caller has already verified the customer owns the conversation.
+func (s *speechTranscriptionService) TranscribeCustomerAudio(
+	file *multipart.FileHeader,
+	conversation *models.Conversation,
+) (*VoiceTranscriptionResult, error) {
+	if conversation == nil {
+		return nil, errorsx.InvalidParamI18n("error.e0116")
+	}
+	return s.transcribeFile(file)
+}
+
+func (s *speechTranscriptionService) transcribeFile(file *multipart.FileHeader) (*VoiceTranscriptionResult, error) {
+	if file == nil || file.Size <= 0 {
+		return nil, errorsx.InvalidParam("audio file is required")
+	}
+	if file.Size > maxVoiceTranscriptionBytes {
+		return nil, errorsx.InvalidParam("audio file is too large")
 	}
 
 	input, err := file.Open()
@@ -127,10 +145,10 @@ func (s *speechTranscriptionService) TranscribeConversationAudio(
 		}
 	}
 	if err := stream.EndAudio(ctx); err != nil {
-		return nil, fmt.Errorf("finish speech audio: %w", err)
+		return nil, speechTranscriptionError("finish speech audio", err)
 	}
 	if err := <-readErr; err != nil {
-		return nil, fmt.Errorf("read speech transcription: %w", err)
+		return nil, speechTranscriptionError("read speech transcription", err)
 	}
 
 	var finalText []string
@@ -153,7 +171,7 @@ func (s *speechTranscriptionService) TranscribeConversationAudio(
 		text = latestText
 	}
 	if text == "" {
-		return nil, errors.New("speech transcription returned no text")
+		return nil, errorsx.InvalidParamI18n("speech.noSpeech")
 	}
 	return &VoiceTranscriptionResult{
 		Text:            text,
@@ -161,6 +179,14 @@ func (s *speechTranscriptionService) TranscribeConversationAudio(
 		Provider:        provider.Name(),
 		DurationSeconds: durationSeconds,
 	}, nil
+}
+
+func speechTranscriptionError(step string, err error) error {
+	if errors.Is(err, providers.ErrLocalSpeechUnavailable) {
+		slog.Warn("local speech service unavailable", "step", step, "error", err)
+		return errorsx.InvalidParamI18n("speech.localUnavailable")
+	}
+	return fmt.Errorf("%s: %w", step, err)
 }
 
 func decodePCM16WAV(raw []byte) ([]byte, int, error) {

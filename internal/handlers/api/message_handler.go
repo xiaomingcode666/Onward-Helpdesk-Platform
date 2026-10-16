@@ -232,6 +232,46 @@ func MessagePostUpload_audio(ctx *gin.Context) {
 	httpx.WriteJSON(ctx, builders.BuildMessageAsset(item))
 }
 
+// MessagePostTranscribe_audio converts a customer's PCM WAV recording into text
+// for the voice ticket dialog. The recording itself is uploaded separately as
+// an audio message.
+func MessagePostTranscribe_audio(ctx *gin.Context) {
+	external := httpx.GetExternalUser(ctx)
+	if external == nil {
+		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0150"))
+		return
+	}
+	conversationID, err := strconv.ParseInt(strings.TrimSpace(params.FormValue(ctx, "conversationId")), 10, 64)
+	if err != nil || conversationID <= 0 {
+		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0064"))
+		return
+	}
+	if err := services.CustomerPortalService.RequireServiceInteractionAccess(*external, httpx.GetCustomerSessionAccess(ctx).TenantID); err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	conversation, err := services.MessageService.ValidateConversationSender(conversationID, enums.IMSenderTypeCustomer, nil, external)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	header, err := ctx.FormFile("file")
+	if err != nil {
+		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0324"))
+		return
+	}
+	if !strings.HasPrefix(strings.ToLower(header.Header.Get("Content-Type")), "audio/wav") {
+		httpx.WriteJSON(ctx, errorsx.InvalidParam("transcription requires a PCM WAV file"))
+		return
+	}
+	result, err := services.SpeechTranscriptionService.TranscribeCustomerAudio(header, conversation)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, result)
+}
+
 func customerMessageAssetPrincipal(conversation *models.Conversation, displayName string) *dto.AuthPrincipal {
 	if conversation == nil {
 		return nil
