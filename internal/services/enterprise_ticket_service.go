@@ -1361,24 +1361,42 @@ func (s *enterpriseTicketService) buildFeedback(ticket *models.Ticket) *dto.Tick
 }
 
 func (s *enterpriseTicketService) buildAssets(ticket *models.Ticket) []dto.AssetRefDTO {
-	if ticket.ConversationID <= 0 {
-		return []dto.AssetRefDTO{}
+	assetIDs := make([]string, 0)
+	if ticket.ConversationID > 0 {
+		messages := repositories.MessageRepository.Find(sqls.DB(), sqls.NewCnd().
+			Eq("conversation_id", ticket.ConversationID).
+			In("message_type", []enums.IMMessageType{enums.IMMessageTypeImage, enums.IMMessageTypeAudio, enums.IMMessageTypeAttachment}).
+			Asc("id"))
+		for _, message := range messages {
+			var payload struct {
+				AssetID      string `json:"assetId"`
+				AssetIDSnake string `json:"asset_id"`
+			}
+			if json.Unmarshal([]byte(message.Payload), &payload) != nil {
+				continue
+			}
+			assetIDs = append(assetIDs, firstNonEmptyString(payload.AssetID, payload.AssetIDSnake))
+		}
 	}
-	messages := repositories.MessageRepository.Find(sqls.DB(), sqls.NewCnd().
-		Eq("conversation_id", ticket.ConversationID).
-		In("message_type", []enums.IMMessageType{enums.IMMessageTypeImage, enums.IMMessageTypeAudio, enums.IMMessageTypeAttachment}).
+	// Standalone voice tickets keep their original recording on a progress
+	// entry instead of a conversation message.
+	progresses := repositories.TicketProgressRepository.Find(sqls.DB(), sqls.NewCnd().
+		Eq("tenant_id", ticket.TenantID).
+		Eq("ticket_id", ticket.ID).
+		Like("metadata_json", "audioAssetId").
 		Asc("id"))
-	result := make([]dto.AssetRefDTO, 0, len(messages))
+	for _, progress := range progresses {
+		var metadata struct {
+			AudioAssetID string `json:"audioAssetId"`
+		}
+		if json.Unmarshal([]byte(progress.MetadataJSON), &metadata) == nil {
+			assetIDs = append(assetIDs, metadata.AudioAssetID)
+		}
+	}
+
+	result := make([]dto.AssetRefDTO, 0, len(assetIDs))
 	seen := make(map[string]bool)
-	for _, message := range messages {
-		var payload struct {
-			AssetID      string `json:"assetId"`
-			AssetIDSnake string `json:"asset_id"`
-		}
-		if json.Unmarshal([]byte(message.Payload), &payload) != nil {
-			continue
-		}
-		assetID := firstNonEmptyString(payload.AssetID, payload.AssetIDSnake)
+	for _, assetID := range assetIDs {
 		if assetID == "" || seen[assetID] {
 			continue
 		}
@@ -1389,6 +1407,7 @@ func (s *enterpriseTicketService) buildAssets(ticket *models.Ticket) []dto.Asset
 		seen[assetID] = true
 		result = append(result, dto.AssetRefDTO{
 			ID:         asset.ID,
+			AssetID:    asset.AssetID,
 			FileName:   asset.Filename,
 			FileType:   asset.MimeType,
 			FileSize:   asset.FileSize,

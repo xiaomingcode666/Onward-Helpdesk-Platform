@@ -236,6 +236,7 @@ type TicketFeedbackDTO struct {
 
 type AssetRefDTO struct {
 	ID         int64  `json:"id"`
+	AssetID    string `json:"asset_id"`
 	FileName   string `json:"file_name"`
 	FileType   string `json:"file_type"`
 	FileSize   int64  `json:"file_size"`

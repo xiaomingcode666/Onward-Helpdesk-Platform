@@ -3,17 +3,18 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
+	"mime/multipart"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/mlogclub/simple/sqls"
-	"gorm.io/gorm"
 
 	"remotehelpdesk/internal/ai"
 	"remotehelpdesk/internal/ai/workflow/dsl"
 	"remotehelpdesk/internal/models"
+	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/dto/request"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
@@ -24,17 +25,32 @@ import (
 
 const (
 	customerVoiceTranscriptMaxRunes = 4000
+	customerVoiceRequestKeyMaxLen   = 64
 	customerVoiceProgressSource     = "customer_voice"
 )
 
 var CustomerVoiceTicketService = &customerVoiceTicketService{}
 
+// uploadCustomerVoiceAudio stores the original recording; replaced in tests.
+var uploadCustomerVoiceAudio = func(file *multipart.FileHeader, principal *dto.AuthPrincipal) (*models.Asset, error) {
+	return AssetService.UploadFile(file, "audio", principal)
+}
+
 type customerVoiceTicketService struct{}
+
+// CustomerVoiceTicketInput is a signed-in customer's reviewed transcript plus
+// the original recording. RequestKey is generated once per dialog so a
+// repeated submit returns the same ticket.
+type CustomerVoiceTicketInput struct {
+	Transcript string
+	RequestKey string
+	Locale     string
+	Audio      *multipart.FileHeader
+}
 
 type CustomerVoiceTicketResult struct {
 	TicketID int64  `json:"ticketId"`
 	TicketNo string `json:"ticketNo"`
-	Created  bool   `json:"created"`
 }
 
 type customerVoiceProgressMetadata struct {
@@ -42,160 +58,89 @@ type customerVoiceProgressMetadata struct {
 	AudioAssetID string `json:"audioAssetId"`
 }
 
-// Submit turns a customer's reviewed voice transcript into a ticket on the
-// conversation, or appends it to the conversation's open ticket. Resubmitting
-// the same recording returns the original result without side effects.
-func (s *customerVoiceTicketService) Submit(ctx context.Context, req request.CustomerVoiceTicketRequest, external openidentity.ExternalUser, requestID string) (*CustomerVoiceTicketResult, error) {
-	conversation := ConversationService.Get(req.ConversationID)
-	if conversation == nil {
-		return nil, errorsx.InvalidParamI18n("error.e0116")
+// Submit creates a standalone ticket (not tied to any conversation) for the
+// signed-in customer in tenantID, attaching the original recording.
+func (s *customerVoiceTicketService) Submit(ctx context.Context, external openidentity.ExternalUser, tenantID int64, input CustomerVoiceTicketInput) (*CustomerVoiceTicketResult, error) {
+	scope, err := CustomerPortalService.resolveScope(external)
+	if err != nil {
+		return nil, err
 	}
-	if !ConversationService.IsCustomerConversationOwner(conversation, external) {
+	// The ticket must land in a tenant the customer's portal lists, otherwise
+	// the customer could not see what they just submitted.
+	if tenantID <= 0 || !slices.Contains(scope.tenantIDs, tenantID) {
 		return nil, errorsx.ForbiddenI18n("error.e0222")
 	}
-	assetID := strings.TrimSpace(req.AudioAssetID)
-	if !s.assetBelongsToConversation(sqls.DB(), conversation, assetID) {
-		return nil, errorsx.ForbiddenI18n("error.e0222")
-	}
-	if conversation.Status == enums.IMConversationStatusClosed {
-		return nil, errorsx.InvalidParamI18n("voiceTicket.conversationClosed")
-	}
-	transcript := strings.TrimSpace(req.Transcript)
+	transcript := strings.TrimSpace(input.Transcript)
 	if transcript == "" {
 		return nil, errorsx.InvalidParamI18n("voiceTicket.transcriptRequired")
 	}
 	if utf8.RuneCountInString(transcript) > customerVoiceTranscriptMaxRunes {
 		return nil, errorsx.InvalidParamI18n("voiceTicket.transcriptTooLong", customerVoiceTranscriptMaxRunes)
 	}
-
-	// The LLM title call can take seconds, so it runs before taking the
-	// conversation ticket lock; inside the lock only the writes happen.
-	title := ""
-	if s.needsNewTicket(sqls.DB(), conversation, assetID) {
-		title = buildVoiceTicketTitle(ai.WithCapabilityScope(ctx, ai.CapabilityScope{
-			TenantID:        conversation.TenantID,
-			ProductID:       conversation.ProductID,
-			CredentialChain: []string{dsl.ModelCredentialScopeTenantDefault},
-		}), transcript)
+	requestKey := strings.TrimSpace(input.RequestKey)
+	if requestKey == "" || len(requestKey) > customerVoiceRequestKeyMaxLen {
+		return nil, errorsx.InvalidParam("voice ticket request key is required")
+	}
+	idempotencyKey := "customer-voice:" + requestKey
+	if existing := repositories.TicketRepository.FindOne(sqls.DB(), sqls.NewCnd().
+		Eq("tenant_id", tenantID).
+		Eq("customer_id", scope.customer.ID).
+		Eq("idempotency_key", idempotencyKey)); existing != nil {
+		return &CustomerVoiceTicketResult{TicketID: existing.ID, TicketNo: existing.TicketNo}, nil
+	}
+	if input.Audio == nil || input.Audio.Size <= 0 {
+		return nil, errorsx.InvalidParamI18n("voiceTicket.audioRequired")
+	}
+	if input.Audio.Size > maxVoiceTranscriptionBytes {
+		return nil, errorsx.InvalidParam("audio file is too large")
 	}
 
-	var result *CustomerVoiceTicketResult
-	_, err := TicketService.withConversationTicketCreateLock(conversation.TenantID, conversation.ID, func() (*models.Ticket, error) {
-		var submitErr error
-		result, submitErr = s.submitLocked(conversation, transcript, title, assetID, req.Locale, requestID)
-		return nil, submitErr
-	})
+	operator := customerVoiceTicketOperator(external, tenantID)
+	asset, err := uploadCustomerVoiceAudio(input.Audio, operator)
 	if err != nil {
 		return nil, err
 	}
-	return result, nil
+	title := buildVoiceTicketTitle(ai.WithCapabilityScope(ctx, ai.CapabilityScope{
+		TenantID:        tenantID,
+		CredentialChain: []string{dsl.ModelCredentialScopeTenantDefault},
+	}), transcript)
+	ticket, err := TicketService.CreateTicket(request.CreateTicketRequest{
+		IdempotencyKey: idempotencyKey,
+		Title:          title,
+		Description:    transcript,
+		Source:         string(enums.TicketSourceCustomerVoice),
+		Channel:        enums.ChannelTypeWeb,
+		CustomerID:     scope.customer.ID,
+		TenantID:       tenantID,
+	}, operator)
+	if err != nil {
+		return nil, err
+	}
+	metadata, _ := json.Marshal(customerVoiceProgressMetadata{Source: customerVoiceProgressSource, AudioAssetID: asset.AssetID})
+	if err := repositories.TicketProgressRepository.Create(sqls.DB(), &models.TicketProgress{
+		TenantID:          ticket.TenantID,
+		TicketID:          ticket.ID,
+		EventType:         enums.TicketProgressEventProgress,
+		ContentText:       i18nx.NewText("voiceTicket.recordingAttached", nil),
+		VisibleToCustomer: true,
+		MetadataJSON:      string(metadata),
+		CreatedAt:         time.Now(),
+	}); err != nil {
+		return nil, err
+	}
+	return &CustomerVoiceTicketResult{TicketID: ticket.ID, TicketNo: ticket.TicketNo}, nil
 }
 
-func customerVoiceIdempotencyKey(assetID string) string {
-	return "customer-voice:" + assetID
-}
-
-func customerVoiceProgressMetadataJSON(assetID string) string {
-	metadata, _ := json.Marshal(customerVoiceProgressMetadata{Source: customerVoiceProgressSource, AudioAssetID: assetID})
-	return string(metadata)
-}
-
-// previousResult returns the outcome of an earlier submission of the same
-// recording, if any.
-func (s *customerVoiceTicketService) previousResult(db *gorm.DB, conversation *models.Conversation, assetID string) *CustomerVoiceTicketResult {
-	if existing := repositories.TicketRepository.FindOne(db, sqls.NewCnd().
-		Eq("tenant_id", conversation.TenantID).
-		Eq("idempotency_key", customerVoiceIdempotencyKey(assetID))); existing != nil {
-		return &CustomerVoiceTicketResult{TicketID: existing.ID, TicketNo: existing.TicketNo, Created: true}
+func customerVoiceTicketOperator(external openidentity.ExternalUser, tenantID int64) *dto.AuthPrincipal {
+	name := strings.TrimSpace(external.ExternalName)
+	if name == "" {
+		name = "customer"
 	}
-	var appended models.TicketProgress
-	if db.Where("tenant_id = ? AND metadata_json = ?", conversation.TenantID, customerVoiceProgressMetadataJSON(assetID)).First(&appended).Error == nil {
-		if ticket := TicketService.Get(appended.TicketID); ticket != nil {
-			return &CustomerVoiceTicketResult{TicketID: ticket.ID, TicketNo: ticket.TicketNo, Created: false}
-		}
+	return &dto.AuthPrincipal{
+		Username:    name,
+		Nickname:    name,
+		TenantID:    tenantID,
+		DomainType:  "service_account",
+		SubjectType: "service_account",
 	}
-	return nil
-}
-
-func (s *customerVoiceTicketService) needsNewTicket(db *gorm.DB, conversation *models.Conversation, assetID string) bool {
-	return s.previousResult(db, conversation, assetID) == nil &&
-		TicketService.findActiveConversationTicket(db, conversation.TenantID, conversation.ID) == nil
-}
-
-func (s *customerVoiceTicketService) submitLocked(conversation *models.Conversation, transcript, title, assetID, locale, requestID string) (*CustomerVoiceTicketResult, error) {
-	db := sqls.DB()
-	if previous := s.previousResult(db, conversation, assetID); previous != nil {
-		return previous, nil
-	}
-
-	result := &CustomerVoiceTicketResult{}
-	if active := TicketService.findActiveConversationTicket(db, conversation.TenantID, conversation.ID); active != nil {
-		progress := &models.TicketProgress{
-			TenantID:          active.TenantID,
-			TicketID:          active.ID,
-			EventType:         enums.TicketProgressEventProgress,
-			Content:           transcript,
-			VisibleToCustomer: true,
-			MetadataJSON:      customerVoiceProgressMetadataJSON(assetID),
-			CreatedAt:         time.Now(),
-		}
-		if err := repositories.TicketProgressRepository.Create(db, progress); err != nil {
-			return nil, err
-		}
-		result.TicketID, result.TicketNo = active.ID, active.TicketNo
-	} else {
-		if title == "" {
-			// The open ticket closed between the pre-check and the lock.
-			title = voiceTicketTitleFallback(transcript)
-		}
-		ticket, err := TicketService.createFromConversationLocked(request.CreateTicketFromConversationRequest{
-			ConversationID: conversation.ID,
-			TenantID:       conversation.TenantID,
-			Title:          title,
-			Description:    transcript,
-			IdempotencyKey: customerVoiceIdempotencyKey(assetID),
-		}, handoffTicketOperator(conversation, s.ticketAgent(conversation)), conversation, conversation.TenantID)
-		if err != nil {
-			return nil, err
-		}
-		result.TicketID, result.TicketNo, result.Created = ticket.ID, ticket.TicketNo, true
-	}
-
-	key := "voiceTicket.appended"
-	if result.Created {
-		key = "voiceTicket.created"
-	}
-	if _, err := MessageService.SendSystemMessageWithRequestID(conversation.ID, "voice-ticket:"+assetID, i18nx.Getf(locale, key, result.TicketNo), "", requestID); err != nil {
-		// The ticket exists; a missing notice must not make the customer retry.
-		slog.Warn("voice ticket system message failed", "conversation_id", conversation.ID, "ticket_id", result.TicketID, "error", err)
-	}
-	return result, nil
-}
-
-func (s *customerVoiceTicketService) assetBelongsToConversation(db *gorm.DB, conversation *models.Conversation, assetID string) bool {
-	if assetID == "" || db == nil {
-		return false
-	}
-	var count int64
-	if err := db.Model(&models.Asset{}).
-		Where("asset_id = ? AND tenant_id = ? AND conversation_id = ?", assetID, conversation.TenantID, conversation.ID).
-		Count(&count).Error; err != nil {
-		return false
-	}
-	return count > 0
-}
-
-func (s *customerVoiceTicketService) ticketAgent(conversation *models.Conversation) models.AIAgent {
-	if conversation.AIAgentID > 0 {
-		if agent := AIAgentService.Get(conversation.AIAgentID); agent != nil {
-			return *agent
-		}
-	}
-	if agent := ConversationService.ticketOnlyConversationAgent(resolvedConversationCreateContext{
-		tenantID:  conversation.TenantID,
-		productID: conversation.ProductID,
-	}); agent != nil {
-		return *agent
-	}
-	return models.AIAgent{}
 }

@@ -58,7 +58,6 @@ func registerApiConversationRoutes(group *gin.RouterGroup) {
 	group.POST("/close", middleware.CustomerConversationMutationRateLimitMiddleware(), api.ConversationPostClose)
 	group.POST("/create_or_match", middleware.CustomerConversationMutationRateLimitMiddleware(), api.ConversationPostCreate_or_match)
 	group.POST("/request_human", middleware.CustomerConversationMutationRateLimitMiddleware(), api.ConversationPostRequest_human)
-	group.POST("/voice_ticket", middleware.CustomerConversationMutationRateLimitMiddleware(), api.ConversationPostVoice_ticket)
 }
 
 func registerApiMessageRoutes(group *gin.RouterGroup) {
@@ -69,7 +68,6 @@ func registerApiMessageRoutes(group *gin.RouterGroup) {
 	group.POST("/upload_attachment", middleware.CustomerMessageRateLimitMiddleware(), api.MessagePostUpload_attachment)
 	group.POST("/upload_image", middleware.CustomerMessageRateLimitMiddleware(), api.MessagePostUpload_image)
 	group.POST("/upload_audio", middleware.CustomerMessageRateLimitMiddleware(), api.MessagePostUpload_audio)
-	group.POST("/transcribe_audio", middleware.CustomerMessageRateLimitMiddleware(), api.MessagePostTranscribe_audio)
 }
 
 func registerDashboardDashboardRoutes(group *gin.RouterGroup) {

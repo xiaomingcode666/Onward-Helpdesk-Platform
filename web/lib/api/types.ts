@@ -353,6 +353,7 @@ export interface TicketFeedbackDTO {
 
 export interface AssetRefDTO {
   id: number
+  asset_id?: string
   file_name: string
   file_type: string
   file_size: number

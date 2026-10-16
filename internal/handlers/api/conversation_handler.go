@@ -129,28 +129,3 @@ func ConversationPostRequest_human(ctx *gin.Context) {
 	}
 	httpx.WriteJSON(ctx, nil)
 }
-
-// ConversationPostVoice_ticket creates (or appends to) the conversation's
-// ticket from the customer's reviewed voice transcript.
-func ConversationPostVoice_ticket(ctx *gin.Context) {
-	external := httpx.GetExternalUser(ctx)
-	if external == nil {
-		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0150"))
-		return
-	}
-	req := request.CustomerVoiceTicketRequest{}
-	if err := params.ReadJSON(ctx, &req); err != nil {
-		httpx.WriteJSON(ctx, err)
-		return
-	}
-	if err := services.CustomerPortalService.RequireServiceInteractionAccess(*external, httpx.GetCustomerSessionAccess(ctx).TenantID); err != nil {
-		httpx.WriteJSON(ctx, err)
-		return
-	}
-	result, err := services.CustomerVoiceTicketService.Submit(ctx.Request.Context(), req, *external, httpx.GetRequestID(ctx))
-	if err != nil {
-		httpx.WriteJSON(ctx, err)
-		return
-	}
-	httpx.WriteJSON(ctx, result)
-}

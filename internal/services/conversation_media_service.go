@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"io"
 	"net/url"
 	"strings"
@@ -37,9 +38,36 @@ func (s *conversationMediaService) AuthorizeForOperator(assetID string, operator
 	if operator == nil {
 		return nil, errorsx.UnauthorizedI18n("error.auth.expired")
 	}
-	return s.authorize(assetID, func(conversation *models.Conversation) bool {
+	asset, err := s.authorize(assetID, func(conversation *models.Conversation) bool {
 		return ConversationService.CanAccessConversation(conversation, operator)
 	})
+	if err == nil {
+		return asset, nil
+	}
+	if ticketAsset := voiceTicketRecordingForOperator(strings.TrimSpace(assetID), operator); ticketAsset != nil {
+		return ticketAsset, nil
+	}
+	return nil, err
+}
+
+// voiceTicketRecordingForOperator authorizes the original recording of a
+// standalone customer voice ticket, which is referenced from a ticket progress
+// entry rather than a conversation message.
+func voiceTicketRecordingForOperator(assetID string, operator *dto.AuthPrincipal) *models.Asset {
+	asset := AssetService.GetByAssetID(assetID)
+	if asset == nil || !asset.Usable() || asset.ConversationID > 0 {
+		return nil
+	}
+	metadata, _ := json.Marshal(customerVoiceProgressMetadata{Source: customerVoiceProgressSource, AudioAssetID: asset.AssetID})
+	var progress models.TicketProgress
+	if sqls.DB().Where("tenant_id = ? AND metadata_json = ?", asset.TenantID, string(metadata)).First(&progress).Error != nil {
+		return nil
+	}
+	ticket := repositories.TicketRepository.Get(sqls.DB(), progress.TicketID)
+	if ticket == nil || ticket.TenantID != asset.TenantID || requireTicketTenantAccess(ticket, operator) != nil {
+		return nil
+	}
+	return asset
 }
 
 func (s *conversationMediaService) OpenForCustomer(assetID string, external *openidentity.ExternalUser) (*models.Asset, io.ReadCloser, error) {

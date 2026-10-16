@@ -2,6 +2,7 @@ package api
 
 import (
 	"strconv"
+	"strings"
 
 	"remotehelpdesk/internal/builders"
 	"remotehelpdesk/internal/models"
@@ -640,4 +641,55 @@ func requireCustomerPortalDeviceFeature(ctx *gin.Context) bool {
 		return false
 	}
 	return true
+}
+
+// CustomerPortalPostVoiceTicketTranscribe converts a signed-in customer's PCM
+// WAV recording into text for the standalone voice ticket dialog.
+func CustomerPortalPostVoiceTicketTranscribe(ctx *gin.Context) {
+	if _, ok := requireCustomerPortalExternal(ctx); !ok {
+		return
+	}
+	header, err := ctx.FormFile("file")
+	if err != nil {
+		httpx.WriteJSON(ctx, httpx.JsonErrorMsg(ctx, "error.e0324"))
+		return
+	}
+	if !strings.HasPrefix(strings.ToLower(header.Header.Get("Content-Type")), "audio/wav") {
+		httpx.WriteJSON(ctx, errorsx.InvalidParam("transcription requires a PCM WAV file"))
+		return
+	}
+	result, err := services.SpeechTranscriptionService.TranscribeCustomerAudio(header)
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, result)
+}
+
+// CustomerPortalPostVoiceTicket creates a standalone ticket from the
+// customer's reviewed transcript and attaches the original recording.
+func CustomerPortalPostVoiceTicket(ctx *gin.Context) {
+	external, ok := requireCustomerPortalExternal(ctx)
+	if !ok {
+		return
+	}
+	audio, err := ctx.FormFile("audio")
+	if err != nil {
+		audio = nil
+	}
+	if audio != nil && !strings.HasPrefix(strings.ToLower(audio.Header.Get("Content-Type")), "audio/") {
+		httpx.WriteJSON(ctx, errorsx.InvalidParam("voice ticket requires an audio file"))
+		return
+	}
+	result, err := services.CustomerVoiceTicketService.Submit(ctx.Request.Context(), *external, httpx.GetCustomerSessionAccess(ctx).TenantID, services.CustomerVoiceTicketInput{
+		Transcript: params.FormValue(ctx, "transcript"),
+		RequestKey: params.FormValue(ctx, "requestKey"),
+		Locale:     i18nx.Locale(ctx),
+		Audio:      audio,
+	})
+	if err != nil {
+		httpx.WriteJSON(ctx, err)
+		return
+	}
+	httpx.WriteJSON(ctx, result)
 }

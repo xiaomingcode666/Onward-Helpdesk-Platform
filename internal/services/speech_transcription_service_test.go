@@ -10,7 +10,6 @@ import (
 	"net/textproto"
 	"testing"
 
-	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/config"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/providers"
@@ -99,7 +98,7 @@ func TestTranscribeCustomerAudioReturnsText(t *testing.T) {
 	useLocalWhisperStub(t, func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"text":"设备无法开机"}`))
 	})
-	result, err := SpeechTranscriptionService.TranscribeCustomerAudio(makeAudioFileHeader(t, makePCM16WAV(16_000, 1)), &models.Conversation{ID: 7, TenantID: 3})
+	result, err := SpeechTranscriptionService.TranscribeCustomerAudio(makeAudioFileHeader(t, makePCM16WAV(16_000, 1)))
 	if err != nil {
 		t.Fatalf("TranscribeCustomerAudio() error = %v", err)
 	}
@@ -112,7 +111,7 @@ func TestTranscribeCustomerAudioRejectsSilence(t *testing.T) {
 	useLocalWhisperStub(t, func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"text":"   "}`))
 	})
-	_, err := SpeechTranscriptionService.TranscribeCustomerAudio(makeAudioFileHeader(t, makePCM16WAV(16_000, 1)), &models.Conversation{ID: 7, TenantID: 3})
+	_, err := SpeechTranscriptionService.TranscribeCustomerAudio(makeAudioFileHeader(t, makePCM16WAV(16_000, 1)))
 	requireI18nKey(t, err, "speech.noSpeech")
 }
 
@@ -120,6 +119,6 @@ func TestTranscribeCustomerAudioMapsUnavailable(t *testing.T) {
 	useLocalWhisperStub(t, func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "down", http.StatusServiceUnavailable)
 	})
-	_, err := SpeechTranscriptionService.TranscribeCustomerAudio(makeAudioFileHeader(t, makePCM16WAV(16_000, 1)), &models.Conversation{ID: 7, TenantID: 3})
+	_, err := SpeechTranscriptionService.TranscribeCustomerAudio(makeAudioFileHeader(t, makePCM16WAV(16_000, 1)))
 	requireI18nKey(t, err, "speech.localUnavailable")
 }

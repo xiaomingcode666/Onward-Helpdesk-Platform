@@ -24,6 +24,8 @@ func registerApiCustomerPortalRoutes(group *gin.RouterGroup) {
 	group.POST("/conversations/:id/_translate", api.CustomerPortalPostConversationTranslate)
 	group.POST("/notifications/push-tokens", api.CustomerPortalPostMobilePushToken)
 	group.POST("/notifications/push-tokens/:id/_revoke", api.CustomerPortalPostMobilePushTokenRevoke)
+	group.POST("/voice-tickets/_transcribe", api.CustomerPortalPostVoiceTicketTranscribe)
+	group.POST("/voice-tickets", api.CustomerPortalPostVoiceTicket)
 	group.GET("/tickets/page", api.CustomerPortalGetTicketPage)
 	group.GET("/tickets", api.CustomerPortalGetTickets)
 	group.GET("/tickets/:id", api.CustomerPortalGetTicketDetail)

@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/errorsx"
 	"remotehelpdesk/internal/pkg/providers"
 )
@@ -39,15 +38,8 @@ func newSpeechTranscriptionService() *speechTranscriptionService {
 
 // TranscribeCustomerAudio accepts a PCM WAV recording. Browsers encode their
 // MediaRecorder output to this format before calling the endpoint, which keeps
-// provider-specific audio decoding out of the server. The caller has already
-// verified the customer owns the conversation.
-func (s *speechTranscriptionService) TranscribeCustomerAudio(
-	file *multipart.FileHeader,
-	conversation *models.Conversation,
-) (*VoiceTranscriptionResult, error) {
-	if conversation == nil {
-		return nil, errorsx.InvalidParamI18n("error.e0116")
-	}
+// provider-specific audio decoding out of the server.
+func (s *speechTranscriptionService) TranscribeCustomerAudio(file *multipart.FileHeader) (*VoiceTranscriptionResult, error) {
 	return s.transcribeFile(file)
 }
 
