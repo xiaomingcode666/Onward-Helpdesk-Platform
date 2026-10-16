@@ -682,3 +682,29 @@ func TestServerTimezoneDefaultsAndEnvironmentOverride(t *testing.T) {
 		t.Fatalf("environment timezone = %q, want America/New_York", got)
 	}
 }
+
+func TestSpeechConfigRequiresLocalWhisperEndpoint(t *testing.T) {
+	cfg := SpeechConfig{Provider: "local_whisper"}
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "speech.localWhisper.endpoint is required when speech.provider=local_whisper") {
+		t.Fatalf("Validate() error = %v, want local whisper endpoint validation", err)
+	}
+
+	cfg.LocalWhisper = LocalWhisperSpeechConfig{Endpoint: "ftp://127.0.0.1:8791"}
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "speech.localWhisper.endpoint must be an absolute HTTP(S) URL") {
+		t.Fatalf("Validate() error = %v, want local whisper URL validation", err)
+	}
+
+	cfg.LocalWhisper = LocalWhisperSpeechConfig{Endpoint: "http://127.0.0.1:8791"}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() configured local whisper error = %v", err)
+	}
+}
+
+func TestLocalWhisperSpeechConfigTimeoutDefaults(t *testing.T) {
+	if got := (LocalWhisperSpeechConfig{}).Timeout(); got != 60*time.Second {
+		t.Fatalf("Timeout() = %v, want 60s", got)
+	}
+	if got := (LocalWhisperSpeechConfig{TimeoutSeconds: 5}).Timeout(); got != 5*time.Second {
+		t.Fatalf("Timeout() = %v, want 5s", got)
+	}
+}

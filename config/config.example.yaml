@@ -129,6 +129,11 @@ speech:
     workspaceId: ""
     endpoint: "wss://dashscope.aliyuncs.com/api-ws/v1/inference"
     model: "qwen-audio-3.0-asr-flash-streaming"
+  # provider: local_whisper uses the loopback-only services/local_asr service
+  # (local Whisper model on this host; no cloud calls). Used for customer voice tickets.
+  localWhisper:
+    endpoint: "http://127.0.0.1:8791"
+    timeoutSeconds: 60
   jigasi:
     # Jigasi uses its built-in Whisper websocket client to send server-side
     # participant audio to this application's provider-neutral gateway.

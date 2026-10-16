@@ -37,6 +37,7 @@ var environmentBindings = map[string][]string{
 	"speech.aliyun.workspaceId":             {"RHD_ALIYUN_ASR_WORKSPACE_ID", "ALIYUN_ASR_WORKSPACE_ID"},
 	"speech.aliyun.endpoint":                {"RHD_ALIYUN_ASR_ENDPOINT", "ALIYUN_ASR_ENDPOINT"},
 	"speech.aliyun.model":                   {"RHD_ALIYUN_ASR_MODEL", "ALIYUN_ASR_MODEL"},
+	"speech.localWhisper.endpoint":          {"RHD_LOCAL_WHISPER_ENDPOINT"},
 	"speech.mock.segmentDurationMs": {
 		"RHD_SPEECH_MOCK_SEGMENT_DURATION_MS", "SPEECH_MOCK_SEGMENT_DURATION_MS",
 	},
@@ -851,12 +852,27 @@ func isLocalJitsiHost(host string) bool {
 // SpeechConfig configures meeting speech-to-text. Provider credentials remain
 // on the server because they grant direct API access to external services.
 type SpeechConfig struct {
-	Provider        string             `yaml:"provider" mapstructure:"provider"`
-	ProviderOptions map[string]any     `yaml:"providerOptions" mapstructure:"providerOptions"`
-	Xfyun           XfyunSpeechConfig  `yaml:"xfyun" mapstructure:"xfyun"`
-	Aliyun          AliyunSpeechConfig `yaml:"aliyun" mapstructure:"aliyun"`
-	Mock            MockSpeechConfig   `yaml:"mock" mapstructure:"mock"`
-	Jigasi          JigasiSpeechConfig `yaml:"jigasi" mapstructure:"jigasi"`
+	Provider        string                   `yaml:"provider" mapstructure:"provider"`
+	ProviderOptions map[string]any           `yaml:"providerOptions" mapstructure:"providerOptions"`
+	Xfyun           XfyunSpeechConfig        `yaml:"xfyun" mapstructure:"xfyun"`
+	Aliyun          AliyunSpeechConfig       `yaml:"aliyun" mapstructure:"aliyun"`
+	Mock            MockSpeechConfig         `yaml:"mock" mapstructure:"mock"`
+	Jigasi          JigasiSpeechConfig       `yaml:"jigasi" mapstructure:"jigasi"`
+	LocalWhisper    LocalWhisperSpeechConfig `yaml:"localWhisper" mapstructure:"localWhisper"`
+}
+
+// LocalWhisperSpeechConfig points at the loopback-only services/local_asr
+// service that runs a local Whisper model.
+type LocalWhisperSpeechConfig struct {
+	Endpoint       string `yaml:"endpoint" mapstructure:"endpoint"`
+	TimeoutSeconds int    `yaml:"timeoutSeconds" mapstructure:"timeoutSeconds"`
+}
+
+func (c LocalWhisperSpeechConfig) Timeout() time.Duration {
+	if c.TimeoutSeconds <= 0 {
+		return 60 * time.Second
+	}
+	return time.Duration(c.TimeoutSeconds) * time.Second
 }
 
 type XfyunSpeechConfig struct {
@@ -1011,6 +1027,16 @@ func (c SpeechConfig) Validate() error {
 			if parsed.Scheme != "wss" && parsed.Scheme != "https" && !isLocalJitsiHost(parsed.Hostname()) {
 				return fmt.Errorf("speech.aliyun.endpoint must use WSS or HTTPS outside local development")
 			}
+		}
+		return nil
+	case "local_whisper":
+		endpoint := strings.TrimSpace(c.LocalWhisper.Endpoint)
+		if endpoint == "" {
+			return fmt.Errorf("speech.localWhisper.endpoint is required when speech.provider=local_whisper")
+		}
+		parsed, err := url.Parse(endpoint)
+		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return fmt.Errorf("speech.localWhisper.endpoint must be an absolute HTTP(S) URL")
 		}
 		return nil
 	default:

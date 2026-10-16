@@ -140,6 +140,9 @@ var (
 		"aliyun": func(cfg *config.SpeechConfig) (SpeechTranscriptionProvider, error) {
 			return NewAliyunASRClient(cfg), nil
 		},
+		"local_whisper": func(cfg *config.SpeechConfig) (SpeechTranscriptionProvider, error) {
+			return NewLocalWhisperSpeechProvider(cfg.LocalWhisper), nil
+		},
 	}
 	currentSpeechTranscriptionProvider atomic.Pointer[speechTranscriptionProviderSnapshot]
 )
