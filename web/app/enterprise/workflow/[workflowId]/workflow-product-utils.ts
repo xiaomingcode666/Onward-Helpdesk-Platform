@@ -1,7 +1,29 @@
-import { translateCurrentMessage } from "@/i18n/messages"
+import { matchMessage, translateCurrentMessage } from "@/i18n/messages"
 
 function pt(key: string, values?: Record<string, string | number>) {
   return translateCurrentMessage(`workflowExtract.productUtils.${key}`, values)
+}
+
+const workflowVersionSummaryKeys = [
+  "aftersalesInitial", "aftersalesUpgrade", "diagnosisInitial", "diagnosisUpgrade",
+  "dispatchInitial", "dispatchUpgrade", "knowledgeInitial", "knowledgeUpgrade",
+  "runtimeSync", "rollback",
+]
+
+// Built-in releases store rendered notes. Recognize only known system notes so
+// historical versions follow the UI locale without rewriting custom notes.
+export function localizeWorkflowVersionSummary(
+  value: string,
+  translate: (key: string, values?: Record<string, string | number>) => string = translateCurrentMessage,
+) {
+  for (const key of workflowVersionSummaryKeys) {
+    const messageKey = `workflowExtract.enterpriseWorkflowDetail.versionsPanel.summaries.${key}`
+    const values = matchMessage(messageKey, value)
+    if (values && (key !== "rollback" || /^[1-9]\d*$/.test(values.version))) {
+      return translate(messageKey, values)
+    }
+  }
+  return value
 }
 
 export type ProductWorkflowDefinition = {

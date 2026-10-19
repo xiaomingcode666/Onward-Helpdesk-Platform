@@ -128,6 +128,7 @@ import {
   getWorkflowTestScenarios,
   isKnowledgeSupportWorkflowDefinition,
   isWorkflowDefinitionFunctionallyEquivalent,
+  localizeWorkflowVersionSummary,
   summarizeVersionChange,
   type WorkflowProductCapability,
   type WorkflowJourneyStage,
@@ -2321,7 +2322,7 @@ function WorkflowVersionPanel({
             {stable ? <Badge>{wd(t, "versionsPanel.stable")}</Badge> : <Badge variant="destructive">{wd(t, "versionsPanel.notOnline")}</Badge>}
           </div>
           {stable?.changeSummary.trim() ? (
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">{cleanWorkflowBusinessLabel(t, stable.changeSummary)}</p>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">{localizeWorkflowVersionSummary(stable.changeSummary, t)}</p>
           ) : null}
         </div>
         <div className="border-t px-4 py-5 lg:border-l lg:border-t-0">
@@ -2414,12 +2415,12 @@ function WorkflowVersionPanel({
               <div>
                 <div className="text-base font-semibold">V{version.version}</div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  {formatDateTime(version.publishedAt || version.createdAt)} · {version.publishedByName || "system"}
+                  {formatDateTime(version.publishedAt || version.createdAt)} · {version.publishedByName || wd(t, "versionsPanel.systemPublisher")}
                 </div>
               </div>
               {version.id === workflow.currentStableVersionId ? <Badge>{wd(t, "versionsPanel.currentStableBadge")}</Badge> : <Badge variant="outline">{wd(t, "versionsPanel.historyVersion")}</Badge>}
             </div>
-            {version.changeSummary.trim() ? <p className="text-sm leading-6 text-muted-foreground">{version.changeSummary}</p> : null}
+            {version.changeSummary.trim() ? <p className="text-sm leading-6 text-muted-foreground">{localizeWorkflowVersionSummary(version.changeSummary, t)}</p> : null}
             <div className="flex items-center justify-between gap-3 border-t pt-3 text-xs text-muted-foreground">
               <span>{wd(t, "versionsPanel.versionHash")}</span>
               <span className="font-mono" title={version.definitionHash}>{shortHash(version.definitionHash)}</span>
@@ -2450,9 +2451,9 @@ function WorkflowVersionPanel({
         {versions.map((version) => (
           <article key={version.id} className="grid gap-4 px-4 py-4 lg:grid-cols-[7rem_minmax(0,1fr)_9rem_10rem_11rem_9rem_14rem] lg:items-center">
             <div className="font-semibold">V{version.version}</div>
-            <div className="text-sm leading-5 text-muted-foreground">{cleanWorkflowBusinessLabel(t, version.changeSummary.trim() || "-")}</div>
+            <div className="text-sm leading-5 text-muted-foreground">{localizeWorkflowVersionSummary(version.changeSummary, t) || "-"}</div>
             <div>{version.id === workflow.currentStableVersionId ? <Badge>{wd(t, "versionsPanel.currentStableBadge")}</Badge> : <Badge variant="outline">{wd(t, "versionsPanel.historyVersion")}</Badge>}</div>
-            <div className="text-sm">{version.publishedByName || "system"}</div>
+            <div className="text-sm">{version.publishedByName || wd(t, "versionsPanel.systemPublisher")}</div>
             <div className="text-sm text-muted-foreground">{formatDateTime(version.publishedAt || version.createdAt)}</div>
             <div className="break-all text-xs text-muted-foreground" title={version.definitionHash}>{shortHash(version.definitionHash)}</div>
             <div className="flex justify-end gap-2">

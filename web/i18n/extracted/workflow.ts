@@ -358,6 +358,19 @@ export const workflowMessages = {
         },
         "versionsPanel": {
           "currentStable": "当前稳定版本",
+          "systemPublisher": "系统",
+          "summaries": {
+            "aftersalesInitial": "平台默认售后流程初始稳定版本",
+            "aftersalesUpgrade": "通用咨询接入意图识别、企业知识、自然对话、工单与人工协同",
+            "diagnosisInitial": "平台 AI 智能问诊流程初始稳定版本",
+            "diagnosisUpgrade": "统一有设备诊断与无设备基础服务，强化失败时的确定性安全降级",
+            "dispatchInitial": "平台功能派发流程初始稳定版本",
+            "dispatchUpgrade": "规则识别客户意图，明确转人工、建单确认和服务菜单兜底",
+            "knowledgeInitial": "平台租户级知识问答流程初始稳定版本",
+            "knowledgeUpgrade": "知识问答仅使用已审批且仍有效资料，并禁止动态动作工具",
+            "runtimeSync": "同步平台内置会话流程与 Agent 运行时变量契约",
+            "rollback": "回滚至 V{version}"
+          },
           "pendingPublish": "待发布",
           "stable": "稳定",
           "notOnline": "未上线",
@@ -1218,6 +1231,19 @@ export const workflowMessages = {
         },
         "versionsPanel": {
           "currentStable": "Current stable version",
+          "systemPublisher": "System",
+          "summaries": {
+            "aftersalesInitial": "Initial stable version of the platform's default after-sales workflow",
+            "aftersalesUpgrade": "General inquiries now support intent recognition, enterprise knowledge, natural conversation, tickets, and human collaboration",
+            "diagnosisInitial": "Initial stable version of the platform's AI diagnostic workflow",
+            "diagnosisUpgrade": "Unified device diagnostics and basic support without a device, with reliable fallback on failure",
+            "dispatchInitial": "Initial stable version of the platform's service dispatch workflow",
+            "dispatchUpgrade": "Rules identify customer intent and route to human support, ticket confirmation, or the fallback service menu",
+            "knowledgeInitial": "Initial stable version of the platform's tenant knowledge Q&A workflow",
+            "knowledgeUpgrade": "Knowledge answers use only approved, valid sources; dynamic action tools are disabled",
+            "runtimeSync": "Synchronized platform conversation workflows with agent runtime variables",
+            "rollback": "Rolled back to V{version}"
+          },
           "pendingPublish": "Pending publish",
           "stable": "Stable",
           "notOnline": "Not online",
@@ -2078,6 +2104,19 @@ export const workflowMessages = {
         },
         "versionsPanel": {
           "currentStable": "Version estable actual",
+          "systemPublisher": "Sistema",
+          "summaries": {
+            "aftersalesInitial": "Versión estable inicial del flujo posventa predeterminado de la plataforma",
+            "aftersalesUpgrade": "Las consultas generales incorporan reconocimiento de intención, conocimiento empresarial, conversación natural, tickets y colaboración humana",
+            "diagnosisInitial": "Versión estable inicial del flujo de diagnóstico con IA de la plataforma",
+            "diagnosisUpgrade": "Diagnóstico de dispositivos y soporte básico sin dispositivo unificados, con una alternativa segura en caso de fallo",
+            "dispatchInitial": "Versión estable inicial del flujo de asignación de servicios de la plataforma",
+            "dispatchUpgrade": "Las reglas identifican la intención del cliente y dirigen al soporte humano, la confirmación de tickets o el menú de servicios alternativo",
+            "knowledgeInitial": "Versión estable inicial del flujo de preguntas y respuestas del conocimiento del inquilino",
+            "knowledgeUpgrade": "Las respuestas usan solo fuentes aprobadas y vigentes; las herramientas de acciones dinámicas están desactivadas",
+            "runtimeSync": "Flujos de conversación de la plataforma sincronizados con las variables de ejecución del agente",
+            "rollback": "Revertido a V{version}"
+          },
           "pendingPublish": "Pendiente de publicar",
           "stable": "Estable",
           "notOnline": "No online",
