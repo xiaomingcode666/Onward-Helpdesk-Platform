@@ -130,9 +130,28 @@ export function ProjectConfigurationEditor() {
     } catch (e) { setError(e instanceof Error ? e.message : pc("applyFailed")) }
     finally { setBusy(false) }
   }
+  // System-written versions keep a fixed audit note; show them from their origin
+  // so every locale gets its own wording.
+  function displayVersionNote(version: ConfigurationVersion) {
+    if (version.origin === "migration_baseline") return pc("migrationBaselineNote")
+    if (version.origin === "initial_deployment") return pc("initialDeploymentNote")
+    return displayTicketWorkflowVersionNote(version.note, locale)
+  }
+  function versionState(version: ConfigurationVersion) {
+    if (version.id === view?.active_version_id) return pc("active")
+    if (version.activation) return pc("previouslyActive")
+    if (version.origin === "migration_baseline") return pc("migrationBaseline")
+    if (version.origin === "initial_deployment") return pc("initialDeployment")
+    return pc("unappliedDraft")
+  }
+  function versionCreator(version: ConfigurationVersion) {
+    if (version.origin === "migration_baseline") return pc("systemMigration")
+    if (version.origin === "initial_deployment") return pc("deploymentTool")
+    return version.created_by_name || version.created_by
+  }
   function copyVersion(version: ConfigurationVersion) {
     const copy = restoreProjectConfiguration(version.document, view?.document)
-    edit(copy); setNote(versionNote("adjustedFromPrefix", { version: version.id, rest: version.note }).slice(0, 500))
+    edit(copy); setNote(versionNote("adjustedFromPrefix", { version: version.id, rest: displayVersionNote(version) }).slice(0, 500))
     const retainedRuntime = !version.document.runtime && copy.runtime ? pc("retainedRuntime") : ""
     setMessage(`${pc("loadedDraft", { id: version.id })}${retainedRuntime}`)
   }
@@ -214,8 +233,8 @@ export function ProjectConfigurationEditor() {
           </div>}
           <details><summary className="cursor-pointer font-medium">{pc("historyDrafts")}</summary>
             <div className="mt-3 grid gap-3">{view.versions.map(version => <div key={version.id} className="rounded border p-3 text-sm">
-              <div>V{version.id} · {version.id === view.active_version_id ? pc("active") : version.activation ? pc("previouslyActive") : version.created_by === 0 ? pc("migrationBaseline") : pc("unappliedDraft")} · {new Date(version.created_at).toLocaleString()}</div>
-              <div className="my-2 break-words">{displayTicketWorkflowVersionNote(version.note, locale)}</div>
+              <div>V{version.id} · {versionState(version)} · {new Date(version.created_at).toLocaleString()}</div>
+              <div className="my-2 break-words">{displayVersionNote(version)}</div>
               {version.document.environment === "production" && <div className="my-2 rounded bg-muted/40 p-2">
                 <div className="mb-2 font-medium">{pc("retentionApproval")}</div>
                 {approvals.filter(a => a.version_id === version.id).length === 0
@@ -224,7 +243,7 @@ export function ProjectConfigurationEditor() {
                 {!version.activation && version.id !== view.active_version_id && <RailopsButton disabled={busy} onClick={() => void submitRetention(version)}>{pc("submitRetention")}</RailopsButton>}
               </div>}
               {version.document.runtime && <details><summary>{pc("viewRuntimeSnapshot")}</summary><pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(version.document.runtime, null, 2)}</pre></details>}
-              <div className="text-muted-foreground">{pc("createdBy")}: {version.created_by_name || version.created_by || pc("systemMigration")}{version.activation ? `; ${pc("appliedBy")}: ${version.activation.applied_by_name || version.activation.applied_by}; ${pc("appliedAt")}: ${new Date(version.activation.applied_at).toLocaleString()}` : ""}</div>
+              <div className="text-muted-foreground">{pc("createdBy")}: {versionCreator(version)}{version.activation ? `; ${pc("appliedBy")}: ${version.activation.applied_by_name || version.activation.applied_by}; ${pc("appliedAt")}: ${new Date(version.activation.applied_at).toLocaleString()}` : ""}</div>
               <div className="mt-2 flex gap-2"><RailopsButton disabled={busy} onClick={() => copyVersion(version)}>{pc("loadAsDraft")}</RailopsButton>{version.activation && <RailopsButton disabled={busy} onClick={() => exportVersion(version)}>{pc("exportDeployment")}</RailopsButton>}</div>
             </div>)}</div>
             {view.next_before_id > 0 && <div ref={historySentinel} className="flex min-h-8 items-center justify-center text-sm text-muted-foreground">{loadingOlder ? pc("loadingEarlier") : pc("loadEarlier")}</div>}

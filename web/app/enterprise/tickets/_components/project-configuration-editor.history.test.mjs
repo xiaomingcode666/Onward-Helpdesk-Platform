@@ -13,3 +13,22 @@ test("configuration history loads ten versions first and continues on scroll", (
   assert.match(source, /setView\(current => \{/)
   assert.doesNotMatch(source, /onClick=\{\(\) => void loadOlder\(\)\}/)
 })
+
+test("system-written versions render from their origin in the current locale", async () => {
+  const messages = Object.fromEntries(await Promise.all(["zh-CN", "en-US", "es-ES"].map(async (locale) => [
+    locale,
+    JSON.parse(await readFile(new URL(`../../../../messages/${locale}.json`, import.meta.url), "utf8")).projectConfiguration,
+  ])))
+  assert.match(serviceSource, /Origin: projectConfigVersionOrigin\(v\)/)
+  assert.match(source, /version\.origin === "migration_baseline"\) return pc\("migrationBaselineNote"\)/)
+  assert.match(source, /version\.origin === "initial_deployment"\) return pc\("initialDeploymentNote"\)/)
+  assert.match(source, /\{pc\("createdBy"\)\}: \{versionCreator\(version\)\}/)
+  assert.doesNotMatch(source, /version\.created_by === 0 \? pc\("migrationBaseline"\)/)
+  for (const key of ["initialDeployment", "migrationBaselineNote", "initialDeploymentNote", "deploymentTool"]) {
+    for (const locale of ["en-US", "es-ES"]) {
+      assert.ok(messages[locale][key], `${locale} ${key}`)
+      assert.doesNotMatch(messages[locale][key], /[一-鿿]/, `${locale} ${key} contains Chinese`)
+    }
+    assert.ok(messages["zh-CN"][key], `zh-CN ${key}`)
+  }
+})

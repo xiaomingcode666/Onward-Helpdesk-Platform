@@ -37,8 +37,16 @@ func init() {
 	eventbus.RegisterDurable[projectConfigurationAppliedEvent]("project.configuration.applied")
 }
 
+// Origins of system-written versions. Their stored notes are a fixed audit
+// record; clients render these versions from the origin in the reader's locale.
+const (
+	ProjectConfigOriginMigrationBaseline = "migration_baseline"
+	ProjectConfigOriginInitialDeployment = "initial_deployment"
+)
+
 type ProjectConfigVersion struct {
 	models.ProjectConfigurationVersion
+	Origin     string                                 `json:"origin,omitempty"`
 	Document   projectconfig.Document                 `json:"document"`
 	Activation *models.ProjectConfigurationActivation `json:"activation,omitempty"`
 }
@@ -86,7 +94,19 @@ func decodeProjectVersion(v models.ProjectConfigurationVersion) (ProjectConfigVe
 	if projectconfig.Digest(doc) != v.Digest {
 		return ProjectConfigVersion{}, errors.New("配置历史内容校验失败")
 	}
-	return ProjectConfigVersion{ProjectConfigurationVersion: v, Document: doc}, nil
+	return ProjectConfigVersion{ProjectConfigurationVersion: v, Origin: projectConfigVersionOrigin(v), Document: doc}, nil
+}
+
+// Online drafts cannot use the system: prefix and always have a signed-in
+// creator, so neither origin can be claimed through the draft API.
+func projectConfigVersionOrigin(v models.ProjectConfigurationVersion) string {
+	switch {
+	case v.RequestKey == "system:baseline":
+		return ProjectConfigOriginMigrationBaseline
+	case v.CreatedBy == 0 && strings.HasPrefix(v.RequestKey, "initial:"):
+		return ProjectConfigOriginInitialDeployment
+	}
+	return ""
 }
 
 func projectState(db *gorm.DB, tenantID int64) (models.ProjectConfigurationState, error) {

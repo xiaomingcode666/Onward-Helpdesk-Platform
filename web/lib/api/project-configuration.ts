@@ -24,6 +24,7 @@ export type ConfigurationVersion = {
   base_version_id: number
   digest: string
   note: string
+  origin?: "migration_baseline" | "initial_deployment"
   created_by: number
   created_by_name?: string
   created_at: string
