@@ -29,6 +29,9 @@ async function loadModule() {
               "notification.ticketAssignedTitle": "Ticket assigned",
               "notification.ticketAssignedLine": `Ticket ${values.ticketNo} has been assigned to you.`,
               "notification.assignmentReason": `Assignment reason: ${values.reason}`,
+              "notification.conversationMessageNewTitle": "New reply",
+              "notification.conversationMessageAiTitle": "New AI assistant reply",
+              "notification.conversationMessagePartnerTitle": "New partner reply",
               "notification.slaWarningTitle": `Ticket ${values.ticketNo} is approaching its SLA`,
               "notification.slaViolationFRT": "First response",
               "notification.slaElapsedMinutes": `${values.minutes} minutes of effective time have elapsed`,
@@ -109,4 +112,40 @@ test("localizes legacy SLA notification content to English", async () => {
     "en-US",
   )
   assert.equal(reached.content, "First response target: 30 minutes; the target time has been reached.")
+})
+
+test("localizes current Chinese SLA warning title to English", async () => {
+  const { localizeEnterpriseNotification, localizeNotificationItem } = await loadModule()
+
+  const title = "工单 TK2026101400001 即将超时"
+  const expected = "Ticket TK2026101400001 is approaching its SLA"
+
+  const enterprise = localizeEnterpriseNotification(
+    { title, content: "First response target: 30 minutes", notification_type: "sla_warning" },
+    "en-US",
+  )
+  assert.equal(enterprise.title, expected)
+
+  const realtime = localizeNotificationItem(
+    { title, content: "First response target: 30 minutes", notificationType: "sla_warning" },
+    "en-US",
+  )
+  assert.equal(realtime.title, expected)
+})
+
+test("localizes legacy AI conversation reply titles to English", async () => {
+  const { localizeEnterpriseNotification, localizeNotificationItem } = await loadModule()
+  const title = "智能助手新回复"
+
+  const enterprise = localizeEnterpriseNotification(
+    { title, content: "We are connecting you to a human support agent. Please wait.", notification_type: "conversation_message" },
+    "en-US",
+  )
+  assert.equal(enterprise.title, "New AI assistant reply")
+
+  const realtime = localizeNotificationItem(
+    { title, content: "We are connecting you to a human support agent. Please wait.", notificationType: "conversation_message" },
+    "en-US",
+  )
+  assert.equal(realtime.title, "New AI assistant reply")
 })

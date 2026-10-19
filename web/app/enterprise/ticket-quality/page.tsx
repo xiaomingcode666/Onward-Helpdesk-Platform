@@ -123,8 +123,6 @@ export function TicketQualityContent({ embedded = false }: TicketQualityContentP
   const [analysis, setAnalysis] = useState<TicketQualityAnalysis | null>(null)
   const [analysisFrom, setAnalysisFrom] = useState("")
   const [analysisTo, setAnalysisTo] = useState("")
-  const [analysisProject, setAnalysisProject] = useState("")
-  const [analysisTeamID, setAnalysisTeamID] = useState("")
   const [analysisAgentID, setAnalysisAgentID] = useState("")
   const [analysisCategory, setAnalysisCategory] = useState("")
   const [analysisChannel, setAnalysisChannel] = useState("")
@@ -163,14 +161,14 @@ export function TicketQualityContent({ embedded = false }: TicketQualityContentP
     setAnalysisLoading(true)
     try {
       const response = await fetchTicketQualityAnalysis({
-        from: analysisFrom || undefined, to: analysisTo || undefined, project: analysisProject || undefined,
-        team_id: analysisTeamID ? Number(analysisTeamID) : undefined, agent_id: analysisAgentID ? Number(analysisAgentID) : undefined,
+        from: analysisFrom || undefined, to: analysisTo || undefined,
+        agent_id: analysisAgentID ? Number(analysisAgentID) : undefined,
         category: analysisCategory || undefined, channel: analysisChannel || undefined,
       })
       if (!response.success) throw new Error(response.error?.message || t("errors.load"))
       setAnalysis(response.data)
     } catch (error) { toast.error(error instanceof Error ? error.message : t("errors.load")) } finally { setAnalysisLoading(false) }
-  }, [analysisAgentID, analysisCategory, analysisChannel, analysisFrom, analysisProject, analysisTeamID, analysisTo])
+  }, [analysisAgentID, analysisCategory, analysisChannel, analysisFrom, analysisTo])
 
   const refresh = () => void load()
   const refreshAnalysis = () => void loadAnalysis()
@@ -281,8 +279,6 @@ export function TicketQualityContent({ embedded = false }: TicketQualityContentP
         <div className="grid items-end gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
           <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.startDate")}<DatePicker className="ticket-quality-date-picker h-9 w-full" value={analysisFrom ? dayjs(analysisFrom) : null} format="YYYY-MM-DD" placeholder={t("analysis.filters.datePlaceholder")} onChange={(value) => setAnalysisFrom(value?.format("YYYY-MM-DD") ?? "")} /></label>
           <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.endDate")}<DatePicker className="ticket-quality-date-picker h-9 w-full" value={analysisTo ? dayjs(analysisTo) : null} format="YYYY-MM-DD" placeholder={t("analysis.filters.datePlaceholder")} onChange={(value) => setAnalysisTo(value?.format("YYYY-MM-DD") ?? "")} /></label>
-          <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.project")}<Input className="h-9 w-full" value={analysisProject} onChange={(event) => setAnalysisProject(event.target.value)} placeholder={t("analysis.filters.projectPlaceholder")} /></label>
-          <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.team")}<Input className="h-9 w-full" value={analysisTeamID} onChange={(event) => setAnalysisTeamID(event.target.value.replace(/\D/g, ""))} placeholder={t("analysis.filters.idPlaceholder")} /></label>
           {canViewAgentQuality ? <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.agent")}<Input className="h-9 w-full" value={analysisAgentID} onChange={(event) => setAnalysisAgentID(event.target.value.replace(/\D/g, ""))} placeholder={t("analysis.filters.idPlaceholder")} /></label> : null}
           <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.category")}<Input className="h-9 w-full" value={analysisCategory} onChange={(event) => setAnalysisCategory(event.target.value)} placeholder={t("analysis.filters.optionalPlaceholder")} /></label>
           <label className="flex min-w-0 flex-col gap-1 text-xs text-slate-500">{t("analysis.filters.channel")}<Input className="h-9 w-full" value={analysisChannel} onChange={(event) => setAnalysisChannel(event.target.value)} placeholder={t("analysis.filters.optionalPlaceholder")} /></label>

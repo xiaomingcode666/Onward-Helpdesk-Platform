@@ -17,6 +17,7 @@ test("quality sampling controls and analysis labels follow the active locale", (
   assert.doesNotMatch(source, />Project</)
   assert.doesNotMatch(source, />Team ID</)
   assert.doesNotMatch(source, />Agent ID</)
+  assert.doesNotMatch(source, /analysisProject|analysisTeamID|analysis\.filters\.(project|team)/)
 })
 
 test("quality sampling localizes backend status and priority codes", () => {

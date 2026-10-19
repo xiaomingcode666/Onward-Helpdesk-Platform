@@ -34,6 +34,53 @@ func TestWsNotificationCreatedEventType(t *testing.T) {
 	}
 }
 
+func TestWsNotificationCreatedPayloadUsesConnectionLocale(t *testing.T) {
+	db := setupHumanDispatchRealtimeTestDB(t)
+	item := &models.Notification{
+		TenantID:         1,
+		RecipientUserID:  42,
+		Title:            "工单 TK-REALTIME 即将超时",
+		Content:          "首次响应目标 30 分钟，当前有效计时 22 分钟，预计剩余约 8 分钟。",
+		NotificationType: "sla_warning",
+		TemplateCode:     "sla_warning",
+		TemplateParams:   i18nx.Params{"TicketNo": "TK-REALTIME", "Content": "First response target: 30 minutes; 22 minutes of effective time have elapsed; approximately 8 minutes remain."},
+		Status:           int(enums.StatusOk),
+	}
+	if err := db.Create(item).Error; err != nil {
+		t.Fatalf("create notification: %v", err)
+	}
+	payload, err := json.Marshal(map[string]any{
+		"type": enums.IMRealtimeEventNotificationCreated,
+		"data": map[string]any{"notification": map[string]any{
+			"id": item.ID, "title": item.Title, "content": item.Content,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("marshal notification event: %v", err)
+	}
+	localized, changed := localizeRealtimePayload(payload, i18nx.LocaleEnUS)
+	if !changed {
+		t.Fatal("expected notification payload to be localized")
+	}
+	var event struct {
+		Data struct {
+			Notification struct {
+				Title   string `json:"title"`
+				Content string `json:"content"`
+			} `json:"notification"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(localized, &event); err != nil {
+		t.Fatalf("decode localized notification event: %v", err)
+	}
+	if event.Data.Notification.Title != "Ticket TK-REALTIME is approaching its SLA" {
+		t.Fatalf("localized title = %q", event.Data.Notification.Title)
+	}
+	if event.Data.Notification.Content != "First response target: 30 minutes; 22 minutes of effective time have elapsed; approximately 8 minutes remain.\nPlease handle it before the response or resolution target." {
+		t.Fatalf("localized content = %q", event.Data.Notification.Content)
+	}
+}
+
 func TestWsRouteConversationTopicsUsesTenantAndTeamIsolation(t *testing.T) {
 	svc := newWsService()
 	topics := svc.routeConversationTopics(&models.Conversation{

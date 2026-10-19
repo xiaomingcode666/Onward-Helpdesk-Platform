@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"remotehelpdesk/internal/ai/runtime/tooling"
 	"remotehelpdesk/internal/models"
@@ -73,16 +74,17 @@ func (g *HandoffGraph) Run(ctx context.Context, argumentsInJSON string) (string,
 	if !hasData {
 		info := HandoffGraphInterruptInfo{
 			Type:    InterruptTypeHandoffConfirmation,
-			Message: ConfirmOrCancelPrompt,
+			Message: i18nx.Getf(handoffLocaleForMessage(state.Reason), "graph.confirmOrCancel"),
 		}
 		return "", componenttool.StatefulInterrupt(ctx, info, state)
 	}
 	switch parseHandoffDecision(resumeText) {
 	case ConfirmationDecisionConfirm:
-		if err := services.ConversationService.HandoffByAIWithRequestID(g.conversation.ID, g.aiAgent, state.Reason, tracex.RequestIDFromContext(ctx)); err != nil {
+		locale := handoffLocaleForMessage(state.Reason)
+		if _, err := services.ConversationHumanDispatchService.HandoffByAIWithRequestIDForLocale(g.conversation.ID, g.aiAgent, state.Reason, tracex.RequestIDFromContext(ctx), locale); err != nil {
 			return "", err
 		}
-		// ConversationService sends the customer-visible handoff notice according to the dispatch decision.
+		// The dispatch service sends the customer-visible handoff notice in the request language.
 		return tooling.MarshalToolResult(tooling.ToolResult{
 			Handled:     true,
 			Terminal:    true,
@@ -95,13 +97,13 @@ func (g *HandoffGraph) Run(ctx context.Context, argumentsInJSON string) (string,
 			Handled:     true,
 			Terminal:    true,
 			Action:      "handoff_cancelled",
-			ReplyText:   CancelHandoffReply,
+			ReplyText:   i18nx.Getf(handoffLocaleForMessage(state.Reason), "graph.cancelHandoff"),
 			ShouldRetry: false,
 		}), nil
 	default:
 		info := HandoffGraphInterruptInfo{
 			Type:    InterruptTypeHandoffConfirmation,
-			Message: NeedExplicitConfirmationPrompt,
+			Message: i18nx.Getf(handoffLocaleForMessage(state.Reason), "graph.needExplicitConfirmation"),
 		}
 		return "", componenttool.StatefulInterrupt(ctx, info, state)
 	}
@@ -122,7 +124,24 @@ func (g *HandoffGraph) buildReason(argumentsInJSON string) (string, error) {
 }
 
 func (g *HandoffGraph) buildConfirmationPrompt(reason string) string {
-	return i18nx.Getf(i18nx.DefaultLocale, "graph.handoffConfirmPrompt", strings.TrimSpace(reason))
+	return i18nx.Getf(handoffLocaleForMessage(reason), "graph.handoffConfirmPrompt", strings.TrimSpace(reason))
+}
+
+func handoffLocaleForMessage(value string) string {
+	hanCount := 0
+	latinCount := 0
+	for _, r := range strings.TrimSpace(value) {
+		switch {
+		case unicode.Is(unicode.Han, r):
+			hanCount++
+		case unicode.IsLetter(r) && unicode.Is(unicode.Latin, r):
+			latinCount++
+		}
+	}
+	if hanCount == 0 && latinCount >= 2 {
+		return i18nx.LocaleEnUS
+	}
+	return i18nx.LocaleZhCN
 }
 
 func parseHandoffDecision(value string) ConfirmationDecision {

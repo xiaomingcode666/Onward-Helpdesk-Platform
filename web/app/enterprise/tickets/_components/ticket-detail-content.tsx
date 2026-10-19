@@ -925,9 +925,9 @@ export function EnterpriseTicketDetailContent({
                   title={ee("ticketDetail.text143")}
                 >
                   <div className="space-y-2">
-                    {ticket.service_metrics.map((metric) => (
+                    {ticket.service_metrics.map((metric, index) => (
                       <RecordRow
-                        key={`${metric.metric_type}-${metric.target_at}`}
+                        key={metric.id ? `metric-${metric.id}` : `${metric.metric_type}-${metric.target_at ?? "none"}-${index}`}
                         label={ticketServiceMetricLabel(metric.metric_type)}
                         value={
                           <StatusTag tone={ticketServiceMetricTone(metric.status)}>

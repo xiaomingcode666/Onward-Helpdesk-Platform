@@ -7,6 +7,7 @@ import { FormField, IconButton, RailopsButton, SelectField, StandardModal, Statu
 import { toast } from "sonner"
 
 import { translateCurrentMessage } from "@/i18n/messages"
+import { useI18n } from "@/i18n/provider"
 import {
   createTicket,
   createTicketCustomerInvitationDraft,
@@ -15,7 +16,7 @@ import {
   type TicketCustomerOption,
 } from "@/lib/api/enterprise-tickets"
 import type { TicketListItem, TicketPriority } from "@/lib/api/types"
-import { governanceLabel as g, type CaseType } from "@/lib/ticket-governance"
+import { type CaseType } from "@/lib/ticket-governance"
 import { TicketClassificationFields } from "./ticket-governance"
 
 function ee(key: string) {
@@ -80,6 +81,7 @@ type TicketCreateModalProps = {
 }
 
 export function TicketCreateModal({ open, parentTicketId = 0, onOpenChange, onCreated }: TicketCreateModalProps) {
+  const t = useI18n()
   const [saving, setSaving] = useState(false)
   const [createKey, setCreateKey] = useState(() => crypto.randomUUID())
   const [error, setError] = useState("")
@@ -162,7 +164,7 @@ export function TicketCreateModal({ open, parentTicketId = 0, onOpenChange, onCr
       return
     }
     if (draft.priorityOverride && !draft.priorityReason.trim()) {
-      setError(g("reasonRequired"))
+      setError(t("ticketGovernance.reasonRequired"))
       return
     }
     setSaving(true)
@@ -354,7 +356,7 @@ export function TicketCreateModal({ open, parentTicketId = 0, onOpenChange, onCr
             onChange={(caseType) => setDraft((current) => ({ ...current, caseType }))}
           />
           {draft.parentId > 0 ? (
-            <FormField label={`${g("parentTicket")} #${draft.parentId} · ${g("reason")}`} required>
+            <FormField label={`${t("ticketGovernance.parentTicket")} #${draft.parentId} · ${t("ticketGovernance.reason")}`} required>
               <Input.TextArea value={draft.relationReason} maxLength={2000} onChange={(event) => setDraft((current) => ({ ...current, relationReason: event.target.value }))} />
             </FormField>
           ) : null}

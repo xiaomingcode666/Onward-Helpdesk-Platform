@@ -89,6 +89,42 @@ func TestNotificationDeliverySchedulesOnceAndMarksEmailSent(t *testing.T) {
 	}
 }
 
+func TestNotificationDeliverySkipsPreBreachSLAMail(t *testing.T) {
+	db := setupNotificationDeliveryTestDB(t)
+	email := "engineer@example.com"
+	seedNotificationDeliveryUser(t, db, 11, 1101, &email)
+	item, err := NotificationService.Create(request.CreateNotificationRequest{
+		TenantID: 11, RecipientUserID: 1101, Title: "SLA warning", Content: "Still within target",
+		NotificationType: "sla_warning", BizType: "system", Level: "warning", Channels: "in_app,email",
+		IdempotencyKey: "sla.warning:pre-breach",
+	})
+	if err != nil {
+		t.Fatalf("create notification: %v", err)
+	}
+	transport := &fakeNotificationEmailTransport{}
+	service := newNotificationDeliveryService(transport)
+	service.now = func() time.Time { return time.Date(2026, 8, 3, 10, 0, 0, 0, time.UTC) }
+	if err := service.Schedule(item); err != nil {
+		t.Fatalf("schedule email delivery: %v", err)
+	}
+	if processed := service.ProcessDue(context.Background(), 20); processed != 1 {
+		t.Fatalf("processed deliveries = %d, want 1", processed)
+	}
+	if transport.calls != 0 {
+		t.Fatalf("email transport calls = %d, want 0", transport.calls)
+	}
+	var delivery models.DeliveryLog
+	if err := db.First(&delivery).Error; err != nil {
+		t.Fatalf("load delivery: %v", err)
+	}
+	if delivery.Status != notificationDeliveryStatusSkipped {
+		t.Fatalf("delivery status = %q, want skipped", delivery.Status)
+	}
+	if updated := repositoriesNotificationForTest(t, db, item.ID); updated.ExternalChannelStatus != notificationEmailStatusSkipped {
+		t.Fatalf("email status = %q, want skipped", updated.ExternalChannelStatus)
+	}
+}
+
 func TestNotificationDeliveryHonorsRetryPolicyAndStops(t *testing.T) {
 	db := setupNotificationDeliveryTestDB(t)
 	email := "manager@example.com"
@@ -261,7 +297,7 @@ func seedNotificationDeliveryUser(t *testing.T, db *gorm.DB, tenantID, userID in
 func createEmailNotificationForDeliveryTest(t *testing.T, tenantID, userID int64, key string) *models.Notification {
 	t.Helper()
 	item, err := NotificationService.Create(request.CreateNotificationRequest{
-		TenantID: tenantID, RecipientUserID: userID, Title: "邮件通知", NotificationType: "sla_warning", BizType: "system", Channels: "in_app,email", IdempotencyKey: key,
+		TenantID: tenantID, RecipientUserID: userID, Title: "邮件通知", NotificationType: "sla_warning", BizType: "system", Level: "urgent", Channels: "in_app,email", IdempotencyKey: key,
 	})
 	if err != nil {
 		t.Fatalf("create notification: %v", err)

@@ -344,11 +344,11 @@ test("platform sidebar sections match the platform menu hierarchy", async () => 
       },
       {
         labelKey: "remoteSidebar.system",
-        items: ["ops"],
+        items: ["ops", "system-config"],
       },
       {
         labelKey: "remoteSidebar.management",
-        items: ["staff", "tenants", "permissions", "audit"],
+        items: ["staff", "tenants", "permissions", "asset-quarantine", "audit"],
       },
     ]
   )
@@ -365,12 +365,15 @@ test("permission groups follow each domain menu order", async () => {
     [
       "report",
       "productAIUsageCredential",
+      "finance",
       "aiConfig",
       "tenantIntegrationConfig",
+      "systemIntro",
       "user",
       "tenant",
       "role",
       "permission",
+      "assetQuarantine",
       "session",
       "platform",
     ],
@@ -397,15 +400,19 @@ test("permission groups follow each domain menu order", async () => {
     [
       {
         labelKey: "remoteSidebar.operations",
-        groupKeys: ["report", "productAIUsageCredential"],
+        groupKeys: ["report", "productAIUsageCredential", "finance"],
       },
       {
         labelKey: "remoteSidebar.aiData",
         groupKeys: ["aiConfig", "tenantIntegrationConfig"],
       },
       {
+        labelKey: "remoteSidebar.system",
+        groupKeys: ["systemIntro"],
+      },
+      {
         labelKey: "remoteSidebar.management",
-        groupKeys: ["user", "tenant", "role", "permission", "session", "platform"],
+        groupKeys: ["user", "tenant", "role", "permission", "assetQuarantine", "session", "platform"],
       },
     ],
   )
@@ -475,4 +482,26 @@ test("remote helpdesk navigation keeps canonical three-end route aliases stable"
     Array.from(customerNavItems.find((item) => item.key === "tickets").aliases),
     ["/customer/ticket"]
   )
+})
+
+test("attachment quarantine navigation follows the dedicated manage permission", async () => {
+  const {
+    enterpriseNavItems,
+    platformNavItems,
+    filterRemoteHelpdeskNavForPermissions,
+    getRemoteHelpdeskPermissionCategories,
+  } = await loadNavigationModule()
+
+  for (const items of [enterpriseNavItems, platformNavItems]) {
+    const visible = (permissions) =>
+      filterRemoteHelpdeskNavForPermissions(items, permissions).some((item) => item.key === "asset-quarantine")
+    assert.equal(visible(["assetQuarantine.manage"]), true)
+    // Enterprise roles never hold the platform tenant permission, so it must not gate this page.
+    assert.equal(visible(["tenant.update"]), false)
+    assert.equal(visible(["asset.view", "ticket.view"]), false)
+  }
+  for (const domain of ["enterprise", "platform"]) {
+    const groups = getRemoteHelpdeskPermissionCategories(domain).flatMap((category) => category.groupKeys)
+    assert.equal(groups.includes("assetQuarantine"), true, domain)
+  }
 })

@@ -7,18 +7,23 @@ var handoffNegationPhrases = []string{
 	"暂时不要转人工", "暂不转人工", "先不要转人工", "先不转人工",
 	"不要人工", "不用人工", "无需人工", "不需要人工",
 	"别找人工", "不用找人工", "别联系人工", "先别联系人工", "不要联系人工", "不用联系人工", "无需联系人工",
-	"donottransfer", "donttransfer", "don'ttransfer", "nohumanagent",
+	"donottransfer", "donttransfer", "don'ttransfer", "nohumanagent", "nohumansupport",
+	"donotconnecttohuman", "dontconnecttohuman", "donotconnecttoagent", "dontconnecttoagent",
+	"dontneedahuman", "donotneedahuman", "noneedforhuman", "noliveagent",
 }
 
 var handoffRequestPhrases = []string{
 	"转人工", "接人工", "找人工", "联系人工", "请求人工", "呼叫人工", "安排人工",
 	"需要人工", "真人客服",
-	"humanagent", "liveagent", "transferme",
+	"transfertohuman", "transferme", "connecttohuman", "connectme",
+	"speaktohuman", "talktohuman", "contacthuman", "humanhelp", "humanassistance",
+	"requesthuman", "needhuman", "wantahuman", "requesthumansupport", "requestliveagent",
+	"livechat",
 }
 
-var handoffRolePhrases = []string{"人工客服", "人工服务", "人工处理"}
+var handoffRolePhrases = []string{"人工客服", "人工服务", "人工处理", "humanagent", "humansupport", "liveagent", "livesupport", "customersupport"}
 
-var handoffRequestVerbs = []string{"我要", "我想", "帮我", "需要", "联系", "转接", "接入", "安排", "请求", "呼叫"}
+var handoffRequestVerbs = []string{"我要", "我想", "帮我", "需要", "联系", "转接", "接入", "安排", "请求", "呼叫", "please", "request", "need", "want", "speak", "talk", "connect", "contact", "transfer"}
 
 var ticketNegationPhrases = []string{
 	"不要创建工单", "别创建工单", "不用创建工单", "无需创建工单", "不需要创建工单",
@@ -42,6 +47,11 @@ func IsExplicitHandoffRequest(value string) bool {
 	}
 	if compact == "人工" || compact == "客服" || compact == "真人" {
 		return true
+	}
+	for _, role := range handoffRolePhrases {
+		if compact == compactActionText(role) {
+			return true
+		}
 	}
 	if containsActionPhrase(compact, handoffRequestPhrases) {
 		return true

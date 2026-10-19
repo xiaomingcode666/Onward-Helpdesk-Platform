@@ -58,7 +58,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { DetailDrawer, SelectField, StandardModal, UnderlineTabs, type RailopsTabItem } from "@railops/ui"
@@ -2273,6 +2273,7 @@ function WorkflowVersionPanel({
   onRollback: (version: AIWorkflowVersion) => void
 }) {
   const t = useI18n()
+  const compareSectionRef = useRef<HTMLElement | null>(null)
   const stable = versions.find((item) => item.id === workflow.currentStableVersionId)
   const previous = stable
     ? versions
@@ -2303,6 +2304,12 @@ function WorkflowVersionPanel({
   ))
   const hasVersions = versions.length > 0
   const showVersionSkeleton = loading && !hasVersions
+  const handleCompare = (versionId: number) => {
+    setCompareVersionId(versionId)
+    requestAnimationFrame(() => {
+      compareSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -2339,7 +2346,7 @@ function WorkflowVersionPanel({
       </section>
 
       {stable && historicalVersions.length > 0 ? (
-        <section className="border-y">
+        <section ref={compareSectionRef} className="border-y scroll-mt-4">
           <div className="flex flex-col gap-3 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold"><GitBranchIcon className="size-4 text-primary" />{wd(t, "versionsPanel.diff")}</div>
@@ -2419,7 +2426,14 @@ function WorkflowVersionPanel({
             </div>
             {version.id !== stable?.id ? (
               <div className="grid grid-cols-2 gap-2">
-                <Button size="sm" variant="outline" onClick={() => setCompareVersionId(version.id)}>{wd(t, "versionsPanel.compare")}</Button>
+                <Button
+                  size="sm"
+                  variant={version.id === effectiveCompareVersionId ? "default" : "outline"}
+                  aria-pressed={version.id === effectiveCompareVersionId}
+                  onClick={() => handleCompare(version.id)}
+                >
+                  {wd(t, "versionsPanel.compare")}
+                </Button>
                 {canRollback ? (
                   <Button size="sm" variant="outline" disabled={rollingBackVersionId > 0} onClick={() => onRollback(version)}>
                     {rollingBackVersionId === version.id ? <Loader2Icon className="animate-spin" /> : <RotateCcwIcon />}{wd(t, "versionsPanel.rollback")}
@@ -2443,7 +2457,14 @@ function WorkflowVersionPanel({
             <div className="break-all text-xs text-muted-foreground" title={version.definitionHash}>{shortHash(version.definitionHash)}</div>
             <div className="flex justify-end gap-2">
               {version.id !== stable?.id ? (
-                <Button size="sm" variant="outline" onClick={() => setCompareVersionId(version.id)}>{wd(t, "versionsPanel.compare")}</Button>
+                <Button
+                  size="sm"
+                  variant={version.id === effectiveCompareVersionId ? "default" : "outline"}
+                  aria-pressed={version.id === effectiveCompareVersionId}
+                  onClick={() => handleCompare(version.id)}
+                >
+                  {wd(t, "versionsPanel.compare")}
+                </Button>
               ) : null}
               {version.id !== stable?.id && canRollback ? (
                 <Button size="sm" variant="outline" disabled={rollingBackVersionId > 0} onClick={() => onRollback(version)}>

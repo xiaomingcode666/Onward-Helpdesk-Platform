@@ -254,7 +254,7 @@ func applyIAMRoleSpecsDB(db *gorm.DB, tenantID int64, specs []iamDefaultRoleSpec
 func platformDefaultRoleSpecs() []iamDefaultRoleSpec {
 	return []iamDefaultRoleSpec{
 		{models.DomainTypePlatform, PlatformRoleAdmin, "平台管理员", "管理平台人员、租户、套餐、授权和审计", 10, allIAMPermissionCodes()},
-		{models.DomainTypePlatform, PlatformRoleOperations, "平台运营", "负责租户开通、状态维护、用量支持和跨租户协作，不管理平台人员与角色", 20, permissionCodesByExactOrPrefix([]string{"tenant.view", "tenant.create", "tenant.update", "tenant.export", "report.view", "product.view", "productModel.view", "device.view", "ticket.view", "notification.view", "aiConfig.view", "productAIUsageCredential.view"})},
+		{models.DomainTypePlatform, PlatformRoleOperations, "平台运营", "负责租户开通、状态维护、用量支持和跨租户协作，不管理平台人员与角色", 20, permissionCodesByExactOrPrefix([]string{"tenant.view", "tenant.create", "tenant.update", "tenant.export", "assetQuarantine.manage", "report.view", "product.view", "productModel.view", "device.view", "ticket.view", "notification.view", "aiConfig.view", "productAIUsageCredential.view"})},
 		{models.DomainTypePlatform, PlatformRoleFinance, "平台财务", "查看租户付费状态、用量成本，并处理充值、套餐和额度调整", 25, platformFinancePermissionCodes()},
 		{models.DomainTypePlatform, PlatformRoleAuditor, "平台审计员", "只读查看平台配置、人员、角色、会话和业务审计数据", 30, permissionCodesByExactOrPrefix([]string{"tenant.view", "report.view", "user.view", "role.view", "permission.view", "session.view", "product.view", "device.view", "ticket.view", "notification.view"})},
 	}

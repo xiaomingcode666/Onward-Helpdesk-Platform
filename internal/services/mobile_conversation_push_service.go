@@ -8,6 +8,7 @@ import (
 
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/repositories"
 
 	"github.com/mlogclub/simple/sqls"
@@ -50,11 +51,11 @@ func (s *mobileConversationPushService) ScheduleReply(conversation *models.Conve
 	item := repositories.NotificationRepository.FindByIdempotencyKey(sqls.DB(), conversation.TenantID, idempotencyKey)
 	if item == nil {
 		now := s.now()
-		title := "RemoteHelpDesk 新回复"
+		title := i18nx.TLocale(customerUser.Locale, "notification.conversationMessage.new.title")
 		if message.SenderType == enums.IMSenderTypeAI {
-			title = "智能助手新回复"
+			title = i18nx.TLocale(customerUser.Locale, "notification.conversationMessage.ai.title")
 		} else if message.SenderType == enums.IMSenderTypePartner {
-			title = "协作方新回复"
+			title = i18nx.TLocale(customerUser.Locale, "notification.conversationMessage.partner.title")
 		}
 		content := limitText(buildMessageSummary(message.MessageType, message.Content), 180)
 		if content == "" {

@@ -1,18 +1,21 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Form, Input } from "antd"
 import { useAuth } from "@/components/auth-provider"
+import { useI18n } from "@/i18n/provider"
 import { FormField, RailopsButton, SelectField, StandardModal, StatusTag } from "@railops/ui"
 import { fetchTicketAggregate } from "@/lib/api/enterprise-tickets"
 import type { TicketAggregateDTO, ProductListItem } from "@/lib/api/types"
 import { caseStatusLabel } from "@/lib/ticket-case-labels"
 import { formatDateTime } from "@/lib/utils"
 import { listProducts, getProductModules, type ProductModule } from "@/lib/api/enterprise-products"
-import { caseTypes, emptyPriorityFacts, searchDuplicateTickets, type DuplicateCandidate, governanceExplanationLabel, governanceLabel as g, fetchGovernance, saveGovernance, type CaseType, type PriorityFacts, type GovernanceView, type GovernanceCommand, type PriorityPolicy, fetchClassificationPolicy, previewPriorityChange, type PriorityPreview } from "@/lib/ticket-governance"
+import { caseTypes, emptyPriorityFacts, searchDuplicateTickets, type DuplicateCandidate, governanceExplanationLabel, governanceReasonLabel, fetchGovernance, saveGovernance, type CaseType, type PriorityFacts, type GovernanceView, type GovernanceCommand, type PriorityPolicy, fetchClassificationPolicy, previewPriorityChange, type PriorityPreview } from "@/lib/ticket-governance"
 
 export function TicketClassificationFields({ value, onChange, disabled = false, policy, keepPriority, priorityOverride = "", priorityReason = "", onPriorityChange, onPriorityReasonChange }: { value: string; onChange: (value: CaseType) => void; disabled?: boolean; policy?: PriorityPolicy; keepPriority?: string; priorityOverride?: string; priorityReason?: string; onPriorityChange?: (value: string) => void; onPriorityReasonChange?: (value: string) => void }) {
   const { session } = useAuth()
+  const t = useI18n()
+  const g = useCallback((key: string, values?: Record<string, string | number>) => t(`ticketGovernance.${key}`, values), [t])
   const canAdjust = Boolean(session?.permissions?.includes("ticket.view") && (session.permissions.includes("ticket.update") || session.roles?.some(role => ["tenant_owner", "tenant_admin", "service_manager"].includes(role))))
   const [currentPolicy, setCurrentPolicy] = useState<PriorityPolicy | undefined>(policy)
   useEffect(() => { let active = true; if (!policy) void fetchClassificationPolicy().then(r => { if (active && r.success && r.data) setCurrentPolicy(r.data) }).catch(() => {}); return () => { active = false } }, [policy])
@@ -31,6 +34,8 @@ export function TicketClassificationFields({ value, onChange, disabled = false, 
 
 export function TicketGovernancePanel({ aggregate, onSaved, onCreateChild, active = true }: { aggregate: TicketAggregateDTO; onSaved: (value: TicketAggregateDTO) => void | Promise<void>; onCreateChild: (parentTicketId: number) => void; active?: boolean }) {
   const { session } = useAuth()
+  const t = useI18n()
+  const g = useCallback((key: string, values?: Record<string, string | number>) => t(`ticketGovernance.${key}`, values), [t])
   const id = aggregate.ticket.id
   const [view, setView] = useState<GovernanceView | null>(null)
   const [preview, setPreview] = useState<PriorityPreview | null>(null)
@@ -72,7 +77,7 @@ export function TicketGovernancePanel({ aggregate, onSaved, onCreateChild, activ
     mounted.current = active
     if (active) void fetchGovernance(id).then(r => { if (cancelled || !mounted.current) return; if (r.success && r.data && r.data.ticket_id === id) { setView(r.data); setLoadError("") } else setLoadError(r.error?.message || g("loadFailed")) }).catch(e => { if (!cancelled && mounted.current) setLoadError(e instanceof Error ? e.message : g("loadFailed")) })
     return () => { cancelled = true; mounted.current = false }
-  }, [id, active, aggregate.ticket.updated_at])
+  }, [id, active, aggregate.ticket.updated_at, g])
 
   const previewPriority = priority
   useEffect(() => {
@@ -82,7 +87,7 @@ export function TicketGovernancePanel({ aggregate, onSaved, onCreateChild, activ
       void previewPriorityChange(id, previewPriority).then(r => { if (cancelled) return; if (r.success && r.data) { setPreview(r.data); setPreviewError("") } else setPreviewError(r.error?.message || g("loadFailed")) }).catch(e => { if (!cancelled) setPreviewError(String(e)) })
     }
     return () => { cancelled = true }
-  }, [id, action, previewPriority, previewAttempt])
+  }, [id, action, previewPriority, previewAttempt, g])
   async function reload() {
     const result = await fetchGovernance(id)
     if (!result.success || !result.data || result.data.ticket_id !== id) throw new Error(result.error?.message || g("loadFailed"))
@@ -105,7 +110,7 @@ export function TicketGovernancePanel({ aggregate, onSaved, onCreateChild, activ
       })
     }, search ? 250 : 0)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [action, id, search, active, submitted])
+  }, [action, id, search, active, submitted, g])
   function searchParents(value: string) {
     searchSequence.current++
     setSearch(value); setCandidates([]); setTarget(undefined); setSelectedParent(undefined)
@@ -234,6 +239,7 @@ export function TicketGovernancePanel({ aggregate, onSaved, onCreateChild, activ
     <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">{g("title")}</h3><StatusTag tone={view.priority === "p1" ? "error" : "blue"}>{view.priority ? g(`level.${view.priority}`) : "—"}</StatusTag></div>
     <dl className="grid gap-2 text-sm sm:grid-cols-2"><div><dt className="text-muted-foreground">{g("classification")}</dt><dd>{view.case_type ? g(`type.${view.case_type}`) : g("unclassified")}</dd></div><div><dt className="text-muted-foreground">{g("prioritySource")}</dt><dd>{g(view.overridden ? "manualSource" : view.legacy || view.priority !== view.policy.defaults[view.case_type as CaseType] ? "historicalSource" : "classificationSource")}</dd></div></dl>
     <div className="flex flex-wrap gap-2">{!terminal && view.can_manage ? ["classify", "override"].map(a => <RailopsButton key={a} size="small" onClick={() => open(a)}>{g(`action.${a}`)}</RailopsButton>) : null}</div>
+    {terminal ? <p className="text-xs text-muted-foreground">{g("priorityEditClosed")}</p> : !view.can_manage ? <p className="text-xs text-muted-foreground">{g("priorityEditPermissionRequired")}</p> : null}
     <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
       <h4 className="text-sm font-semibold">{g("relations")}</h4>
       <div className="flex flex-wrap gap-2">
@@ -247,9 +253,9 @@ export function TicketGovernancePanel({ aggregate, onSaved, onCreateChild, activ
     {terminal && children.some(child => !["closed", "cancelled"].includes(child.status)) ? <p className="text-sm text-amber-700">{g("reopenedChild")}</p> : null}
     {view.relations.some(r => r.kind === "parent" && r.target_id === id && ["restored", "resolved", "closure_pending", "closed"].includes(r.status)) && !terminal ? <p className="text-sm text-amber-700">{g("parentRestored")}</p> : null}
     {highest && highest < view.priority ? <p className="text-sm text-amber-700">{g("childPriorityWarning")}</p> : null}
-    {!view.relations.length ? <p className="text-sm text-muted-foreground">{g("noRelations")}</p> : view.relations.map(r => <div key={r.id} className="space-y-1 border-b pb-2 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><a className="underline" href={`/enterprise/ticket-workbench?ticket_id=${r.other_id}`}>{r.ticket_no} · {r.title}</a>{r.can_remove ? <RailopsButton size="small" onClick={() => open("unlink", r.id)}>{g("action.unlink")}</RailopsButton> : null}</div><p>{g(`relation.${r.kind === "parent" && r.target_id === id ? "child_of" : r.kind === "causes" && r.target_id === id ? "caused_by" : r.kind === "duplicate" && r.target_id === id ? "duplicates" : r.kind === "merged" && r.target_id === id ? "merged_sources" : r.kind}`)} · {r.priority.toUpperCase()} · {caseStatusLabel(r.status)} · {g("owner")}: {r.owner_id || "—"}</p><p className="text-muted-foreground">{r.reason}</p></div>)}
+    {!view.relations.length ? <p className="text-sm text-muted-foreground">{g("noRelations")}</p> : view.relations.map(r => <div key={r.id} className="space-y-1 border-b pb-2 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><a className="underline" href={`/enterprise/ticket-workbench?ticket_id=${r.other_id}`}>{r.ticket_no} · {r.title}</a>{r.can_remove ? <RailopsButton size="small" onClick={() => open("unlink", r.id)}>{g("action.unlink")}</RailopsButton> : null}</div><p>{g(`relation.${r.kind === "parent" && r.target_id === id ? "child_of" : r.kind === "causes" && r.target_id === id ? "caused_by" : r.kind === "duplicate" && r.target_id === id ? "duplicates" : r.kind === "merged" && r.target_id === id ? "merged_sources" : r.kind}`)} · {r.priority.toUpperCase()} · {caseStatusLabel(r.status, (key, values) => t(`ticketCase.${key}`, values))} · {g("owner")}: {r.owner_id || "—"}</p><p className="text-muted-foreground">{governanceReasonLabel(r.reason, g)}</p></div>)}
     {view.proposals.length ? <details className="border-t pt-3 text-sm"><summary className="cursor-pointer">{g("historicalProposals")} ({view.proposals.length})</summary><p className="my-2 text-muted-foreground">{g("historicalProposalHelp")}</p>{view.proposals.map(p => <div key={p.id} className="space-y-1 border-b py-2"><p>#{p.id} · {p.priority.toUpperCase()} · {g(p.status === "pending" ? "historicalPending" : `proposal.${p.status}`)}</p><p>{p.reason}</p>{p.review_reason ? <p>{g("reviewReason")}: {p.review_reason}</p> : null}</div>)}</details> : null}
-    <details className="border-t pt-3 text-sm"><summary className="cursor-pointer">{g("history")} ({view.history.length})</summary><div className="mt-3 space-y-3">{view.history.map(h => <div key={h.id} className="border-b pb-2"><p>{g(`action.${h.action}`)} · {formatDateTime(h.created_at)} · {g("operator")} #{h.actor_id}</p><p className="whitespace-pre-wrap">{h.reason}</p><details><summary>{g("decisionDetails")}</summary><DecisionDetails details={h.details} /></details></div>)}</div></details>
+    <details className="border-t pt-3 text-sm"><summary className="cursor-pointer">{g("history")} ({view.history.length})</summary><div className="mt-3 space-y-3">{view.history.map(h => <div key={h.id} className="border-b pb-2"><p>{g(`action.${h.action}`)} · {formatDateTime(h.created_at)} · {g("operator")} #{h.actor_id}</p><p className="whitespace-pre-wrap">{governanceReasonLabel(h.reason, g)}</p><details><summary>{g("decisionDetails")}</summary><DecisionDetails details={h.details} /></details></div>)}</div></details>
     <StandardModal width={560} open={Boolean(action)} title={g(`action.${action || "classify"}`)} onCancel={() => { if (!busy) { setAction(""); void reload().catch(() => {}) } }} footer={<><RailopsButton disabled={busy} onClick={() => { setAction(""); void reload().catch(() => {}) }}>{g("cancel")}</RailopsButton><RailopsButton variant="primary" loading={busy} disabled={busy || stale || (action === "duplicate_child" && !submitted && !selectedParent) || (action === "override" && !submitted && preview?.priority !== priority)} onClick={() => void save()}>{committed.current ? g("refresh") : g(action === "duplicate_child" ? "confirmParentLink" : "save")}</RailopsButton></>}>
       <Form layout="vertical" className="space-y-4">
         {action === "classify" ? <TicketClassificationFields value={caseType} onChange={setCaseType} disabled={formDisabled} policy={view.policy} keepPriority={view.overridden ? view.priority : undefined} /> : null}
@@ -338,6 +344,8 @@ export function TicketGovernancePanel({ aggregate, onSaved, onCreateChild, activ
 
 
 function DecisionDetails({ details }: { details: Record<string, unknown> }) {
+  const t = useI18n()
+  const g = useCallback((key: string, values?: Record<string, string | number>) => t(`ticketGovernance.${key}`, values), [t])
   const before = (details.before ?? {}) as Record<string, unknown>
   const after = (details.after ?? {}) as Record<string, unknown>
   let facts: Partial<PriorityFacts> = {}
@@ -356,7 +364,7 @@ function DecisionDetails({ details }: { details: Record<string, unknown> }) {
   return <dl className="mt-2 space-y-1 text-xs">
     <div><dt>{g("classification")}</dt><dd>{before.CaseType ? g(`type.${before.CaseType}`) : "—"} → {after.CaseType ? g(`type.${after.CaseType}`) : "—"}</dd></div>
     <div><dt>{g("newPriority")}</dt><dd>{String(before.PriorityLevel || "—").toUpperCase()} → {String(after.PriorityLevel || "—").toUpperCase()}</dd></div>
-    <div><dt>{g("suggested")}</dt><dd>{String(after.PrioritySuggested || "—").toUpperCase()} · {governanceExplanationLabel(after.PriorityExplanation)}</dd></div>
+    <div><dt>{g("suggested")}</dt><dd>{String(after.PrioritySuggested || "—").toUpperCase()} · {governanceExplanationLabel(after.PriorityExplanation, g)}</dd></div>
     <div><dt>{g("evidence")}</dt><dd>{facts.evidence || "—"}</dd></div>
     {facts.root_cause ? <div><dt>{g("rootCause")}</dt><dd>{facts.root_cause}</dd></div> : null}
     <div><dt>{g("slaDeadline")}</dt><dd>{details.previous_sla_deadline ? formatDateTime(String(details.previous_sla_deadline)) : "—"} → {details.sla_deadline ? formatDateTime(String(details.sla_deadline)) : "—"}</dd></div>

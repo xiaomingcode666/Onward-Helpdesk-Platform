@@ -37,6 +37,20 @@ func TestBuildNotificationLocalizesKnownSystemNotification(t *testing.T) {
 	}
 }
 
+func TestBuildNotificationLocalizesLegacyConversationMessageTitle(t *testing.T) {
+	result := BuildNotificationWithLocale(&models.Notification{
+		Title:            "智能助手新回复",
+		NotificationType: "conversation_message",
+	}, i18nx.LocaleEnUS)
+
+	if result == nil {
+		t.Fatalf("expected notification response")
+	}
+	if result.Title != "New AI assistant reply" {
+		t.Fatalf("title = %q", result.Title)
+	}
+}
+
 func TestBuildNotificationNormalizesLegacyEnterpriseTicketActionURL(t *testing.T) {
 	result := BuildNotification(&models.Notification{
 		NotificationType: "ticket_assigned",

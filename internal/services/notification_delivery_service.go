@@ -30,6 +30,7 @@ const (
 	notificationEmailStatusSent            = "email_sent"
 	notificationEmailStatusFailed          = "email_failed"
 	notificationEmailStatusUnavailable     = "email_unavailable"
+	notificationEmailStatusSkipped         = "email_skipped"
 	notificationPushStatusUnavailable      = "push_unavailable"
 )
 
@@ -81,7 +82,7 @@ func (s *notificationDeliveryService) scheduleEmail(item *models.Notification) e
 	if item.ExternalChannelStatus == notificationEmailStatusSent ||
 		item.ExternalChannelStatus == notificationEmailStatusFailed ||
 		item.ExternalChannelStatus == notificationEmailStatusUnavailable ||
-		item.ExternalChannelStatus == "email_skipped" {
+		item.ExternalChannelStatus == notificationEmailStatusSkipped {
 		return nil
 	}
 
@@ -390,6 +391,9 @@ func (s *notificationDeliveryService) processEmailDelivery(delivery *models.Deli
 	}
 	if item.Status != int(enums.StatusOk) || !notificationHasChannel(item.Channels, "email") {
 		return s.finishDelivery(delivery, item, notificationDeliveryStatusFailed, notificationEmailStatusUnavailable, "notification is inactive or email channel is disabled", nil)
+	}
+	if strings.EqualFold(strings.TrimSpace(item.NotificationType), "sla_warning") && !strings.EqualFold(strings.TrimSpace(item.Level), "urgent") {
+		return s.finishDelivery(delivery, item, notificationDeliveryStatusSkipped, notificationEmailStatusSkipped, "SLA warning email is sent only after breach", nil)
 	}
 
 	recipient := strings.TrimSpace(delivery.RecipientID)

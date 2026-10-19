@@ -189,6 +189,7 @@ func handleSLAWarningInAppNotification(ctx context.Context, event events.SLAWarn
 		return err
 	}
 	level := notificationSeverityLevel(event.Severity)
+	channels := slaWarningNotificationChannels(event.Severity)
 	return services.NotificationAudienceService.Deliver(recipients, request.CreateNotificationRequest{
 		TenantID:         ticket.TenantID,
 		TitleText:        i18nx.NewText("notificationText.sla.title", i18nx.Params{"ticketNo": notificationTicketNo(ticket.ID, ticket.TicketNo)}),
@@ -199,7 +200,7 @@ func handleSLAWarningInAppNotification(ctx context.Context, event events.SLAWarn
 		ActionURL:        routes.EnterpriseTicketWorkbenchPath(ticket.ID),
 		Category:         "sla",
 		Level:            level,
-		Channels:         "in_app,email",
+		Channels:         channels,
 		// 模板变量：已批准模板按接收人语言渲染时使用，避免出现未替换的占位符。
 		TemplateCode: "sla_warning",
 		TemplateVariables: map[string]string{
@@ -325,5 +326,14 @@ func notificationSeverityLevel(severity string) string {
 		return "warning"
 	default:
 		return "info"
+	}
+}
+
+func slaWarningNotificationChannels(severity string) string {
+	switch strings.ToLower(strings.TrimSpace(severity)) {
+	case "breach", "critical":
+		return "in_app,email"
+	default:
+		return "in_app"
 	}
 }

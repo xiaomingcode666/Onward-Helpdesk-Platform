@@ -11,11 +11,7 @@ export function ProjectRuntimeFields({ document, onChange, disabled = false, mai
   const pc = (key: string, values?: Record<string, string | number>) => translate(`projectConfiguration.${key}`, values)
   const r = document.runtime
   if (!r) return null
-  // The editor passes these values for the newer mail-secret workflow. The
-  // runtime editor still stores secret references, so keep the props available
-  // without rendering or serializing the secret values here.
-  void mailSecrets
-  void onMailSecretsChange
+  const updateMailSecrets = (patch: Partial<NonNullable<typeof mailSecrets>>) => onMailSecretsChange?.({ smtpPassword: mailSecrets?.smtpPassword ?? "", imapPassword: mailSecrets?.imapPassword ?? "", ...patch })
   const knowledgeSupport = r.service_scene === "knowledge_support"
   const slaLabels = knowledgeSupport
     ? { response: pc("firstHumanReply"), assignment: pc("humanHandoff"), resolution: pc("problemResolution") }
@@ -24,7 +20,18 @@ export function ProjectRuntimeFields({ document, onChange, disabled = false, mai
   const setIMAP = (patch: Partial<typeof imap>) => set({ mail: { ...r.mail, imap: { ...imap, ...patch } } })
   const set = (patch: Partial<ProjectRuntime>) => onChange(replaceProjectRuntime(document, { ...r, ...patch }))
   const field = (name: string, value: string, update: (value: string) => void) => <FormField label={name}><Input aria-label={name} value={value} onChange={e => update(e.target.value)} /></FormField>
-  const number = (name: string, value: number, update: (value: number) => void) => <FormField label={name}><InputNumber aria-label={name} min={0} className="!w-full" value={value} onChange={v => update(v ?? 0)} /></FormField>
+  const number = (name: string, value: number, update: (value: number) => void, className?: string) => <FormField label={name} className={className}><InputNumber aria-label={name} min={0} className="!w-full" value={value} onChange={v => update(v ?? 0)} /></FormField>
+  const retentionNumber = (name: string, value: number, update: (value: number) => void, hint: string) => {
+    const inputId = `retention-${name.replace(/[^a-zA-Z0-9_-]/g, "-")}`
+    return <div className="min-w-0 rounded-xl border border-border/70 bg-background p-3 shadow-sm transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10">
+      <label htmlFor={inputId} className="block text-sm font-semibold leading-5 text-foreground">{name}</label>
+      <p className="mt-1 min-h-10 text-xs leading-5 text-muted-foreground">{hint}</p>
+      <div className="mt-3 flex items-center gap-2">
+        <div className="min-w-0 flex-1"><InputNumber id={inputId} aria-label={name} min={0} className="!w-full" value={value} onChange={v => update(v ?? 0)} /></div>
+        <span className="shrink-0 text-xs font-medium text-muted-foreground">{pc("retentionDaysUnit")}</span>
+      </div>
+    </div>
+  }
   return <ConfigProvider componentDisabled={disabled}><fieldset disabled={disabled} className="grid min-w-0 gap-4">
     <p className="text-sm">{pc("intro")}</p>
     <details open><summary className="font-medium">{pc("serviceSettings")}</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -77,7 +84,7 @@ export function ProjectRuntimeFields({ document, onChange, disabled = false, mai
       <Checkbox checked={r.mail.enabled} onChange={e => set({ mail: { ...r.mail, enabled: e.target.checked } })}>{pc("enableEmailSending")}</Checkbox>
       <Checkbox checked={r.mail.use_tls} onChange={e => set({ mail: { ...r.mail, use_tls: e.target.checked } })}>{pc("tlsEncryption")}</Checkbox>
       {field(pc("smtpAddress"), r.mail.host, host => set({ mail: { ...r.mail, host } }))}{number(pc("smtpPort"), r.mail.port, port => set({ mail: { ...r.mail, port } }))}
-      {field(pc("senderAccount"), r.mail.username, username => set({ mail: { ...r.mail, username } }))}{field(pc("smtpPassword"), r.mail.password_ref, password_ref => set({ mail: { ...r.mail, password_ref } }))}
+      {field(pc("senderAccount"), r.mail.username, username => set({ mail: { ...r.mail, username } }))}<FormField label={pc("smtpPassword")}><Input type="password" autoComplete="new-password" value={mailSecrets?.smtpPassword ?? ""} onChange={e => updateMailSecrets({ smtpPassword: e.target.value })} placeholder={r.mail.password_ref ? pc("configuredKeep") : pc("enterPassword")} /></FormField>
       {field(pc("senderEmail"), r.mail.from_address, from_address => set({ mail: { ...r.mail, from_address } }))}{field(pc("senderName"), r.mail.from_name, from_name => set({ mail: { ...r.mail, from_name } }))}
       {field(pc("replyEmail"), r.mail.reply_to, reply_to => set({ mail: { ...r.mail, reply_to } }))}
       <FormField label={pc("sendRetry")}><Select className="w-full" value={r.mail.retry_policy} options={[{value:"retry_3_10m",label:pc("retry3")},{value:"retry_1_5m",label:pc("retry1")},{value:"no_retry",label:pc("noRetry")}]} onChange={retry_policy=>set({mail:{...r.mail,retry_policy}})} /></FormField>
@@ -87,7 +94,7 @@ export function ProjectRuntimeFields({ document, onChange, disabled = false, mai
       <Checkbox checked={imap.enabled} onChange={e => setIMAP({ enabled: e.target.checked })}>{pc("enableAutoReceive")}</Checkbox>
       <p className="text-sm sm:col-span-2">{pc("autoReceiveHelp")}</p>
       {field(pc("imapAddress"), imap.host, host => setIMAP({ host }))}{number(pc("imapPort"), imap.port, port => setIMAP({ port }))}
-      {field(pc("mailboxAccount"), imap.username, username => setIMAP({ username }))}{field(pc("imapPassword"), imap.password_ref, password_ref => setIMAP({ password_ref }))}
+      {field(pc("mailboxAccount"), imap.username, username => setIMAP({ username }))}<FormField label={pc("imapPassword")}><Input type="password" autoComplete="new-password" value={mailSecrets?.imapPassword ?? ""} onChange={e => updateMailSecrets({ imapPassword: e.target.value })} placeholder={imap.password_ref ? pc("configuredKeep") : pc("enterPassword")} /></FormField>
       {field(pc("defaultTicketType"), imap.ticket_type, ticket_type => setIMAP({ ticket_type }))}
     </div></details>
     <details><summary className="font-medium">{pc("externalSystems")}</summary><div className="mt-3 grid gap-3">
@@ -103,25 +110,38 @@ export function ProjectRuntimeFields({ document, onChange, disabled = false, mai
       })}
       <RailopsButton onClick={() => set({ integrations: [...r.integrations, { provider: "", enabled: false, base_url: "", app_id: "", secret_ref: "", key_ref: "", metadata_json: "{}" }] })}>{pc("addIntegration")}</RailopsButton>
     </div></details>
-    <details><summary className="font-medium">{pc("retentionTitle")}</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">
-      <div className="sm:col-span-2">
-        <p className="font-medium text-xs text-muted-foreground mb-2">
-          {pc("retentionCategoriesTitle")}
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {number(pc("retentionTicket"), r.retention.ticket_days || r.retention.days || 365, v => set({ retention: { ...r.retention, ticket_days: v, days: v || r.retention.days || 365 } }))}
-          {number(pc("retentionAttachment"), r.retention.attachment_days || 180, v => set({ retention: { ...r.retention, attachment_days: v } }))}
-          {number(pc("retentionEvent"), r.retention.event_days || 90, v => set({ retention: { ...r.retention, event_days: v } }))}
-          {number(pc("retentionAudit"), r.retention.audit_days || 180, v => set({ retention: { ...r.retention, audit_days: v } }))}
-          {number(pc("retentionMetric"), r.retention.metric_days || 30, v => set({ retention: { ...r.retention, metric_days: v } }))}
-          {number(pc("retentionLog"), r.retention.log_days || 30, v => set({ retention: { ...r.retention, log_days: v } }))}
-          {number(pc("retentionReport"), r.retention.report_days || 90, v => set({ retention: { ...r.retention, report_days: v } }))}
-          {number(pc("retentionBackup"), r.retention.backup_days || 30, v => set({ retention: { ...r.retention, backup_days: v } }))}
+    <details><summary className="font-medium">{pc("retentionTitle")}</summary><div className="mt-3 space-y-4">
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+        <p className="text-sm font-semibold text-foreground">{pc("retentionCategoriesTitle")}</p>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">{pc("retentionIntro")}</p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {retentionNumber(pc("retentionTicket"), r.retention.ticket_days || r.retention.days || 365, v => set({ retention: { ...r.retention, ticket_days: v, days: v || r.retention.days || 365 } }), pc("retentionTicketHint"))}
+        {retentionNumber(pc("retentionAttachment"), r.retention.attachment_days || 180, v => set({ retention: { ...r.retention, attachment_days: v } }), pc("retentionAttachmentHint"))}
+        {retentionNumber(pc("retentionEvent"), r.retention.event_days || 90, v => set({ retention: { ...r.retention, event_days: v } }), pc("retentionEventHint"))}
+        {retentionNumber(pc("retentionAudit"), r.retention.audit_days || 180, v => set({ retention: { ...r.retention, audit_days: v } }), pc("retentionAuditHint"))}
+        {retentionNumber(pc("retentionMetric"), r.retention.metric_days || 30, v => set({ retention: { ...r.retention, metric_days: v } }), pc("retentionMetricHint"))}
+        {retentionNumber(pc("retentionLog"), r.retention.log_days || 30, v => set({ retention: { ...r.retention, log_days: v } }), pc("retentionLogHint"))}
+        {retentionNumber(pc("retentionReport"), r.retention.report_days || 90, v => set({ retention: { ...r.retention, report_days: v } }), pc("retentionReportHint"))}
+        {retentionNumber(pc("retentionBackup"), r.retention.backup_days || 30, v => set({ retention: { ...r.retention, backup_days: v } }), pc("retentionBackupHint"))}
+      </div>
+      <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+        <div>
+          <p className="text-sm font-semibold text-foreground">{pc("retentionAutomationTitle")}</p>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">{pc("retentionAutomationIntro")}</p>
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <Checkbox checked={r.retention.auto_delete} onChange={e => set({ retention: { ...r.retention, auto_delete: e.target.checked } })}>{pc("autoDelete")}</Checkbox>
+            <p className="mt-2 pl-6 text-xs leading-5 text-muted-foreground">{pc("autoDeleteHint")}</p>
+          </div>
+          <div className="rounded-lg border border-border/70 bg-background p-3">
+            <Checkbox checked={r.auto_close.enabled} onChange={e => set({ auto_close: { ...r.auto_close, enabled: e.target.checked } })}>{pc("autoClose")}</Checkbox>
+            <p className="mt-2 pl-6 text-xs leading-5 text-muted-foreground">{pc("autoCloseHint")}</p>
+            <div className="mt-3 pl-6">{number(pc("autoCloseWait"), r.auto_close.days, days => set({ auto_close: { ...r.auto_close, days } }), "mb-0")}</div>
+          </div>
         </div>
       </div>
-      <Checkbox checked={r.retention.auto_delete} onChange={e => set({ retention: { ...r.retention, auto_delete: e.target.checked } })}>{pc("autoDelete")}</Checkbox>
-      <Checkbox checked={r.auto_close.enabled} onChange={e => set({ auto_close: { ...r.auto_close, enabled: e.target.checked } })}>{pc("autoClose")}</Checkbox>
-      {number(pc("autoCloseWait"), r.auto_close.days, days => set({ auto_close: { ...r.auto_close, days } }))}
     </div></details>
   </fieldset></ConfigProvider>
 }

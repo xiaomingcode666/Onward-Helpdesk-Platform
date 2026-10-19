@@ -250,6 +250,21 @@ func TestUnderstandConversationMessageHonorsActionNegation(t *testing.T) {
 			wantIntent: "ticket_request",
 			wantScope:  "needs_ticket",
 		},
+		{
+			message:    "transfer to human",
+			wantIntent: "handoff_request",
+			wantScope:  "needs_handoff",
+		},
+		{
+			message:    "I need human support",
+			wantIntent: "handoff_request",
+			wantScope:  "needs_handoff",
+		},
+		{
+			message:    "Do not transfer me to a human; keep helping",
+			wantIntent: "business_question",
+			wantScope:  "needs_knowledge",
+		},
 	}
 	for _, tt := range tests {
 		got := understandConversationMessage(tt.message)
@@ -264,10 +279,31 @@ func TestUnderstandConversationMessageRoutesSensitiveIntentToHuman(t *testing.T)
 		"我要退款，请人工确认",
 		"我的账户被封禁了，帮我解除",
 		"请人工决定这个问题的 Priority",
+		"I need a refund and compensation for being charged twice",
+		"My account is suspended and I need an appeal",
+		"Please make the final decision on the priority",
 	} {
 		got := understandConversationMessage(message)
 		if got.MessageIntent != "sensitive_intent" || got.AnswerScope != "needs_handoff" || got.Confidence < 0.9 {
 			t.Errorf("understandConversationMessage(%q) = %+v, want sensitive handoff", message, got)
+		}
+	}
+}
+
+func TestUnderstandConversationMessageRoutesEnglishComplaintAndSentimentToHuman(t *testing.T) {
+	for _, test := range []struct {
+		message string
+		intent  string
+	}{{
+		message: "I want to file a complaint about this service",
+		intent:  "complaint",
+	}, {
+		message: "I am very disappointed and frustrated with the lack of support",
+		intent:  "negative_sentiment",
+	}} {
+		got := understandConversationMessage(test.message)
+		if got.MessageIntent != test.intent || got.AnswerScope != "needs_handoff" {
+			t.Errorf("understandConversationMessage(%q) = %+v, want %s handoff", test.message, got, test.intent)
 		}
 	}
 }
@@ -647,6 +683,37 @@ func TestExecutorHandoffToHumanRunsRealDispatchAction(t *testing.T) {
 	if notice == nil || strings.TrimSpace(notice.Content) == "" {
 		t.Fatalf("expected handoff service to send ai notice, got %+v", notice)
 	}
+}
+
+func TestExecutorHandoffNoticeFollowsEnglishCustomerMessage(t *testing.T) {
+	db := setupWorkflowExecutorHandoffDB(t)
+	aiAgent := createWorkflowExecutorHandoffAIAgent(t, db, "1")
+	createWorkflowExecutorHandoffTeam(t, db, 1, "Support team")
+	createWorkflowExecutorHandoffActiveSchedule(t, db, 1)
+	createWorkflowExecutorHandoffAgentProfile(t, db, 101, 1)
+	conversation := createWorkflowExecutorHandoffConversation(t, db, aiAgent.ID)
+	userMessage := createWorkflowExecutorCustomerMessage(t, db, conversation.ID, "transfer to human")
+
+	if _, err := NewExecutor().Execute(context.Background(), Input{
+		Definition:   handoffWorkflowDefinition(),
+		Conversation: conversation,
+		UserMessage:  userMessage,
+		AIAgent:      aiAgent,
+	}); err != nil {
+		t.Fatalf("execute workflow: %v", err)
+	}
+
+	notice := services.MessageService.FindOne(sqls.NewCnd().Eq("conversation_id", conversation.ID).Eq("sender_type", enums.IMSenderTypeAI).Desc("id"))
+	if notice == nil || notice.Content != services.HandoffWaitingMessageForLocale("en-US") {
+		t.Fatalf("handoff notice = %q, want English localized notice", noticeContent(notice))
+	}
+}
+
+func noticeContent(message *models.Message) string {
+	if message == nil {
+		return ""
+	}
+	return message.Content
 }
 
 func TestExecutorResumeSkipsHandoffWhenConfirmationCancelled(t *testing.T) {
@@ -1106,6 +1173,14 @@ func TestWorkflowReplyPolicyUsesEnglishForEnglishCustomerMessage(t *testing.T) {
 	})
 	if fallback.ReplyText == "" || strings.Contains(fallback.ReplyText, "当前知识不足") {
 		t.Fatalf("English fallback reply = %q", fallback.ReplyText)
+	}
+}
+
+func TestWorkflowLanguageDetectionRecognizesEnglishTechnicalMessages(t *testing.T) {
+	for _, message := range []string{"motor overheats", "transfer to human", "my account is suspended"} {
+		if !workflowMessageLooksEnglish(message) {
+			t.Errorf("workflowMessageLooksEnglish(%q) = false, want true", message)
+		}
 	}
 }
 

@@ -251,6 +251,8 @@ func buildEnterpriseNotification(item models.Notification, viewerUserID int64, l
 	title, content := item.Title, normalizeLegacyNotificationContent(item)
 	if len(item.TemplateParams) > 0 {
 		title, content = NotificationTemplateService.LocalizedContent(&item, locale)
+	} else if strings.TrimSpace(item.NotificationType) == "conversation_message" {
+		title = localizeConversationMessageTitle(title, locale)
 	}
 	return dto.EnterpriseNotificationDTO{
 		ID:                    item.ID,
@@ -274,6 +276,19 @@ func buildEnterpriseNotification(item models.Notification, viewerUserID int64, l
 		CanMarkRead:           viewerUserID > 0 && (item.RecipientUserID == viewerUserID || item.RecipientUserID == 0),
 		RecipientCount:        1,
 		UnreadCount:           notificationUnreadCount(item),
+	}
+}
+
+func localizeConversationMessageTitle(title, locale string) string {
+	switch strings.TrimSpace(title) {
+	case "智能助手新回复":
+		return i18nx.TLocale(locale, "notification.conversationMessage.ai.title")
+	case "协作方新回复":
+		return i18nx.TLocale(locale, "notification.conversationMessage.partner.title")
+	case "RemoteHelpDesk 新回复", "新回复":
+		return i18nx.TLocale(locale, "notification.conversationMessage.new.title")
+	default:
+		return title
 	}
 }
 

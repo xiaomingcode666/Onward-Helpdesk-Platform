@@ -132,7 +132,7 @@ func GetProjectConfigurationHistory(tenantID, beforeID int64) (*ProjectConfigVie
 		if beforeID > 0 {
 			query = query.Where("id < ?", beforeID)
 		}
-		if err := query.Order("id DESC").Limit(100).Find(&versions).Error; err != nil {
+		if err := query.Order("id DESC").Limit(10).Find(&versions).Error; err != nil {
 			return err
 		}
 		result.Versions = []ProjectConfigVersion{}

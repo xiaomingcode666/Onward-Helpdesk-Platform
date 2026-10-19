@@ -64,7 +64,7 @@ export type RemoteHelpdeskRouteGroup = {
 }
 
 export const platformNavItems: RemoteHelpdeskNavItem[] = [
-  { key: "asset-quarantine", titleKey: "assetQuarantine.title", href: "/platform/asset-quarantine", domain: "platform", icon: ShieldCheckIcon, requiredPermission: "tenant.update" },
+  { key: "asset-quarantine", titleKey: "assetQuarantine.title", href: "/platform/asset-quarantine", domain: "platform", icon: ShieldCheckIcon, requiredPermission: "assetQuarantine.manage" },
   {
     key: "overview",
     titleKey: "remoteNav.platform.overview",
@@ -158,7 +158,7 @@ export const platformNavItems: RemoteHelpdeskNavItem[] = [
 ]
 
 export const enterpriseNavItems: RemoteHelpdeskNavItem[] = [
-  { key: "asset-quarantine", titleKey: "assetQuarantine.title", href: "/enterprise/asset-quarantine", domain: "enterprise", icon: ShieldCheckIcon, requiredPermission: "tenant.update" },
+  { key: "asset-quarantine", titleKey: "assetQuarantine.title", href: "/enterprise/asset-quarantine", domain: "enterprise", icon: ShieldCheckIcon, requiredPermission: "assetQuarantine.manage" },
   {
     key: "workbench",
     titleKey: "remoteNav.enterprise.workbench",
@@ -945,6 +945,7 @@ const platformPermissionGroupsByNavKey: Record<string, readonly string[]> = {
   staff: ["user"],
   tenants: ["tenant"],
   permissions: ["role", "permission"],
+  "asset-quarantine": ["assetQuarantine"],
   audit: ["session", "platform"],
   "system-config": ["systemIntro"],
 }
@@ -973,6 +974,7 @@ const enterprisePermissionGroupsByNavKey: Record<string, readonly string[]> = {
   partners: ["partnerMember"],
   org: ["company"],
   permissions: ["role", "permission"],
+  "asset-quarantine": ["assetQuarantine"],
   audit: ["session"],
 }
 

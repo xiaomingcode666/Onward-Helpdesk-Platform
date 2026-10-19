@@ -46,6 +46,18 @@ func TestHandoffGraphOffHoursStillRequestsConfirmation(t *testing.T) {
 	}
 }
 
+func TestHandoffGraphConfirmationPromptFollowsReasonLanguage(t *testing.T) {
+	graph := NewHandoffGraph(models.Conversation{}, models.AIAgent{})
+	english := graph.buildConfirmationPrompt("transfer to human")
+	if english == "" || strings.ContainsAny(english, "请确认转人工") {
+		t.Fatalf("English handoff prompt was not localized: %q", english)
+	}
+	chinese := graph.buildConfirmationPrompt("请转人工")
+	if chinese == "" || !strings.Contains(chinese, "确认") || !strings.Contains(chinese, "取消") {
+		t.Fatalf("Chinese handoff prompt changed unexpectedly: %q", chinese)
+	}
+}
+
 func TestHandoffGraphWithActiveScheduleStillRequestsConfirmation(t *testing.T) {
 	db := setupHandoffGraphTestDB(t)
 	aiAgent := createHandoffGraphAIAgent(t, db, "1")

@@ -57,7 +57,7 @@ func RequireAssetQuarantineOperator(op *dto.AuthPrincipal) error {
 	if !op.IsEnterprise() && !op.IsPlatform() {
 		return errorsx.ForbiddenI18n("error.e0225")
 	}
-	if op.HasRole(EnterpriseRoleOwner) || op.HasRole(EnterpriseRoleAdmin) || op.HasRole(PlatformRoleAdmin) || op.HasPermission(constants.PermissionTenantUpdate.Code) {
+	if op.HasPermission(constants.PermissionAssetQuarantineManage.Code) {
 		return nil
 	}
 	return errorsx.ForbiddenI18n("error.e0225")

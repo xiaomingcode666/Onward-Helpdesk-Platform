@@ -4,16 +4,26 @@ import { apiGet, apiPost } from "@/lib/api/client"
 export const caseTypes = ["user_case", "incident", "major_incident", "problem", "known_error", "service_request"] as const
 export type CaseType = typeof caseTypes[number]
 export function governanceLabel(key: string, values?: Record<string, string | number>) { return translateCurrentMessage(`ticketGovernance.${key}`, values) }
+export type GovernanceTranslator = (key: string, values?: Record<string, string | number>) => string
 
 // Governance explanations are persisted with older backend records as rendered
 // text. Recognize the system generated values in any locale and show them in the
 // current one, preserving user supplied or future explanation text.
 const PRIORITY_EXPLANATION_KEYS = ["defaultHelp", "manualSource"]
+const SYSTEM_REASON_KEYS = ["createdReason", "duplicateChildReason", "mergeReason"]
 
-export function governanceExplanationLabel(value: unknown) {
+export function governanceExplanationLabel(value: unknown, translate: GovernanceTranslator = governanceLabel) {
   const text = String(value ?? "").trim()
   const key = PRIORITY_EXPLANATION_KEYS.find((item) => matchMessage(`ticketGovernance.${item}`, text))
-  return key ? governanceLabel(key) : text
+  return key ? translate(key) : text
+}
+
+// Older governance records stored generated reasons as rendered Chinese.
+// Translate only known system reasons and preserve user-entered text.
+export function governanceReasonLabel(value: unknown, translate: GovernanceTranslator = governanceLabel) {
+  const text = String(value ?? "").trim()
+  const key = SYSTEM_REASON_KEYS.find((item) => matchMessage(`ticketGovernance.${item}`, text))
+  return key ? translate(key) : text
 }
 
 export type PriorityFacts = { impact: string; urgency: string; safety: string; reach: string; workaround: string; evidence: string; root_cause: string }

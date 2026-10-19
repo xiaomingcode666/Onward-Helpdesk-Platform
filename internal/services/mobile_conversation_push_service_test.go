@@ -40,7 +40,7 @@ func TestMobileConversationPushTargetsOnlyFormalConversationCustomer(t *testing.
 
 	now := time.Date(2026, 8, 15, 11, 0, 0, 0, time.UTC)
 	customer := &models.CustomerUser{
-		TenantID: 7, CustomerOrgID: 70, UserID: 701, DisplayName: "Customer 701", Status: enums.StatusOk,
+		TenantID: 7, CustomerOrgID: 70, UserID: 701, DisplayName: "Customer 701", Locale: "en-US", Status: enums.StatusOk,
 		AuditFields: models.AuditFields{CreatedAt: now, UpdatedAt: now},
 	}
 	if err := db.Create(customer).Error; err != nil {
@@ -73,6 +73,9 @@ func TestMobileConversationPushTargetsOnlyFormalConversationCustomer(t *testing.
 	}
 	if scheduler.item.ActionURL != "/mobile?state=chat&conversationId=8001" {
 		t.Fatalf("push action URL = %q", scheduler.item.ActionURL)
+	}
+	if scheduler.item.Title != "New reply" {
+		t.Fatalf("push title = %q", scheduler.item.Title)
 	}
 	var notificationCount int64
 	if err := db.Model(&models.Notification{}).Count(&notificationCount).Error; err != nil || notificationCount != 1 {

@@ -8,12 +8,25 @@ import (
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/i18nx"
 
 	"github.com/glebarez/sqlite"
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
+
+func TestBuildEnterpriseNotificationLocalizesLegacyAIReplyTitle(t *testing.T) {
+	result := buildEnterpriseNotification(models.Notification{
+		Title:            "智能助手新回复",
+		NotificationType: "conversation_message",
+		Status:           int(enums.StatusOk),
+	}, 0, i18nx.LocaleEnUS)
+
+	if result.Title != "New AI assistant reply" {
+		t.Fatalf("title = %q", result.Title)
+	}
+}
 
 func TestEnterpriseNotificationTenantWideVisibilityKeepsPersonalReadBoundary(t *testing.T) {
 	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())

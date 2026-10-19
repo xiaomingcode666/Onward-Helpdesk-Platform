@@ -26,6 +26,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/dto/request"
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/pkg/toolx"
 	"remotehelpdesk/internal/pkg/utils"
 	"remotehelpdesk/internal/services"
@@ -842,13 +843,13 @@ func understandConversationMessage(rawMessage string) workflowConversationUnders
 		ret.Confidence = 0.98
 		ret.RiskSignals = append(ret.RiskSignals, "sensitive_intent")
 		ret.Reason = "matched sensitive intent"
-	case containsAnyWorkflowText(lower, "投诉", "举报", "差评", "曝光", "起诉", "律师", "12315"):
+	case containsAnyWorkflowText(lower, "投诉", "举报", "差评", "曝光", "起诉", "律师", "12315", "complaint", "complain", "report", "bad review", "negative review", "expose", "lawsuit", "sue", "lawyer", "consumer protection"):
 		ret.MessageIntent = "complaint"
 		ret.AnswerScope = "needs_handoff"
 		ret.Confidence = 0.92
 		ret.RiskSignals = append(ret.RiskSignals, "complaint_escalation")
 		ret.Reason = "matched complaint phrase"
-	case containsAnyWorkflowText(lower, "生气", "愤怒", "垃圾", "太差", "一直没人", "再不处理", "非常失望", "不满意"):
+	case containsAnyWorkflowText(lower, "生气", "愤怒", "垃圾", "太差", "一直没人", "再不处理", "非常失望", "不满意", "angry", "furious", "garbage", "terrible", "awful", "nobody", "no one", "still no response", "very disappointed", "disappointed", "dissatisfied", "unhappy", "frustrated"):
 		ret.MessageIntent = "negative_sentiment"
 		ret.AnswerScope = "needs_handoff"
 		ret.Confidence = 0.9
@@ -973,7 +974,9 @@ func isGreetingMessage(value string) bool {
 func isSensitiveWorkflowIntent(value string) bool {
 	return containsAnyWorkflowText(value,
 		"退款", "赔偿", "赔付", "扣款", "重复扣费", "账户", "账号", "account",
-		"封禁", "解封", "封号", "优先级", "priority", "最终裁决", "final decision",
+		"refund", "compensation", "reimbursement", "payout", "charged", "charge", "duplicatecharge", "chargedtwice",
+		"封禁", "解封", "封号", "banned", "ban", "unban", "suspended", "suspension",
+		"优先级", "priority", "最终裁决", "final decision",
 	)
 }
 
@@ -1227,11 +1230,16 @@ func (e *Executor) executeHandoffToHuman(state *runState, node dsl.Node) error {
 		return nil
 	}
 	reason := strings.TrimSpace(toString(state.resolveInput(node, "reason")))
-	result, err := services.ConversationHumanDispatchService.HandoffByAIWithRequestID(
+	locale := i18nx.LocaleZhCN
+	if workflowMessageLooksEnglish(state.input.UserMessage.Content) {
+		locale = i18nx.LocaleEnUS
+	}
+	result, err := services.ConversationHumanDispatchService.HandoffByAIWithRequestIDForLocale(
 		state.input.Conversation.ID,
 		state.input.AIAgent,
 		reason,
 		strings.TrimSpace(state.input.UserMessage.RequestID),
+		locale,
 	)
 	if err != nil {
 		return err
@@ -1865,9 +1873,12 @@ func workflowMessageLooksEnglish(value string) bool {
 	}
 	englishMarkers := map[string]struct{}{
 		"a": {}, "an": {}, "and": {}, "are": {}, "can": {}, "could": {}, "device": {}, "equipment": {},
-		"hello": {}, "help": {}, "how": {}, "i": {}, "is": {}, "it": {}, "machine": {}, "my": {},
+		"hello": {}, "help": {}, "how": {}, "i": {}, "is": {}, "it": {}, "machine": {}, "motor": {}, "my": {},
 		"please": {}, "reset": {}, "restart": {}, "safe": {}, "should": {}, "support": {}, "the": {},
 		"this": {}, "to": {}, "warranty": {}, "what": {}, "when": {}, "where": {}, "why": {}, "you": {},
+		"transfer": {}, "human": {}, "agent": {}, "connect": {}, "live": {}, "request": {}, "need": {}, "want": {},
+		"refund": {}, "compensation": {}, "account": {}, "banned": {}, "suspended": {}, "complaint": {}, "complain": {},
+		"report": {}, "charge": {}, "charged": {}, "issue": {}, "problem": {}, "overheat": {}, "overheats": {}, "cannot": {}, "not": {}, "with": {},
 	}
 	for _, word := range strings.FieldsFunc(value, func(character rune) bool {
 		return !unicode.IsLetter(character)

@@ -149,6 +149,43 @@ func TestReplyCommitStoresLateAIReplyAsSystemSummaryAfterHumanTakesOver(t *testi
 	}
 }
 
+func TestReplyCommitStoresEnglishLateAIReplySummaryForEnglishCustomer(t *testing.T) {
+	db := setupReplyCommitTestDB(t)
+	aiAgent := createReplyCommitTestAIAgent(t, db)
+	conversation := createReplyCommitTestConversation(t, db, aiAgent)
+	staleConversation := *conversation
+	if err := db.Model(&models.Conversation{}).Where("id = ?", conversation.ID).Updates(map[string]any{
+		"status":              enums.IMConversationStatusActive,
+		"current_assignee_id": 42,
+	}).Error; err != nil {
+		t.Fatalf("mark conversation active: %v", err)
+	}
+
+	replyMessage, err := newReplyCommitService().CommitAIReply(replyCommitInput{
+		Conversation: staleConversation,
+		Message: models.Message{
+			ID:          304,
+			RequestID:   "trace-304",
+			MessageType: enums.IMMessageTypeText,
+			Content:     "The device is still unavailable and I need human support.",
+		},
+		AIAgent:       *aiAgent,
+		ReplyText:     "Keep the device powered off until an engineer confirms the cause.",
+		ClientPrefix:  "ai_reply",
+		WorkflowRunID: 7789,
+	})
+	if err != nil {
+		t.Fatalf("CommitAIReply() error = %v", err)
+	}
+	if replyMessage == nil || replyMessage.SenderType != enums.IMSenderTypeSystem {
+		t.Fatalf("expected English late summary system message, got %+v", replyMessage)
+	}
+	if !strings.Contains(replyMessage.Content, "This is the AI diagnostic summary") ||
+		strings.ContainsAny(replyMessage.Content, "以下转人工诊断摘要工程师") {
+		t.Fatalf("English late summary content = %q", replyMessage.Content)
+	}
+}
+
 func TestReplyCommitSilentlyDropsLateAIReplyAfterConversationCloses(t *testing.T) {
 	db := setupReplyCommitTestDB(t)
 	aiAgent := createReplyCommitTestAIAgent(t, db)

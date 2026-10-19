@@ -222,6 +222,7 @@ export interface TicketHeaderDTO extends TicketIntakeDTO, TicketCaseSummaryDTO {
     resolution_minutes: number
   }
   service_metrics?: Array<{
+    id?: number
     metric_type: string
     status: string
     target_at?: string

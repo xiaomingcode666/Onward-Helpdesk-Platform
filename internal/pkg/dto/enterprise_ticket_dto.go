@@ -109,6 +109,7 @@ type TicketServiceTargetDTO struct {
 }
 
 type TicketServiceMetricDTO struct {
+	ID         int64  `json:"id"`
 	MetricType string `json:"metric_type"`
 	Status     string `json:"status"`
 	TargetAt   string `json:"target_at,omitempty"`

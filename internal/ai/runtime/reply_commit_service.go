@@ -122,7 +122,11 @@ func (s *replyCommitService) CommitLateAIReplySummary(input replyCommitInput) (*
 	if conversation.Status == enums.IMConversationStatusClosed {
 		return nil, nil
 	}
-	content := "以下是转人工前生成的 AI 诊断摘要，供你和工程师参考：\n\n" + strings.TrimSpace(input.ReplyText)
+	prefix := "以下是转人工前生成的 AI 诊断摘要，供你和工程师参考："
+	if aiReplyMessageLooksEnglish(input.Message) {
+		prefix = "This is the AI diagnostic summary generated before the human handoff for you and the engineer to review:"
+	}
+	content := prefix + "\n\n" + strings.TrimSpace(input.ReplyText)
 	message, err := svc.MessageService.SendSystemMessageWithRequestIDAndWorkflowRunID(
 		input.Conversation.ID,
 		fmt.Sprintf("%s_late_%d", strings.TrimSpace(input.ClientPrefix), input.Message.ID),

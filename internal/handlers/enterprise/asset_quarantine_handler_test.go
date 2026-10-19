@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/config"
+	"remotehelpdesk/internal/pkg/constants"
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/services"
@@ -63,7 +64,7 @@ func TestAssetQuarantineBrowserFixture(t *testing.T) {
 	cfg := config.Config{Storage: config.StorageConfig{Default: enums.AssetProviderLocal, MaxUploadSizeMB: 1, MaxReceiveSizeMB: 2,
 		Local: config.LocalStorageConfig{Root: filepath.Join(root, "public"), BaseURL: "/storage"}, QuarantineRoot: filepath.Join(root, "quarantine")}}
 	config.SetCurrent(&cfg)
-	op := &dto.AuthPrincipal{TenantID: 8001, DomainType: "enterprise", UserID: 9001, Username: "附件验收", Roles: []string{services.EnterpriseRoleAdmin}}
+	op := &dto.AuthPrincipal{TenantID: 8001, DomainType: "enterprise", UserID: 9001, Username: "附件验收", Roles: []string{services.EnterpriseRoleAdmin}, Permissions: []string{constants.PermissionAssetQuarantineManage.Code}}
 	_, err = services.AssetService.UploadBytes([]byte("Safe text for the quarantine browser acceptance test"), "ticket-upload", "等待复扫.txt", op)
 	require.Error(t, err)
 	foreign := *op

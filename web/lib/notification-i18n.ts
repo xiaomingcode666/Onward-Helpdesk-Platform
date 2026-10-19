@@ -17,6 +17,10 @@ const TICKET_ASSIGNED_TITLE = "\u5de5\u5355\u6307\u6d3e\u63d0\u9192"
 const CONVERSATION_TRANSFERRED_TITLE = "\u4f1a\u8bdd\u8f6c\u63a5\u63d0\u9192"
 const CONVERSATION_AUTO_ASSIGNED_TITLE = "\u4f1a\u8bdd\u81ea\u52a8\u5206\u914d\u63d0\u9192"
 const CONVERSATION_ASSIGNED_TITLE = "\u4f1a\u8bdd\u5206\u914d\u63d0\u9192"
+const CONVERSATION_MESSAGE_NEW_TITLE = "RemoteHelpDesk \u65b0\u56de\u590d"
+const CONVERSATION_MESSAGE_AI_TITLE = "\u667a\u80fd\u52a9\u624b\u65b0\u56de\u590d"
+const CONVERSATION_MESSAGE_PARTNER_TITLE = "\u534f\u4f5c\u65b9\u65b0\u56de\u590d"
+const LEGACY_NEW_REPLY_TITLE = "\u65b0\u56de\u590d"
 
 const TICKET_ASSIGNED_PATTERN = /^\u5de5\u5355 (.+) \u5df2\u6307\u6d3e\u7ed9\u4f60$/
 const CONVERSATION_ASSIGNED_PATTERN = /^\u4f1a\u8bdd #([0-9]+) \u5df2\u5206\u914d\u7ed9\u4f60$/
@@ -24,6 +28,7 @@ const ASSIGNMENT_REASON_PREFIX = "\u6307\u6d3e\u539f\u56e0: "
 const CONVERSATION_ASSIGNMENT_REASON_PREFIX = "\u5206\u914d\u539f\u56e0: "
 const TRANSFER_REASON_PREFIX = "\u8f6c\u63a5\u539f\u56e0: "
 const SLA_TITLE_PATTERN = /^\u5de5\u5355\s+(.+?)\s+SLA\s+\u544a\u8b66$/
+const SLA_UPCOMING_TITLE_PATTERN = /^\u5de5\u5355\s+(.+?)\s+\u5373\u5c06\u8d85\u65f6$/
 const SLA_CONTENT_PATTERN = /^(.+?)\u76ee\u6807\s*(\d+)\s*\u5206\u949f[\uff0c,]\s*(\u5f53\u524d\u6709\u6548\u8ba1\u65f6\u4e0d\u8db3\s*1\s*\u5206\u949f|\u5f53\u524d\u6709\u6548\u8ba1\u65f6\s*(\d+)\s*\u5206\u949f)[\uff0c,]\s*\u9884\u8ba1\u5269\u4f59\u7ea6\s*(\d+)\s*\u5206\u949f[\u3002.]?$/
 const SLA_TARGET_MISSING_PATTERN = /^(.+?)\u76ee\u6807\u672a\u914d\u7f6e[\uff0c,]\s*(\u5f53\u524d\u6709\u6548\u8ba1\u65f6\u4e0d\u8db3\s*1\s*\u5206\u949f|\u5f53\u524d\u6709\u6548\u8ba1\u65f6\s*\d+\s*\u5206\u949f)[\u3002.]?$/
 const SLA_REACHED_PATTERN = /^(.+?)\u76ee\u6807\s*(\d+)\s*\u5206\u949f[\uff0c,]\s*\u76ee\u6807\u65f6\u95f4\u5df2\u5230[\u3002.]?$/
@@ -64,6 +69,12 @@ export function localizeNotificationItem<T extends LocalizableNotification>(
       content: localizeSLAContent(notification.content, normalizedLocale),
     }
   }
+  if (notification.notificationType === "conversation_message") {
+    return {
+      ...notification,
+      title: localizeConversationMessageTitle(notification.title, normalizedLocale),
+    }
+  }
   return notification
 }
 
@@ -72,9 +83,13 @@ export function localizeEnterpriseNotification<T extends LocalizableEnterpriseNo
   locale: string,
 ): T {
   const normalizedLocale = normalizeLocale(locale)
-  if (normalizedLocale !== "en-US" || notification.notification_type !== "sla_warning") {
+  if (normalizedLocale !== "en-US") {
     return notification
   }
+  if (notification.notification_type === "conversation_message") {
+    return { ...notification, title: localizeConversationMessageTitle(notification.title, normalizedLocale) }
+  }
+  if (notification.notification_type !== "sla_warning") return notification
   return {
     ...notification,
     title: localizeSLAWarningTitle(notification.title, normalizedLocale),
@@ -147,8 +162,23 @@ function localizeNotificationTitle(title: string, locale: ReturnType<typeof norm
   }
 }
 
+function localizeConversationMessageTitle(title: string, locale: ReturnType<typeof normalizeLocale>) {
+  switch (title.trim()) {
+    case CONVERSATION_MESSAGE_AI_TITLE:
+      return translateMessage(locale, "notification.conversationMessageAiTitle")
+    case CONVERSATION_MESSAGE_PARTNER_TITLE:
+      return translateMessage(locale, "notification.conversationMessagePartnerTitle")
+    case CONVERSATION_MESSAGE_NEW_TITLE:
+    case LEGACY_NEW_REPLY_TITLE:
+      return translateMessage(locale, "notification.conversationMessageNewTitle")
+    default:
+      return title
+  }
+}
+
 function localizeSLAWarningTitle(title: string, locale: ReturnType<typeof normalizeLocale>) {
-  const match = title.trim().match(SLA_TITLE_PATTERN)
+  const normalizedTitle = title.trim()
+  const match = normalizedTitle.match(SLA_TITLE_PATTERN) ?? normalizedTitle.match(SLA_UPCOMING_TITLE_PATTERN)
   if (!match?.[1]) return title
   return translateMessage(locale, "notification.slaWarningTitle", { ticketNo: match[1] })
 }

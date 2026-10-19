@@ -39,6 +39,7 @@ func TestBuiltinAuthSeedNamesDefaultToEnglish(t *testing.T) {
 		"productServiceProfile.view": "View product service profiles",
 		"serviceCode.generate":       "Generate service codes",
 		"agent.view":                 "View agents",
+		"assetQuarantine.manage":     "Manage attachment quarantine",
 	}
 	for code, want := range permissionTests {
 		if got := permissions[code]; got != want {

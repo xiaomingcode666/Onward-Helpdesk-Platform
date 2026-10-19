@@ -12,7 +12,7 @@ test("quarantine reasons, tenant isolation, history and real rescan", async ({ p
   const profile = {
     accessToken: "asset-quarantine-fixture", domainType: "enterprise", tenantId: 8001,
     user: { id: 9001, username: "attachment-fixture", nickname: "附件验收", avatar: "", status: 0, roles: ["enterprise_admin"] },
-    roles: ["enterprise_admin"], permissions: ["tenant.update", "asset.view", "asset.create", "ticket.view"], locale: "zh-CN", timezone: "UTC",
+    roles: ["enterprise_admin"], permissions: ["assetQuarantine.manage", "asset.view", "asset.create", "ticket.view"], locale: "zh-CN", timezone: "UTC",
   }
   await page.addInitScript(value => {
     localStorage.setItem("remote-helpdesk-session:enterprise", JSON.stringify(value))
@@ -40,6 +40,7 @@ test("quarantine reasons, tenant isolation, history and real rescan", async ({ p
   })
   await page.goto("/enterprise/asset-quarantine", { waitUntil: "domcontentloaded" })
   await expect(page.getByRole("heading", { name: "附件隔离", exact: true })).toBeVisible()
+  await expect(page.locator('a[href="/enterprise/asset-quarantine"]').first()).toBeVisible()
   await expect(page.getByRole("cell", { name: "其他公司附件.txt", exact: false })).toHaveCount(0)
   const waiting = page.getByRole("row").filter({ hasText: "等待复扫.txt" })
   const broken = page.getByRole("row").filter({ hasText: "损坏压缩包.zip" })

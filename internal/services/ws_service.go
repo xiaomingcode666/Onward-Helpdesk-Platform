@@ -1,7 +1,6 @@
 package services
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -1174,17 +1173,22 @@ func realtimeSessionLocale(ctx *gin.Context, principal *dto.AuthPrincipal) strin
 	return ""
 }
 
-// localizeRealtimePayload 按连接语言渲染消息事件中的 AI 发送人名称。事件只构建一次并广播给所有连接
-// （含其他节点转发的事件），因此在逐连接下发时替换；用户自定义的名称原样保留。
+// localizeRealtimePayload 按连接语言渲染通知模板和消息事件中的 AI 发送人名称。
+// 事件只构建一次并广播给所有连接（含其他节点转发的事件），因此在逐连接下发时替换；
+// 用户自定义的名称和通知正文原样保留。
 func localizeRealtimePayload(payload []byte, locale string) ([]byte, bool) {
-	if locale == "" || !bytes.Contains(payload, []byte(enums.IMRealtimeEventMessageCreated)) {
+	if locale == "" {
 		return payload, false
 	}
 	var event map[string]any
 	if err := json.Unmarshal(payload, &event); err != nil {
 		return payload, false
 	}
-	if eventType, _ := event["type"].(string); eventType != enums.IMRealtimeEventMessageCreated {
+	eventType, _ := event["type"].(string)
+	if eventType == enums.IMRealtimeEventNotificationCreated {
+		return localizeRealtimeNotificationPayload(payload, event, locale)
+	}
+	if eventType != enums.IMRealtimeEventMessageCreated {
 		return payload, false
 	}
 	data, _ := event["data"].(map[string]any)
@@ -1213,4 +1217,57 @@ func localizeRealtimePayload(payload []byte, locale string) ([]byte, bool) {
 		return payload, false
 	}
 	return ret, true
+}
+
+// localizeRealtimeNotificationPayload renders the persisted notification for
+// the language declared by this websocket connection. Notification creation
+// stores one recipient-language rendering, but a browser can switch its UI
+// language without changing the account preference used by the worker.
+func localizeRealtimeNotificationPayload(payload []byte, event map[string]any, locale string) ([]byte, bool) {
+	data, _ := event["data"].(map[string]any)
+	notification, _ := data["notification"].(map[string]any)
+	if notification == nil {
+		return payload, false
+	}
+	id, ok := realtimePayloadID(notification["id"])
+	if !ok {
+		return payload, false
+	}
+	item := repositories.NotificationRepository.Get(sqls.DB(), id)
+	if item == nil || len(item.TemplateParams) == 0 || strings.TrimSpace(item.TemplateCode) == "" {
+		return payload, false
+	}
+	title, content := NotificationTemplateService.LocalizedContent(item, locale)
+	changed := false
+	if current, _ := notification["title"].(string); current != title {
+		notification["title"] = title
+		changed = true
+	}
+	if current, _ := notification["content"].(string); current != content {
+		notification["content"] = content
+		changed = true
+	}
+	if !changed {
+		return payload, false
+	}
+	localized, err := json.Marshal(event)
+	if err != nil {
+		return payload, false
+	}
+	return localized, true
+}
+
+func realtimePayloadID(value any) (int64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		id := int64(typed)
+		return id, id > 0 && float64(id) == typed
+	case json.Number:
+		id, err := typed.Int64()
+		return id, err == nil && id > 0
+	case int64:
+		return typed, typed > 0
+	default:
+		return 0, false
+	}
 }

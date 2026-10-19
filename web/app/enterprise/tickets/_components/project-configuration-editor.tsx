@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Settings2Icon } from "lucide-react"
 import { IconButton, RailopsButton, StandardModal } from "@railops/ui"
 import { useAuth } from "@/components/auth-provider"
@@ -34,12 +34,12 @@ export function ProjectConfigurationEditor() {
   const [impact, setImpact] = useState<ConfigurationImpact | null>(null)
   const [impactSignature, setImpactSignature] = useState("")
   const [busy, setBusy] = useState(false)
+  const [loadingOlder, setLoadingOlder] = useState(false)
   const [error, setError] = useState("")
   const [message, setMessage] = useState("")
   const [approvals, setApprovals] = useState<RetentionApproval[]>([])
   const request = useRef({ signature: "", key: "" })
-
-  if (!session?.permissions?.includes("ticket.update")) return null
+  const historySentinel = useRef<HTMLDivElement | null>(null)
 
   function edit(next: ProjectConfiguration) {
     setDocument(next); setDraft(null); setReport(null); setImpact(null); setImpactSignature(""); setMessage(""); setError("")
@@ -146,16 +146,36 @@ export function ProjectConfigurationEditor() {
     } catch (e) { setError(e instanceof Error ? e.message : pc("loadFailed")) }
     finally { setBusy(false) }
   }
-  async function loadOlder() {
-    if (!view?.next_before_id) return
-    setBusy(true); setError("")
+  const loadOlder = useCallback(async () => {
+    if (!view?.next_before_id || busy || loadingOlder) return
+    const beforeID = view.next_before_id
+    setLoadingOlder(true); setError("")
     try {
-      const result = await getProjectConfiguration(view.next_before_id)
-      if (!result.success || !result.data) throw new Error(result.error?.message || pc("historyLoadFailed"))
-      setView({ ...view, next_before_id: result.data.next_before_id, versions: [...view.versions, ...result.data.versions.filter(v => !view.versions.some(existing => existing.id === v.id))] })
-    } catch (e) { setError(e instanceof Error ? e.message : pc("historyLoadFailed")) }
-    finally { setBusy(false) }
-  }
+      const result = await getProjectConfiguration(beforeID)
+      if (!result.success || !result.data) throw new Error(result.error?.message || translate("projectConfiguration.historyLoadFailed"))
+      const productionVersions = result.data.versions.filter(v => v.document.environment === "production")
+      const approvalResults = await Promise.all(productionVersions.map(v => listRetentionApprovals(v.id)))
+      const newApprovals = approvalResults.flatMap(a => a.success && a.data ? a.data : [])
+      setApprovals(current => [...current.filter(a => !productionVersions.some(v => v.id === a.version_id)), ...newApprovals])
+      setView(current => {
+        if (!current) return current
+        const newVersions = result.data!.versions.filter(v => !current.versions.some(existing => existing.id === v.id))
+        return { ...current, next_before_id: result.data!.next_before_id, versions: [...current.versions, ...newVersions] }
+      })
+    } catch (e) { setError(e instanceof Error ? e.message : translate("projectConfiguration.historyLoadFailed")) }
+    finally { setLoadingOlder(false) }
+  }, [busy, loadingOlder, translate, view])
+  useEffect(() => {
+    const sentinel = historySentinel.current
+    if (!sentinel || !view?.next_before_id) return
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) void loadOlder()
+    }, { threshold: 0.1 })
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [loadOlder, view?.next_before_id])
+
+  if (!session?.permissions?.includes("ticket.update")) return null
   function exportVersion(version: ConfigurationVersion) {
     const blob = new Blob([JSON.stringify({ version_id: version.id, digest: version.digest, document: version.document }, null, 2)], { type: "application/json" })
     const url = URL.createObjectURL(blob)
@@ -207,7 +227,7 @@ export function ProjectConfigurationEditor() {
               <div className="text-muted-foreground">{pc("createdBy")}: {version.created_by_name || version.created_by || pc("systemMigration")}{version.activation ? `; ${pc("appliedBy")}: ${version.activation.applied_by_name || version.activation.applied_by}; ${pc("appliedAt")}: ${new Date(version.activation.applied_at).toLocaleString()}` : ""}</div>
               <div className="mt-2 flex gap-2"><RailopsButton disabled={busy} onClick={() => copyVersion(version)}>{pc("loadAsDraft")}</RailopsButton>{version.activation && <RailopsButton disabled={busy} onClick={() => exportVersion(version)}>{pc("exportDeployment")}</RailopsButton>}</div>
             </div>)}</div>
-            {view.next_before_id > 0 && <RailopsButton disabled={busy} onClick={() => void loadOlder()}>{pc("loadEarlier")}</RailopsButton>}
+            {view.next_before_id > 0 && <div ref={historySentinel} className="flex min-h-8 items-center justify-center text-sm text-muted-foreground">{loadingOlder ? pc("loadingEarlier") : pc("loadEarlier")}</div>}
           </details>
         </>}
       </div>

@@ -67,6 +67,8 @@ func localizeNotificationText(item *models.Notification, locale string) (string,
 		return localizeTicketAssignedNotification(title, content)
 	case "conversation_assigned":
 		return localizeConversationAssignedNotification(title, content)
+	case "conversation_message":
+		return localizeNotificationTitle(title), content
 	default:
 		return title, content
 	}
@@ -118,6 +120,12 @@ func localizeNotificationTitle(title string) string {
 		return i18nx.Getf(i18nx.LocaleEnUS, "notification.conversationAutoAssigned.title")
 	case "会话分配提醒":
 		return i18nx.Getf(i18nx.LocaleEnUS, "notification.conversationAssigned.title")
+	case "智能助手新回复":
+		return i18nx.Getf(i18nx.LocaleEnUS, "notification.conversationMessage.ai.title")
+	case "协作方新回复":
+		return i18nx.Getf(i18nx.LocaleEnUS, "notification.conversationMessage.partner.title")
+	case "RemoteHelpDesk 新回复", "新回复":
+		return i18nx.Getf(i18nx.LocaleEnUS, "notification.conversationMessage.new.title")
 	default:
 		return title
 	}

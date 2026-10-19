@@ -5,8 +5,10 @@ export function caseLabel(key: string, values?: Record<string, string | number>)
   return translateCurrentMessage(`ticketCase.${key}`, values)
 }
 
-export function caseStatusLabel(status: string) {
-  return isCaseStatus(status) ? caseLabel(`status.${status}`) : status
+export type CaseLabelTranslator = (key: string, values?: Record<string, string | number>) => string
+
+export function caseStatusLabel(status: string, translate: CaseLabelTranslator = caseLabel) {
+  return isCaseStatus(status) ? translate(`status.${status}`) : status
 }
 
 export function localizeCaseTimelineContent(content: string) {

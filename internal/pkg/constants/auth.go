@@ -195,6 +195,8 @@ var (
 	PermissionAssetCreate = Permission{Name: "上传文件资源", Code: "asset.create", Type: "api", GroupName: "asset", Method: "POST", APIPath: "/api/dashboard/asset/create", SortNo: 1220}
 	PermissionAssetDelete = Permission{Name: "删除文件资源", Code: "asset.delete", Type: "api", GroupName: "asset", Method: "POST", APIPath: "/api/dashboard/asset/delete", SortNo: 1230}
 
+	PermissionAssetQuarantineManage = Permission{Name: "管理附件隔离", Code: "assetQuarantine.manage", Type: "api", GroupName: "assetQuarantine", Method: "ANY", APIPath: "/api/enterprise/v1/asset-quarantine", SortNo: 1240}
+
 	// AI Agent 相关权限
 	PermissionAIAgentView          = Permission{Name: "查看 AI Agent", Code: "aiAgent.view", Type: "api", GroupName: "aiAgent", Method: "ANY", APIPath: "/api/dashboard/ai-agent/list", SortNo: 1310}
 	PermissionAIAgentCreate        = Permission{Name: "创建 AI Agent", Code: "aiAgent.create", Type: "api", GroupName: "aiAgent", Method: "POST", APIPath: "/api/dashboard/ai-agent/create", SortNo: 1320}
@@ -379,6 +381,7 @@ var Permissions = []Permission{
 	PermissionAssetView,
 	PermissionAssetCreate,
 	PermissionAssetDelete,
+	PermissionAssetQuarantineManage,
 	PermissionAIAgentView,
 	PermissionAIAgentCreate,
 	PermissionAIAgentUpdate,
@@ -530,6 +533,7 @@ var builtinPermissionResourceLabels = map[string]string{
 	"agentTeam":                "agent teams",
 	"agentTeamSchedule":        "agent team schedules",
 	"asset":                    "file assets",
+	"assetQuarantine":          "attachment quarantine",
 	"aiAgent":                  "AI Agents",
 	"aiConfig":                 "AI configurations",
 	"knowledgeBase":            "knowledge bases",
@@ -608,7 +612,7 @@ var RolePermissions = map[string][]Permission{
 		PermissionAgentView, PermissionAgentCreate, PermissionAgentUpdate, PermissionAgentDelete, PermissionAgentUpdateStatus, PermissionAgentConfig,
 		PermissionAgentTeamView, PermissionAgentTeamCreate, PermissionAgentTeamUpdate, PermissionAgentTeamDelete,
 		PermissionAgentTeamScheduleView, PermissionAgentTeamScheduleUpdate,
-		PermissionAssetView, PermissionAssetCreate, PermissionAssetDelete,
+		PermissionAssetView, PermissionAssetCreate, PermissionAssetDelete, PermissionAssetQuarantineManage,
 		PermissionAIAgentView, PermissionAIAgentCreate, PermissionAIAgentUpdate, PermissionAIAgentDelete,
 		PermissionAIWorkflowView, PermissionAIWorkflowUpdate, PermissionAIWorkflowPublish,
 		PermissionAIAgentReleaseCreate, PermissionAIAgentReleaseReview, PermissionAIAgentReleaseDeploy,

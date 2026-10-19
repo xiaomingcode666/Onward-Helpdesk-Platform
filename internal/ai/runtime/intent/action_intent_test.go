@@ -16,6 +16,11 @@ func TestIsExplicitHandoffRequestHonorsNegation(t *testing.T) {
 		{message: "不用联系人工，我先继续排查", want: false},
 		{message: "人工客服怎么收费", want: false},
 		{message: "我需要人工处理", want: true},
+		{message: "transfer to human", want: true},
+		{message: "Please connect me to a live agent", want: true},
+		{message: "I need human support", want: true},
+		{message: "I don't need a human, please keep helping", want: false},
+		{message: "Do not transfer me to a human", want: false},
 	}
 	for _, tt := range tests {
 		if got := IsExplicitHandoffRequest(tt.message); got != tt.want {

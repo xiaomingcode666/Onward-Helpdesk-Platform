@@ -1,6 +1,6 @@
 "use client"
 
-import { translateCurrentMessage } from "@/i18n/messages"
+import { translateCurrentMessage, translateMessage } from "@/i18n/messages"
 import { useSearchParams } from "next/navigation"
 import {
   ArrowDownIcon,
@@ -125,7 +125,7 @@ import { TicketCaseLifecycle } from "@/app/enterprise/tickets/_components/ticket
 import { TicketCreateModal } from "@/app/enterprise/tickets/_components/ticket-create-modal"
 import { isAudioAttachment, TicketAudioAttachment } from "@/components/tickets/ticket-audio-attachment"
 import { TicketClassificationFields, TicketGovernancePanel } from "@/app/enterprise/tickets/_components/ticket-governance"
-import { governanceLabel, type CaseType } from "@/lib/ticket-governance"
+import { type CaseType } from "@/lib/ticket-governance"
 import { sortWorkbenchQueueItems } from "@/lib/ticket-workbench-queue"
 import {
   findWorkbenchRouteItem,
@@ -2866,6 +2866,7 @@ function WorkbenchContextPane({
   onTakeoverTicket: (ticketId?: number, conversationId?: number) => Promise<void>
   onTicketUpdated: () => Promise<void>
 }) {
+  const { locale } = useAppLocale()
   const [linkedTickets, setLinkedTickets] = useState<TicketListItem[]>([])
   const [contextTicketId, setContextTicketId] = useState<number | null>(null)
   const [loadedAggregate, setAggregate] = useState<TicketAggregateDTO | null>(null)
@@ -3254,7 +3255,7 @@ function WorkbenchContextPane({
       toast.error(ee("ticketWorkbench.text185"))
       return
     }
-    if (draft.priorityOverride && !draft.priorityReason.trim()) { toast.error(governanceLabel("reasonRequired")); return }
+    if (draft.priorityOverride && !draft.priorityReason.trim()) { toast.error(translateMessage(locale, "ticketGovernance.reasonRequired")); return }
     setCreating(true)
     try {
       const res = await createTicket({

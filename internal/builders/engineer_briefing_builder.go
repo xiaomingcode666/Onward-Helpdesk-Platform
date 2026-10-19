@@ -16,8 +16,8 @@ func BuildEngineerBriefingResponse(result *services.EngineerBriefingResult, loca
 		Teams:             make([]dto.EngineerTeamBriefDTO, 0, len(result.Teams)),
 		UnassignedCount:   result.UnassignedTicketCount,
 		MyOpenCount:       result.MyOpenTicketCount,
-		UnassignedTickets: buildEngineerBriefingTickets(result.UnassignedTickets),
-		MyOpenTickets:     buildEngineerBriefingTickets(result.MyOpenTickets),
+		UnassignedTickets: buildEngineerBriefingTickets(result.UnassignedTickets, locale),
+		MyOpenTickets:     buildEngineerBriefingTickets(result.MyOpenTickets, locale),
 	}
 	if result.IsEngineer {
 		ret.WorkStatus = dto.EngineerWorkStatusDTO{
@@ -48,10 +48,10 @@ func BuildEngineerWorkStatusResponse(item *models.AgentWorkStatus) dto.EngineerW
 	}
 }
 
-func buildEngineerBriefingTickets(items []models.Ticket) []dto.EnterpriseTicketListItemDTO {
+func buildEngineerBriefingTickets(items []models.Ticket, locale string) []dto.EnterpriseTicketListItemDTO {
 	ret := make([]dto.EnterpriseTicketListItemDTO, 0, len(items))
 	for _, item := range items {
-		ret = append(ret, services.EnterpriseTicketService.BuildListItem(item))
+		ret = append(ret, services.EnterpriseTicketService.BuildListItemWithLocale(item, locale))
 	}
 	return ret
 }

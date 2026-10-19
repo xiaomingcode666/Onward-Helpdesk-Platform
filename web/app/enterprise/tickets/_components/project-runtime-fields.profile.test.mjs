@@ -10,3 +10,12 @@ test("selecting a profile copies times from the stored target configuration", ()
   assert.match(source, /assignment_minutes: preset\.assignment_minutes/)
   assert.match(source, /resolution_minutes: preset\.resolution_minutes/)
 })
+
+test("mail credentials use the write-only managed secret state", () => {
+  assert.match(source, /value=\{mailSecrets\?\.smtpPassword \?\? \"\"\}/)
+  assert.match(source, /updateMailSecrets\(\{ smtpPassword: e\.target\.value \}\)/)
+  assert.match(source, /value=\{mailSecrets\?\.imapPassword \?\? \"\"\}/)
+  assert.match(source, /updateMailSecrets\(\{ imapPassword: e\.target\.value \}\)/)
+  assert.doesNotMatch(source, /field\(pc\("smtpPassword"\), r\.mail\.password_ref/)
+  assert.doesNotMatch(source, /field\(pc\("imapPassword"\), imap\.password_ref/)
+})

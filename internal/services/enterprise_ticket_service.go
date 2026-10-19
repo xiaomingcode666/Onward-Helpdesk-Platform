@@ -825,6 +825,18 @@ func (s *enterpriseTicketService) BuildListItem(ticket models.Ticket) dto.Enterp
 	return s.buildListItem(ticket)
 }
 
+// BuildListItemWithLocale exposes the canonical ticket list mapping with
+// locale-aware display names for data-backed system records.
+func (s *enterpriseTicketService) BuildListItemWithLocale(ticket models.Ticket, locale string) dto.EnterpriseTicketListItemDTO {
+	item := s.buildListItem(ticket)
+	if ticket.CurrentTeamID > 0 {
+		if team := AgentTeamService.GetForTenant(ticket.CurrentTeamID, ticket.TenantID); team != nil {
+			item.TeamName = team.DisplayName(locale)
+		}
+	}
+	return item
+}
+
 func (s *enterpriseTicketService) buildHeader(ticket *models.Ticket) dto.TicketHeaderDTO {
 	return dto.TicketHeaderDTO{
 		ID:                   ticket.ID,
@@ -865,6 +877,7 @@ func buildTicketServiceMetricsDTO(ticket *models.Ticket) []dto.TicketServiceMetr
 	result := make([]dto.TicketServiceMetricDTO, 0, len(items))
 	for _, item := range items {
 		result = append(result, dto.TicketServiceMetricDTO{
+			ID:         item.ID,
 			MetricType: item.MetricType,
 			Status:     item.Status,
 			TargetAt:   formatEnterpriseTimePtr(item.TargetAt),

@@ -22,6 +22,7 @@ import (
 	"gorm.io/gorm"
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/config"
+	"remotehelpdesk/internal/pkg/constants"
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/enums"
 	"remotehelpdesk/internal/pkg/errorsx"
@@ -40,7 +41,7 @@ func setupAssetQuarantineTest(t *testing.T) (*gorm.DB, *dto.AuthPrincipal) {
 	config.SetCurrent(&config.Config{Storage: config.StorageConfig{Default: enums.AssetProviderLocal, MaxUploadSizeMB: 1, MaxReceiveSizeMB: 2,
 		Local: config.LocalStorageConfig{Root: filepath.Join(root, "public"), BaseURL: "/storage"}, QuarantineRoot: filepath.Join(root, "quarantine")}})
 	t.Cleanup(func() { config.SetCurrent(&oldCfg); sqls.SetDB(oldDB); conn, _ := db.DB(); _ = conn.Close() })
-	return db, &dto.AuthPrincipal{TenantID: 14, UserID: 4, Username: "scan-test", DomainType: "enterprise", Roles: []string{EnterpriseRoleAdmin}}
+	return db, &dto.AuthPrincipal{TenantID: 14, UserID: 4, Username: "scan-test", DomainType: "enterprise", Roles: []string{EnterpriseRoleAdmin}, Permissions: []string{constants.PermissionAssetQuarantineManage.Code}}
 }
 
 func fakeAssetClamAV(t *testing.T, reply *atomic.Value) string {
@@ -396,4 +397,40 @@ func TestAssetQuarantineRealClamAV(t *testing.T) {
 	_, err = AssetService.UploadBytes(bytes.Repeat([]byte("a"), 21<<20), "test", "engine-limit.txt", op)
 	limited := lastQuarantinedAsset(t, db, err)
 	require.Equal(t, ScanLimitExceeded, limited.ScanReason)
+}
+
+func TestAssetQuarantineOperatorRequiresManagePermission(t *testing.T) {
+	const code = "assetQuarantine.manage"
+	rolePermissions := func(specs []iamDefaultRoleSpec, roleCode string) []string {
+		for _, spec := range specs {
+			if spec.Code == roleCode {
+				return spec.Permissions
+			}
+		}
+		t.Fatalf("builtin role %s not found", roleCode)
+		return nil
+	}
+	allowed := map[string][]string{
+		EnterpriseRoleOwner:    rolePermissions(tenantDefaultRoleSpecs(), EnterpriseRoleOwner),
+		EnterpriseRoleAdmin:    rolePermissions(tenantDefaultRoleSpecs(), EnterpriseRoleAdmin),
+		PlatformRoleAdmin:      rolePermissions(platformDefaultRoleSpecs(), PlatformRoleAdmin),
+		PlatformRoleOperations: rolePermissions(platformDefaultRoleSpecs(), PlatformRoleOperations),
+	}
+	for role, permissions := range allowed {
+		require.Contains(t, permissions, code, role)
+		domain := models.DomainTypeEnterprise
+		if strings.HasPrefix(role, "platform_") {
+			domain = models.DomainTypePlatform
+		}
+		require.NoError(t, RequireAssetQuarantineOperator(&dto.AuthPrincipal{TenantID: 14, DomainType: domain, Permissions: permissions}), role)
+	}
+	for _, role := range []string{EnterpriseRoleServiceManager, EnterpriseRoleEngineer, EnterpriseRoleKnowledge, EnterpriseRoleViewer} {
+		permissions := rolePermissions(tenantDefaultRoleSpecs(), role)
+		require.NotContains(t, permissions, code, role)
+		require.Error(t, RequireAssetQuarantineOperator(&dto.AuthPrincipal{TenantID: 14, DomainType: models.DomainTypeEnterprise, Permissions: permissions}), role)
+	}
+	// A role name alone, or the platform tenant permission, no longer grants access.
+	require.Error(t, RequireAssetQuarantineOperator(&dto.AuthPrincipal{TenantID: 14, DomainType: models.DomainTypeEnterprise, Roles: []string{EnterpriseRoleOwner}}))
+	require.Error(t, RequireAssetQuarantineOperator(&dto.AuthPrincipal{TenantID: 14, DomainType: models.DomainTypeEnterprise, Permissions: []string{"tenant.update"}}))
+	require.Error(t, RequireAssetQuarantineOperator(&dto.AuthPrincipal{TenantID: 14, Permissions: []string{code}}))
 }

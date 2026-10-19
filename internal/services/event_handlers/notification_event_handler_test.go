@@ -80,6 +80,24 @@ func TestFormatSLAWarningContentSupportsEnglishLocale(t *testing.T) {
 	}
 }
 
+func TestSLAWarningNotificationChannelsEmailOnlyOnBreach(t *testing.T) {
+	tests := []struct {
+		severity string
+		want     string
+	}{
+		{severity: "warning", want: "in_app"},
+		{severity: "breach", want: "in_app,email"},
+		{severity: "critical", want: "in_app,email"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.severity, func(t *testing.T) {
+			if got := slaWarningNotificationChannels(tt.severity); got != tt.want {
+				t.Fatalf("slaWarningNotificationChannels(%q) = %q, want %q", tt.severity, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTicketAssignedInAppNotification(t *testing.T) {
 	setupNotificationEventHandlerTestDB(t)
 	seedNotificationEventRecipient(t, 1, 11, constants.PermissionTicketView.Code)

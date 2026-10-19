@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { RailopsButton } from "@railops/ui"
 import { useAppLocale } from "@/i18n/provider"
 import { apiGet, apiPost } from "@/lib/api/client"
@@ -18,7 +18,7 @@ const endpoint = "/ticket-settings/status-workflow"
 
 export function TicketStatusWorkflowCard() {
   const { locale } = useAppLocale()
-  const copy = ticketWorkflowCopy(locale)
+  const copy = useMemo(() => ticketWorkflowCopy(locale), [locale])
   const [view, setView] = useState<View | null>(null)
   const [project, setProject] = useState("*")
   const [workflow, setWorkflow] = useState<Workflow | null>(null)

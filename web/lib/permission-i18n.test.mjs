@@ -63,3 +63,14 @@ test("localizes enterprise custom-role permissions from seeded catalog names", a
   assert.equal(getPermissionDisplayName("tenant.delete", "Delete tenants", "en-US"), "Decommission tenants")
   assert.equal(getPermissionGroupName("partnerMember", "en-US"), "Supplier accounts")
 })
+
+test("localizes the attachment quarantine permission in every locale", async () => {
+  const { getPermissionDisplayName, getPermissionGroupName } = await loadModule()
+
+  assert.equal(getPermissionDisplayName("assetQuarantine.manage", "Manage attachment quarantine", "en-US"), "Manage attachment quarantine")
+  assert.equal(getPermissionDisplayName("assetQuarantine.manage", "Manage attachment quarantine", "zh-CN"), "管理附件隔离")
+  assert.equal(getPermissionDisplayName("assetQuarantine.manage", "Manage attachment quarantine", "es-ES"), "Gestionar cuarentena de adjuntos")
+  assert.equal(getPermissionGroupName("assetQuarantine", "en-US"), "Attachment quarantine")
+  assert.equal(getPermissionGroupName("assetQuarantine", "zh-CN"), "附件隔离")
+  assert.equal(getPermissionGroupName("assetQuarantine", "es-ES"), "Cuarentena de adjuntos")
+})

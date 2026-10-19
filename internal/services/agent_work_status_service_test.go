@@ -238,7 +238,7 @@ func TestAgentWorkStatusServiceBriefingAllowsEmployeePortalSession(t *testing.T)
 
 func TestAgentWorkStatusServiceBriefingScopesTeamAndPersonalTickets(t *testing.T) {
 	db := setupAgentTeamScheduleTestDB(t)
-	team := models.AgentTeam{ID: 41, TenantID: 1, ProductID: 501, Name: "产品 A 维修组", Status: enums.StatusOk}
+	team := models.AgentTeam{ID: 41, TenantID: 1, ProductID: 501, Name: "技术维护组", NameText: i18nx.NewText("builtin.agentTeam.technicalMaintenance.name", nil), Status: enums.StatusOk}
 	otherTeam := models.AgentTeam{ID: 42, TenantID: 1, ProductID: 502, Name: "产品 B 维修组", Status: enums.StatusOk}
 	profile := models.AgentProfile{TenantID: 1, UserID: 401, TeamID: team.ID, AgentCode: "engineer-401", DisplayName: "Engineer 401", ServiceStatus: enums.ServiceStatusIdle, AutoAssignEnabled: true, Status: enums.StatusOk}
 	member := models.AgentTeamMember{TenantID: 1, TeamID: team.ID, UserID: profile.UserID, Status: enums.StatusOk, DispatchEnabled: true}
@@ -291,6 +291,10 @@ func TestAgentWorkStatusServiceBriefingScopesTeamAndPersonalTickets(t *testing.T
 	oldest := briefingDTO.UnassignedTickets[0]
 	if oldest.DispatchAttempts != 1 || oldest.DispatchDeferredUntil == "" || oldest.LastDispatchFailureReason != "all_candidates_at_capacity" {
 		t.Fatalf("briefing dto should expose dispatch aging signals, got %+v", oldest)
+	}
+	englishBriefingDTO := builders.BuildEngineerBriefingResponse(result, i18nx.LocaleEnUS)
+	if got := englishBriefingDTO.UnassignedTickets[0].TeamName; got != "Technical Maintenance Team" {
+		t.Fatalf("briefing dto team name = %q, want English localized name", got)
 	}
 }
 
