@@ -2,6 +2,7 @@
 
 import { translateCurrentMessage } from "@/i18n/messages"
 import { aiAgentOptionLabel } from "@/lib/ai-agent-label"
+import { localizeAIAgentReleaseReviewComment } from "@/lib/ai-agent-release-i18n"
 import {
   ArrowLeftIcon,
   CheckIcon,
@@ -77,7 +78,7 @@ import {
 } from "@/lib/enterprise-detail-route"
 import { Status } from "@/lib/generated/enums"
 import { formatDateTime } from "@/lib/utils"
-import { useI18n } from "@/i18n/provider"
+import { useAppLocale, useI18n } from "@/i18n/provider"
 function ee(key: string, values?: Record<string, unknown>) {
   if (!values) {
     return translateCurrentMessage(`enterpriseExtract.${key}`)
@@ -237,6 +238,7 @@ export function AgentWorkbenchPage({ agentId: requestedAgentId }: { agentId?: nu
   const router = useRouter()
   const confirm = useConfirm()
   const t = useI18n()
+  const { locale } = useAppLocale()
   const agentId = requestedAgentId ?? Number(params.agentId)
   const activeView = normalizeView(searchParams.get("view"))
 
@@ -919,7 +921,7 @@ export function AgentWorkbenchPage({ agentId: requestedAgentId }: { agentId?: nu
                   render: (_value, release) => (
                     <div>
                       <StatusTag tone={releaseReviewTone(release.reviewStatus)}>{releaseReviewLabel(release.reviewStatus, release.reviewStatusName)}</StatusTag>
-                      {release.reviewComment ? <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{release.reviewComment}</div> : null}
+                      {release.reviewComment ? <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{localizeAIAgentReleaseReviewComment(release.reviewComment, locale)}</div> : null}
                     </div>
                   ),
                 },

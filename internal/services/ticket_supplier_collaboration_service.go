@@ -610,10 +610,6 @@ func (s *ticketSupplierCollaborationService) Invite(ticketID int64, req dto.Tick
 	}
 	aggregate := s.buildAggregate(item)
 	if created {
-		eventContent := "已邀请供应商协作：" + company.Name
-		if moduleName != "" {
-			eventContent += " · " + moduleName
-		}
 		eventMetadata := map[string]any{
 			"partnerCompanyId":   company.ID,
 			"partnerCompanyName": strings.TrimSpace(company.Name),
@@ -626,7 +622,7 @@ func (s *ticketSupplierCollaborationService) Invite(ticketID int64, req dto.Tick
 			aggregate.Ticket,
 			item.ID,
 			"supplier_collaboration_invited",
-			eventContent,
+			"",
 			eventMetadata,
 		)
 	}
@@ -911,7 +907,7 @@ func (s *ticketSupplierCollaborationService) Accept(id int64, operator *dto.Auth
 	if !acceptedNow {
 		return &aggregate, nil
 	}
-	companyName := "供应商"
+	companyName := ""
 	if aggregate.Company != nil && strings.TrimSpace(aggregate.Company.Name) != "" {
 		companyName = strings.TrimSpace(aggregate.Company.Name)
 	}
@@ -930,7 +926,7 @@ func (s *ticketSupplierCollaborationService) Accept(id int64, operator *dto.Auth
 		aggregate.Ticket,
 		item.ID,
 		"supplier_collaboration_accepted",
-		companyName+"已加入协作会话，客户、维修工程师和供应商可共同沟通。",
+		"",
 		metadata,
 	)
 	return &aggregate, nil

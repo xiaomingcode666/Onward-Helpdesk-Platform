@@ -1,7 +1,7 @@
 import type { AgentConversation, AgentMessage } from "@/lib/api/agent"
 import type { ImConversation, ImMessage } from "@/lib/api/im"
 import { mergeImMessagesByIdAsc } from "@/lib/im-message-merge"
-import { summarizeIMMessage } from "@/lib/im-message"
+import { summarizeIMMessage, getIMSystemSummaryText } from "@/lib/im-message"
 
 export type RealtimeMessage = AgentMessage | ImMessage
 export type RealtimeConversation = AgentConversation | ImConversation
@@ -242,6 +242,7 @@ export function patchConversationWithMessage<
     lastMessageAt: message.sentAt ?? conversation.lastMessageAt,
     lastActiveAt: message.sentAt ?? conversation.lastActiveAt,
     lastMessageSummary: summarizeIMMessage(message),
+    lastMessageSummaryText: getIMSystemSummaryText(message) ?? null,
   } as TConversation
 }
 

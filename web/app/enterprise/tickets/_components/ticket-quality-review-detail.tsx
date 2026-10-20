@@ -6,6 +6,7 @@ import { StatusTag, type StatusTagTone } from "@railops/ui"
 
 import { translateCurrentMessage } from "@/i18n/messages"
 import type { TicketQualityReview } from "@/lib/api/enterprise-tickets"
+import { localizeTicketQualityEvidence } from "@/lib/ticket-quality-i18n"
 
 export function qualityReviewText(key: string, values?: Record<string, string | number>) {
   return translateCurrentMessage(`ticketQuality.review.${key}`, values)
@@ -93,7 +94,7 @@ export function TicketQualityReviewDetail({ review, locale, actions }: { review:
           <Field label={qualityReviewText("detail.defects")}>
             {review.defect_codes?.length ? review.defect_codes.map((code) => qualityCriterionLabel(code, itemTitles.get(code) ?? code)).join("、") : qualityReviewText("detail.none")}
           </Field>
-          <Field label={qualityReviewText("detail.evidence")}>{review.evidence || "-"}</Field>
+          <Field label={qualityReviewText("detail.evidence")}>{localizeTicketQualityEvidence(review.evidence, locale) || "-"}</Field>
           <Field label={qualityReviewText("detail.coaching")}>{review.coaching_action || "-"}</Field>
           {review.remark ? <Field label={qualityReviewText("detail.remark")}>{review.remark}</Field> : null}
 

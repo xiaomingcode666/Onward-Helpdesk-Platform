@@ -1,4 +1,15 @@
 {
+  "accountContext": {
+    "company": { "onward": "北京霜林网络科技有限公司" }
+  },
+  "aiAgentRelease": {
+    "systemComments": {
+      "configurationSynced": "平台托管配置已同步，需按审核流程逐个部署",
+      "initialized": "系统初始化租户默认接待",
+      "collaborationSynced": "平台托管知识服务已同步到 AI 与人工协同流程",
+      "aiOnlySynced": "平台托管租户默认接待已同步到安全 AI-only 流程"
+    }
+  },
   "notificationTemplates": {
     "title": "通知模板",
     "description": "所有通知都由已批准的模板生成：平台基线模板默认已批准，租户模板批准后覆盖基线；系统按收件人语言选择模板，发送前做敏感信息检查，并保留每次发送尝试。没有可用模板时通知会被拦截。",
@@ -1908,6 +1919,12 @@
     "loadingCount": "正在读取已绑定设备数量",
     "loadingList": "设备列表加载中",
     "loadingDetail": "设备详情加载中"
+  },
+  "customerMetrics": {
+    "devices": { "label": "我的设备", "meta": "已绑定范围" },
+    "conversations": { "label": "当前会话", "meta": "继续沟通" },
+    "tickets": { "label": "处理中工单", "meta": "待我处理提醒" },
+    "meetings": { "label": "待加入会议", "meta": "视频协作" }
   },
   "customerProfile": {
     "pageTitle": "账号资料",
@@ -6656,5 +6673,16 @@
       "name": "全球区域",
       "detail": "默认区域"
     }
+  },
+  "conversationSystem": {
+    "supplierJoinedGeneric": "供应商已加入协作会话，客户、维修工程师和供应商可共同沟通。",
+    "supplierJoinedSummaryGeneric": "供应商已加入协作会话",
+    "ticketCreated": "已生成服务工单 {ticketNo}，会话摘要和已上传资料已同步至工单。",
+    "ticketCreatedWithDevice": "已生成服务工单 {ticketNo}，会话摘要、设备上下文和已上传资料已同步至工单。",
+    "ticketCreatedSummary": "已生成服务工单 {ticketNo}",
+    "supplierInvited": "已邀请供应商协作：{company}",
+    "supplierInvitedWithModule": "已邀请供应商协作：{company} · {module}",
+    "supplierJoined": "{company}已加入协作会话，客户、维修工程师和供应商可共同沟通。",
+    "supplierJoinedSummary": "{company}已加入协作会话"
   }
 }

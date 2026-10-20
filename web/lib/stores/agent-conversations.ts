@@ -1,6 +1,7 @@
 "use client"
 
 import { create } from "zustand"
+import { applyAIMessageStream, readAIStreamMetadata, type AIMessageStreamPayload } from "@/lib/im-message-stream"
 
 import {
   fetchAgentConversations,
@@ -41,6 +42,7 @@ import {
   createPendingMessageId,
   isLocalMediaTransferPayload,
   summarizeIMMessage,
+  getIMSystemSummaryText,
 } from "@/lib/im-message"
 import { generateUUID } from "@/lib/utils"
 
@@ -155,6 +157,7 @@ type AgentConversationsStore = {
   sendVoice: (file: File, durationSeconds: number) => Promise<AgentMessage | null>
   recallMessage: (messageId: number) => Promise<AgentMessage | null>
   applyRealtimeMessageCreated: (message: AgentMessage) => void
+  applyRealtimeMessageStreaming: (payload: Partial<AIMessageStreamPayload> | undefined) => void
   applyRealtimeConversationChanged: (patch: RealtimeConversationPatch) => void
   applyRealtimeMessageRecalled: (messageId: number, patch: Partial<AgentMessage>) => void
   applyRealtimePresenceChanged: (payload: RealtimePresencePayload) => void
@@ -202,7 +205,7 @@ export const useAgentConversationsStore = create<AgentConversationsStore>((set, 
   },
 
   clearRealtimeEphemeralState: () => {
-    set({ realtimePresence: {}, realtimeTyping: {} })
+    set(state => ({ realtimePresence: {}, realtimeTyping: {}, messages: state.messages.filter(message => !readAIStreamMetadata(message)) }))
   },
 
   applyRealtimePresenceChanged: (payload) => {
@@ -526,7 +529,7 @@ export const useAgentConversationsStore = create<AgentConversationsStore>((set, 
     const conversation = store.conversations.find((item) => item.id === conversationId)
     const lastMessage = [...store.messages]
       .reverse()
-      .find((message) => !isLocalMediaTransferPayload(message.payload))
+      .find((message) => message.id > 0 && !isLocalMediaTransferPayload(message.payload))
     if (!conversationId || !conversation || !lastMessage) {
       return
     }
@@ -570,6 +573,10 @@ export const useAgentConversationsStore = create<AgentConversationsStore>((set, 
       set({ readingMessageId: 0 })
       throw error
     }
+  },
+
+  applyRealtimeMessageStreaming: (payload) => {
+    set(state => ({ messages: applyAIMessageStream(state.messages, payload, state.selectedConversationId ?? 0) }))
   },
 
   applyRealtimeMessageCreated: (message) => {
@@ -875,6 +882,7 @@ export const useAgentConversationsStore = create<AgentConversationsStore>((set, 
                     ...item,
                     lastMessageId: lastActiveMessage?.id ?? 0,
                     lastMessageAt: lastActiveMessage?.sentAt ?? "",
+                    lastMessageSummaryText: lastActiveMessage ? getIMSystemSummaryText(lastActiveMessage) ?? null : null,
                     lastMessageSummary: lastActiveMessage
                       ? summarizeIMMessage(lastActiveMessage)
                       : "",

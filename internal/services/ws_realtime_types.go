@@ -5,6 +5,7 @@ import (
 	"remotehelpdesk/internal/pkg/dto"
 	"remotehelpdesk/internal/pkg/dto/response"
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/pkg/openidentity"
 	"sync"
 	"sync/atomic"
@@ -197,6 +198,7 @@ type RealtimeConversationChangedPayload struct {
 	LastMessageAt             string                          `json:"lastMessageAt,omitempty"`
 	LastActiveAt              string                          `json:"lastActiveAt,omitempty"`
 	LastMessageSummary        string                          `json:"lastMessageSummary,omitempty"`
+	LastMessageSummaryText    *i18nx.Text                     `json:"lastMessageSummaryText"`
 	CustomerUnreadCount       int                             `json:"customerUnreadCount,omitempty"`
 	AgentUnreadCount          int                             `json:"agentUnreadCount,omitempty"`
 	CustomerLastReadMessageID int64                           `json:"customerLastReadMessageId,omitempty"`

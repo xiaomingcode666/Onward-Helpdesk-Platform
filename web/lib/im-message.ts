@@ -1,6 +1,11 @@
 import MarkdownIt from "markdown-it"
 
 import { translateCurrentMessage } from "@/i18n/messages"
+import { getConversationSystemMessageText } from "@/lib/customer-conversation-summary-i18n"
+
+export function getIMSystemSummaryText(message: Parameters<typeof getConversationSystemMessageText>[0]) {
+  return getConversationSystemMessageText(message, "summary")
+}
 
 export type MessageAssetPayload = {
   assetId?: string
@@ -116,7 +121,12 @@ export function renderIMMessageHTML(message: {
   messageType: string
   content: string
   payload?: string
+  senderType?: string
+  recalledAt?: string
+  sendStatus?: number
 }) {
+  const systemText = getConversationSystemMessageText(message, "content")
+  if (systemText) return messageMarkdown.render(translateCurrentMessage(systemText.key, systemText.params))
   if (message.messageType === "html") {
     return message.content
   }
@@ -204,7 +214,12 @@ export function summarizeIMMessage(message: {
   messageType: string
   content: string
   payload?: string
+  senderType?: string
+  recalledAt?: string
+  sendStatus?: number
 }) {
+  const systemText = getIMSystemSummaryText(message)
+  if (systemText) return translateCurrentMessage(systemText.key, systemText.params)
   const asset = parseMessageAssetPayload(message.payload)
   if (
     message.messageType === "audio" ||

@@ -1596,7 +1596,7 @@ func (e *Executor) executeLLMReply(ctx context.Context, state *runState, node ds
 	if state.input.AgentRuntime == nil {
 		return fmt.Errorf("workflow llm_reply requires an Eino Agent runtime")
 	}
-	agentResult, err := state.input.AgentRuntime.ExecuteWorkflowNode(ctx, runtimeexecutor.WorkflowNodeInput{
+	agentResult, err := state.input.AgentRuntime.ExecuteWorkflowNode(workflowReplyStreamContext(ctx, state, node.ID), runtimeexecutor.WorkflowNodeInput{
 		Conversation:     state.input.Conversation,
 		UserMessage:      state.input.UserMessage,
 		AIAgent:          state.input.AIAgent,

@@ -1,4 +1,15 @@
 {
+  "accountContext": {
+    "company": { "onward": "onward" }
+  },
+  "aiAgentRelease": {
+    "systemComments": {
+      "configurationSynced": "Platform-managed configuration has been synced. Each release must be reviewed before deployment.",
+      "initialized": "The system initialized the tenant's default reception bot.",
+      "collaborationSynced": "Platform-managed knowledge support has been synced to the AI and human collaboration workflow.",
+      "aiOnlySynced": "Platform-managed default tenant reception has been synced to the safe AI-only workflow."
+    }
+  },
   "notificationTemplates": {
     "title": "Notification templates",
     "description": "Every notification is generated from an approved template. Platform baseline templates are approved out of the box, and an approved tenant template overrides the baseline. The system picks the template by recipient language, checks sensitive data before sending, and keeps every delivery attempt. Notifications are blocked when no approved template is available.",
@@ -1908,6 +1919,12 @@
     "loadingCount": "Loading the number of bound devices",
     "loadingList": "Loading the device list",
     "loadingDetail": "Loading device details"
+  },
+  "customerMetrics": {
+    "devices": { "label": "My devices", "meta": "Linked devices" },
+    "conversations": { "label": "Active conversations", "meta": "Continue chatting" },
+    "tickets": { "label": "Open tickets", "meta": "Awaiting my action" },
+    "meetings": { "label": "Upcoming meetings", "meta": "Video collaboration" }
   },
   "customerProfile": {
     "pageTitle": "Account profile",
@@ -6656,5 +6673,16 @@
       "name": "Global",
       "detail": "Default region"
     }
+  },
+  "conversationSystem": {
+    "supplierJoinedGeneric": "The supplier has joined the collaboration conversation. The customer, engineer, and supplier can now communicate together.",
+    "supplierJoinedSummaryGeneric": "Supplier joined the collaboration conversation",
+    "ticketCreated": "Service ticket {ticketNo} has been created. The conversation summary and uploaded files have been synced to the ticket.",
+    "ticketCreatedWithDevice": "Service ticket {ticketNo} has been created. The conversation summary, device context, and uploaded files have been synced to the ticket.",
+    "ticketCreatedSummary": "Service ticket {ticketNo} created",
+    "supplierInvited": "Supplier collaboration invited: {company}",
+    "supplierInvitedWithModule": "Supplier collaboration invited: {company} · {module}",
+    "supplierJoined": "{company} has joined the collaboration conversation. The customer, engineer, and supplier can now communicate together.",
+    "supplierJoinedSummary": "{company} joined the collaboration conversation"
   }
 }

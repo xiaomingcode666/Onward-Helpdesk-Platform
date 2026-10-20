@@ -1,3 +1,4 @@
+import type { ConversationSystemText } from "@/lib/customer-conversation-summary-i18n"
 import type { MeetingParticipant } from "@/lib/api/types"
 
 export type CustomerPortalPage<T> = {
@@ -103,6 +104,7 @@ export type CustomerPortalConversation = {
   ticket_creation_enabled?: boolean
   priority: number
   last_message_summary: string
+  last_message_summary_text?: ConversationSystemText | null
   last_message_at: string
   last_active_at: string
   customer_unread_count: number

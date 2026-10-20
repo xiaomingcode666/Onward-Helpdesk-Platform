@@ -33,7 +33,8 @@ import {
   type RailopsDateRangeValue,
 } from "@/components/railops/date-range-filter"
 import { formatCurrency, formatDateTime, formatNumber } from "@/components/platform/platform-live-ui"
-import { useI18n } from "@/i18n/provider"
+import { useAppLocale, useI18n } from "@/i18n/provider"
+import { getAccountCompanyLabel } from "@/lib/account-context-i18n"
 import { getEnterpriseAIKeyDisplayName, getEnterpriseAIKeyProductMeta, getSingleEnterpriseAIKeyName, selectSingleEnterpriseAIKey } from "@/lib/enterprise-ai-key-display"
 import {
   getEnterpriseAIModelsWorkspace,
@@ -76,6 +77,7 @@ export default function EnterpriseModelsPage() {
 
 export function EnterpriseModelsPageContent() {
   const t = useI18n()
+  const { locale } = useAppLocale()
   const { session } = useAuth()
   const confirm = useConfirm()
   const canUpdateKeys = CanUseButton("productAIUsageCredential.update", session?.permissions)
@@ -507,7 +509,7 @@ export function EnterpriseModelsPageContent() {
               extra={!waitingForData ? <StatusTag tone={statusTone(user?.status || account?.accountStatus)}>{statusLabel(t, user?.status || account?.accountStatus)}</StatusTag> : null}
             >
               <div className="rhd-railops-usage-account-grid">
-                <InfoRow label={t("enterpriseModels.account.user")} value={waitingForData ? <InlineLoading /> : account?.accountName || "-"} />
+                <InfoRow label={t("enterpriseModels.account.user")} value={waitingForData ? <InlineLoading /> : getAccountCompanyLabel(account?.accountName, locale)} />
                 <InfoRow label={t("enterpriseModels.account.loginEmail")} value={waitingForData ? <InlineLoading className="w-32" /> : user?.email || account?.loginEmail || "-"} />
                 <InfoRow label={t("enterpriseModels.account.concurrencyLimit")} value={waitingForData ? <InlineLoading /> : formatNumber(user?.concurrency ?? account?.concurrency ?? 0)} />
                 <InfoRow label={t("enterpriseModels.account.rpmLimit")} value={waitingForData ? <InlineLoading /> : formatNumber(user?.rpmLimit ?? account?.rpmLimit ?? 0)} />

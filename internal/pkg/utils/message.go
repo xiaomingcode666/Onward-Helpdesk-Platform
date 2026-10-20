@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"remotehelpdesk/internal/models"
 	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/i18nx"
 	"remotehelpdesk/internal/repositories"
 	"strings"
 
@@ -180,18 +181,27 @@ func BuildRuntimeMessageText(messageType enums.IMMessageType, content string) st
 }
 
 func BuildRenderableMessage(item *models.Message) (content, payload string) {
+	return BuildRenderableMessageWithLocale(item, i18nx.DefaultLocale)
+}
+
+func BuildRenderableMessageWithLocale(item *models.Message, locale string) (content, payload string) {
 	if item == nil {
 		return "", ""
 	}
 	if item.RecalledAt != nil {
-		return "该消息已撤回", ""
+		return i18nx.Getf(locale, "conversation.summary.recalled"), ""
 	}
 	if item.SendStatus == enums.IMMessageStatusRecalled {
-		return "该消息已撤回", ""
+		return i18nx.Getf(locale, "conversation.summary.recalled"), ""
 	}
 
 	content = item.Content
 	payload = item.Payload
+	if item.SenderType == enums.IMSenderTypeSystem && item.MessageType == enums.IMMessageTypeText {
+		if enriched, text := i18nx.WithConversationSystemText(payload); text != nil {
+			return text.Content.Render(locale), enriched
+		}
+	}
 	switch item.MessageType {
 	case enums.IMMessageTypeImage, enums.IMMessageTypeAudio, enums.IMMessageTypeAttachment:
 		payload = buildIMMessageAssetPayloadForResponse(item.Payload)

@@ -631,6 +631,7 @@ func (s *customerPortalService) listConversations(external openidentity.External
 		}
 	}
 	result := make([]dto.CustomerPortalConversationDTO, 0, len(conversations))
+	summaryTexts := ConversationSummaryTexts(sqls.DB(), conversations)
 	hasDeviceConceptByTenantID := make(map[int64]bool)
 	for _, item := range conversations {
 		deviceNo := ""
@@ -677,26 +678,30 @@ func (s *customerPortalService) listConversations(external openidentity.External
 			}
 			lastMessageSummary = i18nx.LocalizeCustomerConversationSummary(locale, lastMessageSummary, hasDeviceConcept)
 		}
+		if text := summaryTexts[item.ID]; text != nil {
+			lastMessageSummary = text.Render(locale)
+		}
 		result = append(result, dto.CustomerPortalConversationDTO{
-			ID:                    item.ID,
-			Status:                mapCustomerConversationStatus(item),
-			ServiceMode:           int(item.ServiceMode),
-			HumanHandoffEnabled:   CustomerConversationAllowsHumanHandoff(&item, agent),
-			TicketCreationEnabled: CustomerConversationAllowsTicketCreation(&item, agent),
-			Priority:              item.Priority,
-			LastMessageSummary:    lastMessageSummary,
-			LastMessageAt:         formatCustomerTime(item.LastMessageAt),
-			LastActiveAt:          formatCustomerTime(item.LastActiveAt),
-			CustomerUnreadCount:   item.CustomerUnreadCount,
-			DeviceID:              item.DeviceID,
-			DeviceNo:              deviceNo,
-			ProductName:           productName,
-			CurrentAssigneeID:     assigneeID,
-			CurrentAssigneeName:   assigneeName,
-			CurrentTicketID:       ticketID,
-			CurrentTicketNo:       ticketNo,
-			CurrentMeetingID:      meetingID,
-			CurrentMeetingStatus:  meetingStatus,
+			ID:                     item.ID,
+			Status:                 mapCustomerConversationStatus(item),
+			ServiceMode:            int(item.ServiceMode),
+			HumanHandoffEnabled:    CustomerConversationAllowsHumanHandoff(&item, agent),
+			TicketCreationEnabled:  CustomerConversationAllowsTicketCreation(&item, agent),
+			Priority:               item.Priority,
+			LastMessageSummary:     lastMessageSummary,
+			LastMessageSummaryText: summaryTexts[item.ID],
+			LastMessageAt:          formatCustomerTime(item.LastMessageAt),
+			LastActiveAt:           formatCustomerTime(item.LastActiveAt),
+			CustomerUnreadCount:    item.CustomerUnreadCount,
+			DeviceID:               item.DeviceID,
+			DeviceNo:               deviceNo,
+			ProductName:            productName,
+			CurrentAssigneeID:      assigneeID,
+			CurrentAssigneeName:    assigneeName,
+			CurrentTicketID:        ticketID,
+			CurrentTicketNo:        ticketNo,
+			CurrentMeetingID:       meetingID,
+			CurrentMeetingStatus:   meetingStatus,
 		})
 	}
 	return result, nil
@@ -1735,6 +1740,7 @@ func (s *customerPortalService) buildCustomerPortalConversationDetail(external o
 		assigneeName = customerPortalFirstNonEmptyString(user.Nickname, user.Username)
 	}
 	agent := AIAgentService.Get(conversation.AIAgentID)
+	summaryText := ConversationSummaryTexts(sqls.DB(), []models.Conversation{*conversation})[conversation.ID]
 	lastMessageSummary := conversation.LastMessageSummary
 	if strings.TrimSpace(locale) != "" {
 		lastMessageSummary = i18nx.LocalizeCustomerConversationSummary(
@@ -1743,26 +1749,30 @@ func (s *customerPortalService) buildCustomerPortalConversationDetail(external o
 			!TenantCapabilityService.KnowledgeSupport(conversation.TenantID),
 		)
 	}
+	if summaryText != nil {
+		lastMessageSummary = summaryText.Render(locale)
+	}
 	return &dto.CustomerPortalConversationDTO{
-		ID:                    conversation.ID,
-		Status:                mapCustomerConversationStatus(*conversation),
-		ServiceMode:           int(conversation.ServiceMode),
-		HumanHandoffEnabled:   CustomerConversationAllowsHumanHandoff(conversation, agent),
-		TicketCreationEnabled: CustomerConversationAllowsTicketCreation(conversation, agent),
-		Priority:              conversation.Priority,
-		LastMessageSummary:    lastMessageSummary,
-		LastMessageAt:         formatCustomerTime(conversation.LastMessageAt),
-		LastActiveAt:          formatCustomerTime(conversation.LastActiveAt),
-		CustomerUnreadCount:   conversation.CustomerUnreadCount,
-		DeviceID:              conversation.DeviceID,
-		DeviceNo:              deviceNo,
-		ProductName:           productName,
-		CurrentAssigneeID:     assigneeID,
-		CurrentAssigneeName:   assigneeName,
-		CurrentTicketID:       ticketID,
-		CurrentTicketNo:       ticketNo,
-		CurrentMeetingID:      meetingID,
-		CurrentMeetingStatus:  meetingStatus,
+		ID:                     conversation.ID,
+		Status:                 mapCustomerConversationStatus(*conversation),
+		ServiceMode:            int(conversation.ServiceMode),
+		HumanHandoffEnabled:    CustomerConversationAllowsHumanHandoff(conversation, agent),
+		TicketCreationEnabled:  CustomerConversationAllowsTicketCreation(conversation, agent),
+		Priority:               conversation.Priority,
+		LastMessageSummary:     lastMessageSummary,
+		LastMessageSummaryText: summaryText,
+		LastMessageAt:          formatCustomerTime(conversation.LastMessageAt),
+		LastActiveAt:           formatCustomerTime(conversation.LastActiveAt),
+		CustomerUnreadCount:    conversation.CustomerUnreadCount,
+		DeviceID:               conversation.DeviceID,
+		DeviceNo:               deviceNo,
+		ProductName:            productName,
+		CurrentAssigneeID:      assigneeID,
+		CurrentAssigneeName:    assigneeName,
+		CurrentTicketID:        ticketID,
+		CurrentTicketNo:        ticketNo,
+		CurrentMeetingID:       meetingID,
+		CurrentMeetingStatus:   meetingStatus,
 	}, nil
 }
 

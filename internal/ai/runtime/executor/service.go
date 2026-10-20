@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"remotehelpdesk/internal/pkg/aistream"
 	"strings"
 
 	"remotehelpdesk/internal/ai/runtime/internal/impl/callbacks"
@@ -89,7 +90,7 @@ func (s *Service) ExecuteRun(ctx context.Context, req RunInput) (*RunResult, err
 		return summary, err
 	}
 
-	runner := s.runnerFactory.Build(ctx, agent, false, true)
+	runner := s.runnerFactory.Build(ctx, agent, aistream.Enabled(ctx), true)
 	if runner == nil {
 		summary.Status = "error"
 		summary.ErrorMessage = "failed to build runner"
@@ -100,12 +101,15 @@ func (s *Service) ExecuteRun(ctx context.Context, req RunInput) (*RunResult, err
 		return summary, fmt.Errorf("%s", summary.ErrorMessage)
 	}
 	collector.Data.Interrupt.CheckPointID = checkPointID
-	consumeAgentEvents(runner.Run(ctx, messages, buildRunOptions(checkPointID)...), summary, collector, tooling.toolDefsByModelName)
+	consumeAgentEvents(runner.Run(ctx, messages, buildRunOptions(checkPointID)...), summary, collector, tooling.toolDefsByModelName, func(text string) { aistream.Emit(ctx, text) })
 	collector.Data.Status = summary.Status
 	collector.Data.Output.ReplyText = summary.ReplyText
 	collector.Data.Output.FinishReason = summary.Status
 	syncSkillSummaryFromCollector(summary, collector)
 	summary.TraceData = collector.Marshal()
+	if summary.Status == "error" {
+		return summary, fmt.Errorf("agent execution failed: %s", summary.ErrorMessage)
+	}
 	return summary, nil
 }
 
@@ -169,7 +173,7 @@ func (s *Service) ExecuteResume(ctx context.Context, req ResumeInput) (*RunResul
 		summary.TraceData = collector.Marshal()
 		return summary, err
 	}
-	runner := s.runnerFactory.Build(ctx, agent, false, true)
+	runner := s.runnerFactory.Build(ctx, agent, aistream.Enabled(ctx), true)
 	if runner == nil {
 		summary.Status = "error"
 		summary.ErrorMessage = "failed to build runner"
@@ -200,12 +204,15 @@ func (s *Service) ExecuteResume(ctx context.Context, req ResumeInput) (*RunResul
 		summary.TraceData = collector.Marshal()
 		return summary, err
 	}
-	consumeAgentEvents(iter, summary, collector, tooling.toolDefsByModelName)
+	consumeAgentEvents(iter, summary, collector, tooling.toolDefsByModelName, func(text string) { aistream.Emit(ctx, text) })
 	collector.Data.Status = summary.Status
 	collector.Data.Output.ReplyText = summary.ReplyText
 	collector.Data.Output.FinishReason = summary.Status
 	syncSkillSummaryFromCollector(summary, collector)
 	summary.TraceData = collector.Marshal()
+	if summary.Status == "error" {
+		return summary, fmt.Errorf("agent resume failed: %s", summary.ErrorMessage)
+	}
 	return summary, nil
 }
 

@@ -33,7 +33,11 @@ export function mergeImMessagesByIdAsc<T extends MergeableImMessage>(
     const existing = byId.get(message.id)
     byId.set(message.id, existing ? mergeImMessage(existing, message) : message)
   }
-  return Array.from(byId.values()).sort((x, y) => x.id - y.id)
+  const persistedClientIds = new Set(Array.from(byId.values())
+    .filter(message => message.id > 0).map(message => message.clientMsgId).filter(Boolean))
+  return Array.from(byId.values())
+    .filter(message => message.id > 0 || !message.clientMsgId || !persistedClientIds.has(message.clientMsgId))
+    .sort((x, y) => (x.id > 0 && y.id > 0) ? x.id - y.id : x.id > 0 ? -1 : y.id > 0 ? 1 : y.id - x.id)
 }
 
 export function upsertImMessageReplacingClientMessage<T extends MergeableImMessage>(
@@ -69,7 +73,7 @@ export function replaceLoadedImMessagesPreservingLocalTransfers<
   )
   const localTransfers = current.filter((message) => {
     const clientMsgId = message.clientMsgId?.trim()
-    return isLocalMediaTransfer(message.payload) &&
+    return (isLocalMediaTransfer(message.payload) || isLiveAIStream(message)) &&
       (!clientMsgId || !incomingClientIds.has(clientMsgId))
   })
   return mergeImMessagesByIdAsc(incoming, localTransfers)
@@ -84,6 +88,14 @@ function isLocalMediaTransfer(payload?: string) {
   }
 }
 
+function isLiveAIStream(message: MergeableImMessage) {
+  if (message.id >= 0 || !message.payload) return false
+  try {
+    const payload = JSON.parse(message.payload)
+    return payload.kind === "ai_stream" && payload.expiresAt > Date.now()
+  } catch { return false }
+}
+
 export function parseImMessageCursorId(cursor: string): number {
   const value = Number.parseInt(cursor, 10)
   return Number.isFinite(value) && value > 0 ? value : 0
@@ -92,10 +104,8 @@ export function parseImMessageCursorId(cursor: string): number {
 export function cursorFromLoadedImMessages<T extends Pick<MergeableImMessage, "id">>(
   messages: T[]
 ): string {
-  if (messages.length === 0) {
-    return ""
-  }
-  return String(Math.min(...messages.map((message) => message.id)))
+  const id = minImMessageId(messages)
+  return id === null ? "" : String(id)
 }
 
 export function hasMoreAfterLatestImMessageMerge<
@@ -123,10 +133,8 @@ export function hasMoreAfterLatestImMessageMerge<
 function minImMessageId<T extends Pick<MergeableImMessage, "id">>(
   messages: T[]
 ): number | null {
-  if (messages.length === 0) {
-    return null
-  }
-  return Math.min(...messages.map((message) => message.id))
+  const ids = messages.map(message => message.id).filter(id => id > 0)
+  return ids.length ? Math.min(...ids) : null
 }
 
 export function mergeImMessage<T extends MergeableImMessage>(

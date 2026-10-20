@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"remotehelpdesk/internal/pkg/aistream"
 	"strings"
 
 	"remotehelpdesk/internal/ai/runtime/internal/impl/adapter"
@@ -82,12 +83,12 @@ func (s *Service) ExecuteWorkflowNode(ctx context.Context, req WorkflowNodeInput
 	if err != nil {
 		return workflowNodePrepareError(summary, collector, err)
 	}
-	runner := s.runnerFactory.Build(ctx, agent, false, false)
+	runner := s.runnerFactory.Build(ctx, agent, aistream.Enabled(ctx), false)
 	if runner == nil {
 		return workflowNodePrepareError(summary, collector, fmt.Errorf("failed to build workflow node runner"))
 	}
 
-	consumeAgentEvents(runner.Run(ctx, messages), summary, collector, tooling.toolDefsByModelName)
+	consumeAgentEvents(runner.Run(ctx, messages), summary, collector, tooling.toolDefsByModelName, func(text string) { aistream.Emit(ctx, text) })
 	collector.Data.Status = summary.Status
 	collector.Data.Output.ReplyText = summary.ReplyText
 	collector.Data.Output.FinishReason = summary.Status

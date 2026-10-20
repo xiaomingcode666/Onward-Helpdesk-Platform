@@ -1,4 +1,6 @@
 "use client"
+import { applyAIMessageStream, readAIStreamMetadata, type AIMessageStreamPayload } from "@/lib/im-message-stream"
+import { normalizeRealtimeMessage } from "@/lib/im-realtime-state"
 
 import {
   createOrMatchImConversation,
@@ -56,6 +58,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { getAccountCompanyLabel } from "@/lib/account-context-i18n"
+import { localizeCustomerPortalMetric } from "@/lib/customer-portal-metrics-i18n"
 import {
   buildMediaTransferPayload,
   createPendingMessageId,
@@ -296,6 +300,7 @@ function buildCreatedCustomerPortalConversation(
     current_ticket_id: 0,
     priority: conversation.priority || 0,
     last_message_summary: conversation.lastMessageSummary || "",
+    last_message_summary_text: conversation.lastMessageSummaryText,
     last_message_at: conversation.lastMessageAt || lastActiveAt,
     last_active_at: lastActiveAt,
     customer_unread_count: conversation.customerUnreadCount || 0,
@@ -521,7 +526,10 @@ function PageHeader({
 }
 
 function MetricsStrip({ home, hasDeviceConcept = true }: { home: CustomerPortalHome | null; hasDeviceConcept?: boolean }) {
-  const metrics = home?.metrics.filter((metric) => hasDeviceConcept || metric.key !== "devices") ?? []
+  const t = useI18n()
+  const metrics = home?.metrics
+    .filter((metric) => hasDeviceConcept || metric.key !== "devices")
+    .map((metric) => localizeCustomerPortalMetric(t, metric)) ?? []
   const columnClass = hasDeviceConcept ? "lg:grid-cols-4" : "lg:grid-cols-3"
   if (!home) {
     return (
@@ -908,13 +916,13 @@ export function CustomerChatPortalPage() {
         current.filter((message) => message.conversationId === conversationId),
         incoming,
       ))
-      await markImMessageRead(conversationId)
+      void markImMessageRead(conversationId).catch(() => undefined)
     } catch (error) {
       if (!silent && requestId === messageListRequestRef.current && selectedConversationIdRef.current === conversationId) {
         toast.error(error instanceof Error ? error.message : t("customerChat.messageLoadFailed"))
       }
     } finally {
-      if (!silent && requestId === messageListRequestRef.current) {
+      if (requestId === messageListRequestRef.current) {
         setMessageLoading(false)
       }
     }
@@ -1083,6 +1091,7 @@ export function CustomerChatPortalPage() {
     setSelectedConversationId(queryId)
   }, [conversationQueryParam, selectedConversationId])
 
+  const lastVisibleMessageContent = messages.at(-1)?.content
   useEffect(() => {
     if (!selectedConversationId || messages.length === 0) {
       return
@@ -1092,6 +1101,15 @@ export function CustomerChatPortalPage() {
       block: "end",
     })
   }, [messageLoading, messages.length, selectedConversationId])
+
+  useEffect(() => {
+    if (!lastVisibleMessageContent || messageLoading) return
+    const end = messagesEndRef.current
+    const viewport = end?.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')
+    if (viewport && viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 120) {
+      end?.scrollIntoView({ block: "end" })
+    }
+  }, [lastVisibleMessageContent, messageLoading])
 
   useEffect(() => {
     if (!selectedConversationId) {
@@ -1140,12 +1158,14 @@ export function CustomerChatPortalPage() {
         const connected = status === "connected"
         setRealtimeConnected(connected)
         if (!connected) {
+          setMessages(current => current.filter(message => !readAIStreamMetadata(message)))
           setPresence({})
           setRemoteTyping({})
         }
       },
       onOpen: (socket) => {
         socket.send(JSON.stringify({ type: "subscribe", topics: [`conversation:${conversationId}`] }))
+        void loadMessages(conversationId, true)
       },
       onMessage: (event) => {
         if (!active) return
@@ -1186,7 +1206,17 @@ export function CustomerChatPortalPage() {
           }
           return
         }
-        if (envelope.type === "message.created" || envelope.type === "conversation.updated") {
+        if (envelope.type === "message.streaming") {
+          setMessages(current => applyAIMessageStream(current, envelope.data as Partial<AIMessageStreamPayload>, conversationId))
+          return
+        }
+        if (envelope.type === "message.created") {
+          const message = normalizeRealtimeMessage<ImMessage>(envelope.data as Parameters<typeof normalizeRealtimeMessage<ImMessage>>[0])
+          if (message?.conversationId === conversationId) {
+            setMessages(current => upsertImMessageReplacingClientMessage(current, message))
+          }
+        }
+        if (envelope.type === "message.created" || envelope.type === "conversation.updated" || envelope.type === "resyncRequired") {
           void loadMessages(conversationId, true)
           void loadBaseDataRef.current(true)
         }
@@ -1564,7 +1594,7 @@ export function CustomerChatPortalPage() {
   }
 
   async function handleTranslateMessage(message: ImMessage) {
-    if (!message.id || !selectedConversationId || translatingMessageId !== null) {
+    if (message.id <= 0 || !selectedConversationId || translatingMessageId !== null) {
       return
     }
     if (!message.content.trim()) {
@@ -1665,16 +1695,18 @@ export function CustomerChatPortalPage() {
 	                const selected = selectedConversationId === item.id
 	                const compactDeviceNo = item.device_no ? compactCustomerIdentifier(item.device_no) : ""
 	                const itemTitle = item.product_name || compactDeviceNo || generalConsultationTitle
-	                const itemSummary = renderCustomerConversationSummary(item.last_message_summary, t, t("customerChat.listSummaryFallback"))
+	                const itemSummary = renderCustomerConversationSummary(item.last_message_summary, t, t("customerChat.listSummaryFallback"), item.last_message_summary_text)
 	                return (
 	                  <button
 	                    key={item.id}
 	                    type="button"
 	                    aria-current={selected ? "true" : undefined}
 	                    onClick={() => {
-	                      selectedConversationIdRef.current = item.id
-	                      messageListRequestRef.current += 1
-	                      setSelectedConversationId(item.id)
+	                      if (selectedConversationIdRef.current !== item.id) {
+	                        selectedConversationIdRef.current = item.id
+	                        messageListRequestRef.current += 1
+	                        setSelectedConversationId(item.id)
+	                      }
 	                      syncCustomerConversationUrl(item.id)
 	                      setMobileConversationListOpen(false)
 	                    }}
@@ -3421,7 +3453,7 @@ export function CustomerDevicesPortalPage() {
                               <ServiceRecordRow
                                 key={item.id}
                                 icon={<MessagesSquareIcon className="size-4" />}
-                                title={item.last_message_summary || t("customerDevices.deviceServiceConversation")}
+                                title={renderCustomerConversationSummary(item.last_message_summary, t, t("customerDevices.deviceServiceConversation"), item.last_message_summary_text)}
                                 meta={formatDateTime(item.last_active_at, locale)}
                                 status={item.status}
                                 onClick={() => router.push(`/customer/chat?conversationId=${item.id}`)}
@@ -3654,6 +3686,7 @@ function ServiceRecordRow({ icon, title, meta, status, onClick }: { icon: ReactN
 export function CustomerProfilePortalPage() {
   const { session } = useAuth()
   const t = useI18n()
+  const { locale } = useAppLocale()
   const [profile, setProfile] = useState<CustomerPortalProfile | null>(null)
   const [home, setHome] = useState<CustomerPortalHome | null>(null)
   const [loading, setLoading] = useState(true)
@@ -3771,7 +3804,7 @@ export function CustomerProfilePortalPage() {
                     autoComplete="name"
                   />
                 </label>
-                <InfoTile label={t("customerProfile.customerOrg")} value={profile.company_name || t("customerProfile.notBelonged")} />
+                <InfoTile label={t("customerProfile.customerOrg")} value={profile.company_name ? getAccountCompanyLabel(profile.company_name, locale) : t("customerProfile.notBelonged")} />
                 <label className="grid gap-1.5 text-sm font-medium text-foreground">
                   {t("customerProfile.email")}
                   <Input

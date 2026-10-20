@@ -1,134 +1,138 @@
+import { normalizeLocale, SUPPORTED_LOCALES } from "@/i18n/config"
+import { matchMessage, translateMessage } from "@/i18n/messages"
+
 type TranslateFn = (key: string, values?: Record<string, string | number>) => string
 
-export function renderCustomerConversationSummary(
-  summary: string | undefined,
-  t: TranslateFn,
-  fallback = "",
-) {
-  const trimmed = (summary ?? "").trim()
-  if (!trimmed) {
-    return fallback
-  }
-
-  const feedback = trimmed.match(/^客户已提交服务评价[:：]\s*(\d+)\/5(?:\s*·\s*(.+))?$/)
-  if (feedback) {
-    const label = t("portalExtract.customerMobile.conversation.summaryEvents.feedbackSubmitted", { rating: feedback[1] })
-    return feedback[2] ? `${label} · ${feedback[2]}` : label
-  }
-
-  const ticketCreated = trimmed.match(/^已生成服务工单\s+([^，,]+).*$/)
-  if (ticketCreated?.[1]) {
-    return t("portalExtract.customerMobile.conversation.summaryEvents.ticketCreatedWithTicketNo", {
-      ticketNo: ticketCreated[1],
-    })
-  }
-  if (trimmed.startsWith("已生成服务工单")) {
-    return t("portalExtract.customerMobile.conversation.summaryEvents.ticketCreated")
-  }
-
-  const supplierInvited = trimmed.match(/^已邀请供应商协作[:：]\s*(.+)$/)
-  if (supplierInvited?.[1]) {
-    const parts = supplierInvited[1].split(/\s*[·/／]\s*/).map((part) => part.trim()).filter(Boolean)
-    if (parts[0] && parts[1]) {
-      return t("portalExtract.customerMobile.conversation.summaryEvents.supplierInvitedWithModule", {
-        company: parts[0],
-        module: parts.slice(1).join(" · "),
-      })
-    }
-    if (parts[0]) {
-      return t("portalExtract.customerMobile.conversation.summaryEvents.supplierInvitedWithCompany", { company: parts[0] })
-    }
-  }
-
-  const supplierJoined = trimmed.match(/^(.+?)已加入协作会话/)
-  if (supplierJoined?.[1]) {
-    return t("portalExtract.customerMobile.conversation.summaryEvents.supplierJoinedWithCompany", {
-      company: supplierJoined[1].trim(),
-    })
-  }
-
-  const supplierResolved = trimmed.match(/^供应商处理完成[:：]\s*(.+)$/)
-  if (supplierResolved?.[1]) {
-    return t("portalExtract.customerMobile.conversation.summaryEvents.supplierResolvedWithResolution", {
-      resolution: supplierResolved[1].trim(),
-    })
-  }
-
-  const roomName = extractConversationRoomName(trimmed)
-  const duration = extractConversationDuration(trimmed)
-  if (trimmed.startsWith("视频协作已结束")) {
-    if (roomName && duration) {
-      return t("portalExtract.customerMobile.conversation.summaryEvents.videoEndedWithRoomDuration", {
-        roomName,
-        duration: localizeConversationDuration(duration, t),
-      })
-    }
-    if (duration) {
-      return t("portalExtract.customerMobile.conversation.summaryEvents.videoEndedWithDuration", {
-        duration: localizeConversationDuration(duration, t),
-      })
-    }
-    return t("portalExtract.customerMobile.conversation.summaryEvents.videoEnded")
-  }
-
-  if (trimmed.startsWith("发起视频协作")) {
-    return roomName
-      ? t("portalExtract.customerMobile.conversation.summaryEvents.videoStartedWithRoom", { roomName })
-      : t("portalExtract.customerMobile.conversation.summaryEvents.videoStarted")
-  }
-
-  if (trimmed.startsWith("工程师已发起视频协作")) {
-    return t("portalExtract.customerMobile.conversation.summaryEvents.engineerVideoStarted")
-  }
-
-  if (trimmed.startsWith("工程师已预定视频协作")) {
-    return t("portalExtract.customerMobile.conversation.summaryEvents.engineerVideoScheduled")
-  }
-
-  const media = trimmed.match(/^\[(图片|语音|附件)\]\s*(.*)$/)
-  if (media) {
-    const labelKey = media[1] === "图片"
-      ? "image"
-      : media[1] === "语音"
-        ? "audio"
-        : "attachment"
-    const label = t(`portalExtract.customerMobile.conversation.summaryEvents.${labelKey}`)
-    return media[2] ? `${label} ${media[2]}` : label
-  }
-
-  if (trimmed === "维修结论已提交，等待客户确认设备状态。" || trimmed === "维修结论已提交，等待客户确认服务结果。") {
-    return t("portalExtract.customerMobile.conversation.summaryEvents.repairSubmittedWaiting")
-  }
-  if (trimmed.startsWith("维修结论已提交：")) {
-    return t("portalExtract.customerMobile.conversation.summaryEvents.repairSubmittedWithSummary", {
-      summary: trimmed.replace(/^维修结论已提交[:：]\s*/, ""),
-    })
-  }
-
-  return trimmed
+export type ConversationSystemText = {
+  key: string
+  params?: Record<string, string | number>
 }
 
-function extractConversationRoomName(content: string) {
-  return content.match(/会议室[:：]\s*([^，,]+)/)?.[1]?.trim() || ""
+const systemKeys = new Set([
+  "ticketCreated", "ticketCreatedWithDevice", "ticketCreatedSummary",
+  "supplierInvited", "supplierInvitedWithModule", "supplierJoined", "supplierJoinedSummary",
+  "supplierJoinedGeneric", "supplierJoinedSummaryGeneric",
+].map((name) => `conversationSystem.${name}`))
+
+function validSystemText(value: unknown): value is ConversationSystemText {
+  if (!value || typeof value !== "object") return false
+  const text = value as ConversationSystemText
+  return systemKeys.has(text.key) && (text.params === undefined || (
+    text.params !== null && typeof text.params === "object" && !Array.isArray(text.params) &&
+    Object.values(text.params).every((item) => typeof item === "string" || typeof item === "number")
+  ))
 }
 
-function extractConversationDuration(content: string) {
-  return content.match(/时长[:：]\s*(.+)$/)?.[1]?.trim() || ""
-}
-
-function localizeConversationDuration(duration: string, t: TranslateFn) {
-  const normalized = duration.replace(/\s+/g, " ").trim()
-  const minuteSecond = normalized.match(/^(\d+)\s*分(?:\s*(\d+)\s*秒)?$/)
-  if (minuteSecond) {
-    const minutes = Number(minuteSecond[1])
-    const seconds = Number(minuteSecond[2] || 0)
-    return seconds > 0
-      ? t("portalExtract.customerMobile.time.minutesSeconds", { minutes, seconds })
-      : t("portalExtract.customerMobile.time.minutes", { minutes })
+export function getConversationSystemMessageText(message: {
+  senderType?: string
+  messageType: string
+  payload?: string
+  recalledAt?: string
+  sendStatus?: number
+}, kind: "content" | "summary"): ConversationSystemText | undefined {
+  if (message.senderType !== "system" || message.messageType !== "text" || message.recalledAt || message.sendStatus === 6) return undefined
+  try {
+    const text: unknown = JSON.parse(message.payload || "{}").systemText?.[kind]
+    return validSystemText(text) ? text : undefined
+  } catch {
+    return undefined
   }
-  const secondOnly = normalized.match(/^(\d+)\s*秒$/)
-  if (secondOnly) {
-    return t("portalExtract.customerMobile.time.seconds", { seconds: Number(secondOnly[1]) })
+}
+
+const summaryKey = (name: string) => `portalExtract.customerMobile.conversation.summaryEvents.${name}`
+const eventKey = (name: string) => `customerEntryExtract.event.${name}`
+
+// Historical summaries store rendered text. Recognize complete templates from
+// every locale, keeping business values intact and longer templates first.
+const eventSummaries: [string, string][] = [
+  ["ticketCreatedDescriptionWithTicketNoGeneral", "ticketCreatedWithTicketNo"],
+  ["ticketCreatedDescriptionWithTicketNo", "ticketCreatedWithTicketNo"],
+  ["ticketCreatedDescriptionGeneral", "ticketCreated"],
+  ["ticketCreatedDescription", "ticketCreated"],
+  ["supplierJoinedDescriptionWithCompany", "supplierJoinedWithCompany"],
+  ["repairConclusionDescriptionWaitingGeneral", "repairSubmittedWaiting"],
+  ["videoScheduledDescriptionWithTime", "engineerVideoScheduled"],
+  ["videoScheduledDescription", "engineerVideoScheduled"],
+]
+
+const summaryNames = [
+  "supplierInvitedWithModule", "supplierInvitedWithCompany", "supplierJoinedWithCompany",
+  "supplierResolvedWithResolution", "videoEndedWithRoomDuration", "videoEndedWithDuration",
+  "videoEnded", "videoStartedWithRoom", "videoStarted", "engineerVideoStarted",
+  "engineerVideoScheduled", "feedbackSubmitted", "repairSubmittedWaiting",
+  "repairSubmittedWithSummary", "ticketCreatedWithTicketNo", "ticketCreated",
+]
+
+const durationNames = ["minutesSeconds", "minutes", "seconds"]
+const durationEvents = ["durationMinutesSeconds", "durationMinutes", "durationSeconds"]
+
+function matchDuration(key: string, duration: string) {
+  for (const locale of SUPPORTED_LOCALES) {
+    const names: string[] = []
+    const pattern = translateMessage(locale, key).replace(/\s+/g, "").split(/(\{\w+\})/).map((part) => {
+      const parameter = part.match(/^\{(\w+)\}$/)
+      if (parameter) {
+        names.push(parameter[1])
+        return "(\\d+)"
+      }
+      return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    }).join("")
+    const match = duration.replace(/\s+/g, "").match(new RegExp(`^${pattern}$`))
+    if (match && names.length) return Object.fromEntries(names.map((name, index) => [name, match[index + 1]]))
+  }
+  return null
+}
+
+function localizeDuration(duration: string, t: TranslateFn) {
+  for (let i = 0; i < durationNames.length; i++) {
+    const key = `portalExtract.customerMobile.time.${durationNames[i]}`
+    const values = matchDuration(eventKey(durationEvents[i]), duration) ?? matchDuration(key, duration)
+    if (values && Object.values(values).every((value) => /^\d+$/.test(value))) {
+      return t(key, values)
+    }
   }
   return duration
+}
+
+export function renderCustomerConversationSummary(
+  summary: string | null | undefined,
+  t: TranslateFn,
+  fallback = "",
+  systemText?: ConversationSystemText | null,
+) {
+  if (validSystemText(systemText)) return t(systemText.key, systemText.params)
+  const text = summary ?? ""
+  if (!text.trim()) return fallback
+
+  const templates: [string, string][] = [
+    ...eventSummaries.map(([source, target]): [string, string] => [eventKey(source), summaryKey(target)]),
+    [summaryKey("repairSubmittedWaitingService"), summaryKey("repairSubmittedWaiting")],
+    [eventKey("feedbackSubmittedDescriptionWithComment"), eventKey("feedbackSubmittedDescriptionWithComment")],
+    ...summaryNames.map((name): [string, string] => [summaryKey(name), summaryKey(name)]),
+  ]
+  for (const [source, target] of templates) {
+    const values = matchMessage(source, text)
+    if (!values) continue
+    // A free-form sentence after the ticket number is not a system template.
+    if (values.ticketNo && !/^#?[A-Za-z0-9][A-Za-z0-9_-]*$/.test(values.ticketNo)) continue
+    if (values.rating && !/^[1-5]$/.test(values.rating)) continue
+    if (values.duration) values.duration = localizeDuration(values.duration, t)
+    return t(target, values)
+  }
+
+  for (const name of ["image", "audio", "attachment"]) {
+    const key = summaryKey(name)
+    for (const locale of SUPPORTED_LOCALES) {
+      const label = translateMessage(locale, key)
+      const trimmed = text.trim()
+      if (trimmed === label) return t(key)
+      if (trimmed.startsWith(`${label} `)) return `${t(key)} ${trimmed.slice(label.length).trimStart()}`
+    }
+  }
+
+  return text
+}
+
+export function localizeConversationSummary(summary: string | null | undefined, locale: string, fallback = "", systemText?: ConversationSystemText | null) {
+  return renderCustomerConversationSummary(summary, (key, values) => translateMessage(normalizeLocale(locale), key, values), fallback, systemText)
 }

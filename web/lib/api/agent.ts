@@ -1,3 +1,4 @@
+import type { ConversationSystemText } from "@/lib/customer-conversation-summary-i18n"
 import { request } from "@/lib/api/client"
 
 export type Paging = {
@@ -49,6 +50,7 @@ export type AgentConversation = {
   lastMessageAt?: string
   lastActiveAt?: string
   lastMessageSummary?: string
+  lastMessageSummaryText?: ConversationSystemText | null
   customerUnreadCount: number
   agentUnreadCount: number
   customerLastReadMessageId: number

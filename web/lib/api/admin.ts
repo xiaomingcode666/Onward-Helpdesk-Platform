@@ -1,3 +1,4 @@
+import type { ConversationSystemText } from "@/lib/customer-conversation-summary-i18n"
 import { readSession } from "@/lib/auth"
 import { getRequestTenantId, request, requestBlob } from "@/lib/api/client"
 import { createAccessTokenWebSocket, createWebSocketBaseUrl } from "@/lib/api/websocket"
@@ -129,6 +130,7 @@ export type AdminConversation = {
   lastMessageAt?: string
   lastActiveAt?: string
   lastMessageSummary?: string
+  lastMessageSummaryText?: ConversationSystemText | null
   customerUnreadCount: number
   agentUnreadCount: number
   customerLastReadMessageId: number

@@ -1,4 +1,15 @@
 {
+  "accountContext": {
+    "company": { "onward": "onward" }
+  },
+  "aiAgentRelease": {
+    "systemComments": {
+      "configurationSynced": "La configuración gestionada por la plataforma se ha sincronizado. Cada versión debe revisarse antes del despliegue.",
+      "initialized": "El sistema inicializó el bot de recepción predeterminado del tenant.",
+      "collaborationSynced": "El soporte de conocimiento gestionado por la plataforma se ha sincronizado con el flujo de colaboración entre IA y personas.",
+      "aiOnlySynced": "La recepción predeterminada del tenant gestionada por la plataforma se ha sincronizado con el flujo seguro exclusivo de IA."
+    }
+  },
   "notificationTemplates": {
     "title": "Plantillas de notificación",
     "description": "Toda notificación se genera con una plantilla aprobada. Las plantillas base de la plataforma ya están aprobadas y una plantilla de inquilino aprobada sustituye a la base. El sistema elige la plantilla según el idioma del destinatario, revisa datos sensibles antes de enviar y guarda cada intento. Si no hay plantilla aprobada, la notificación se bloquea.",
@@ -1908,6 +1919,12 @@
     "loadingCount": "Loading the number of bound devices",
     "loadingList": "Loading the device list",
     "loadingDetail": "Loading device details"
+  },
+  "customerMetrics": {
+    "devices": { "label": "Mis dispositivos", "meta": "Dispositivos vinculados" },
+    "conversations": { "label": "Conversaciones activas", "meta": "Continuar conversando" },
+    "tickets": { "label": "Tickets abiertos", "meta": "Pendientes de mi acción" },
+    "meetings": { "label": "Próximas reuniones", "meta": "Colaboración por vídeo" }
   },
   "customerProfile": {
     "pageTitle": "Account profile",
@@ -6656,5 +6673,16 @@
       "name": "Global",
       "detail": "Región predeterminada"
     }
+  },
+  "conversationSystem": {
+    "supplierJoinedGeneric": "El proveedor se ha unido a la conversación de colaboración. El cliente, el ingeniero y el proveedor ya pueden comunicarse juntos.",
+    "supplierJoinedSummaryGeneric": "El proveedor se unió a la conversación de colaboración",
+    "ticketCreated": "Se ha creado el ticket de servicio {ticketNo}. El resumen de la conversación y los archivos cargados se han sincronizado con el ticket.",
+    "ticketCreatedWithDevice": "Se ha creado el ticket de servicio {ticketNo}. El resumen de la conversación, el contexto del dispositivo y los archivos cargados se han sincronizado con el ticket.",
+    "ticketCreatedSummary": "Ticket de servicio {ticketNo} creado",
+    "supplierInvited": "Colaboración del proveedor invitada: {company}",
+    "supplierInvitedWithModule": "Colaboración del proveedor invitada: {company} · {module}",
+    "supplierJoined": "{company} se ha unido a la conversación de colaboración. El cliente, el ingeniero y el proveedor ya pueden comunicarse juntos.",
+    "supplierJoinedSummary": "{company} se unió a la conversación de colaboración"
   }
 }

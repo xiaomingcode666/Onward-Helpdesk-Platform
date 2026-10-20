@@ -45,15 +45,10 @@ func handleTicketCreatedConversationEvent(ctx context.Context, event events.Tick
 	if err != nil {
 		return err
 	}
-	ticketNo := strs.DefaultIfBlank(ticket.TicketNo, fmt.Sprintf("#%d", ticket.ID))
-	content := fmt.Sprintf("已生成服务工单 %s，会话摘要和已上传资料已同步至工单。", ticketNo)
-	if ticket.DeviceID > 0 {
-		content = fmt.Sprintf("已生成服务工单 %s，会话摘要、设备上下文和已上传资料已同步至工单。", ticketNo)
-	}
 	_, err = services.MessageService.SendSystemMessageWithRequestID(
 		ticket.ConversationID,
 		fmt.Sprintf("ticket_created_%d", ticket.ID),
-		content,
+		"", // MessageService renders the typed event and persists its key + params.
 		string(payload),
 		event.EventID,
 	)

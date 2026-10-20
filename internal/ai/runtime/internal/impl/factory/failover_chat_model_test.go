@@ -15,6 +15,7 @@ type fakeToolCallingChatModel struct {
 	generateCalls  atomic.Int32
 	withToolsCalls atomic.Int32
 	generate       func(context.Context) (*schema.Message, error)
+	stream         func(context.Context) (*schema.StreamReader[*schema.Message], error)
 }
 
 func (m *fakeToolCallingChatModel) Generate(ctx context.Context, _ []*schema.Message, _ ...model.Option) (*schema.Message, error) {
@@ -22,8 +23,60 @@ func (m *fakeToolCallingChatModel) Generate(ctx context.Context, _ []*schema.Mes
 	return m.generate(ctx)
 }
 
-func (m *fakeToolCallingChatModel) Stream(context.Context, []*schema.Message, ...model.Option) (*schema.StreamReader[*schema.Message], error) {
+func (m *fakeToolCallingChatModel) Stream(ctx context.Context, _ []*schema.Message, _ ...model.Option) (*schema.StreamReader[*schema.Message], error) {
+	if m.stream != nil {
+		return m.stream(ctx)
+	}
 	return nil, errors.New("stream unavailable")
+}
+
+func TestFailoverChatModelStreamPreservesActualModelAndRequestLifetime(t *testing.T) {
+	reader, writer := schema.Pipe[*schema.Message](2)
+	defer writer.Close()
+	var requestContext context.Context
+	fallback := &fakeToolCallingChatModel{stream: func(ctx context.Context) (*schema.StreamReader[*schema.Message], error) {
+		requestContext = ctx
+		return reader, nil
+	}}
+	chatModel := &failoverChatModel{
+		candidates: []chatModelCandidate{
+			{model: &fakeToolCallingChatModel{}, provider: "sub2api", modelName: "primary", circuitKey: "stream-primary"},
+			{model: fallback, provider: "openai", modelName: "fallback", circuitKey: "stream-fallback"},
+		},
+		attemptTimeout:  time.Second,
+		circuitCooldown: time.Minute,
+		breaker:         &llmCircuitBreaker{openedUntil: make(map[string]time.Time)},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream, err := chatModel.Stream(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	if requestContext.Err() != nil {
+		t.Fatal("stream context canceled before consumption")
+	}
+	writer.Send(schema.AssistantMessage("Hello", nil), nil)
+	chunk, err := stream.Recv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chunk.Content != "Hello" || chunk.Extra[ActualModelExtraKey] != "fallback" || chunk.Extra[ActualProviderExtraKey] != "openai" {
+		t.Fatalf("actual fallback model metadata lost: %+v", chunk)
+	}
+	writer.Send(schema.AssistantMessage(" world", nil), nil)
+	second, err := stream.Recv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	combined, err := schema.ConcatMessages([]*schema.Message{chunk, second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if combined.Extra[ActualModelExtraKey] != "fallback" {
+		t.Fatalf("chunk concatenation corrupted model metadata: %#v", combined.Extra)
+	}
 }
 
 func (m *fakeToolCallingChatModel) WithTools([]*schema.ToolInfo) (model.ToolCallingChatModel, error) {

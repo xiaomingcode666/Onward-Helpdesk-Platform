@@ -16,6 +16,29 @@ import (
 	"gorm.io/gorm/schema"
 )
 
+func TestSystemMessageResponseUsesLocaleAndEnrichesHistoricalPayload(t *testing.T) {
+	message := models.Message{SenderType: enums.IMSenderTypeSystem, MessageType: enums.IMMessageTypeText, Content: "old unrelated snapshot", Payload: `{"eventType":"ticket_created","ticketNo":"TK42"}`}
+	for _, locale := range i18nx.SupportedLocales {
+		response := BuildMessageWithReadStatesAndLocale(&message, nil, nil, nil, nil, nil, locale)
+		text := i18nx.ConversationSystemTextFromPayload(response.Payload)
+		if text == nil || response.Content != text.Content.Render(locale) || !strings.Contains(response.Payload, `"systemText"`) {
+			t.Fatalf("historical event was not localized for %s: %+v", locale, response)
+		}
+	}
+	message.SenderType = enums.IMSenderTypeCustomer
+	response := BuildMessageWithReadStatesAndLocale(&message, nil, nil, nil, nil, nil, i18nx.LocaleEnUS)
+	if response.Content != message.Content || response.Payload != message.Payload {
+		t.Fatal("customer content was changed")
+	}
+	message.SenderType = enums.IMSenderTypeSystem
+	now := time.Now()
+	message.RecalledAt = &now
+	response = BuildMessageWithReadStatesAndLocale(&message, nil, nil, nil, nil, nil, i18nx.LocaleEnUS)
+	if response.Payload != "" || strings.Contains(response.Content, "TK42") {
+		t.Fatal("recalled event leaked its old content")
+	}
+}
+
 func TestLocalizeConversationSummary(t *testing.T) {
 	t.Parallel()
 
@@ -68,20 +91,22 @@ func TestLocalizeConversationSummary(t *testing.T) {
 	}
 }
 
-func TestLocalizeRenderableMessageContent(t *testing.T) {
+func TestRenderableMessageContentUsesRecallState(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		locale  string
-		content string
-		want    string
+		name     string
+		locale   string
+		content  string
+		want     string
+		recalled bool
 	}{
 		{
-			name:    "recalled message in english",
-			locale:  i18nx.LocaleEnUS,
-			content: "该消息已撤回",
-			want:    "This message was recalled.",
+			name:     "recalled message in english",
+			recalled: true,
+			locale:   i18nx.LocaleEnUS,
+			content:  "该消息已撤回",
+			want:     "This message was recalled.",
 		},
 		{
 			name:    "normal customer message is not translated",
@@ -90,10 +115,17 @@ func TestLocalizeRenderableMessageContent(t *testing.T) {
 			want:    "客户反馈无法登录",
 		},
 		{
-			name:    "chinese locale keeps content",
-			locale:  i18nx.LocaleZhCN,
+			name:    "customer-authored recalled label is not a recall event",
+			locale:  i18nx.LocaleEnUS,
 			content: "该消息已撤回",
 			want:    "该消息已撤回",
+		},
+		{
+			name:     "chinese locale keeps content",
+			recalled: true,
+			locale:   i18nx.LocaleZhCN,
+			content:  "该消息已撤回",
+			want:     "该消息已撤回",
 		},
 	}
 
@@ -101,8 +133,13 @@ func TestLocalizeRenderableMessageContent(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := localizeRenderableMessageContent(tt.locale, tt.content); got != tt.want {
-				t.Fatalf("localizeRenderableMessageContent() = %q, want %q", got, tt.want)
+			message := models.Message{SenderType: enums.IMSenderTypeCustomer, MessageType: enums.IMMessageTypeText, Content: tt.content}
+			if tt.recalled {
+				message.SendStatus = enums.IMMessageStatusRecalled
+			}
+			got := BuildMessageWithReadStatesAndLocale(&message, nil, nil, nil, nil, nil, tt.locale).Content
+			if got != tt.want {
+				t.Fatalf("rendered content = %q, want %q", got, tt.want)
 			}
 		})
 	}

@@ -501,6 +501,7 @@ func (s *wsService) PublishConversationChanged(conversation *models.Conversation
 			LastMessageAt:             formatWsTime(&conversation.LastMessageAt),
 			LastActiveAt:              formatWsTime(&conversation.LastActiveAt),
 			LastMessageSummary:        conversation.LastMessageSummary,
+			LastMessageSummaryText:    ConversationSummaryTexts(sqls.DB(), []models.Conversation{*conversation})[conversation.ID],
 			CustomerUnreadCount:       conversation.CustomerUnreadCount,
 			AgentUnreadCount:          conversation.AgentUnreadCount,
 			CustomerLastReadMessageID: readStateMessageID(customerReadState),
@@ -1173,7 +1174,8 @@ func realtimeSessionLocale(ctx *gin.Context, principal *dto.AuthPrincipal) strin
 	return ""
 }
 
-// localizeRealtimePayload 按连接语言渲染通知模板和消息事件中的 AI 发送人名称。
+// localizeRealtimePayload renders system events, notifications and AI sender
+// names separately for each connection, including broker-forwarded events.
 // 事件只构建一次并广播给所有连接（含其他节点转发的事件），因此在逐连接下发时替换；
 // 用户自定义的名称和通知正文原样保留。
 func localizeRealtimePayload(payload []byte, locale string) ([]byte, bool) {
@@ -1188,12 +1190,37 @@ func localizeRealtimePayload(payload []byte, locale string) ([]byte, bool) {
 	if eventType == enums.IMRealtimeEventNotificationCreated {
 		return localizeRealtimeNotificationPayload(payload, event, locale)
 	}
+	data, _ := event["data"].(map[string]any)
+	if data == nil {
+		return payload, false
+	}
+	if raw, ok := data["lastMessageSummaryText"]; ok && raw != nil {
+		encoded, err := json.Marshal(raw)
+		var text i18nx.Text
+		if err == nil && json.Unmarshal(encoded, &text) == nil && !text.IsZero() {
+			data["lastMessageSummary"] = text.Render(locale)
+			if localized, err := json.Marshal(event); err == nil {
+				return localized, true
+			}
+		}
+	}
 	if eventType != enums.IMRealtimeEventMessageCreated {
 		return payload, false
 	}
-	data, _ := event["data"].(map[string]any)
 	message, _ := data["message"].(map[string]any)
 	if message == nil {
+		return payload, false
+	}
+	if data["senderType"] == string(enums.IMSenderTypeSystem) {
+		eventPayload, _ := data["payload"].(string)
+		if text := i18nx.ConversationSystemTextFromPayload(eventPayload); text != nil {
+			content := text.Content.Render(locale)
+			data["content"] = content
+			message["content"] = content
+			if localized, err := json.Marshal(event); err == nil {
+				return localized, true
+			}
+		}
 		return payload, false
 	}
 	if senderType, _ := data["senderType"].(string); senderType != string(enums.IMSenderTypeAI) {

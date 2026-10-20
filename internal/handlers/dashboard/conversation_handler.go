@@ -67,10 +67,7 @@ func ConversationAnyList(ctx *gin.Context) {
 	}
 
 	list, paging := services.ConversationService.FindPageByCnd(cnd)
-	results := make([]response.ConversationResponse, 0, len(list))
-	for _, item := range list {
-		results = append(results, builders.BuildConversationWithLocale(&item, i18nx.Locale(ctx)))
-	}
+	results := builders.BuildConversationsWithLocale(list, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, &web.PageResult{Results: results, Page: paging})
 }
 
@@ -110,10 +107,7 @@ func ConversationAnyConversations(ctx *gin.Context) {
 		return
 	}
 
-	results := make([]response.ConversationResponse, 0, len(list))
-	for _, item := range list {
-		results = append(results, builders.BuildConversationWithLocale(&item, i18nx.Locale(ctx)))
-	}
+	results := builders.BuildConversationsWithLocale(list, i18nx.Locale(ctx))
 	httpx.WriteJSON(ctx, &web.PageResult{Results: results, Page: paging})
 }
 

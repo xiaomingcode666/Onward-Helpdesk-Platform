@@ -34,7 +34,7 @@ test("sample list exposes saved results and uses equal-size analysis controls", 
 test("saved review history shows the complete multiline evidence", () => {
   assert.match(panel, /<TicketQualityReviewDetail key=\{review\.id\} review=\{review\}/)
   assert.match(detail, /whitespace-pre-wrap break-words leading-5/)
-  assert.match(detail, /qualityReviewText\("detail\.evidence"\)\}>\{review\.evidence/)
+  assert.match(detail, /qualityReviewText\("detail\.evidence"\)\}>\{localizeTicketQualityEvidence\(review\.evidence, locale\)/)
   assert.doesNotMatch(detail, /line-clamp-2/)
 })
 

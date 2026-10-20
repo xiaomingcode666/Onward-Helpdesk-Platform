@@ -16,26 +16,31 @@ func BuildEnterpriseWorkbenchConversations(items []models.Conversation, locale s
 	result := make([]dto.EnterpriseWorkbenchConversationDTO, 0, len(items))
 	now := time.Now()
 	customerLastSeenByConversationID := services.ConversationService.BuildConversationCustomerLastSeenAtMap(items)
+	summaryTexts := services.ConversationSummaryTexts(sqls.DB(), items)
 	for i := range items {
 		item := items[i]
 		customerLastSeenAt := customerLastSeenByConversationID[item.ID]
 		row := dto.EnterpriseWorkbenchConversationDTO{
-			ID:                  item.ID,
-			CustomerID:          item.CustomerID,
-			CustomerName:        item.CustomerName,
-			Status:              int(item.Status),
-			ServiceMode:         int(item.ServiceMode),
-			Priority:            item.Priority,
-			CurrentAssigneeID:   item.CurrentAssigneeID,
-			CurrentTeamID:       item.CurrentTeamID,
-			ChannelID:           item.ChannelID,
-			LastMessageAt:       utils.FormatTime(item.LastMessageAt),
-			LastActiveAt:        utils.FormatTime(item.LastActiveAt),
-			LastMessageSummary:  item.LastMessageSummary,
-			AgentUnreadCount:    item.AgentUnreadCount,
-			CustomerUnreadCount: item.CustomerUnreadCount,
-			CustomerOnline:      services.ConversationService.IsCustomerLastSeenOnline(customerLastSeenAt, now),
-			CustomerLastSeenAt:  utils.FormatTimePtr(customerLastSeenAt),
+			ID:                     item.ID,
+			CustomerID:             item.CustomerID,
+			CustomerName:           item.CustomerName,
+			Status:                 int(item.Status),
+			ServiceMode:            int(item.ServiceMode),
+			Priority:               item.Priority,
+			CurrentAssigneeID:      item.CurrentAssigneeID,
+			CurrentTeamID:          item.CurrentTeamID,
+			ChannelID:              item.ChannelID,
+			LastMessageAt:          utils.FormatTime(item.LastMessageAt),
+			LastActiveAt:           utils.FormatTime(item.LastActiveAt),
+			LastMessageSummary:     localizeConversationSummary(locale, item.LastMessageSummary),
+			LastMessageSummaryText: summaryTexts[item.ID],
+			AgentUnreadCount:       item.AgentUnreadCount,
+			CustomerUnreadCount:    item.CustomerUnreadCount,
+			CustomerOnline:         services.ConversationService.IsCustomerLastSeenOnline(customerLastSeenAt, now),
+			CustomerLastSeenAt:     utils.FormatTimePtr(customerLastSeenAt),
+		}
+		if row.LastMessageSummaryText != nil {
+			row.LastMessageSummary = row.LastMessageSummaryText.Render(locale)
 		}
 		if item.CurrentAssigneeID > 0 {
 			if user := repositories.UserRepository.Get(sqls.DB(), item.CurrentAssigneeID); user != nil {

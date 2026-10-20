@@ -107,6 +107,7 @@ import type {
   TicketTimelineItemDTO,
 } from "@/lib/api/types"
 import { customerDisplayName } from "@/lib/customer-identity"
+import { localizeConversationSummary } from "@/lib/customer-conversation-summary-i18n"
 import { renderIMMessageHTML } from "@/lib/im-message"
 import { TYPING_IDLE_TIMEOUT_MS } from "@/lib/im-realtime-state"
 import {
@@ -796,6 +797,7 @@ function toAgentConversation(conversation: EnterpriseWorkbenchConversation): Age
     lastMessageAt: conversation.last_message_at,
     lastActiveAt: conversation.last_active_at,
     lastMessageSummary: conversation.last_message_summary,
+    lastMessageSummaryText: conversation.last_message_summary_text,
     customerUnreadCount: conversation.customer_unread_count,
     agentUnreadCount: conversation.agent_unread_count,
     customerLastReadMessageId: 0,
@@ -807,9 +809,11 @@ function toAgentConversation(conversation: EnterpriseWorkbenchConversation): Age
 
 function buildConversationQueueItem(
   source: EnterpriseWorkbenchConversation,
-  linkedTicket?: TicketListItem,
+  linkedTicket: TicketListItem | undefined,
+  locale: string,
 ): WorkbenchQueueItem {
   const conversation = toAgentConversation(source)
+  const summary = localizeConversationSummary(conversation.lastMessageSummary, locale, "", conversation.lastMessageSummaryText)
   const meta = statusMeta(conversation.status)
   const customer = conversationDisplayName(conversation)
   const linkedTicketTone = linkedTicket
@@ -821,8 +825,8 @@ function buildConversationQueueItem(
     conversationId: conversation.id,
     ticketId: linkedTicket?.id,
     customer,
-    title: linkedTicket?.title || conversation.lastMessageSummary || ee("ticketWorkbench.text079", { value0: customer }),
-    summary: conversation.lastMessageSummary || ee("ticketWorkbench.text080"),
+    title: linkedTicket?.title || summary || ee("ticketWorkbench.text079", { value0: customer }),
+    summary: summary || ee("ticketWorkbench.text080"),
     ticketNo: linkedTicket?.ticket_no || ee("ticketWorkbench.text081", { value0: conversation.id }),
     priorityLabel: linkedTicket
       ? ticketPriorityLabel(linkedTicket.priority)
@@ -872,6 +876,7 @@ function buildPinnedWorkbenchConversation(source: AgentConversation): Enterprise
     last_message_at: source.lastMessageAt ?? "",
     last_active_at: source.lastActiveAt ?? "",
     last_message_summary: source.lastMessageSummary ?? "",
+    last_message_summary_text: source.lastMessageSummaryText,
     agent_unread_count: source.agentUnreadCount,
     customer_unread_count: source.customerUnreadCount,
     customer_online: source.customerOnline,
@@ -1178,7 +1183,7 @@ function EnterpriseTicketWorkbench() {
       routeTicketId || pinnedTicket?.id,
     )
     const conversationItems = effectiveConversationQueue.map((item) =>
-      buildConversationQueueItem(item, ticketByConversationId.get(item.id)),
+      buildConversationQueueItem(item, ticketByConversationId.get(item.id), locale),
     )
     const conversationIds = new Set(effectiveConversationQueue.map((item) => item.id))
     const ticketItems = effectiveTicketQueue
@@ -1605,7 +1610,7 @@ function EnterpriseTicketWorkbench() {
 
   const handleTranslateMessage = useCallback(
     async (message: WorkbenchMessage) => {
-      if (!message.id || !selectedItem?.conversationId || translatingMessageId !== null) {
+      if (!message.id || message.id <= 0 || !selectedItem?.conversationId || translatingMessageId !== null) {
         return
       }
       const targetLanguage = resolveMessageTranslationTarget(message.content, translationTargetLanguage)
@@ -2710,7 +2715,7 @@ function MessageBubble({
         ) : null}
         <div className={cn("flex items-center gap-1", right && "justify-end")}>
           <time className="text-rhd-xs text-muted-foreground">{message.time}</time>
-          {message.id ? (
+          {message.id && message.id > 0 ? (
             <button
               type="button"
               className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"

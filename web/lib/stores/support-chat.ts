@@ -1,4 +1,5 @@
 "use client"
+import { applyAIMessageStream, readAIStreamMetadata } from "@/lib/im-message-stream"
 
 import { create } from "zustand"
 
@@ -43,6 +44,7 @@ import {
   createPendingMessageId,
   isLocalMediaTransferPayload,
   summarizeIMMessage,
+  getIMSystemSummaryText,
 } from "@/lib/im-message"
 import { createRealtimeConnectionManager } from "@/lib/realtime-connection"
 import { generateUUID } from "@/lib/utils"
@@ -205,12 +207,18 @@ export const useSupportChatStore = create<SupportChatStore>((set, get) => {
     createSocket: createImRealtimeConnection,
     canReconnect: () => Boolean(get().isOpen && get().conversation?.id),
     onStatusChange: (status) => {
+      if (status !== "connected") {
+        set(state => ({ messages: state.messages.filter(message => !readAIStreamMetadata(message)) }))
+      }
       if (get().isOpen || status === "disconnected") {
         set({ status })
       }
     },
     onSocketChange: (socket) => {
       set({ socket })
+    },
+    onOpen: () => {
+      void get().syncLatestMessages()
     },
     onMessage: (messageEvent) => {
       let event: ImRealtimeEnvelope
@@ -236,6 +244,11 @@ export const useSupportChatStore = create<SupportChatStore>((set, get) => {
         return
       }
       if (payload?.conversationId !== conversationId) {
+        return
+      }
+
+      if (event.type === "message.streaming") {
+        set(state => ({ messages: applyAIMessageStream(state.messages, payload, conversationId) }))
         return
       }
 
@@ -496,7 +509,7 @@ export const useSupportChatStore = create<SupportChatStore>((set, get) => {
       const conversation = state.conversation
       const lastMessage = [...state.messages]
         .reverse()
-        .find((message) => !isLocalMediaTransferPayload(message.payload))
+        .find((message) => message.id > 0 && !isLocalMediaTransferPayload(message.payload))
       if (!conversation?.id || !lastMessage) {
         return
       }
@@ -564,6 +577,7 @@ export const useSupportChatStore = create<SupportChatStore>((set, get) => {
                 customerUnreadCount: 0,
                 lastMessageAt: nextMessage.sentAt,
                 lastMessageSummary: summarizeIMMessage(nextMessage),
+                lastMessageSummaryText: getIMSystemSummaryText(nextMessage) ?? null,
               }
             : null,
         }))
@@ -636,6 +650,7 @@ export const useSupportChatStore = create<SupportChatStore>((set, get) => {
                 customerUnreadCount: 0,
                 lastMessageAt: nextMessage.sentAt,
                 lastMessageSummary: summarizeIMMessage(nextMessage),
+                lastMessageSummaryText: getIMSystemSummaryText(nextMessage) ?? null,
               }
             : null,
         }))
@@ -689,6 +704,7 @@ export const useSupportChatStore = create<SupportChatStore>((set, get) => {
                 customerUnreadCount: 0,
                 lastMessageAt: nextMessage.sentAt,
                 lastMessageSummary: summarizeIMMessage(nextMessage),
+                lastMessageSummaryText: getIMSystemSummaryText(nextMessage) ?? null,
               }
             : null,
         }))

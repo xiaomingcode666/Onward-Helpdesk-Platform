@@ -67,9 +67,13 @@ func (s *aiReplyService) TriggerReply(ctx context.Context, conversation models.C
 	}
 	if pendingInterrupt := svc.ConversationInterruptService.FindLatestPendingByConversationID(conversation.ID); pendingInterrupt != nil {
 		replyCtx.PendingInterrupt = pendingInterrupt
-		return s.resumePendingInterrupt(ctx, replyCtx)
+		streamCtx, closeStream := s.withReplyStream(ctx, conversation, message, aiAgent, "ai_resume")
+		defer closeStream()
+		return s.resumePendingInterrupt(streamCtx, replyCtx)
 	}
-	return s.executeReply(ctx, replyCtx)
+	streamCtx, closeStream := s.withReplyStream(ctx, conversation, message, aiAgent, "ai_reply")
+	defer closeStream()
+	return s.executeReply(streamCtx, replyCtx)
 }
 
 func (s *aiReplyService) resumePendingInterrupt(ctx context.Context, replyCtx aiReplyContext) error {

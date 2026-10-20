@@ -1,6 +1,7 @@
 import { createCustomerSessionWebSocket, createWebSocketBaseUrl } from "@/lib/api/websocket"
 import { getCustomerSessionToken, type ImMessage } from "@/lib/api/im"
 import { readSupportChatRuntimeConfig } from "@/lib/sdk/runtime-config"
+import type { AIMessageStreamPayload } from "@/lib/im-message-stream"
 import type {
   RealtimeConversationPatch,
   RealtimeMessageCreatedPayload,
@@ -9,12 +10,12 @@ import type {
 export type ImRealtimeEnvelope = {
   type: string
   topic?: string
-  data?: RealtimeMessageCreatedPayload<ImMessage> &
+  data?: Partial<AIMessageStreamPayload> & RealtimeMessageCreatedPayload<ImMessage> &
     RealtimeConversationPatch & {
       customerSessionToken?: string
       expiresAt?: string
     }
-  payload?: RealtimeMessageCreatedPayload<ImMessage> &
+  payload?: Partial<AIMessageStreamPayload> & RealtimeMessageCreatedPayload<ImMessage> &
     RealtimeConversationPatch & {
       customerSessionToken?: string
       expiresAt?: string

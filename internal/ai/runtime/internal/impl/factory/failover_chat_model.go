@@ -132,7 +132,15 @@ func (m *failoverChatModel) Stream(ctx context.Context, input []*schema.Message,
 			// The stream owns the request lifetime after creation. Cancelling here
 			// would terminate a healthy response before the caller can consume it.
 			_ = cancel
-			return stream, nil
+			annotated := false
+			return schema.StreamReaderWithConvert(stream, func(message *schema.Message) (*schema.Message, error) {
+				// Eino concatenates string extras across chunks, so attach identity once.
+				if message != nil && !annotated {
+					annotateActualModel(message, candidate)
+					annotated = true
+				}
+				return message, nil
+			}), nil
 		}
 		cancel()
 		callErrors = append(callErrors, candidateError(candidate, err))

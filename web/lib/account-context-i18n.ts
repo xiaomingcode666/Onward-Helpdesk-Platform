@@ -1,3 +1,6 @@
+import { normalizeLocale } from "@/i18n/config"
+import { matchMessage, translateMessage } from "@/i18n/messages"
+
 type AccountContextLabels = {
   domains: Record<string, string>
   subjects: Record<string, string>
@@ -145,6 +148,14 @@ function labelsFor(locale: string) {
 
 function normalize(value: string | null | undefined) {
   return value?.trim() ?? ""
+}
+
+export function getAccountCompanyLabel(value: string | null | undefined, locale: string) {
+  const normalized = normalize(value)
+  if (!normalized) return "-"
+  const key = "accountContext.company.onward"
+  if (matchMessage(key, normalized)) return translateMessage(normalizeLocale(locale), key)
+  return normalized
 }
 
 export function getAccountDomainLabel(value: string | null | undefined, locale: string) {

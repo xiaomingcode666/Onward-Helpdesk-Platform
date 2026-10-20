@@ -562,9 +562,14 @@ func (s *messageService) sendValidatedMessage(conversation *models.Conversation,
 
 	var err error
 	var summary string
+	content, payload, summary = prepareConversationSystemMessage(senderType, messageType, content, payload, summary)
+	systemSummary := summary
 	content, payload, summary, err = s.normalizeMessageContent(conversation.ID, messageType, content, payload)
 	if err != nil {
 		return nil, err
+	}
+	if systemSummary != "" {
+		summary = systemSummary
 	}
 	if strs.IsBlank(content) && strs.IsBlank(payload) {
 		return nil, errorsx.InvalidParamI18n("error.e0245")

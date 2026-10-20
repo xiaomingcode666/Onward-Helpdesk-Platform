@@ -1,4 +1,5 @@
 "use client"
+import { applyAIMessageStream, readAIStreamMetadata, type AIMessageStreamPayload } from "@/lib/im-message-stream"
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -322,6 +323,7 @@ function buildCreatedConversation(
     current_ticket_id: 0,
     priority: conversation.priority || 0,
     last_message_summary: conversation.lastMessageSummary || "",
+    last_message_summary_text: conversation.lastMessageSummaryText,
     last_message_at: conversation.lastMessageAt || lastActiveAt,
     last_active_at: lastActiveAt,
     customer_unread_count: conversation.customerUnreadCount || 0,
@@ -479,7 +481,7 @@ export function MobileCustomerConversationWorkbench({ navigate }: { navigate: Mo
   const hasLoadedMessages = selectedId > 0 && loadedMessageConversationId === selectedId
 
   async function translateMessage(message: ImMessage) {
-    if (!selected || !message.id || !message.content.trim() || translatingMessageId !== null) return
+    if (!selected || message.id <= 0 || !message.content.trim() || translatingMessageId !== null) return
     setTranslatingMessageId(message.id)
     try {
       const targetLanguage = locale.toLowerCase().startsWith("zh") ? "en" : "zh-CN"
@@ -796,6 +798,7 @@ export function MobileCustomerConversationWorkbench({ navigate }: { navigate: Mo
     let active = true
     const updateRealtimeStatus = (status: RealtimeConnectionStatus) => {
       if (!active) return
+      if (status !== "connected") setMessages(current => current.filter(message => !readAIStreamMetadata(message)))
       realtimeStatusRef.current = status
       setRealtimeStatus(status)
     }
@@ -821,8 +824,8 @@ export function MobileCustomerConversationWorkbench({ navigate }: { navigate: Mo
         if (!active) return
         let envelope: {
           type?: string
-          data?: RealtimeMessageCreatedPayload<ImMessage>
-          payload?: RealtimeMessageCreatedPayload<ImMessage>
+          data?: RealtimeMessageCreatedPayload<ImMessage> & Partial<AIMessageStreamPayload>
+          payload?: RealtimeMessageCreatedPayload<ImMessage> & Partial<AIMessageStreamPayload>
         }
         try {
           envelope = JSON.parse(String(event.data)) as typeof envelope
@@ -833,6 +836,11 @@ export function MobileCustomerConversationWorkbench({ navigate }: { navigate: Mo
         const payload = envelope.data ?? envelope.payload
         if (envelope.type === "resyncRequired") {
           syncConversation()
+          return
+        }
+        if (envelope.type === "message.streaming") {
+          scrollOnMessageUpdateRef.current = stickToBottomRef.current
+          setMessages(current => applyAIMessageStream(current, payload, conversationId))
           return
         }
         if (envelope.type === "message.created") {
@@ -1330,7 +1338,7 @@ export function MobileCustomerConversationWorkbench({ navigate }: { navigate: Mo
                   <strong className="truncate text-sm text-[#172033]">{item.product_name || item.device_no || t("portalExtract.customerMobile.conversation.systemHelp")}</strong>
                   <span className="flex shrink-0 items-center gap-2">{item.customer_unread_count > 0 ? <span className="flex min-w-5 items-center justify-center rounded-full bg-[#1769e0] px-1.5 text-rhd-2xs font-semibold leading-5 text-white">{Math.min(item.customer_unread_count, 99)}</span> : null}<ConversationStatus status={item.status} /></span>
                 </span>
-                <span className="mt-1.5 block truncate text-xs text-[#657084]">{renderCustomerConversationSummary(item.last_message_summary, t, t("portalExtract.customerMobile.conversation.noMessages"))}</span>
+                <span className="mt-1.5 block truncate text-xs text-[#657084]">{renderCustomerConversationSummary(item.last_message_summary, t, t("portalExtract.customerMobile.conversation.noMessages"), item.last_message_summary_text)}</span>
                 <span className="mt-2 flex items-center justify-between gap-3 text-rhd-2xs text-[#939dab]">
                   <span className="flex min-w-0 items-center gap-2"><span className="truncate font-mono">{item.device_no || t("portalExtract.customerMobile.conversation.systemHelpShort")}</span>{item.current_ticket_no ? <span className="flex shrink-0 items-center gap-0.5"><ClipboardListIcon className="size-3" />{t("portalExtract.customerMobile.tabs.tickets")}</span> : null}{item.current_meeting_id ? <span className="flex shrink-0 items-center gap-0.5"><VideoIcon className="size-3" />{t("portalExtract.customerMobile.tabs.video")}</span> : null}</span>
                   <span className="flex shrink-0 items-center gap-1"><Clock3Icon className="size-3" />{formatDate(item.last_active_at, locale)}</span>
@@ -1572,7 +1580,7 @@ export function MobileCustomerConversationWorkbench({ navigate }: { navigate: Mo
                       type="button"
                       className="inline-flex size-5 items-center justify-center rounded text-[#7b8494] hover:bg-[#e8edf3] hover:text-[#1769e0] disabled:opacity-50"
                       onClick={() => void translateMessage(message)}
-                      disabled={translatingMessageId !== null}
+                      disabled={message.id <= 0 || translatingMessageId !== null}
                       aria-label={t("customerEntryExtract.timeline.translate")}
                       title={t("customerEntryExtract.timeline.translate")}
                     >

@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"io"
 	"strings"
 
 	"remotehelpdesk/internal/ai/runtime/internal/impl/callbacks"
@@ -13,7 +14,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 )
 
-func consumeAgentEvents(events *adk.AsyncIterator[*adk.AgentEvent], summary *RunResult, collector *callbacks.RuntimeTraceCollector, toolDefsByModelName map[string]string) {
+func consumeAgentEvents(events *adk.AsyncIterator[*adk.AgentEvent], summary *RunResult, collector *callbacks.RuntimeTraceCollector, toolDefsByModelName map[string]string, observers ...func(string)) {
 	if summary == nil {
 		return
 	}
@@ -45,6 +46,22 @@ func consumeAgentEvents(events *adk.AsyncIterator[*adk.AgentEvent], summary *Run
 			continue
 		}
 		messageOutput := event.Output.MessageOutput
+		if messageOutput.IsStreaming && messageOutput.MessageStream != nil {
+			var observer func(string)
+			if messageOutput.Role == schema.Assistant && !suppressAssistantReply && len(observers) > 0 {
+				observer = observers[0]
+			}
+			message, err := consumeMessageStream(messageOutput.MessageStream, observer)
+			if err != nil {
+				summary.Status = "error"
+				summary.ErrorMessage = err.Error()
+				continue
+			}
+			messageOutput.Message = message
+		}
+		if messageOutput.Message == nil {
+			continue
+		}
 		if messageOutput.Message != nil {
 			actualProvider, _ := messageOutput.Message.Extra[factory.ActualProviderExtraKey].(string)
 			actualModel, _ := messageOutput.Message.Extra[factory.ActualModelExtraKey].(string)
@@ -109,6 +126,42 @@ func consumeAgentEvents(events *adk.AsyncIterator[*adk.AgentEvent], summary *Run
 		}
 	}
 	summary.ToolCallCount = len(summary.InvokedToolCodes)
+}
+
+func consumeMessageStream(stream *schema.StreamReader[*schema.Message], observer func(string)) (*schema.Message, error) {
+	defer stream.Close()
+	var chunks []*schema.Message
+	var content strings.Builder
+	toolCall := false
+	for {
+		chunk, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if chunk == nil {
+			continue
+		}
+		chunks = append(chunks, chunk)
+		if len(chunk.ToolCalls) > 0 && !toolCall {
+			toolCall = true
+			if observer != nil {
+				observer("")
+			}
+		}
+		if chunk.Content != "" {
+			content.WriteString(chunk.Content)
+			if observer != nil && !toolCall {
+				observer(content.String())
+			}
+		}
+	}
+	if len(chunks) == 0 {
+		return nil, nil
+	}
+	return schema.ConcatMessages(chunks)
 }
 
 func hasInvokedGraphTool(toolCodes []string) bool {

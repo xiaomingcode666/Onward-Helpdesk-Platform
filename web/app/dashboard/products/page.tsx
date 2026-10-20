@@ -88,6 +88,7 @@ import {
 import { getEnumOptions } from "@/lib/enums"
 import { Status, StatusLabels } from "@/lib/generated/enums"
 import { useI18n } from "@/i18n/provider"
+import { renderCustomerConversationSummary } from "@/lib/customer-conversation-summary-i18n"
 import { Button } from "@/components/ui/button"
 
 type LookupState<TItem> = {
@@ -1098,7 +1099,7 @@ function ProductConversationsPanel({
                   {item.customerName || `#${item.customerId}`}
                 </div>
                 <div className="mt-1 truncate text-sm text-muted-foreground">
-                  {item.lastMessageSummary || "-"}
+                  {renderCustomerConversationSummary(item.lastMessageSummary, t, "-", item.lastMessageSummaryText)}
                 </div>
               </div>
               <div className="text-sm text-muted-foreground">

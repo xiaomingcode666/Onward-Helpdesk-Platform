@@ -7,6 +7,7 @@ import { createAdminWebSocket } from "@/lib/api/admin"
 import { type AgentMessage } from "@/lib/api/agent"
 import { shouldReloadConversationListForRealtimePatch } from "@/lib/agent-conversation-realtime"
 import { readSession } from "@/lib/auth"
+import type { AIMessageStreamPayload } from "@/lib/im-message-stream"
 import {
   normalizeRealtimeMessage,
   realtimePresenceExpiryDelay,
@@ -31,7 +32,7 @@ type AgentRealtimeEnvelope = {
       recalledAt?: string
       sendStatus?: number
     } & RealtimePresencePayload & RealtimeTypingPayload
-    & RealtimePresenceSnapshotPayload
+    & RealtimePresenceSnapshotPayload & Partial<AIMessageStreamPayload>
 }
 
 const AGENT_TYPING_EVENT = "remotehelpdesk:agent-typing"
@@ -135,6 +136,11 @@ export function useAgentConversationRealtime() {
             void store.resyncRealtimeData(conversationId).catch((error) => {
               toast.error(error instanceof Error ? error.message : t("conversation.syncConversationDataFailed"))
             })
+            return
+          }
+
+          if (eventType === "message.streaming") {
+            store.applyRealtimeMessageStreaming(payload)
             return
           }
 

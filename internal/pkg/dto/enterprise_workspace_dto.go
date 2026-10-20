@@ -1,5 +1,7 @@
 package dto
 
+import "remotehelpdesk/internal/pkg/i18nx"
+
 type EnterpriseMetricDTO struct {
 	Key      string `json:"key"`
 	Label    string `json:"label"`
@@ -176,26 +178,27 @@ type EnterpriseWorkbenchPaginationDTO struct {
 }
 
 type EnterpriseWorkbenchConversationDTO struct {
-	ID                  int64  `json:"id"`
-	CustomerID          int64  `json:"customer_id"`
-	CustomerName        string `json:"customer_name"`
-	Status              int    `json:"status"`
-	ServiceMode         int    `json:"service_mode"`
-	Priority            int    `json:"priority"`
-	CurrentAssigneeID   int64  `json:"current_assignee_id"`
-	CurrentAssigneeName string `json:"current_assignee_name"`
-	CurrentTeamID       int64  `json:"current_team_id"`
-	CurrentTeamName     string `json:"current_team_name"`
-	ChannelID           int64  `json:"channel_id"`
-	ProductName         string `json:"product_name"`
-	DeviceNo            string `json:"device_no"`
-	LastMessageAt       string `json:"last_message_at"`
-	LastActiveAt        string `json:"last_active_at"`
-	LastMessageSummary  string `json:"last_message_summary"`
-	AgentUnreadCount    int    `json:"agent_unread_count"`
-	CustomerUnreadCount int    `json:"customer_unread_count"`
-	CustomerOnline      bool   `json:"customer_online"`
-	CustomerLastSeenAt  string `json:"customer_last_seen_at"`
+	ID                     int64       `json:"id"`
+	CustomerID             int64       `json:"customer_id"`
+	CustomerName           string      `json:"customer_name"`
+	Status                 int         `json:"status"`
+	ServiceMode            int         `json:"service_mode"`
+	Priority               int         `json:"priority"`
+	CurrentAssigneeID      int64       `json:"current_assignee_id"`
+	CurrentAssigneeName    string      `json:"current_assignee_name"`
+	CurrentTeamID          int64       `json:"current_team_id"`
+	CurrentTeamName        string      `json:"current_team_name"`
+	ChannelID              int64       `json:"channel_id"`
+	ProductName            string      `json:"product_name"`
+	DeviceNo               string      `json:"device_no"`
+	LastMessageAt          string      `json:"last_message_at"`
+	LastActiveAt           string      `json:"last_active_at"`
+	LastMessageSummary     string      `json:"last_message_summary"`
+	LastMessageSummaryText *i18nx.Text `json:"last_message_summary_text,omitempty"`
+	AgentUnreadCount       int         `json:"agent_unread_count"`
+	CustomerUnreadCount    int         `json:"customer_unread_count"`
+	CustomerOnline         bool        `json:"customer_online"`
+	CustomerLastSeenAt     string      `json:"customer_last_seen_at"`
 }
 
 type EnterpriseActivityDTO struct {

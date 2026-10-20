@@ -73,6 +73,7 @@ import type {
 import type { MeetingTranscriptSegment } from "@/lib/api/types"
 import { customerTicketProgressContent } from "@/lib/customer-ticket-progress-i18n"
 import { cn } from "@/lib/utils"
+import { getAccountCompanyLabel } from "@/lib/account-context-i18n"
 import { useAppLocale, useI18n } from "@/i18n/provider"
 import { renderMobileTicketTitle } from "@/components/remote-helpdesk/mobile-ticket-labels"
 
@@ -1030,6 +1031,7 @@ export function MobileCustomerDevicesPage({ navigate }: { navigate: MobileCustom
 
 export function MobileCustomerProfilePage() {
   const t = useI18n()
+  const { locale } = useAppLocale()
   const { session, signOut } = useAuth()
   const hasDeviceConcept = session?.featureFlags?.device !== false
   const [state, setState] = useState<AsyncState>({ loading: true, error: "" })
@@ -1137,14 +1139,14 @@ export function MobileCustomerProfilePage() {
         <>
           {state.error ? <p className="mx-3 mt-3 rounded-md border border-[#fde2e2] bg-[#fff5f5] px-3 py-2 text-xs text-red-600">{state.error}</p> : null}
           <div className="bg-[#172033] px-4 py-5 text-white">
-            <div className="flex items-center gap-3"><span className="flex size-12 items-center justify-center rounded-full bg-white/10 text-white"><CircleUserRoundIcon className="size-7" /></span><div className="min-w-0"><h2 className="truncate text-lg font-semibold">{profile.name}</h2><p className="mt-0.5 truncate text-xs text-white/60">{profile.company_name || t("portalExtract.customerMobile.common.customerAccount")}</p></div></div>
+            <div className="flex items-center gap-3"><span className="flex size-12 items-center justify-center rounded-full bg-white/10 text-white"><CircleUserRoundIcon className="size-7" /></span><div className="min-w-0"><h2 className="truncate text-lg font-semibold">{profile.name}</h2><p className="mt-0.5 truncate text-xs text-white/60">{profile.company_name ? getAccountCompanyLabel(profile.company_name, locale) : t("portalExtract.customerMobile.common.customerAccount")}</p></div></div>
           </div>
           <div className="grid divide-x divide-[#edf0f4] bg-white px-2 py-4" style={{ gridTemplateColumns: `repeat(${metrics.length}, minmax(0, 1fr))` }}>{metrics.map(([label, value, Icon]) => <div key={label} className="min-w-0 px-1 text-center"><Icon className="mx-auto size-4 text-[#8b96a8]" /><strong className="mt-1.5 block text-lg text-[#172033]">{value}</strong><p className="mt-0.5 min-h-8 text-rhd-2xs leading-4 text-[#778195]">{label}</p></div>)}</div>
           <form className="mt-3 bg-white px-4 py-5" onSubmit={save}>
             <SectionLabel>{t("portalExtract.customerMobile.profile.basicInfo")}</SectionLabel>
             <div className="space-y-3">
               <div className="space-y-1.5"><Label htmlFor="mobile-profile-name" className="text-xs text-[#657084]">{t("portalExtract.customerMobile.common.name")}</Label><Input id="mobile-profile-name" name="name" defaultValue={profile.name} className="h-11 border-[#dce2ea] bg-[#f8f9fb] text-sm shadow-none" required /></div>
-              <div className="space-y-1.5"><Label htmlFor="mobile-profile-company" className="text-xs text-[#657084]">{t("portalExtract.customerMobile.common.customerOrg")}</Label><Input id="mobile-profile-company" value={profile.company_name || "--"} className="h-11 border-[#e7ebf0] bg-[#f4f6f8] text-sm shadow-none" readOnly /></div>
+              <div className="space-y-1.5"><Label htmlFor="mobile-profile-company" className="text-xs text-[#657084]">{t("portalExtract.customerMobile.common.customerOrg")}</Label><Input id="mobile-profile-company" value={profile.company_name ? getAccountCompanyLabel(profile.company_name, locale) : "--"} className="h-11 border-[#e7ebf0] bg-[#f4f6f8] text-sm shadow-none" readOnly /></div>
               <div className="space-y-1.5"><Label htmlFor="mobile-profile-email" className="text-xs text-[#657084]">{t("portalExtract.customerMobile.common.email")}</Label><Input id="mobile-profile-email" name="email" type="email" defaultValue={profile.primary_email} className="h-11 border-[#dce2ea] bg-[#f8f9fb] text-sm shadow-none" /></div>
             <div className="space-y-1.5"><Label htmlFor="mobile-profile-mobile" className="text-xs text-[#657084]">{t("portalExtract.customerMobile.profile.mobile")}</Label><Input id="mobile-profile-mobile" name="mobile" inputMode="tel" defaultValue={profile.primary_mobile} className="h-11 border-[#dce2ea] bg-[#f8f9fb] text-sm shadow-none" /></div>
           </div>

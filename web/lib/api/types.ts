@@ -1,3 +1,4 @@
+import type { ConversationSystemText } from "@/lib/customer-conversation-summary-i18n"
 // ============================================================
 // Shared API types for RemoteHelpDesk enterprise/customer APIs
 // ============================================================
@@ -441,6 +442,7 @@ export interface EnterpriseWorkbenchConversation {
 	last_message_at: string
 	last_active_at: string
 	last_message_summary: string
+	last_message_summary_text?: ConversationSystemText | null
 	agent_unread_count: number
 	customer_unread_count: number
 	customer_online?: boolean

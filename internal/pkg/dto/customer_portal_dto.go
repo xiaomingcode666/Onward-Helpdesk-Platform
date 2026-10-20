@@ -90,25 +90,26 @@ type CustomerPortalSystemIntroDocDTO struct {
 }
 
 type CustomerPortalConversationDTO struct {
-	ID                    int64  `json:"id"`
-	Status                string `json:"status"`
-	ServiceMode           int    `json:"service_mode"`
-	HumanHandoffEnabled   bool   `json:"human_handoff_enabled"`
-	TicketCreationEnabled bool   `json:"ticket_creation_enabled"`
-	Priority              int    `json:"priority"`
-	LastMessageSummary    string `json:"last_message_summary"`
-	LastMessageAt         string `json:"last_message_at"`
-	LastActiveAt          string `json:"last_active_at"`
-	CustomerUnreadCount   int    `json:"customer_unread_count"`
-	DeviceID              int64  `json:"device_id"`
-	DeviceNo              string `json:"device_no"`
-	ProductName           string `json:"product_name"`
-	CurrentAssigneeID     int64  `json:"-"`
-	CurrentAssigneeName   string `json:"current_assignee_name"`
-	CurrentTicketID       int64  `json:"current_ticket_id"`
-	CurrentTicketNo       string `json:"current_ticket_no"`
-	CurrentMeetingID      string `json:"current_meeting_id"`
-	CurrentMeetingStatus  string `json:"current_meeting_status"`
+	ID                     int64       `json:"id"`
+	Status                 string      `json:"status"`
+	ServiceMode            int         `json:"service_mode"`
+	HumanHandoffEnabled    bool        `json:"human_handoff_enabled"`
+	TicketCreationEnabled  bool        `json:"ticket_creation_enabled"`
+	Priority               int         `json:"priority"`
+	LastMessageSummary     string      `json:"last_message_summary"`
+	LastMessageSummaryText *i18nx.Text `json:"last_message_summary_text,omitempty"`
+	LastMessageAt          string      `json:"last_message_at"`
+	LastActiveAt           string      `json:"last_active_at"`
+	CustomerUnreadCount    int         `json:"customer_unread_count"`
+	DeviceID               int64       `json:"device_id"`
+	DeviceNo               string      `json:"device_no"`
+	ProductName            string      `json:"product_name"`
+	CurrentAssigneeID      int64       `json:"-"`
+	CurrentAssigneeName    string      `json:"current_assignee_name"`
+	CurrentTicketID        int64       `json:"current_ticket_id"`
+	CurrentTicketNo        string      `json:"current_ticket_no"`
+	CurrentMeetingID       string      `json:"current_meeting_id"`
+	CurrentMeetingStatus   string      `json:"current_meeting_status"`
 }
 
 type CustomerPortalTicketProgressDTO struct {

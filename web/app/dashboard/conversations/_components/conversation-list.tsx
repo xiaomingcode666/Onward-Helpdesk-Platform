@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { IMConversationStatus } from "@/lib/generated/enums";
 import { useAgentConversationsStore } from "@/lib/stores/agent-conversations";
 import { formatDateTime } from "@/lib/utils";
+import { renderCustomerConversationSummary } from "@/lib/customer-conversation-summary-i18n";
 import { useI18n } from "@/i18n/provider";
 
 type ConversationListProps = {
@@ -76,7 +77,7 @@ export function ConversationList({ onAfterSelect }: ConversationListProps) {
                   </div>
                 </div>
                 <div className="mt-0.5 truncate text-xs leading-4 text-muted-foreground">
-                  {conversation.lastMessageSummary || t("conversation.noLatestMessage")}
+                  {renderCustomerConversationSummary(conversation.lastMessageSummary, t, t("conversation.noLatestMessage"), conversation.lastMessageSummaryText)}
                 </div>
                 {conversation.status === IMConversationStatus.Pending &&
                 conversation.currentTeamName ? (

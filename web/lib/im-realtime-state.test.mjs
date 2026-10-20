@@ -21,7 +21,7 @@ async function loadModule() {
         return { mergeImMessagesByIdAsc: () => [] }
       }
       if (id === "@/lib/im-message") {
-        return { summarizeIMMessage: () => "" }
+        return { summarizeIMMessage: () => "", getIMSystemSummaryText: () => undefined }
       }
       throw new Error(`Unexpected dependency: ${id}`)
     },

@@ -1,6 +1,9 @@
 package response
 
-import "remotehelpdesk/internal/pkg/enums"
+import (
+	"remotehelpdesk/internal/pkg/enums"
+	"remotehelpdesk/internal/pkg/i18nx"
+)
 
 type ConversationTagResponse struct {
 	ID   int64  `json:"id"`
@@ -41,6 +44,7 @@ type ConversationResponse struct {
 	LastMessageAt             string                          `json:"lastMessageAt,omitempty"`
 	LastActiveAt              string                          `json:"lastActiveAt,omitempty"`
 	LastMessageSummary        string                          `json:"lastMessageSummary,omitempty"`
+	LastMessageSummaryText    *i18nx.Text                     `json:"lastMessageSummaryText,omitempty"`
 	CustomerUnreadCount       int                             `json:"customerUnreadCount"`
 	AgentUnreadCount          int                             `json:"agentUnreadCount"`
 	CustomerLastReadMessageID int64                           `json:"customerLastReadMessageId"`
@@ -82,6 +86,7 @@ type CustomerConversationDetailResponse struct {
 	LastMessageAt             string                                    `json:"lastMessageAt,omitempty"`
 	LastActiveAt              string                                    `json:"lastActiveAt,omitempty"`
 	LastMessageSummary        string                                    `json:"lastMessageSummary,omitempty"`
+	LastMessageSummaryText    *i18nx.Text                               `json:"lastMessageSummaryText,omitempty"`
 	CustomerUnreadCount       int                                       `json:"customerUnreadCount"`
 	CustomerLastReadMessageID int64                                     `json:"customerLastReadMessageId,omitempty"`
 	CustomerLastReadAt        string                                    `json:"customerLastReadAt,omitempty"`

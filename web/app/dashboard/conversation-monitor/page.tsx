@@ -62,6 +62,7 @@ import {
   type TagTree,
 } from "@/lib/api/admin"
 import { useI18n } from "@/i18n/provider"
+import { renderCustomerConversationSummary } from "@/lib/customer-conversation-summary-i18n"
 import { formatDateTime } from "@/lib/utils"
 import { ConversationDetailDialog } from "./_components/detail"
 
@@ -740,7 +741,7 @@ export default function DashboardConversationsPage() {
                             })}
                           </div>
                           <div className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                            {item.lastMessageSummary || t("conversationMonitor.noLatestSummary")}
+                            {renderCustomerConversationSummary(item.lastMessageSummary, t, t("conversationMonitor.noLatestSummary"), item.lastMessageSummaryText)}
                           </div>
                         </div>
                       </TableCell>
